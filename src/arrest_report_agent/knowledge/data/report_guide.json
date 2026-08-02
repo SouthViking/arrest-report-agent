@@ -1,0 +1,82 @@
+{
+  "version": "2026-08-02",
+  "source": "Manual de procedimientos LSSD proporcionado para el MVP",
+  "sections": {
+    "overview": {
+      "purpose": "Evaluar si la narrativa permite entender y justificar el arresto sin exigir una plantilla rígida.",
+      "principles": [
+        "Priorizar hechos claros, cronología comprensible y relación entre conducta, evidencia y cargos.",
+        "Aceptar que el reporte puede aparecer como captura del juego, formulario, texto de Discord o varias imágenes.",
+        "No inventar información ausente ni exigir datos condicionales que no correspondan al incidente."
+      ]
+    },
+    "writing_style": {
+      "expected": [
+        "Primera persona y tiempo pasado, por su valor de declaración jurada.",
+        "Lenguaje directo, claro y fácil de entender.",
+        "Análisis global de la situación, con transiciones suficientes para seguir lo ocurrido."
+      ],
+      "avoid": [
+        "Resaltados innecesarios en negrita o cursiva dentro de la narrativa.",
+        "Uso generalizado de mayúsculas salvo nombres propios, códigos, callsigns o anexos que lo requieran."
+      ]
+    },
+    "narrative_structure": {
+      "recommended_order": [
+        "Introducción del agente, rango, nombre y asignación o callsign.",
+        "Situación previa y motivo por el cual se acercó o respondió a escena.",
+        "Localización y llegada.",
+        "Hechos relevantes en orden entendible.",
+        "Declaraciones y descripciones relevantes de testigos o sospechosos.",
+        "Evidencia, recursos y unidades adicionales.",
+        "Conclusión, arresto y disposición final."
+      ],
+      "flexibility": "No todos los incidentes requieren cada etapa ni el mismo orden; evaluar coherencia y suficiencia, no coincidencia literal con la plantilla."
+    },
+    "essential_content": {
+      "generally_required": [
+        "Cuándo ocurrió o cuándo se involucró el agente: fecha y hora aproximadas cuando estén disponibles.",
+        "Quiénes participaron: agente redactor y otros ayudantes relevantes.",
+        "Cómo se inició: llamada 911, observación propia, apoyo a otra unidad u otro origen.",
+        "Dónde ocurrió: localización o referencia suficiente.",
+        "Qué ocurrió y por qué la conducta justificó el arresto o la actuación.",
+        "Conclusión y resultado del incidente."
+      ],
+      "conditional": [
+        "Número de llamada 911: puede omitirse si no existe sistema o si el incidente no nació de una llamada.",
+        "Unidades adicionales y quién tomó el manejo: solo cuando participaron o sea relevante.",
+        "Números de bolsas de evidencia: cuando hubo evidencia asociada al arresto.",
+        "Simbología vinculada a organizaciones criminales: solo si fue observada y es pertinente.",
+        "Declaraciones de testigos, víctimas o sospechosos: cuando existieron y aportan al caso."
+      ]
+    },
+    "evidence": {
+      "expected_material": [
+        "Fotografías frontal y lateral del personaje detenido cuando se adjunten.",
+        "Narrativa del reporte, ya sea como captura, formulario o texto.",
+        "Listado o captura de los cargos declarados.",
+        "Evidencia adicional como bolsas, inventarios o grabaciones cuando corresponda."
+      ],
+      "closing_note": "La narrativa debería indicar por rol qué evidencia o grabaciones respaldarían el arresto cuando resulte aplicable.",
+      "format_flexibility": "La cantidad, orden y diseño de las imágenes puede variar. Identificar su función semántica antes de declarar que falta material."
+    },
+    "physical_description": {
+      "review_rule": "Contrastar únicamente características visibles que el reporte afirme de forma expresa, como vestimenta, colores, sombrero, gafas o accesorios.",
+      "flexibility": [
+        "Considerar iluminación, ángulo, compresión, pose y limitaciones gráficas del juego.",
+        "Una diferencia dudosa debe quedar como observación, no como corrección obligatoria.",
+        "Solicitar corrección solo ante una contradicción clara, relevante y visible.",
+        "No inferir raza, etnia, identidad real, salud ni otros atributos sensibles a partir de las imágenes."
+      ]
+    },
+    "charge_review": {
+      "rules": [
+        "Comparar cada cargo declarado con los hechos narrados y la descripción vigente del catálogo.",
+        "No asumir elementos del delito que no estén narrados o visibles.",
+        "Distinguir un cargo potencialmente incorrecto de un caso donde falta contexto para confirmarlo.",
+        "Usar IDs únicos del catálogo; un mismo código puede aparecer en más de una entrada."
+      ]
+    }
+  }
+}
+
