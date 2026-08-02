@@ -1,0 +1,37 @@
+from __future__ import annotations
+
+import pytest
+from pydantic import ValidationError
+
+from arrest_report_agent.config import AppSettings
+
+
+def test_settings_parse_channel_ids_and_identity(settings: AppSettings) -> None:
+    assert settings.review_channel_ids == frozenset(
+        {1462992794569281617, 1462992859761217745}
+    )
+    assert settings.identity.display_name == "Sgt. Vigil"
+    assert settings.openai_model == "gpt-5.6-terra"
+    assert settings.openai_reasoning_effort == "medium"
+
+
+def test_empty_manual_role_is_none() -> None:
+    settings = AppSettings(
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        DISCORD_GUILD_ID=1,
+        REVIEW_CHANNEL_IDS="2",
+        MANUAL_REVIEW_ROLE_ID="",
+    )
+    assert settings.manual_review_role_id is None
+
+
+def test_empty_secret_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        AppSettings(
+            DISCORD_TOKEN="",
+            OPENAI_API_KEY="openai",
+            DISCORD_GUILD_ID=1,
+            REVIEW_CHANNEL_IDS="2",
+        )
+
