@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from arrest_report_agent.infrastructure.discord import trigger
 from arrest_report_agent.infrastructure.discord.trigger import should_review_message
 
 
@@ -35,3 +36,15 @@ def test_bot_webhook_and_other_channel_are_ignored(settings) -> None:
         make_message(settings, mentions=[999], channel_id=555), 999, settings
     )
 
+
+def test_configured_child_thread_triggers(settings, monkeypatch) -> None:
+    class FakeThread:
+        def __init__(self, parent_id: int) -> None:
+            self.parent_id = parent_id
+            self.id = 777
+
+    monkeypatch.setattr(trigger.discord, "Thread", FakeThread)
+    message = make_message(settings, mentions=[999])
+    message.channel = FakeThread(min(settings.review_channel_ids))
+
+    assert should_review_message(message, 999, settings)

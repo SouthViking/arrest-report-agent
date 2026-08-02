@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 from arrest_report_agent.domain import (
     ContextState,
@@ -9,7 +10,11 @@ from arrest_report_agent.domain import (
     InteractionMode,
     ReviewCase,
 )
-from arrest_report_agent.infrastructure.discord.context import render_agent_input
+from arrest_report_agent.infrastructure.discord.context import (
+    DiscordContextBuilder,
+    ReviewTarget,
+    render_agent_input,
+)
 
 
 def test_render_includes_every_selected_character_and_report_image() -> None:
@@ -109,3 +114,36 @@ def test_render_preserves_reply_and_edit_context() -> None:
     assert "respuesta_a=4" in text
     assert "Falta justificar el cargo" in text
 
+
+def test_context_trimming_preserves_root_and_current_request(settings) -> None:
+    settings.thread_context_max_chars = 500
+    settings.thread_context_max_message_chars = 300
+
+    def message(message_id: int, content: str):
+        author = SimpleNamespace(id=10, display_name="Deputy", name="Deputy", bot=False)
+        return SimpleNamespace(
+            id=message_id,
+            content=content,
+            author=author,
+            created_at=datetime.fromtimestamp(message_id, tz=UTC),
+            edited_at=None,
+            reference=None,
+            attachments=[],
+        )
+
+    root = message(1, "ROOT " + "a" * 280)
+    old = message(2, "OLD " + "b" * 280)
+    trigger = message(3, "TRIGGER " + "c" * 280)
+    target = ReviewTarget(
+        root=root,
+        trigger=trigger,
+        parent=SimpleNamespace(id=20),
+        thread=SimpleNamespace(id=1),
+    )
+    builder = DiscordContextBuilder(settings)
+
+    converted, truncated = builder._convert_messages([root, old, trigger], target)
+
+    assert truncated
+    assert {item.id for item in converted} == {1, 3}
+    assert sum(len(item.content) for item in converted) <= 500
