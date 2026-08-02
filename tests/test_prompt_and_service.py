@@ -3,12 +3,14 @@ from __future__ import annotations
 import httpx
 import openai
 import pytest
+from pydantic import ValidationError
 
 from arrest_report_agent.application.prompt import build_agent_instructions
 from arrest_report_agent.application.service import ReviewService
 from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.config import BotIdentity
 from arrest_report_agent.domain import InteractionMode, ReviewCase
+from arrest_report_agent.domain.models import ReviewPublication
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
 
@@ -52,6 +54,23 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings) ->
     assert metadata["user_id"] == "5"
     assert metadata["environment"] == settings.app_environment
     assert metadata["charge_catalog_hash"] == catalog.source_hash
+
+
+def test_approved_publication_rejects_unresolved_charge() -> None:
+    with pytest.raises(ValidationError):
+        ReviewPublication(
+            verdict="approved",
+            summary="Aprobado.",
+            findings=[],
+            charges=[
+                {
+                    "declared_charge": "Cargo dudoso",
+                    "alignment": "uncertain",
+                    "note": "No hay contexto suficiente.",
+                }
+            ],
+            next_step="Archivar.",
+        )
 
 
 class FailurePublisher:

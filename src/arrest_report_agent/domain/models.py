@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .enums import ContextState, FindingSeverity, InteractionMode, ReviewVerdict
 
@@ -87,3 +87,22 @@ class ReviewPublication(BaseModel):
     next_step: str = Field(min_length=1, max_length=500)
     manual_review_reason: str | None = Field(default=None, max_length=500)
 
+    @model_validator(mode="after")
+    def validate_verdict_consistency(self) -> ReviewPublication:
+        material_findings = [
+            finding
+            for finding in self.findings
+            if finding.severity in {FindingSeverity.REQUIRED, FindingSeverity.WARNING}
+        ]
+        unsupported_charges = [
+            charge for charge in self.charges if charge.alignment != "supported"
+        ]
+        if self.verdict is ReviewVerdict.APPROVED and (
+            material_findings or unsupported_charges or self.manual_review_reason
+        ):
+            raise ValueError("An approved review cannot contain unresolved material findings")
+        if self.verdict is ReviewVerdict.CORRECTIONS_REQUIRED and not (
+            material_findings or unsupported_charges
+        ):
+            raise ValueError("Corrections required must identify a material finding")
+        return self

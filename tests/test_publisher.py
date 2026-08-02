@@ -9,6 +9,7 @@ from arrest_report_agent.infrastructure.discord.context import ReviewTarget
 from arrest_report_agent.infrastructure.discord.publisher import (
     DiscordReviewPublisher,
     build_review_embed,
+    build_review_embeds,
 )
 
 
@@ -78,6 +79,55 @@ def test_embed_is_structured_and_uses_runtime_identity(settings) -> None:
     assert "Cómo corregirlo" in embed.fields[0].value
 
 
+def test_long_review_is_split_without_dropping_findings(settings) -> None:
+    findings = [
+        ReviewFinding(
+            severity=FindingSeverity.REQUIRED,
+            title=f"Corrección {index}",
+            detail="Detalle material " * 20,
+            recommendation="Corregir el punto indicado.",
+        )
+        for index in range(12)
+    ]
+    review = ReviewPublication(
+        verdict="corrections_required",
+        summary="Se requieren varias correcciones.",
+        findings=findings,
+        charges=[],
+        next_step="Corregir y solicitar una nueva revisión.",
+    )
+
+    embeds = build_review_embeds(review, settings)
+    rendered_names = [field.name for embed in embeds for field in embed.fields]
+
+    assert len(embeds) == 4
+    assert all(any(f"Corrección {index}" in name for name in rendered_names) for index in range(12))
+    assert all(len(embed) <= 6000 for embed in embeds)
+
+
+def test_long_charge_review_stays_within_discord_embed_limits(settings) -> None:
+    review = ReviewPublication(
+        verdict="corrections_required",
+        summary="Los cargos requieren ajustes.",
+        findings=[],
+        charges=[
+            {
+                "charge_id": index,
+                "declared_charge": f"Cargo {index}",
+                "alignment": "unsupported",
+                "note": "La narrativa no acredita los elementos descritos. " * 8,
+            }
+            for index in range(10)
+        ],
+        next_step="Revisar los cargos y corregir el expediente.",
+    )
+
+    embeds = build_review_embeds(review, settings)
+
+    assert len(embeds) <= 10
+    assert all(len(embed) <= 6000 for embed in embeds)
+
+
 @pytest.mark.asyncio
 async def test_initial_approval_adds_ticket_without_thread(settings) -> None:
     root = FakeRoot()
@@ -104,5 +154,4 @@ async def test_correction_creates_thread_and_posts_embed(settings) -> None:
 
     assert root.added == ["❌"]
     assert root.created == 1
-    assert root.thread.sent[0]["embed"].title.startswith("❌")
-
+    assert root.thread.sent[0]["embeds"][0].title.startswith("❌")

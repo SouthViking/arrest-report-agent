@@ -119,6 +119,8 @@ class ReviewService:
                 latency_ms=round((time.monotonic() - started_at) * 1000),
                 technical_reference=technical_reference,
             )
+            if run_context.published:
+                return
             try:
                 await run_context.publisher.publish_failure(
                     classified.kind,

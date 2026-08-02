@@ -17,5 +17,5 @@ def create_bot(settings: AppSettings) -> discord.Bot:
     return discord.Bot(
         intents=intents,
         description=f"{settings.identity.display_name} · Revisión de reportes de arresto",
+        debug_guilds=[settings.discord_guild_id],
     )
-

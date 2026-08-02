@@ -37,7 +37,7 @@ class DiscordReviewPublisher:
             await self.target.root.add_reaction("✅")
             if self.target.thread is not None:
                 thread = await self._ensure_thread()
-                await thread.send(embed=build_review_embed(publication, self.settings))
+                await thread.send(embeds=build_review_embeds(publication, self.settings))
                 await self._archive_bot_owned_thread(thread)
             return
 
@@ -49,7 +49,7 @@ class DiscordReviewPublisher:
             mention = self._manual_role_mention()
         await thread.send(
             content=mention,
-            embed=build_review_embed(publication, self.settings),
+            embeds=build_review_embeds(publication, self.settings),
             allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False),
         )
 
@@ -124,6 +124,16 @@ class DiscordReviewPublisher:
 
 
 def build_review_embed(publication: ReviewPublication, settings: AppSettings) -> discord.Embed:
+    """Build the primary embed; retained as a compact rendering helper for tests and previews."""
+
+    return build_review_embeds(publication, settings)[0]
+
+
+def build_review_embeds(
+    publication: ReviewPublication, settings: AppSettings
+) -> list[discord.Embed]:
+    """Split a structured review into Discord-safe embeds without dropping findings."""
+
     colors = {
         ReviewVerdict.APPROVED: discord.Color.green(),
         ReviewVerdict.CORRECTIONS_REQUIRED: discord.Color.red(),
@@ -134,7 +144,7 @@ def build_review_embed(publication: ReviewPublication, settings: AppSettings) ->
         ReviewVerdict.CORRECTIONS_REQUIRED: "❌ Correcciones requeridas",
         ReviewVerdict.INCONCLUSIVE: "⚠️ Revisión inconclusa",
     }
-    embed = discord.Embed(
+    primary = discord.Embed(
         title=f"{titles[publication.verdict]} · {settings.identity.display_name}",
         description=publication.summary,
         color=colors[publication.verdict],
@@ -144,32 +154,61 @@ def build_review_embed(publication: ReviewPublication, settings: AppSettings) ->
         FindingSeverity.WARNING: "🟠",
         FindingSeverity.OBSERVATION: "🔎",
     }
-    for finding in publication.findings[:12]:
+    embeds = [primary]
+    for index, finding in enumerate(publication.findings):
+        if index and index % 5 == 0:
+            embeds.append(
+                discord.Embed(
+                    title=f"Continuación · {settings.identity.display_name}",
+                    color=colors[publication.verdict],
+                )
+            )
         evidence = f"\n**Referencia:** {finding.evidence}" if finding.evidence else ""
         value = (
             f"{finding.detail}{evidence}\n**Cómo corregirlo:** {finding.recommendation}"
-        )[:1024]
-        embed.add_field(
+        )[:850]
+        embeds[-1].add_field(
             name=f"{severity_icons[finding.severity]} {finding.title}"[:256],
             value=value,
             inline=False,
         )
-    if publication.charges and len(embed.fields) < 24:
+
+    if publication.charges:
         charge_lines = [
             f"• **{charge.declared_charge}** — {charge.alignment}: {charge.note}"
             for charge in publication.charges
         ]
-        embed.add_field(name="⚖️ Cargos", value="\n".join(charge_lines)[:1024], inline=False)
-    if len(embed.fields) < 25:
-        embed.add_field(name="Siguiente paso", value=publication.next_step[:1024], inline=False)
-    if publication.manual_review_reason and len(embed.fields) < 25:
-        embed.add_field(
+        charge_chunks = _chunk_lines(charge_lines, limit=1000)
+        for group_start in range(0, len(charge_chunks), 5):
+            charge_embed = discord.Embed(
+                title="⚖️ Revisión de cargos",
+                color=colors[publication.verdict],
+            )
+            for index, chunk in enumerate(charge_chunks[group_start : group_start + 5]):
+                charge_embed.add_field(
+                    name=(
+                        "Cargos"
+                        if group_start == 0 and index == 0
+                        else "Cargos · continuación"
+                    ),
+                    value=chunk,
+                    inline=False,
+                )
+            embeds.append(charge_embed)
+    conclusion = discord.Embed(
+        title="Cierre de la revisión",
+        color=colors[publication.verdict],
+    )
+    conclusion.add_field(name="Siguiente paso", value=publication.next_step[:1024], inline=False)
+    if publication.manual_review_reason:
+        conclusion.add_field(
             name="Derivación manual",
             value=publication.manual_review_reason[:1024],
             inline=False,
         )
-    embed.set_footer(text=settings.identity.role_title)
-    return embed
+    conclusion.set_footer(text=settings.identity.role_title)
+    embeds.append(conclusion)
+    return embeds[:10]
 
 
 def _safe_thread_name(content: str, message_id: int) -> str:
@@ -178,3 +217,19 @@ def _safe_thread_name(content: str, message_id: int) -> str:
     normalized = " ".join(without_mentions.split())
     return (normalized[:90] or f"Revisión {message_id}")
 
+
+def _chunk_lines(lines: list[str], limit: int) -> list[str]:
+    chunks: list[str] = []
+    current = ""
+    for line in lines:
+        bounded_line = line[:limit]
+        candidate = bounded_line if not current else f"{current}\n{bounded_line}"
+        if len(candidate) <= limit:
+            current = candidate
+            continue
+        if current:
+            chunks.append(current)
+        current = bounded_line
+    if current:
+        chunks.append(current)
+    return chunks
