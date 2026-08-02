@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -35,3 +37,18 @@ def test_empty_secret_is_rejected() -> None:
             REVIEW_CHANNEL_IDS="2",
         )
 
+
+def test_default_env_template_values_are_parseable(tmp_path) -> None:
+    source = Path("default.env").read_text(encoding="utf-8")
+    populated = source.replace("DISCORD_TOKEN=\n", "DISCORD_TOKEN=discord\n").replace(
+        "OPENAI_API_KEY=\n", "OPENAI_API_KEY=openai\n"
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text(populated, encoding="utf-8")
+
+    settings = AppSettings(_env_file=env_file)
+
+    assert settings.thread_auto_archive_minutes == 1440
+    assert settings.review_channel_ids == frozenset(
+        {1462992794569281617, 1462992859761217745}
+    )

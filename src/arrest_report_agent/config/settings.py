@@ -82,7 +82,7 @@ class AppSettings(BaseSettings):
     thread_context_max_historical_images: int = Field(
         default=2, alias="THREAD_CONTEXT_MAX_HISTORICAL_IMAGES", ge=0, le=10
     )
-    thread_auto_archive_minutes: Literal[60, 1440, 4320, 10080] = Field(
+    thread_auto_archive_minutes: int = Field(
         default=1440, alias="THREAD_AUTO_ARCHIVE_MINUTES"
     )
 
@@ -96,6 +96,14 @@ class AppSettings(BaseSettings):
     def parse_optional_snowflake(cls, value: object) -> object:
         if value == "":
             return None
+        return value
+
+    @field_validator("thread_auto_archive_minutes")
+    @classmethod
+    def validate_archive_duration(cls, value: int) -> int:
+        allowed = {60, 1440, 4320, 10080}
+        if value not in allowed:
+            raise ValueError(f"must be one of {sorted(allowed)}")
         return value
 
     @model_validator(mode="after")
@@ -131,4 +139,3 @@ def load_settings() -> AppSettings:
     """Load and cache process settings."""
 
     return AppSettings()  # type: ignore[call-arg]
-
