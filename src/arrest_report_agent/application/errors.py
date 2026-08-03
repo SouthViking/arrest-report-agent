@@ -49,8 +49,9 @@ def public_error_message(kind: ErrorKind) -> str:
 
     messages = {
         ErrorKind.QUOTA_EXCEEDED: (
-            "Central no autorizó más consumo de IA por el momento. El reporte quedó derivado "
-            "para revisión manual hasta que se reponga la cuota."
+            "Central reporta una indisponibilidad operativa y no puedo completar la revisión "
+            "en este momento. El expediente queda derivado para revisión manual hasta que el "
+            "servicio vuelva a estar disponible."
         ),
         ErrorKind.RATE_LIMITED: (
             "La central está recibiendo demasiadas solicitudes. Intenta mencionarme nuevamente "

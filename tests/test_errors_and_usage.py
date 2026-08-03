@@ -30,7 +30,12 @@ def test_error_classifier_distinguishes_quota_and_rate_limit(settings) -> None:
     assert classify_error(quota).kind is ErrorKind.QUOTA_EXCEEDED
     assert classify_error(limited).kind is ErrorKind.RATE_LIMITED
     message = public_error_message(ErrorKind.QUOTA_EXCEEDED)
-    assert "consumo de IA" in message
+    assert "indisponibilidad operativa" in message
+    assert "revisión manual" in message
+    assert "IA" not in message
+    assert "cuota" not in message.casefold()
+    assert "crédito" not in message.casefold()
+    assert "openai" not in message.casefold()
     assert settings.identity.display_name not in message
     assert "informa" not in message
 
