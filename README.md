@@ -45,8 +45,12 @@ DISCORD_GUILD_ID=1234674521416663070
 REVIEW_CHANNEL_IDS=1462992794569281617,1462992859761217745
 OPENAI_MODEL=gpt-5.6-terra
 OPENAI_REASONING_EFFORT=medium
-OPENAI_IMAGE_DETAIL=original
 ```
+
+El modelo y el nivel de razonamiento son la única selección de modelo requerida en el entorno. El
+detalle de imagen, verbosity, límite de salida, service tier, capacidades admitidas y precios se
+resuelven al iniciar desde el catálogo JSON interno. Una combinación desconocida detiene el arranque
+con un error explícito en vez de aplicar valores silenciosos.
 
 La identidad puede cambiarse sin tocar código ni prompts:
 
@@ -93,9 +97,7 @@ Comandos disponibles:
 |---|---:|---|
 | `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | Modelo del runner. |
-| `OPENAI_REASONING_EFFORT` | `medium` | Esfuerzo de razonamiento; puede optimizarse después. |
-| `OPENAI_IMAGE_DETAIL` | `original` | Conserva texto pequeño y detalle visual. |
-| `OPENAI_MAX_OUTPUT_TOKENS` | `2500` | Límite por respuesta del modelo. |
+| `OPENAI_REASONING_EFFORT` | `medium` | Esfuerzo validado contra los valores admitidos por el modelo. |
 | `OPENAI_MAX_RETRIES` | `2` | Reintentos del proveedor. |
 | `REVIEW_TIMEOUT_SECONDS` | `180` | Tiempo total máximo de una revisión. |
 | `MAX_CONCURRENT_REVIEWS` | `2` | Límite global en memoria. |
@@ -104,8 +106,12 @@ Comandos disponibles:
 | `OPENAI_TRACING_ENABLED` | `true` | Habilita traces del Agents SDK. |
 | `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA` | `false` | Excluye mensajes, imágenes y tool payloads del trace. |
 
-Las tarifas por millón de tokens usadas únicamente para estimar costo en logs también son variables
-de entorno. Deben actualizarse al cambiar de modelo; no afectan la facturación real de OpenAI.
+El catálogo versionado
+[`models.json`](src/arrest_report_agent/config/data/models.json) contiene las capacidades, defaults y
+tarifas del modelo soportado. El runtime calcula el costo estimado desde los contadores reales del
+Runner, incluyendo entrada normal, entrada cacheada, escrituras de caché y salida. Los tokens de
+razonamiento se registran por separado, pero no se cobran dos veces porque ya forman parte de los
+tokens de salida. Estas cifras son estimaciones operativas y no reemplazan la facturación de OpenAI.
 
 ## Calidad y pruebas
 
@@ -132,7 +138,8 @@ distintas para LSSD, LSPD u otras organizaciones. Consulta [Arquitectura](docs/A
 
 ## Privacidad y observabilidad
 
-Los logs contienen identificadores técnicos, latencia, modelo, uso de tokens, costo aproximado y
-veredicto. No registran nombres, narrativa, OCR, URLs de adjuntos ni respuestas completas. Los traces
-usan IDs de servidor, canal, hilo, mensajes y usuario para depuración, con payload sensible desactivado.
+Los logs contienen identificadores técnicos, latencia, modelo, usage crudo, desglose de costo
+estimado y veredicto. No registran nombres, narrativa, OCR, URLs de adjuntos ni respuestas completas.
+Los traces usan IDs de servidor, canal, hilo, mensajes y usuario para depuración, con payload sensible
+desactivado.
 Consulta [Privacidad y errores](docs/PRIVACY_AND_ERRORS.md).

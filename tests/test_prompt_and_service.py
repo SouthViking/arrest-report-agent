@@ -23,10 +23,10 @@ def test_identity_is_injected_without_prompt_hardcoding() -> None:
     assert "Sgt. Vigil" not in prompt
 
 
-def test_service_registers_terminal_publish_tool_and_trace_metadata(settings) -> None:
+def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, model) -> None:
     catalog = ChargeCatalog.load_default()
     guide = ReportGuide.load_default()
-    service = ReviewService(settings, catalog, guide)
+    service = ReviewService(settings, catalog, guide, model)
     tool_names = [tool.name for tool in service.agent.tools]
     case = ReviewCase(
         guild_id=1,
@@ -55,6 +55,8 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings) ->
     assert metadata["user_id"] == "5"
     assert metadata["environment"] == settings.app_environment
     assert metadata["charge_catalog_hash"] == catalog.source_hash
+    assert metadata["reasoning_effort"] == model.reasoning_effort
+    assert metadata["pricing_version"] == model.pricing_version
 
 
 def test_approved_publication_rejects_unresolved_charge() -> None:
@@ -90,9 +92,14 @@ class FailurePublisher:
 
 @pytest.mark.asyncio
 async def test_service_contains_timeout_and_publishes_contextual_failure(
-    settings, monkeypatch, caplog
+    settings, model, monkeypatch, caplog
 ) -> None:
-    service = ReviewService(settings, ChargeCatalog.load_default(), ReportGuide.load_default())
+    service = ReviewService(
+        settings,
+        ChargeCatalog.load_default(),
+        ReportGuide.load_default(),
+        model,
+    )
     case = ReviewCase(
         guild_id=1,
         parent_channel_id=2,

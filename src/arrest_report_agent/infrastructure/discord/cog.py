@@ -250,7 +250,10 @@ class ReviewCog(commands.Cog):
                     publisher=publisher,
                     attempt=attempt,
                 )
-                agent_input = render_agent_input(case, self.settings.openai_image_detail)
+                agent_input = render_agent_input(
+                    case,
+                    self.service.model.runtime_defaults.image_detail,
+                )
                 await self.service.review(run_context, agent_input)
         finally:
             if not lock.locked():

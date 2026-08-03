@@ -25,7 +25,7 @@ arrest-report-agent = "arrest_report_agent.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-arrest_report_agent = ["knowledge/data/*.json"]
+arrest_report_agent = ["config/data/*.json", "knowledge/data/*.json"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}

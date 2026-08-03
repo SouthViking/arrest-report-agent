@@ -7,6 +7,7 @@ flowchart LR
     M["Mensaje con mención"] --> T["Política de trigger"]
     T --> C["Contexto acotado de Discord"]
     C --> R["Runner de OpenAI"]
+    J["Catálogo JSON de modelos"] --> R
     R --> G["Guía local"]
     R --> D["Índice de delitos"]
     R --> P["Tools de publicación"]
@@ -19,6 +20,7 @@ la unidad de exclusión mutua: dos menciones simultáneas para el mismo reporte 
 ## Capas
 
 - `domain`: modelos Pydantic y enums que definen el contrato de revisión.
+- `config`: entorno y catálogo JSON validado de capacidades, defaults y precios por modelo.
 - `knowledge`: guía versionada e índice del JSON del PCU, cargados y validados al iniciar.
 - `application`: prompt, tools, contexto del runner, errores, tracing y orquestación.
 - `infrastructure/discord`: trigger, reconstrucción de hilos, embeds, reacciones y comandos.
@@ -35,6 +37,17 @@ la unidad de exclusión mutua: dos menciones simultáneas para el mismo reporte 
 
 `parallel_tool_calls` permanece deshabilitado para mantener un orden determinista en efectos
 externos. La publicación terminal impide que el runner continúe generando después de actuar.
+
+## Resolución del modelo y costos
+
+El entorno selecciona únicamente `OPENAI_MODEL` y `OPENAI_REASONING_EFFORT`. Al arrancar, el runtime
+carga `config/data/models.json`, lo valida con Pydantic y rechaza modelos o efforts no soportados. El
+catálogo aporta detalle de imagen, verbosity, límite de salida, service tier y tarifas.
+
+El costo se calcula desde `Usage` del Agents SDK. Se conservan los contadores crudos y cada llamada
+se tarifa de forma independiente para seleccionar correctamente el tramo de contexto. Las escrituras
+de caché tienen su propia tarifa; `reasoning_tokens` es un subconjunto de `output_tokens` y no se suma
+por segunda vez.
 
 ## Contexto de hilo
 
@@ -56,4 +69,3 @@ contexto quedó `complete`, `truncated` o `unavailable` para evitar conclusiones
 persistencia puede almacenar configuración, intentos, veredictos y threads sin cambiar el contrato
 de `ReviewPublication`. Una API de PCU/OpenMP puede reemplazar `ChargeCatalog` mediante el mismo
 interfaz de consulta; una tabla por guild/facción puede sustituir las variables de entorno.
-

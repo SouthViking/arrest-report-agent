@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from functools import cached_property, lru_cache
-from typing import Literal
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -39,16 +37,9 @@ class AppSettings(BaseSettings):
     health_port: int = Field(default=8080, alias="HEALTH_PORT", ge=1, le=65535)
 
     openai_model: str = Field(default="gpt-5.6-terra", alias="OPENAI_MODEL", min_length=1)
-    openai_reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] = Field(
-        default="medium", alias="OPENAI_REASONING_EFFORT"
+    openai_reasoning_effort: str = Field(
+        default="medium", alias="OPENAI_REASONING_EFFORT", min_length=1
     )
-    openai_image_detail: Literal["low", "high", "auto", "original"] = Field(
-        default="original", alias="OPENAI_IMAGE_DETAIL"
-    )
-    openai_text_verbosity: Literal["low", "medium", "high"] = Field(
-        default="low", alias="OPENAI_TEXT_VERBOSITY"
-    )
-    openai_max_output_tokens: int = Field(default=2500, alias="OPENAI_MAX_OUTPUT_TOKENS", ge=256)
     openai_max_retries: int = Field(default=2, alias="OPENAI_MAX_RETRIES", ge=0, le=10)
     openai_tracing_enabled: bool = Field(default=True, alias="OPENAI_TRACING_ENABLED")
     openai_trace_include_sensitive_data: bool = Field(
@@ -56,16 +47,6 @@ class AppSettings(BaseSettings):
     )
     trace_workflow_name: str = Field(
         default="arrest_report_review", alias="TRACE_WORKFLOW_NAME", min_length=1
-    )
-
-    openai_input_cost_per_million: Decimal = Field(
-        default=Decimal("2.50"), alias="OPENAI_INPUT_COST_PER_MILLION", ge=0
-    )
-    openai_cached_input_cost_per_million: Decimal = Field(
-        default=Decimal("0.25"), alias="OPENAI_CACHED_INPUT_COST_PER_MILLION", ge=0
-    )
-    openai_output_cost_per_million: Decimal = Field(
-        default=Decimal("15.00"), alias="OPENAI_OUTPUT_COST_PER_MILLION", ge=0
     )
 
     review_timeout_seconds: float = Field(default=180, alias="REVIEW_TIMEOUT_SECONDS", gt=0)

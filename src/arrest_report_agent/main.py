@@ -26,7 +26,11 @@ async def run() -> None:
         "runtime_started",
         environment=settings.app_environment,
         version=settings.app_version,
-        model=settings.openai_model,
+        model=runtime.model.id,
+        reasoning_effort=runtime.model.reasoning_effort,
+        service_tier=runtime.model.runtime_defaults.service_tier,
+        model_catalog_schema_version=runtime.model.catalog_schema_version,
+        pricing_version=runtime.model.pricing_version,
         guild_id=settings.discord_guild_id,
         channels=len(settings.review_channel_ids),
     )

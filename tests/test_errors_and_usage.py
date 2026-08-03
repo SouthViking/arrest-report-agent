@@ -60,21 +60,52 @@ def test_error_classifier_handles_timeout_auth_and_provider() -> None:
     )
 
 
-def test_usage_summary_estimates_cost_without_content(settings) -> None:
+def test_usage_summary_keeps_raw_tokens_and_catalog_cost_breakdown(model, caplog) -> None:
     usage = Usage(
         requests=2,
         input_tokens=10_000,
-        input_tokens_details={"cached_tokens": 2_000, "cache_write_tokens": 0},
+        input_tokens_details={"cached_tokens": 2_000, "cache_write_tokens": 1_000},
         output_tokens=1_000,
         output_tokens_details={"reasoning_tokens": 600},
         total_tokens=11_000,
     )
 
-    summary = summarize_usage(usage, settings)
+    summary = summarize_usage(usage, model)
 
+    assert summary.input_tokens == 10_000
     assert summary.cached_input_tokens == 2_000
+    assert summary.cache_write_input_tokens == 1_000
+    assert summary.uncached_input_tokens == 7_000
+    assert summary.output_tokens == 1_000
     assert summary.reasoning_tokens == 600
-    assert summary.estimated_cost_usd == Decimal("0.035500")
+    assert summary.visible_output_tokens == 400
+    assert summary.total_tokens == 11_000
+    assert summary.uncached_input_cost_usd == Decimal("0.01400000")
+    assert summary.cached_input_cost_usd == Decimal("0.00040000")
+    assert summary.cache_write_input_cost_usd == Decimal("0.00250000")
+    assert summary.output_cost_usd == Decimal("0.01200000")
+    assert summary.estimated_cost_usd == Decimal("0.02890000")
+    assert summary.pricing_context_bands == "short:1"
+    assert summary.pricing_service_tier == "default"
+    assert summary.pricing_tier_name == "standard"
+    assert summary.pricing_version == "2026-07-30"
+    assert summary.pricing_currency == "USD"
+    assert summary.pricing_calculation_basis == "aggregate_fallback"
+    assert summary.priced_requests == 1
+    log_fields = summary.to_log_fields()
+    assert log_fields["input_tokens"] == 10_000
+    assert log_fields["estimated_cost_usd"] == 0.0289
+    assert isinstance(log_fields["estimated_cost_usd"], float)
+
+    logger = logging.getLogger("tests.usage_logging")
+    with caplog.at_level(logging.INFO, logger=logger.name):
+        log_event(logger, "info", "review_completed", **log_fields)
+    payload = json.loads(JsonLogFormatter(indented=False).format(caplog.records[-1]))
+    assert payload["input_tokens"] == 10_000
+    assert payload["cache_write_input_tokens"] == 1_000
+    assert payload["reasoning_tokens"] == 600
+    assert payload["estimated_cost_usd"] == 0.0289
+    assert payload["pricing_version"] == "2026-07-30"
 
 
 def test_error_log_keeps_structured_fields_and_full_traceback(caplog) -> None:
