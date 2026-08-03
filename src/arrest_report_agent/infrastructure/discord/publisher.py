@@ -11,7 +11,7 @@ from arrest_report_agent.config import AppSettings
 from arrest_report_agent.domain import FindingSeverity, ReviewPublication, ReviewVerdict
 from arrest_report_agent.domain.errors import PublicationError
 
-from .context import ReviewTarget
+from .context import DiscordResponseRoute, ReviewTarget
 
 STATUS_EMOJIS = ("⏳", "✅", "❌", "⚠️")
 
@@ -24,8 +24,7 @@ class DiscordReviewPublisher:
         self._thread = target.thread
         self._manual_role_pinged = False
 
-    async def begin(self, case_subject: str | None = None) -> None:
-        del case_subject
+    async def mark_review_started(self) -> None:
         try:
             await self.target.root.add_reaction("⏳")
         except (discord.Forbidden, discord.HTTPException) as error:
@@ -35,26 +34,26 @@ class DiscordReviewPublisher:
         await self._clear_bot_status_reactions()
         if publication.verdict is ReviewVerdict.APPROVED:
             await self.target.root.add_reaction("✅")
-            if self.target.thread is not None:
-                thread = await self._ensure_thread()
-                await thread.send(embeds=build_review_embeds(publication, self.settings))
+            thread = await self._send_routed_payload(
+                embeds=build_review_embeds(publication, self.settings),
+            )
+            if thread is not None:
                 await self._archive_bot_owned_thread(thread)
             return
 
         reaction = "❌" if publication.verdict is ReviewVerdict.CORRECTIONS_REQUIRED else "⚠️"
         await self.target.root.add_reaction(reaction)
-        thread = await self._ensure_thread()
         mention = None
         if publication.verdict is ReviewVerdict.INCONCLUSIVE:
             mention = self._manual_role_mention()
-        await thread.send(
+        await self._send_routed_payload(
             content=mention,
             embeds=build_review_embeds(publication, self.settings),
             allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False),
         )
 
-    async def reply(self, content: str) -> None:
-        """Reply normally without creating review state, reactions, threads or embeds."""
+    async def send_message(self, content: str) -> None:
+        """Send plain enriched text through the preselected Discord response route."""
 
         chunks = _chunk_text(content.strip(), limit=2000)
         if not chunks:
@@ -66,18 +65,58 @@ class DiscordReviewPublisher:
             replied_user=False,
         )
         try:
-            await self.target.trigger.reply(
-                content=chunks[0],
-                mention_author=False,
-                allowed_mentions=allowed_mentions,
-            )
-            for chunk in chunks[1:]:
-                await self.target.trigger.channel.send(
-                    content=chunk,
+            if self.target.response_route is DiscordResponseRoute.THREAD:
+                thread = await self._ensure_thread()
+                for chunk in chunks:
+                    await thread.send(
+                        content=chunk,
+                        allowed_mentions=allowed_mentions,
+                    )
+            else:
+                await self.target.trigger.reply(
+                    content=chunks[0],
+                    mention_author=False,
                     allowed_mentions=allowed_mentions,
                 )
+                for chunk in chunks[1:]:
+                    await self.target.trigger.channel.send(
+                        content=chunk,
+                        allowed_mentions=allowed_mentions,
+                    )
         except (discord.Forbidden, discord.HTTPException) as error:
             raise PublicationError("Unable to publish agent response") from error
+
+    async def _send_routed_payload(
+        self,
+        *,
+        content: str | None = None,
+        embed: discord.Embed | None = None,
+        embeds: list[discord.Embed] | None = None,
+        allowed_mentions: discord.AllowedMentions | None = None,
+    ) -> discord.Thread | None:
+        """Send review output to the route fixed before the runner was invoked."""
+
+        mentions = allowed_mentions or discord.AllowedMentions.none()
+        try:
+            if self.target.response_route is DiscordResponseRoute.THREAD:
+                thread = await self._ensure_thread()
+                await thread.send(
+                    content=content,
+                    embed=embed,
+                    embeds=embeds,
+                    allowed_mentions=mentions,
+                )
+                return thread
+            await self.target.trigger.reply(
+                content=content,
+                embed=embed,
+                embeds=embeds,
+                mention_author=False,
+                allowed_mentions=mentions,
+            )
+            return None
+        except (discord.Forbidden, discord.HTTPException) as error:
+            raise PublicationError("Unable to publish routed review output") from error
 
     async def publish_failure(
         self,
@@ -86,7 +125,6 @@ class DiscordReviewPublisher:
         await self._clear_bot_status_reactions()
         with contextlib.suppress(discord.Forbidden, discord.HTTPException):
             await self.target.root.add_reaction("⚠️")
-        thread = await self._ensure_thread()
         embed = discord.Embed(
             title="⚠️ Incidencia de revisión",
             description=public_message,
@@ -97,7 +135,7 @@ class DiscordReviewPublisher:
             value="Reintentar cuando corresponda o derivar el expediente a un supervisor.",
             inline=False,
         )
-        await thread.send(
+        await self._send_routed_payload(
             content=self._manual_role_mention(),
             embed=embed,
             allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False),
@@ -151,9 +189,7 @@ def build_review_embed(publication: ReviewPublication, settings: AppSettings) ->
     return build_review_embeds(publication, settings)[0]
 
 
-def build_review_embeds(
-    publication: ReviewPublication, settings: AppSettings
-) -> list[discord.Embed]:
+def build_review_embeds(publication: ReviewPublication, settings: AppSettings) -> list[discord.Embed]:
     """Split a structured review into Discord-safe embeds without dropping findings."""
 
     colors = {
@@ -186,9 +222,7 @@ def build_review_embeds(
                 )
             )
         evidence = f"\n**Referencia:** {finding.evidence}" if finding.evidence else ""
-        value = (
-            f"{finding.detail}{evidence}\n**Cómo corregirlo:** {finding.recommendation}"
-        )[:850]
+        value = (f"{finding.detail}{evidence}\n**Cómo corregirlo:** {finding.recommendation}")[:850]
         embeds[-1].add_field(
             name=f"{severity_icons[finding.severity]} {finding.title}"[:256],
             value=value,
@@ -208,11 +242,7 @@ def build_review_embeds(
             )
             for index, chunk in enumerate(charge_chunks[group_start : group_start + 5]):
                 charge_embed.add_field(
-                    name=(
-                        "Cargos"
-                        if group_start == 0 and index == 0
-                        else "Cargos · continuación"
-                    ),
+                    name=("Cargos" if group_start == 0 and index == 0 else "Cargos · continuación"),
                     value=chunk,
                     inline=False,
                 )
@@ -237,7 +267,7 @@ def _safe_thread_name(content: str, message_id: int) -> str:
     first_line = next((line.strip() for line in content.splitlines() if line.strip()), "")
     without_mentions = re.sub(r"<@!?\d+>", "", first_line).strip()
     normalized = " ".join(without_mentions.split())
-    return (normalized[:90] or f"Revisión {message_id}")
+    return normalized[:90] or f"Revisión {message_id}"
 
 
 def _chunk_lines(lines: list[str], limit: int) -> list[str]:

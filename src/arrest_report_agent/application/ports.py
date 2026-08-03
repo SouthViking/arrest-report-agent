@@ -4,18 +4,23 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from arrest_report_agent.domain import ReviewPublication
+from arrest_report_agent.domain import AgentActivity, ReviewPublication
+
+
+class ActivityTracker(Protocol):
+    async def promote(self, activity: AgentActivity) -> None:
+        """Promote one active interaction without downgrading higher-priority work."""
 
 
 class ReviewPublisher(Protocol):
-    async def begin(self, case_subject: str | None = None) -> None:
-        """Show that the review has started without creating a thread."""
+    async def mark_review_started(self) -> None:
+        """Show deterministically that a classified review has started."""
 
     async def publish(self, publication: ReviewPublication) -> None:
         """Publish a terminal review and execute its Discord side effects."""
 
-    async def reply(self, content: str) -> None:
-        """Send a natural terminal response to the triggering Discord message."""
+    async def send_message(self, content: str) -> None:
+        """Send a natural Discord-formatted message to the triggering interaction."""
 
     async def publish_failure(
         self,

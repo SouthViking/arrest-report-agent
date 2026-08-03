@@ -113,17 +113,17 @@ def build_help_embed(
         name="📣 Cómo solicitar una revisión",
         value=(
             f"Publica el reporte con sus adjuntos e incluye a {bot_mention} en cualquier parte "
-            "del mensaje. Si ya existe un hilo, puedes volver a mencionarme allí: leeré el "
-            "historial reciente para continuar la revisión."
+            "del mensaje: abriré un hilo para mantener despejado el canal. Si respondes "
+            "directamente a uno de mis mensajes en el canal, contestaré allí mismo."
         ),
         inline=False,
     )
     embed.add_field(
         name="🧵 Qué haré con el expediente",
         value=(
-            "Marcaré la revisión en curso con ⏳. Si está correcta, dejaré ✅; "
-            "si requiere ajustes, dejaré ❌ y abriré un hilo con observaciones claras para "
-            "que podamos iterar sin llenar el canal de papeleo."
+            "Dentro de un hilo, las menciones y respuestas seguirán en ese mismo lugar y leeré "
+            "el historial reciente. Al revisar, marcaré ⏳; si está correcto dejaré ✅ y, si "
+            "requiere ajustes, ❌ con observaciones claras."
         ),
         inline=False,
     )
@@ -132,7 +132,9 @@ def build_help_embed(
         value=(f"• [Código Penal]({PENAL_CODE_URL})\n• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"),
         inline=False,
     )
-    embed.set_footer(text="No intervengo sin una mención. El papeleo no se aprueba solo, deputy.")
+    embed.set_footer(
+        text="Intervengo con una mención o una respuesta directa. El papeleo no se aprueba solo, deputy."
+    )
     if avatar_url:
         embed.set_thumbnail(url=avatar_url)
     return embed
@@ -185,7 +187,9 @@ class ReviewCog(commands.Cog):
         self.presence = ReviewPresence(
             bot,
             idle_text=settings.bot_idle_activity,
-            busy_text=settings.bot_busy_activity,
+            conversation_text=settings.bot_conversation_activity,
+            knowledge_text=settings.bot_knowledge_activity,
+            review_text=settings.bot_review_activity,
         )
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_reviews)
         self._locks: dict[int, asyncio.Lock] = {}
@@ -200,17 +204,11 @@ class ReviewCog(commands.Cog):
             "info",
             "discord_ready",
             bot_user_id=self.bot.user.id if self.bot.user else "unknown",
-            guild_access_mode=(
-                "restricted" if self.access_policy.guilds.is_restricted else "open"
-            ),
+            guild_access_mode=("restricted" if self.access_policy.guilds.is_restricted else "open"),
             configured_guilds=self.access_policy.guilds.configured_count,
-            channel_access_mode=(
-                "restricted" if self.access_policy.channels.is_restricted else "open"
-            ),
+            channel_access_mode=("restricted" if self.access_policy.channels.is_restricted else "open"),
             configured_channels=self.access_policy.channels.configured_count,
-            user_access_mode=(
-                "restricted" if self.access_policy.users.is_restricted else "open"
-            ),
+            user_access_mode=("restricted" if self.access_policy.users.is_restricted else "open"),
             configured_users=self.access_policy.users.configured_count,
         )
 
@@ -219,7 +217,8 @@ class ReviewCog(commands.Cog):
         bot_user = self.bot.user
         if bot_user is None:
             return
-        decision = self.access_policy.classify(message, bot_user.id)
+        evaluation = await self.access_policy.evaluate_event(message, bot_user.id)
+        decision = evaluation.decision
         if decision is TriggerDecision.REDIRECT_UNAUTHORIZED_USER:
             await self._redirect_unauthorized_user(message)
             return
@@ -228,8 +227,21 @@ class ReviewCog(commands.Cog):
             return
         if decision is not TriggerDecision.REVIEW:
             return
+        if evaluation.activation is None:
+            log_event(
+                LOGGER,
+                "warning",
+                "review_activation_unavailable",
+                message_id=message.id,
+                channel_id=message.channel.id,
+                user_id=message.author.id,
+            )
+            return
         try:
-            target = await self.context_builder.resolve_target(message)
+            target = await self.context_builder.resolve_target(
+                message,
+                evaluation.activation,
+            )
         except ContextUnavailableError as error:
             log_event(
                 LOGGER,
@@ -258,7 +270,7 @@ class ReviewCog(commands.Cog):
                 lock,
                 maintain_typing_indicator(message.channel),
                 self._semaphore,
-                self.presence.reviewing(),
+                self.presence.handling() as activity,
             ):
                 self._attempts[root_id] += 1
                 attempt = self._attempts[root_id]
@@ -295,6 +307,7 @@ class ReviewCog(commands.Cog):
                     case=case,
                     publisher=publisher,
                     attempt=attempt,
+                    activity=activity,
                 )
                 agent_input = render_agent_input(
                     case,

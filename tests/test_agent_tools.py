@@ -7,27 +7,35 @@ from agents.tool_context import ToolContext
 
 from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.application.tools import build_agent_tools
-from arrest_report_agent.domain import InteractionMode, ReviewCase, ReviewVerdict
+from arrest_report_agent.domain import AgentActivity, InteractionMode, ReviewCase, ReviewVerdict
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
 
 class FakePublisher:
     def __init__(self) -> None:
-        self.begins: list[str | None] = []
+        self.markers = 0
         self.publications = []
-        self.replies: list[str] = []
+        self.messages: list[str] = []
 
-    async def begin(self, case_subject: str | None = None) -> None:
-        self.begins.append(case_subject)
+    async def mark_review_started(self) -> None:
+        self.markers += 1
 
     async def publish(self, publication) -> None:
         self.publications.append(publication)
 
-    async def reply(self, content: str) -> None:
-        self.replies.append(content)
+    async def send_message(self, content: str) -> None:
+        self.messages.append(content)
 
     async def publish_failure(self, public_message) -> None:
         raise AssertionError("not expected")
+
+
+class ActivityRecorder:
+    def __init__(self) -> None:
+        self.activities: list[AgentActivity] = []
+
+    async def promote(self, activity: AgentActivity) -> None:
+        self.activities.append(activity)
 
 
 @pytest.mark.asyncio
@@ -50,14 +58,6 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
         for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
     }
 
-    begin_arguments = json.dumps({"case_subject": "Terry Parker"})
-    begin_context = ToolContext(
-        context=run_context,
-        tool_name="begin_review",
-        tool_call_id="call-begin",
-        tool_arguments=begin_arguments,
-    )
-    await tools["begin_review"].on_invoke_tool(begin_context, begin_arguments)
     publish_arguments = json.dumps(
         {
             "publication": {
@@ -80,13 +80,13 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
         publish_arguments,
     )
 
-    assert publisher.begins == ["Terry Parker"]
     assert publisher.publications[0].verdict is ReviewVerdict.APPROVED
-    assert run_context.started and run_context.published
+    assert publisher.markers == 0
+    assert run_context.published
 
 
 @pytest.mark.asyncio
-async def test_natural_reply_is_an_immediate_terminal_side_effect() -> None:
+async def test_messages_can_be_sent_before_explicit_conversational_completion() -> None:
     publisher = FakePublisher()
     case = ReviewCase(
         guild_id=1,
@@ -104,21 +104,100 @@ async def test_natural_reply_is_an_immediate_terminal_side_effect() -> None:
         tool.name: tool
         for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
     }
-    arguments = json.dumps(
-        {"content": "Claro, deputy. El código penal está disponible en el enlace oficial."}
-    )
+    progress_message = "📚 Estoy contrastando ambos cargos, deputy."
+    progress_arguments = json.dumps({"content": progress_message})
     tool_context = ToolContext(
         context=run_context,
-        tool_name="reply_to_user",
-        tool_call_id="call-reply",
-        tool_arguments=arguments,
+        tool_name="send_message",
+        tool_call_id="call-message",
+        tool_arguments=progress_arguments,
     )
 
-    await tools["reply_to_user"].on_invoke_tool(tool_context, arguments)
+    first_result = await tools["send_message"].on_invoke_tool(
+        tool_context,
+        progress_arguments,
+    )
+    second_progress = "Ya tengo las definiciones; estoy preparando la diferencia práctica."
+    second_arguments = json.dumps({"content": second_progress})
+    await tools["send_message"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="send_message",
+            tool_call_id="call-message-2",
+            tool_arguments=second_arguments,
+        ),
+        second_arguments,
+    )
 
-    assert publisher.replies == [
-        "Claro, deputy. El código penal está disponible en el enlace oficial."
-    ]
-    assert run_context.replied
-    assert not run_context.started
+    assert publisher.messages == [progress_message, second_progress]
+    assert first_result == {
+        "ok": True,
+        "delivery": "discord_message",
+        "messages_sent": 1,
+        "interaction_complete": False,
+    }
+    assert run_context.message_sent
+    assert run_context.messages_sent_count == 2
+    assert not run_context.interaction_completed
     assert not run_context.published
+
+    final_message = "### Diferencia clave\nLa intención específica de matar distingue el intento."
+    final_arguments = json.dumps({"content": final_message})
+    final_result = await tools["finish_interaction"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="finish_interaction",
+            tool_call_id="call-finish",
+            tool_arguments=final_arguments,
+        ),
+        final_arguments,
+    )
+
+    assert publisher.messages[-1] == final_message
+    assert final_result == {
+        "ok": True,
+        "delivery": "discord_message",
+        "messages_sent": 3,
+        "interaction_complete": True,
+    }
+    assert run_context.messages_sent_count == 3
+    assert run_context.interaction_completed
+
+
+@pytest.mark.asyncio
+async def test_knowledge_tools_promote_the_interaction_activity() -> None:
+    activity = ActivityRecorder()
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=2,
+        root_message_id=3,
+        trigger_message_id=3,
+        requester_user_id=4,
+        interaction_mode=InteractionMode.INITIAL_REVIEW,
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=FakePublisher(),
+        attempt=1,
+        activity=activity,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+    arguments = json.dumps({"charge_ids": [1]})
+
+    await tools["get_charge_details"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="get_charge_details",
+            tool_call_id="call-knowledge",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert activity.activities == [AgentActivity.KNOWLEDGE]

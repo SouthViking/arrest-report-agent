@@ -77,6 +77,7 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention() -> None:
     ]
     assert embed.fields[1].value == "• <#111>\n• <#222>"
     assert "<@999>" in embed.fields[2].value
+    assert "respondes directamente" in embed.fields[2].value
     assert embed.fields[4].value == (
         f"• [Código Penal]({PENAL_CODE_URL})\n• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"
     )
@@ -125,7 +126,7 @@ def test_unauthorized_user_message_varies_copy_but_keeps_stable_format() -> None
 
 
 @pytest.mark.asyncio
-async def test_wrong_channel_mention_replies_once_without_running_agent(settings) -> None:
+async def test_wrong_channel_reply_to_bot_replies_once_without_running_agent(settings) -> None:
     replies: list[dict[str, object]] = []
 
     async def reply(**kwargs) -> None:
@@ -144,7 +145,12 @@ async def test_wrong_channel_mention_replies_once_without_running_agent(settings
         author=SimpleNamespace(id=123, bot=False),
         webhook_id=None,
         channel=SimpleNamespace(id=555),
-        raw_mentions=[999],
+        raw_mentions=[],
+        reference=SimpleNamespace(
+            type=discord.MessageReferenceType.default,
+            resolved=SimpleNamespace(author=SimpleNamespace(id=999)),
+            cached_message=None,
+        ),
         reply=reply,
     )
 

@@ -3,8 +3,10 @@
 ## Datos procesados
 
 Una mención que supera la política local envía primero al guardrail únicamente el texto del mensaje
-actual y señales compactas: si está en un hilo, si existe contexto previo y cuántos adjuntos tiene el
-mensaje. No envía imágenes, URLs, historial, nombre ni roles en esta etapa.
+actual y señales compactas: si está en un hilo, si existe contexto previo, cuántos adjuntos tiene el
+mensaje y si el contexto contiene material revisable. No envía imágenes, URLs, historial, nombre ni
+roles en esta etapa. El resultado clasifica alcance e intención para decidir si corresponde marcar
+determinísticamente una revisión antes de invocar al agente principal.
 
 Si la solicitud está dentro de alcance o es ambigua, el agente principal recibe el texto acotado del
 reporte/hilo, las imágenes seleccionadas, el nombre visible del solicitante y hasta ocho nombres de

@@ -14,9 +14,11 @@ from arrest_report_agent.domain import (
 )
 from arrest_report_agent.infrastructure.discord.context import (
     DiscordContextBuilder,
+    DiscordResponseRoute,
     ReviewTarget,
     render_agent_input,
 )
+from arrest_report_agent.infrastructure.discord.trigger import TriggerActivation
 
 
 def test_render_includes_every_selected_character_and_report_image() -> None:
@@ -156,6 +158,96 @@ def test_context_trimming_preserves_root_and_current_request(settings) -> None:
     assert truncated
     assert {item.id for item in converted} == {1, 3}
     assert sum(len(item.content) for item in converted) <= 500
+
+
+@pytest.mark.asyncio
+async def test_response_route_is_derived_from_activation_and_channel(settings, monkeypatch) -> None:
+    class FakeTextChannel:
+        def __init__(self) -> None:
+            self.id = 20
+
+    class FakeThread:
+        def __init__(self, parent: FakeTextChannel) -> None:
+            self.id = 30
+            self.parent = parent
+
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.TextChannel",
+        FakeTextChannel,
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.Thread",
+        FakeThread,
+    )
+    builder = DiscordContextBuilder(settings)
+    parent = FakeTextChannel()
+    mention = SimpleNamespace(channel=parent, thread=None)
+    reply = SimpleNamespace(channel=parent, thread=None)
+
+    mention_target = await builder.resolve_target(mention, TriggerActivation.MENTION)
+    reply_target = await builder.resolve_target(reply, TriggerActivation.BOT_REPLY)
+
+    assert mention_target.response_route is DiscordResponseRoute.THREAD
+    assert reply_target.response_route is DiscordResponseRoute.INLINE_REPLY
+
+
+@pytest.mark.asyncio
+async def test_existing_thread_history_uses_message_limit_and_preserves_root_and_trigger(
+    settings,
+) -> None:
+    settings.thread_context_max_messages = 2
+
+    def message(message_id: int, content: str, *, bot: bool = False):
+        author = SimpleNamespace(
+            id=10 if not bot else 999,
+            display_name="Deputy" if not bot else "Sgt. Vigil",
+            name="Deputy" if not bot else "Sgt. Vigil",
+            bot=bot,
+            roles=[],
+        )
+        return SimpleNamespace(
+            id=message_id,
+            content=content,
+            author=author,
+            created_at=datetime.fromtimestamp(message_id, tz=UTC),
+            edited_at=None,
+            reference=None,
+            attachments=[],
+            raw_mentions=[],
+        )
+
+    root = message(1, "Reporte raíz")
+    root.guild = SimpleNamespace(id=1)
+    previous = message(2, "Observación anterior", bot=True)
+    trigger = message(3, "¿Y este cargo, sargento?")
+
+    class FakeThread:
+        id = 30
+
+        async def history(self, *, limit: int, oldest_first: bool):
+            assert limit == 2
+            assert oldest_first is False
+            for item in (trigger, previous):
+                yield item
+
+    thread = FakeThread()
+    root.channel = SimpleNamespace(id=20)
+    previous.channel = thread
+    trigger.channel = thread
+    target = ReviewTarget(
+        root=root,
+        trigger=trigger,
+        parent=SimpleNamespace(id=20),
+        thread=thread,
+        response_route=DiscordResponseRoute.THREAD,
+    )
+
+    case = await DiscordContextBuilder(settings).build_case(target)
+
+    assert [item.id for item in case.messages] == [1, 2, 3]
+    assert case.context_state is ContextState.TRUNCATED
+    assert case.context_notice == "El historial fue limitado a los mensajes más recientes."
+    assert "BOT" in render_agent_input(case, "original")[0]["content"][0]["text"]
 
 
 @pytest.mark.asyncio

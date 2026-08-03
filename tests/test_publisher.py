@@ -5,7 +5,10 @@ from types import SimpleNamespace
 import pytest
 
 from arrest_report_agent.domain import FindingSeverity, ReviewFinding, ReviewPublication
-from arrest_report_agent.infrastructure.discord.context import ReviewTarget
+from arrest_report_agent.infrastructure.discord.context import (
+    DiscordResponseRoute,
+    ReviewTarget,
+)
 from arrest_report_agent.infrastructure.discord.publisher import (
     DiscordReviewPublisher,
     build_review_embed,
@@ -139,17 +142,25 @@ def test_long_charge_review_stays_within_discord_embed_limits(settings) -> None:
 
 
 @pytest.mark.asyncio
-async def test_initial_approval_adds_ticket_without_thread(settings) -> None:
+async def test_initial_mention_approval_uses_and_archives_thread(settings) -> None:
     root = FakeRoot()
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
-    target = ReviewTarget(root=root, trigger=root, parent=SimpleNamespace(), thread=None)
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.THREAD,
+    )
     publisher = DiscordReviewPublisher(bot, settings, target)
 
-    await publisher.begin()
+    await publisher.mark_review_started()
     await publisher.publish(publication("approved"))
 
     assert root.added == ["⏳", "✅"]
-    assert root.created == 0
+    assert root.created == 1
+    assert root.thread.sent[0]["embeds"][0].title.startswith("✅")
+    assert root.thread.edits[-1] == {"archived": True, "locked": True}
     assert all(user_id == 999 for _, user_id in root.removed)
 
 
@@ -157,7 +168,13 @@ async def test_initial_approval_adds_ticket_without_thread(settings) -> None:
 async def test_correction_creates_thread_and_posts_embed(settings) -> None:
     root = FakeRoot()
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
-    target = ReviewTarget(root=root, trigger=root, parent=SimpleNamespace(), thread=None)
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.THREAD,
+    )
     publisher = DiscordReviewPublisher(bot, settings, target)
 
     await publisher.publish(publication("corrections_required"))
@@ -171,7 +188,13 @@ async def test_correction_creates_thread_and_posts_embed(settings) -> None:
 async def test_failure_publishes_only_contextual_message_and_next_step(settings) -> None:
     root = FakeRoot()
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
-    target = ReviewTarget(root=root, trigger=root, parent=SimpleNamespace(), thread=None)
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.THREAD,
+    )
     publisher = DiscordReviewPublisher(bot, settings, target)
 
     public_message = "La mesa de revisión alcanzó su capacidad operativa para este turno."
@@ -195,9 +218,49 @@ async def test_natural_reply_is_simple_and_does_not_create_review_state(settings
     target = ReviewTarget(root=root, trigger=root, parent=SimpleNamespace(), thread=None)
     publisher = DiscordReviewPublisher(bot, settings, target)
 
-    await publisher.reply("A la orden, deputy. ¿Qué punto del manual necesita revisar?")
+    await publisher.send_message("A la orden, deputy. ¿Qué punto del manual necesita revisar?")
 
     assert root.created == 0
     assert root.added == []
     assert root.replies[0]["content"].startswith("A la orden")
     assert root.replies[0]["mention_author"] is False
+
+
+@pytest.mark.asyncio
+async def test_mention_conversation_reuses_existing_thread(settings) -> None:
+    thread = FakeThread(owner_id=123)
+    root = FakeRoot(thread=thread)
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=thread,
+        response_route=DiscordResponseRoute.THREAD,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target)
+
+    await publisher.send_message("A la orden, deputy.")
+
+    assert root.created == 0
+    assert root.replies == []
+    assert thread.sent[0]["content"] == "A la orden, deputy."
+
+
+@pytest.mark.asyncio
+async def test_inline_reply_review_never_creates_thread(settings) -> None:
+    root = FakeRoot()
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.INLINE_REPLY,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target)
+
+    await publisher.publish(publication("corrections_required"))
+
+    assert root.created == 0
+    assert root.replies[0]["embeds"][0].title.startswith("❌")

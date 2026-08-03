@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import mimetypes
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any
 
 import discord
@@ -18,9 +19,18 @@ from arrest_report_agent.domain import (
 )
 from arrest_report_agent.domain.errors import ContextUnavailableError
 
+from .trigger import TriggerActivation
+
 REQUESTER_ROLE_LIMIT = 8
 REQUESTER_ROLE_NAME_MAX_CHARS = 80
 REQUESTER_ROLES_TOTAL_MAX_CHARS = 320
+
+
+class DiscordResponseRoute(StrEnum):
+    """Deterministic Discord destination selected before the runner starts."""
+
+    INLINE_REPLY = "inline_reply"
+    THREAD = "thread"
 
 
 @dataclass(frozen=True)
@@ -29,13 +39,18 @@ class ReviewTarget:
     trigger: discord.Message
     parent: discord.TextChannel
     thread: discord.Thread | None
+    response_route: DiscordResponseRoute = DiscordResponseRoute.INLINE_REPLY
 
 
 class DiscordContextBuilder:
     def __init__(self, settings: AppSettings) -> None:
         self.settings = settings
 
-    async def resolve_target(self, message: discord.Message) -> ReviewTarget:
+    async def resolve_target(
+        self,
+        message: discord.Message,
+        activation: TriggerActivation,
+    ) -> ReviewTarget:
         if isinstance(message.channel, discord.Thread):
             thread = message.channel
             parent = thread.parent
@@ -45,7 +60,13 @@ class DiscordContextBuilder:
                 root = await parent.fetch_message(thread.id)
             except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
                 raise ContextUnavailableError("Unable to fetch the thread starter message") from error
-            return ReviewTarget(root=root, trigger=message, parent=parent, thread=thread)
+            return ReviewTarget(
+                root=root,
+                trigger=message,
+                parent=parent,
+                thread=thread,
+                response_route=DiscordResponseRoute.THREAD,
+            )
         if not isinstance(message.channel, discord.TextChannel):
             raise ContextUnavailableError("Review message is not in a supported text channel")
         return ReviewTarget(
@@ -53,6 +74,11 @@ class DiscordContextBuilder:
             trigger=message,
             parent=message.channel,
             thread=message.thread,
+            response_route=(
+                DiscordResponseRoute.INLINE_REPLY
+                if activation is TriggerActivation.BOT_REPLY
+                else DiscordResponseRoute.THREAD
+            ),
         )
 
     async def build_case(self, target: ReviewTarget) -> ReviewCase:

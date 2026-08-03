@@ -24,6 +24,7 @@ from arrest_report_agent.domain import ReviewCase
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
 from .errors import classify_error, public_error_message
+from .hooks import ReviewLifecycleHooks
 from .prompt import PROMPT_VERSION, build_agent_instructions
 from .scope import SCOPE_GUARDRAIL_VERSION, build_scope_guardrail, scope_refusal_message
 from .service_context import ReviewRunContext
@@ -49,6 +50,7 @@ class ReviewService:
         self.model = model
         tools = build_agent_tools(catalog, guide)
         scope_guardrail = build_scope_guardrail(settings, model)
+        self.hooks = ReviewLifecycleHooks()
         self.agent: Agent[ReviewRunContext] = Agent(
             name=settings.identity.display_name,
             instructions=build_agent_instructions(settings.identity),
@@ -57,6 +59,7 @@ class ReviewService:
                 reasoning=Reasoning(effort=model.reasoning_effort),
                 verbosity=model.runtime_defaults.text_verbosity,
                 max_tokens=model.runtime_defaults.max_output_tokens,
+                tool_choice="required",
                 parallel_tool_calls=False,
                 retry=ModelRetrySettings(max_retries=settings.openai_max_retries),
                 include_usage=True,
@@ -64,9 +67,8 @@ class ReviewService:
             ),
             tools=tools,  # type: ignore[arg-type]
             input_guardrails=[scope_guardrail],
-            tool_use_behavior=StopAtTools(
-                stop_at_tool_names=["reply_to_user", "publish_review"]
-            ),
+            tool_use_behavior=StopAtTools(stop_at_tool_names=["finish_interaction", "publish_review"]),
+            reset_tool_choice=False,
         )
 
     async def review(self, run_context: ReviewRunContext, agent_input: list[dict[str, Any]]) -> None:
@@ -88,6 +90,7 @@ class ReviewService:
             service_tier=self.model.runtime_defaults.service_tier,
             **self._log_metadata(case, run_context.attempt),
         )
+        result = None
         try:
             result = await asyncio.wait_for(
                 Runner.run(
@@ -95,11 +98,12 @@ class ReviewService:
                     agent_input,  # type: ignore[arg-type]
                     context=run_context,
                     max_turns=self.settings.max_agent_turns,
+                    hooks=self.hooks,
                     run_config=run_config,
                 ),
                 timeout=self.settings.review_timeout_seconds,
             )
-            if not run_context.published and not run_context.replied:
+            if not run_context.published and not run_context.interaction_completed:
                 raise RuntimeError("Agent finished without a terminal response tool")
             if run_context.published and run_context.publication is None:
                 raise RuntimeError("Agent published a review without a publication payload")
@@ -133,8 +137,10 @@ class ReviewService:
                 **self._log_metadata(case, run_context.attempt),
             )
             try:
-                await run_context.publisher.reply(scope_refusal_message())
-                run_context.replied = True
+                await run_context.publisher.send_message(scope_refusal_message())
+                run_context.message_sent = True
+                run_context.messages_sent_count += 1
+                run_context.interaction_completed = True
             except Exception as publication_error:
                 log_event(
                     LOGGER,
@@ -146,10 +152,9 @@ class ReviewService:
                 )
         except Exception as error:
             classified = classify_error(error)
-            usage = summarize_usage(run_context.guardrail_usage, self.model)
-            technical_reference = (
-                f"{case.root_message_id}-{run_context.attempt}-{classified.kind.value}"
-            )
+            usage_source = result.context_wrapper.usage if result is not None else run_context.guardrail_usage
+            usage = summarize_usage(usage_source, self.model)
+            technical_reference = f"{case.root_message_id}-{run_context.attempt}-{classified.kind.value}"
             log_event(
                 LOGGER,
                 "error",
@@ -163,7 +168,7 @@ class ReviewService:
                 **exception_fields(error),
                 **self._log_metadata(case, run_context.attempt),
             )
-            if run_context.published or run_context.replied:
+            if run_context.published or run_context.interaction_completed:
                 return
             try:
                 await run_context.publisher.publish_failure(

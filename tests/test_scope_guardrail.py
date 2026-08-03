@@ -13,6 +13,7 @@ from arrest_report_agent.domain import (
     ConversationMessage,
     DiscordAttachment,
     InteractionMode,
+    RequestIntent,
     ReviewCase,
 )
 
@@ -65,15 +66,14 @@ def test_scope_input_is_text_only_and_limited_to_current_request() -> None:
     assert "¿Dónde encuentro la descripción de ese cargo?" in rendered
     assert "Está en hilo: sí" in rendered
     assert "Hay contexto previo: sí" in rendered
+    assert "Hay material revisable en el contexto: sí" in rendered
     assert "Narrativa extensa" not in rendered
     assert "private-report.png" not in rendered
     assert "https://" not in rendered
 
 
 @pytest.mark.asyncio
-async def test_scope_guardrail_is_blocking_and_aggregates_its_usage(
-    settings, model, monkeypatch
-) -> None:
+async def test_scope_guardrail_is_blocking_and_aggregates_its_usage(settings, model, monkeypatch) -> None:
     case = ReviewCase(
         guild_id=1,
         parent_channel_id=2,
@@ -96,7 +96,11 @@ async def test_scope_guardrail_is_blocking_and_aggregates_its_usage(
 
     async def classify(*args, **kwargs):
         return SimpleNamespace(
-            final_output={"allowed": False, "category": "unrelated"},
+            final_output={
+                "allowed": False,
+                "category": "unrelated",
+                "intent": "out_of_scope",
+            },
             context_wrapper=SimpleNamespace(usage=nested_usage),
         )
 
@@ -111,3 +115,5 @@ async def test_scope_guardrail_is_blocking_and_aggregates_its_usage(
     assert result.output.tripwire_triggered
     assert wrapper.usage.total_tokens == 30
     assert run_context.guardrail_usage.total_tokens == 30
+    assert run_context.request_intent is RequestIntent.OUT_OF_SCOPE
+    assert not run_context.has_revisable_material

@@ -5,6 +5,7 @@ from typing import Any
 import discord
 import pytest
 
+from arrest_report_agent.domain import AgentActivity
 from arrest_report_agent.infrastructure.discord.presence import PresenceMode, ReviewPresence
 
 
@@ -26,29 +27,41 @@ def activity_text(update: dict[str, Any]) -> str | None:
 
 
 @pytest.mark.asyncio
-async def test_presence_changes_only_on_global_review_transitions() -> None:
+async def test_presence_uses_global_priority_across_concurrent_interactions() -> None:
     bot = FakeBot()
     presence = ReviewPresence(
         bot,  # type: ignore[arg-type]
         idle_text="⭐ De guardia",
-        busy_text="📂 Revisando expedientes",
+        conversation_text="📻 Atendiendo consultas",
+        knowledge_text="🔎 Consultando el código",
+        review_text="📂 Revisando expedientes",
     )
 
     await presence.synchronize()
     assert presence.mode is PresenceMode.IDLE
 
-    async with presence.reviewing():
-        assert presence.active_reviews == 1
-        assert presence.mode is PresenceMode.BUSY
-        async with presence.reviewing():
-            assert presence.active_reviews == 2
-        assert presence.active_reviews == 1
+    async with presence.handling() as first:
+        assert presence.active_requests == 1
+        assert presence.mode is PresenceMode.CONVERSATION
+        await first.promote(AgentActivity.KNOWLEDGE)
+        assert presence.mode is PresenceMode.KNOWLEDGE
+        async with presence.handling() as second:
+            assert presence.active_requests == 2
+            assert presence.mode is PresenceMode.KNOWLEDGE
+            await second.promote(AgentActivity.REVIEW)
+            assert presence.mode is PresenceMode.REVIEW
+            await second.promote(AgentActivity.KNOWLEDGE)
+            assert presence.mode is PresenceMode.REVIEW
+        assert presence.mode is PresenceMode.KNOWLEDGE
 
-    assert presence.active_reviews == 0
+    assert presence.active_requests == 0
     assert presence.mode is PresenceMode.IDLE
     assert [activity_text(update) for update in bot.updates] == [
         "⭐ De guardia",
+        "📻 Atendiendo consultas",
+        "🔎 Consultando el código",
         "📂 Revisando expedientes",
+        "🔎 Consultando el código",
         "⭐ De guardia",
     ]
     assert all(update["status"] is discord.Status.online for update in bot.updates)
@@ -60,12 +73,15 @@ async def test_presence_failure_never_blocks_or_leaks_active_review_count() -> N
     presence = ReviewPresence(
         bot,  # type: ignore[arg-type]
         idle_text="⭐ De guardia",
-        busy_text="📂 Revisando expedientes",
+        conversation_text="📻 Atendiendo consultas",
+        knowledge_text="🔎 Consultando el código",
+        review_text="📂 Revisando expedientes",
     )
 
     await presence.synchronize()
-    async with presence.reviewing():
-        assert presence.active_reviews == 1
+    async with presence.handling() as activity:
+        assert presence.active_requests == 1
+        await activity.promote(AgentActivity.KNOWLEDGE)
 
-    assert presence.active_reviews == 0
-    assert len(bot.updates) == 3
+    assert presence.active_requests == 0
+    assert len(bot.updates) == 4

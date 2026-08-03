@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from arrest_report_agent.infrastructure.discord import trigger
 from arrest_report_agent.infrastructure.discord.trigger import (
     DiscordAccessPolicy,
+    TriggerActivation,
     TriggerDecision,
     classify_message,
 )
@@ -25,10 +26,9 @@ def make_message(
         guild=SimpleNamespace(id=min(configured_guilds) if configured_guilds else 1),
         author=SimpleNamespace(id=user_id, bot=bot),
         webhook_id=webhook_id,
-        channel=SimpleNamespace(
-            id=channel_id or (min(configured_channels) if configured_channels else 2)
-        ),
+        channel=SimpleNamespace(id=channel_id or (min(configured_channels) if configured_channels else 2)),
         raw_mentions=mentions,
+        reference=None,
     )
 
 
@@ -50,8 +50,83 @@ def test_central_policy_receives_all_configured_scopes(settings) -> None:
 def test_unmentioned_message_is_ignored(settings) -> None:
     assert (
         classify_message(make_message(settings, mentions=[]), 999, settings)
-        is TriggerDecision.IGNORE_UNMENTIONED
+        is TriggerDecision.IGNORE_NOT_ADDRESSED
     )
+
+
+def test_resolved_reply_to_bot_triggers_without_mention(settings) -> None:
+    message = make_message(settings, mentions=[])
+    message.reference = SimpleNamespace(
+        type=trigger.discord.MessageReferenceType.default,
+        resolved=SimpleNamespace(author=SimpleNamespace(id=999)),
+        cached_message=None,
+    )
+
+    assert classify_message(message, 999, settings) is TriggerDecision.REVIEW
+
+
+def test_reply_to_another_user_is_ignored_without_mention(settings) -> None:
+    message = make_message(settings, mentions=[])
+    message.reference = SimpleNamespace(
+        type=trigger.discord.MessageReferenceType.default,
+        resolved=SimpleNamespace(author=SimpleNamespace(id=555)),
+        cached_message=None,
+    )
+
+    assert classify_message(message, 999, settings) is TriggerDecision.IGNORE_NOT_ADDRESSED
+
+
+def test_forwarded_message_is_not_treated_as_a_reply(settings) -> None:
+    message = make_message(settings, mentions=[])
+    message.reference = SimpleNamespace(
+        type=trigger.discord.MessageReferenceType.forward,
+        resolved=SimpleNamespace(author=SimpleNamespace(id=999)),
+        cached_message=None,
+    )
+
+    assert classify_message(message, 999, settings) is TriggerDecision.IGNORE_NOT_ADDRESSED
+
+
+async def test_uncached_reply_to_bot_is_resolved_before_classification(settings) -> None:
+    fetched_ids: list[int] = []
+
+    async def fetch_message(message_id: int):
+        fetched_ids.append(message_id)
+        return SimpleNamespace(author=SimpleNamespace(id=999))
+
+    message = make_message(settings, mentions=[])
+    message.channel.fetch_message = fetch_message
+    message.reference = SimpleNamespace(
+        type=trigger.discord.MessageReferenceType.default,
+        message_id=456,
+        channel_id=message.channel.id,
+        resolved=None,
+        cached_message=None,
+    )
+
+    decision = await DiscordAccessPolicy.from_settings(settings).classify_event(message, 999)
+
+    assert decision is TriggerDecision.REVIEW
+    assert fetched_ids == [456]
+
+
+async def test_event_evaluation_retains_routing_activation(settings) -> None:
+    policy = DiscordAccessPolicy.from_settings(settings)
+    mention = make_message(settings, mentions=[999])
+    reply = make_message(settings, mentions=[])
+    reply.reference = SimpleNamespace(
+        type=trigger.discord.MessageReferenceType.default,
+        resolved=SimpleNamespace(author=SimpleNamespace(id=999)),
+        cached_message=None,
+    )
+
+    mention_evaluation = await policy.evaluate_event(mention, 999)
+    reply_evaluation = await policy.evaluate_event(reply, 999)
+
+    assert mention_evaluation.decision is TriggerDecision.REVIEW
+    assert mention_evaluation.activation is TriggerActivation.MENTION
+    assert reply_evaluation.decision is TriggerDecision.REVIEW
+    assert reply_evaluation.activation is TriggerActivation.BOT_REPLY
 
 
 def test_bot_and_webhook_are_ignored_but_wrong_channel_redirects(settings) -> None:

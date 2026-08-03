@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import httpx
 import openai
 import pytest
@@ -9,6 +11,7 @@ from agents import (
     InputGuardrailResult,
     InputGuardrailTripwireTriggered,
 )
+from agents.usage import Usage
 from pydantic import ValidationError
 
 from arrest_report_agent.application.prompt import build_agent_instructions
@@ -17,7 +20,7 @@ from arrest_report_agent.application.service import ReviewService
 from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.config import BotIdentity
 from arrest_report_agent.config.logging import STRUCTURED_EVENT_ATTRIBUTE
-from arrest_report_agent.domain import InteractionMode, ReviewCase
+from arrest_report_agent.domain import InteractionMode, RequestIntent, ReviewCase
 from arrest_report_agent.domain.models import ReviewPublication
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
@@ -34,6 +37,8 @@ def test_identity_is_injected_without_prompt_hardcoding() -> None:
     assert "No asumas que toda mención solicita un veredicto" in prompt
     assert "elige libremente la extensión" in prompt
     assert "Solo inicia una revisión" in prompt
+    assert "solicítalo mediante finish_interaction" in prompt
+    assert "send_message una o más veces" in prompt
 
 
 def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, model) -> None:
@@ -57,13 +62,16 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     metadata = service._trace_metadata(case, attempt=2)
 
     assert tool_names == [
-        "begin_review",
         "get_report_guide",
         "list_charge_index",
         "get_charge_details",
-        "reply_to_user",
+        "send_message",
+        "finish_interaction",
         "publish_review",
     ]
+    assert service.agent.model_settings.tool_choice == "required"
+    assert service.agent.reset_tool_choice is False
+    assert service.agent.tool_use_behavior == {"stop_at_tool_names": ["finish_interaction", "publish_review"]}
     assert service.agent.input_guardrails[0].run_in_parallel is False
     charge_search = next(tool for tool in service.agent.tools if tool.name == "list_charge_index")
     search_properties = charge_search.params_json_schema["properties"]
@@ -120,16 +128,16 @@ def test_approved_publication_rejects_unresolved_charge() -> None:
 class FailurePublisher:
     def __init__(self) -> None:
         self.failures = []
-        self.replies = []
+        self.messages = []
 
-    async def begin(self, case_subject=None) -> None:
+    async def mark_review_started(self) -> None:
         return None
 
     async def publish(self, publication) -> None:
         return None
 
-    async def reply(self, content) -> None:
-        self.replies.append(content)
+    async def send_message(self, content) -> None:
+        self.messages.append(content)
 
     async def publish_failure(self, public_message) -> None:
         self.failures.append(public_message)
@@ -159,6 +167,8 @@ async def test_service_contains_timeout_and_publishes_contextual_failure(
     )
     publisher = FailurePublisher()
     context = ReviewRunContext(case=case, publisher=publisher, attempt=1)
+    context.message_sent = True
+    context.messages_sent_count = 1
 
     async def fail(*args, **kwargs):
         request = httpx.Request("POST", "https://api.openai.test/v1/responses")
@@ -191,6 +201,62 @@ async def test_service_contains_timeout_and_publishes_contextual_failure(
         "attempt": 1,
     }
     assert {key: failure_log[key] for key in expected_metadata} == expected_metadata
+
+
+@pytest.mark.asyncio
+async def test_post_run_contract_failure_keeps_complete_runner_usage(
+    settings, model, monkeypatch, caplog
+) -> None:
+    service = ReviewService(
+        settings,
+        ChargeCatalog.load_default(),
+        ReportGuide.load_default(),
+        model,
+    )
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=2,
+        root_message_id=3,
+        trigger_message_id=3,
+        requester_user_id=4,
+        interaction_mode=InteractionMode.INITIAL_REVIEW,
+        messages=[],
+        attachments=[],
+    )
+    publisher = FailurePublisher()
+    context = ReviewRunContext(case=case, publisher=publisher, attempt=1)
+    complete_usage = Usage(
+        requests=4,
+        input_tokens=3_000,
+        output_tokens=200,
+        total_tokens=3_200,
+    )
+
+    async def finish_without_terminal_tool(*args, **kwargs):
+        return SimpleNamespace(context_wrapper=SimpleNamespace(usage=complete_usage))
+
+    monkeypatch.setattr(
+        "arrest_report_agent.application.service.Runner.run",
+        finish_without_terminal_tool,
+    )
+
+    with caplog.at_level("ERROR", logger="arrest_report_agent.application.service"):
+        await service.review(
+            context,
+            [{"role": "user", "content": [{"type": "input_text", "text": "test"}]}],
+        )
+
+    failure_log = next(
+        getattr(record, STRUCTURED_EVENT_ATTRIBUTE)
+        for record in caplog.records
+        if getattr(record, STRUCTURED_EVENT_ATTRIBUTE, {}).get("event") == "review_failed"
+    )
+    assert failure_log["requests"] == 4
+    assert failure_log["input_tokens"] == 3_000
+    assert failure_log["output_tokens"] == 200
+    assert failure_log["total_tokens"] == 3_200
+    assert len(publisher.failures) == 1
 
 
 @pytest.mark.asyncio
@@ -228,7 +294,11 @@ async def test_service_handles_out_of_scope_request_without_running_review_failu
         InputGuardrailResult(
             guardrail=guardrail,
             output=GuardrailFunctionOutput(
-                output_info=ScopeDecision(allowed=False, category="unrelated"),
+                output_info=ScopeDecision(
+                    allowed=False,
+                    category="unrelated",
+                    intent=RequestIntent.OUT_OF_SCOPE,
+                ),
                 tripwire_triggered=True,
             ),
         )
@@ -245,11 +315,12 @@ async def test_service_handles_out_of_scope_request_without_running_review_failu
             [{"role": "user", "content": [{"type": "input_text", "text": "2 + 2"}]}],
         )
 
-    assert context.replied
-    assert "fuera de mi guardia" in publisher.replies[0]
+    assert context.message_sent
+    assert context.messages_sent_count == 1
+    assert context.interaction_completed
+    assert "fuera de mi guardia" in publisher.messages[0]
     assert publisher.failures == []
     assert any(
-        getattr(record, STRUCTURED_EVENT_ATTRIBUTE, {}).get("event")
-        == "scope_guardrail_blocked"
+        getattr(record, STRUCTURED_EVENT_ATTRIBUTE, {}).get("event") == "scope_guardrail_blocked"
         for record in caplog.records
     )

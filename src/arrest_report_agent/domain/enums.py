@@ -28,6 +28,20 @@ class InteractionMode(StrEnum):
     THREAD_FOLLOW_UP = "thread_follow_up"
 
 
+class RequestIntent(StrEnum):
+    REVIEW = "review"
+    CONVERSATION = "conversation"
+    OUT_OF_SCOPE = "out_of_scope"
+
+
+class AgentActivity(StrEnum):
+    """User-facing activity of one in-flight agent interaction."""
+
+    CONVERSATION = "conversation"
+    KNOWLEDGE = "knowledge"
+    REVIEW = "review"
+
+
 class ErrorKind(StrEnum):
     QUOTA_EXCEEDED = "quota_exceeded"
     RATE_LIMITED = "rate_limited"
@@ -38,4 +52,3 @@ class ErrorKind(StrEnum):
     DISCORD_FAILURE = "discord_failure"
     CONTEXT_UNAVAILABLE = "context_unavailable"
     UNKNOWN = "unknown"
-

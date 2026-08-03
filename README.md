@@ -6,16 +6,17 @@ la identidad se inyecta desde `BOT_DISPLAY_NAME` y `BOT_ROLE_TITLE`.
 
 El MVP está preparado para los canales privados `gnt-arrestos` y `dlm-arrestos` del servidor LSSD.
 Solo actúa cuando un usuario habilitado menciona explícitamente al bot, en cualquier parte del
-mensaje. Las publicaciones sin mención, los bots, los webhooks y otros servidores se ignoran sin
-llamar a OpenAI. Las menciones fuera de los canales configurados o realizadas por usuarios no
-habilitados reciben una orientación determinista, también sin ejecutar el agente.
+mensaje, o responde directamente a uno de sus mensajes. Las publicaciones que no se dirigen al bot,
+los bots, los webhooks y otros servidores se ignoran sin llamar a OpenAI. Las invocaciones fuera de
+los canales configurados o realizadas por usuarios no habilitados reciben una orientación
+determinista, también sin ejecutar el agente.
 
 ## Qué hace
 
 - Responde con naturalidad preguntas relacionadas con reportes, cargos, evidencia, procedimientos y
   correcciones previas, sin convertir cada mención en una revisión.
-- Aplica primero un guardrail textual de alcance; las consultas claramente ajenas reciben una
-  orientación breve sin enviar imágenes al agente principal.
+- Aplica primero un guardrail textual de alcance e intención; las consultas claramente ajenas
+  reciben una orientación breve sin enviar imágenes al agente principal.
 - Revisa la narrativa, evidencia visible y cargos de un reporte multimodal.
 - Envía todas las imágenes seleccionadas, incluidas las fotografías frontal y lateral.
 - Contrasta descripciones expresas de ropa y accesorios con flexibilidad por iluminación, ángulo,
@@ -23,11 +24,16 @@ habilitados reciben una orientación determinista, también sin ejecutar el agen
 - Consulta una guía local por secciones y un índice validado de 164 delitos descargados del PCU; la
   búsqueda de cargos permite seleccionar campos, combinar términos y tolerar typos cuando proceda.
 - Mantiene el indicador nativo de escritura mientras procesa una solicitud.
-- Muestra `⭐ De guardia` en reposo y `📂 Revisando expedientes` mientras exista al menos una
-  revisión activa, sin actualizaciones redundantes ante ejecuciones paralelas.
-- Añade `⏳` al comenzar desde una tool del agente y publica el resultado desde una tool terminal.
-- Aprueba con `✅` sin crear un hilo nuevo; las correcciones usan `❌` y un hilo estructurado; los
-  casos inconclusos o técnicos usan `⚠️` y derivación manual opcional.
+- Muestra una presencia global priorizada: `⭐ De guardia`, `📻 Atendiendo consultas`,
+  `🔎 Consultando el código` o `📂 Revisando expedientes`. Las ejecuciones paralelas no se pisan.
+- Añade `⏳` desde un hook determinista cuando el preflight detecta una revisión con material; no
+  expone esa operación como tool ni consume una ronda adicional del modelo.
+- Puede enviar varios mensajes intermedios enriquecidos con Markdown de Discord mientras continúa
+  trabajando y cerrar la conversación mediante una tool terminal explícita.
+- Una mención nueva en un canal padre crea o reutiliza un hilo; una respuesta directa al bot en el
+  canal permanece como reply y toda interacción iniciada dentro de un hilo se mantiene allí.
+- Aprueba con `✅`, las correcciones usan `❌` y los casos inconclusos o técnicos usan `⚠️` con
+  derivación manual opcional; el contenido se publica siempre en el destino ya autorizado.
 - Reconstruye hasta 20 mensajes de un hilo, incluyendo respuestas, ediciones y correcciones recientes.
 - Incluye el nombre visible y hasta ocho títulos de rol relevantes del solicitante para adaptar el
   tratamiento; no envía IDs de roles y nunca altera el rigor de la revisión por jerarquía.
@@ -55,7 +61,9 @@ DISCORD_GUILD_IDS=1234674521416663070
 REVIEW_CHANNEL_IDS=1462992794569281617,1462992859761217745
 AUTHORIZED_USER_IDS=*
 BOT_IDLE_ACTIVITY=⭐ De guardia
-BOT_BUSY_ACTIVITY=📂 Revisando expedientes
+BOT_CONVERSATION_ACTIVITY=📻 Atendiendo consultas
+BOT_KNOWLEDGE_ACTIVITY=🔎 Consultando el código
+BOT_REVIEW_ACTIVITY=📂 Revisando expedientes
 OPENAI_MODEL=gpt-5.6-terra
 OPENAI_REASONING_EFFORT=medium
 ```
@@ -105,8 +113,10 @@ las fuentes locales de conocimiento están cargadas; durante el arranque devuelv
 1. Para una revisión, publica el nombre o identificador del sospechoso junto con el material habitual
    y solicita la revisión; también puedes hacer preguntas pertinentes sin adjuntar un expediente.
 2. Menciona al bot en cualquier parte del mensaje.
-3. Para una corrección, responde dentro del hilo, adjunta el material actualizado y vuelve a
-   mencionar al bot.
+3. El bot abrirá un hilo para esa solicitud. Dentro de él, vuelve a mencionarlo o responde uno de
+   sus mensajes para continuar con el historial reciente.
+4. Si respondes directamente a un mensaje del bot en el canal padre, contestará mediante otro reply
+   sin abrir un hilo.
 
 El agente no exige cuatro imágenes ni un orden fijo. Puede reconocer fotografías de personaje,
 capturas de cargos, narrativa en el juego, un formulario o texto escrito directamente en Discord.
@@ -124,8 +134,10 @@ Comandos disponibles:
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
 | `REVIEW_CHANNEL_IDS` | `*` | Canales padre permitidos; acepta CSV y cubre sus hilos. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
-| `BOT_IDLE_ACTIVITY` | `⭐ De guardia` | Presencia global cuando no hay revisiones activas. |
-| `BOT_BUSY_ACTIVITY` | `📂 Revisando expedientes` | Presencia global mientras haya una o más revisiones activas. |
+| `BOT_IDLE_ACTIVITY` | `⭐ De guardia` | Presencia global sin solicitudes activas. |
+| `BOT_CONVERSATION_ACTIVITY` | `📻 Atendiendo consultas` | Presencia inicial de una consulta habilitada. |
+| `BOT_KNOWLEDGE_ACTIVITY` | `🔎 Consultando el código` | Presencia al consultar la guía o el catálogo. |
+| `BOT_REVIEW_ACTIVITY` | `📂 Revisando expedientes` | Presencia de una revisión con material. `BOT_BUSY_ACTIVITY` queda como alias compatible. |
 | `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | Modelo del runner. |
 | `OPENAI_REASONING_EFFORT` | `medium` | Esfuerzo validado contra los valores admitidos por el modelo. |

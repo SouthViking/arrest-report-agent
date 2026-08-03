@@ -7,7 +7,7 @@ from typing import Annotated
 from agents import RunContextWrapper, function_tool
 from pydantic import Field
 
-from arrest_report_agent.domain import ReviewPublication
+from arrest_report_agent.domain import AgentActivity, ReviewPublication
 from arrest_report_agent.knowledge import (
     ChargeCatalog,
     ChargeMatchMode,
@@ -31,7 +31,7 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
             sections: Names from available_sections returned by this tool.
         """
 
-        del ctx
+        await _mark_knowledge_activity(ctx.context)
         return guide.get(sections)
 
     @function_tool
@@ -61,7 +61,7 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
             limit: Maximum compact results, from 1 to 100.
         """
 
-        del ctx
+        await _mark_knowledge_activity(ctx.context)
         return catalog.list_index(
             category_ids=category_ids,
             query=query,
@@ -81,27 +81,8 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
             charge_ids: Stable IDs obtained from list_charge_index, never ambiguous codes.
         """
 
-        del ctx
+        await _mark_knowledge_activity(ctx.context)
         return catalog.get_details(charge_ids)
-
-    @function_tool(failure_error_function=None)
-    async def begin_review(
-        ctx: RunContextWrapper[ReviewRunContext], case_subject: str | None = None
-    ) -> dict[str, object]:
-        """Mark an actual report review as started. Do not use for questions or missing material.
-
-        Args:
-            case_subject: Suspect or case label when confidently available.
-        """
-
-        run_context = ctx.context
-        if run_context.started:
-            return {"ok": True, "already_started": True}
-        if case_subject:
-            run_context.case.case_subject = case_subject[:80]
-        await run_context.publisher.begin(run_context.case.case_subject)
-        run_context.started = True
-        return {"ok": True, "root_message_id": str(run_context.case.root_message_id)}
 
     @function_tool(failure_error_function=None)
     async def publish_review(
@@ -122,29 +103,67 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
         return {"ok": True, "verdict": publication.verdict.value}
 
     @function_tool(failure_error_function=None)
-    async def reply_to_user(
-        ctx: RunContextWrapper[ReviewRunContext], content: str
-    ) -> dict[str, object]:
-        """Send a natural response to the user. Use this as the terminal tool outside a review.
+    async def send_message(ctx: RunContextWrapper[ReviewRunContext], content: str) -> dict[str, object]:
+        """Send an enriched intermediate Discord message and continue processing.
 
         Args:
-            content: The complete response, with any useful Discord markdown and moderate emojis.
+            content: Progress or partial information using Discord Markdown when useful: headings,
+                lists, quotes, emphasis, code, links and moderate emojis. Do not imitate embeds or
+                include mass mentions. This tool does not finish the interaction and may be called
+                more than once.
         """
 
         run_context = ctx.context
-        if run_context.replied:
-            return {"ok": True, "already_replied": True}
         if run_context.published:
             return {"ok": True, "already_completed": "publish_review"}
-        await run_context.publisher.reply(content)
-        run_context.replied = True
-        return {"ok": True}
+        if run_context.interaction_completed:
+            return {"ok": True, "already_completed": "finish_interaction"}
+        await run_context.publisher.send_message(content)
+        run_context.message_sent = True
+        run_context.messages_sent_count += 1
+        return {
+            "ok": True,
+            "delivery": "discord_message",
+            "messages_sent": run_context.messages_sent_count,
+            "interaction_complete": False,
+        }
+
+    @function_tool(failure_error_function=None)
+    async def finish_interaction(ctx: RunContextWrapper[ReviewRunContext], content: str) -> dict[str, object]:
+        """Send the final conversational response and explicitly finish the interaction.
+
+        Args:
+            content: Complete final Discord message. It may be an answer, a clarification request or
+                a handoff back to the user. Discord Markdown, links and moderate emojis are allowed;
+                do not imitate embeds or include mass mentions.
+        """
+
+        run_context = ctx.context
+        if run_context.published:
+            return {"ok": True, "already_completed": "publish_review"}
+        if run_context.interaction_completed:
+            return {"ok": True, "already_completed": "finish_interaction"}
+        await run_context.publisher.send_message(content)
+        run_context.message_sent = True
+        run_context.messages_sent_count += 1
+        run_context.interaction_completed = True
+        return {
+            "ok": True,
+            "delivery": "discord_message",
+            "messages_sent": run_context.messages_sent_count,
+            "interaction_complete": True,
+        }
 
     return [
-        begin_review,
         get_report_guide,
         list_charge_index,
         get_charge_details,
-        reply_to_user,
+        send_message,
+        finish_interaction,
         publish_review,
     ]
+
+
+async def _mark_knowledge_activity(run_context: ReviewRunContext) -> None:
+    if run_context.activity is not None:
+        await run_context.activity.promote(AgentActivity.KNOWLEDGE)

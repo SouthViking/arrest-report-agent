@@ -80,9 +80,21 @@ class AppSettings(BaseSettings):
         min_length=1,
         max_length=128,
     )
-    bot_busy_activity: str = Field(
+    bot_conversation_activity: str = Field(
+        default="📻 Atendiendo consultas",
+        alias="BOT_CONVERSATION_ACTIVITY",
+        min_length=1,
+        max_length=128,
+    )
+    bot_knowledge_activity: str = Field(
+        default="🔎 Consultando el código",
+        alias="BOT_KNOWLEDGE_ACTIVITY",
+        min_length=1,
+        max_length=128,
+    )
+    bot_review_activity: str = Field(
         default="📂 Revisando expedientes",
-        alias="BOT_BUSY_ACTIVITY",
+        validation_alias=AliasChoices("BOT_REVIEW_ACTIVITY", "BOT_BUSY_ACTIVITY"),
         min_length=1,
         max_length=128,
     )

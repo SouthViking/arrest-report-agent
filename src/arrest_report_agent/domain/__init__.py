@@ -1,6 +1,14 @@
 """Domain models used across Discord and the agent runner."""
 
-from .enums import ContextState, ErrorKind, FindingSeverity, InteractionMode, ReviewVerdict
+from .enums import (
+    AgentActivity,
+    ContextState,
+    ErrorKind,
+    FindingSeverity,
+    InteractionMode,
+    RequestIntent,
+    ReviewVerdict,
+)
 from .models import (
     ChargeAssessment,
     ConversationMessage,
@@ -11,6 +19,7 @@ from .models import (
 )
 
 __all__ = [
+    "AgentActivity",
     "ChargeAssessment",
     "ContextState",
     "ConversationMessage",
@@ -21,6 +30,6 @@ __all__ = [
     "ReviewCase",
     "ReviewFinding",
     "ReviewPublication",
+    "RequestIntent",
     "ReviewVerdict",
 ]
-

@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 
 from agents.usage import Usage
 
-from arrest_report_agent.domain import ReviewCase, ReviewPublication
+from arrest_report_agent.domain import RequestIntent, ReviewCase, ReviewPublication
 
-from .ports import ReviewPublisher
+from .ports import ActivityTracker, ReviewPublisher
 
 
 @dataclass
@@ -16,8 +16,15 @@ class ReviewRunContext:
     case: ReviewCase
     publisher: ReviewPublisher
     attempt: int
-    started: bool = False
+    activity: ActivityTracker | None = None
+    request_intent: RequestIntent | None = None
+    has_revisable_material: bool = False
+    agent_started: bool = False
+    agent_completed: bool = False
+    review_marked: bool = False
     published: bool = False
-    replied: bool = False
+    message_sent: bool = False
+    messages_sent_count: int = 0
+    interaction_completed: bool = False
     publication: ReviewPublication | None = None
     guardrail_usage: Usage = field(default_factory=Usage)
