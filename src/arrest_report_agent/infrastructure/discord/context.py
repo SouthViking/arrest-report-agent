@@ -233,7 +233,7 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
     """Render compact text plus labeled images for one Agents SDK run."""
 
     transcript_lines = [
-        "Revisa el estado actual de este reporte de arresto.",
+        "Atiende la solicitud actual dentro de tu ámbito usando el contexto disponible.",
         f"Modo: {case.interaction_mode.value}",
         f"Estado del contexto: {case.context_state.value}",
     ]

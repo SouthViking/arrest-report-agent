@@ -53,6 +53,32 @@ class DiscordReviewPublisher:
             allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False),
         )
 
+    async def reply(self, content: str) -> None:
+        """Reply normally without creating review state, reactions, threads or embeds."""
+
+        chunks = _chunk_text(content.strip(), limit=2000)
+        if not chunks:
+            raise PublicationError("Unable to publish an empty agent response")
+        allowed_mentions = discord.AllowedMentions(
+            everyone=False,
+            users=False,
+            roles=False,
+            replied_user=False,
+        )
+        try:
+            await self.target.trigger.reply(
+                content=chunks[0],
+                mention_author=False,
+                allowed_mentions=allowed_mentions,
+            )
+            for chunk in chunks[1:]:
+                await self.target.trigger.channel.send(
+                    content=chunk,
+                    allowed_mentions=allowed_mentions,
+                )
+        except (discord.Forbidden, discord.HTTPException) as error:
+            raise PublicationError("Unable to publish agent response") from error
+
     async def publish_failure(
         self,
         public_message: str,
@@ -228,4 +254,23 @@ def _chunk_lines(lines: list[str], limit: int) -> list[str]:
         current = bounded_line
     if current:
         chunks.append(current)
+    return chunks
+
+
+def _chunk_text(content: str, limit: int) -> list[str]:
+    """Split a free-form response at readable boundaries within Discord's hard limit."""
+
+    chunks: list[str] = []
+    remaining = content
+    while remaining:
+        if len(remaining) <= limit:
+            chunks.append(remaining)
+            break
+        split_at = remaining.rfind("\n", 0, limit + 1)
+        if split_at < limit // 2:
+            split_at = remaining.rfind(" ", 0, limit + 1)
+        if split_at <= 0:
+            split_at = limit
+        chunks.append(remaining[:split_at].rstrip())
+        remaining = remaining[split_at:].lstrip()
     return chunks

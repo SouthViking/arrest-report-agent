@@ -14,6 +14,9 @@ class ReviewPublisher(Protocol):
     async def publish(self, publication: ReviewPublication) -> None:
         """Publish a terminal review and execute its Discord side effects."""
 
+    async def reply(self, content: str) -> None:
+        """Send a natural terminal response to the triggering Discord message."""
+
     async def publish_failure(
         self,
         public_message: str,

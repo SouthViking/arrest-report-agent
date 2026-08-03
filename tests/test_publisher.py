@@ -36,6 +36,13 @@ class FakeRoot:
         self.added = []
         self.removed = []
         self.created = 0
+        self.replies = []
+        self.channel = SimpleNamespace(sent=[])
+
+        async def send(**kwargs):
+            self.channel.sent.append(kwargs)
+
+        self.channel.send = send
 
     async def add_reaction(self, emoji):
         self.added.append(emoji)
@@ -47,6 +54,9 @@ class FakeRoot:
         self.created += 1
         self.thread = FakeThread(owner_id=999)
         return self.thread
+
+    async def reply(self, **kwargs):
+        self.replies.append(kwargs)
 
 
 def publication(verdict: str) -> ReviewPublication:
@@ -176,3 +186,18 @@ async def test_failure_publishes_only_contextual_message_and_next_step(settings)
     assert "Clasificación" not in rendered
     assert "Referencia técnica" not in rendered
     assert "informa" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_natural_reply_is_simple_and_does_not_create_review_state(settings) -> None:
+    root = FakeRoot()
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(root=root, trigger=root, parent=SimpleNamespace(), thread=None)
+    publisher = DiscordReviewPublisher(bot, settings, target)
+
+    await publisher.reply("A la orden, deputy. ¿Qué punto del manual necesita revisar?")
+
+    assert root.created == 0
+    assert root.added == []
+    assert root.replies[0]["content"].startswith("A la orden")
+    assert root.replies[0]["mention_author"] is False

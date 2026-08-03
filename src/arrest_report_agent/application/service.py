@@ -7,7 +7,14 @@ import logging
 import time
 from typing import Any
 
-from agents import Agent, ModelSettings, RunConfig, Runner, StopAtTools
+from agents import (
+    Agent,
+    InputGuardrailTripwireTriggered,
+    ModelSettings,
+    RunConfig,
+    Runner,
+    StopAtTools,
+)
 from agents.retry import ModelRetrySettings
 from openai.types.shared.reasoning import Reasoning
 
@@ -18,6 +25,7 @@ from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
 from .errors import classify_error, public_error_message
 from .prompt import PROMPT_VERSION, build_agent_instructions
+from .scope import SCOPE_GUARDRAIL_VERSION, build_scope_guardrail, scope_refusal_message
 from .service_context import ReviewRunContext
 from .tools import build_agent_tools
 from .usage import summarize_usage
@@ -40,6 +48,7 @@ class ReviewService:
         self.guide = guide
         self.model = model
         tools = build_agent_tools(catalog, guide)
+        scope_guardrail = build_scope_guardrail(settings, model)
         self.agent: Agent[ReviewRunContext] = Agent(
             name=settings.identity.display_name,
             instructions=build_agent_instructions(settings.identity),
@@ -54,7 +63,10 @@ class ReviewService:
                 extra_args={"service_tier": model.runtime_defaults.service_tier},
             ),
             tools=tools,  # type: ignore[arg-type]
-            tool_use_behavior=StopAtTools(stop_at_tool_names=["publish_review"]),
+            input_guardrails=[scope_guardrail],
+            tool_use_behavior=StopAtTools(
+                stop_at_tool_names=["reply_to_user", "publish_review"]
+            ),
         )
 
     async def review(self, run_context: ReviewRunContext, agent_input: list[dict[str, Any]]) -> None:
@@ -87,22 +99,54 @@ class ReviewService:
                 ),
                 timeout=self.settings.review_timeout_seconds,
             )
-            if not run_context.published or run_context.publication is None:
-                raise RuntimeError("Agent finished without publish_review")
+            if not run_context.published and not run_context.replied:
+                raise RuntimeError("Agent finished without a terminal response tool")
+            if run_context.published and run_context.publication is None:
+                raise RuntimeError("Agent published a review without a publication payload")
             usage = summarize_usage(result.context_wrapper.usage, self.model)
+            outcome = "review" if run_context.published else "conversation"
             log_event(
                 LOGGER,
                 "info",
                 "review_completed",
-                verdict=run_context.publication.verdict.value,
+                outcome=outcome,
+                verdict=(
+                    run_context.publication.verdict.value
+                    if run_context.publication is not None
+                    else "not_applicable"
+                ),
                 latency_ms=round((time.monotonic() - started_at) * 1000),
                 model=self.model.id,
                 reasoning_effort=self.model.reasoning_effort,
                 **usage.to_log_fields(),
                 **self._log_metadata(case, run_context.attempt),
             )
+        except InputGuardrailTripwireTriggered as error:
+            usage = summarize_usage(run_context.guardrail_usage, self.model)
+            log_event(
+                LOGGER,
+                "info",
+                "scope_guardrail_blocked",
+                latency_ms=round((time.monotonic() - started_at) * 1000),
+                guardrail_name=error.guardrail_result.guardrail.get_name(),
+                **usage.to_log_fields(),
+                **self._log_metadata(case, run_context.attempt),
+            )
+            try:
+                await run_context.publisher.reply(scope_refusal_message())
+                run_context.replied = True
+            except Exception as publication_error:
+                log_event(
+                    LOGGER,
+                    "error",
+                    "scope_refusal_publication_failed",
+                    exc_info=publication_error,
+                    **exception_fields(publication_error),
+                    **self._log_metadata(case, run_context.attempt),
+                )
         except Exception as error:
             classified = classify_error(error)
+            usage = summarize_usage(run_context.guardrail_usage, self.model)
             technical_reference = (
                 f"{case.root_message_id}-{run_context.attempt}-{classified.kind.value}"
             )
@@ -115,10 +159,11 @@ class ReviewService:
                 retryable=classified.retryable,
                 latency_ms=round((time.monotonic() - started_at) * 1000),
                 technical_reference=technical_reference,
+                **usage.to_log_fields(),
                 **exception_fields(error),
                 **self._log_metadata(case, run_context.attempt),
             )
-            if run_context.published:
+            if run_context.published or run_context.replied:
                 return
             try:
                 await run_context.publisher.publish_failure(
@@ -155,6 +200,7 @@ class ReviewService:
             "environment": self.settings.app_environment,
             "app_version": self.settings.app_version,
             "prompt_version": PROMPT_VERSION,
+            "scope_guardrail_version": SCOPE_GUARDRAIL_VERSION,
             "guild_id": str(case.guild_id),
             "parent_channel_id": str(case.parent_channel_id),
             "thread_id": str(case.thread_id or ""),

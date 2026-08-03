@@ -12,6 +12,10 @@ habilitados reciben una orientación determinista, también sin ejecutar el agen
 
 ## Qué hace
 
+- Responde con naturalidad preguntas relacionadas con reportes, cargos, evidencia, procedimientos y
+  correcciones previas, sin convertir cada mención en una revisión.
+- Aplica primero un guardrail textual de alcance; las consultas claramente ajenas reciben una
+  orientación breve sin enviar imágenes al agente principal.
 - Revisa la narrativa, evidencia visible y cargos de un reporte multimodal.
 - Envía todas las imágenes seleccionadas, incluidas las fotografías frontal y lateral.
 - Contrasta descripciones expresas de ropa y accesorios con flexibilidad por iluminación, ángulo,
@@ -97,13 +101,16 @@ las fuentes locales de conocimiento están cargadas; durante el arranque devuelv
 
 ## Uso en Discord
 
-1. Publica el nombre o identificador del sospechoso junto con las capturas habituales.
+1. Para una revisión, publica el nombre o identificador del sospechoso junto con el material habitual
+   y solicita la revisión; también puedes hacer preguntas pertinentes sin adjuntar un expediente.
 2. Menciona al bot en cualquier parte del mensaje.
 3. Para una corrección, responde dentro del hilo, adjunta el material actualizado y vuelve a
    mencionar al bot.
 
 El agente no exige cuatro imágenes ni un orden fijo. Puede reconocer fotografías de personaje,
 capturas de cargos, narrativa en el juego, un formulario o texto escrito directamente en Discord.
+Solo activa el estado y el dictamen de revisión cuando la intención y el material disponible lo
+justifican; si faltan antecedentes, los solicita mediante una respuesta normal.
 
 Comandos disponibles:
 
@@ -154,7 +161,7 @@ multimodal, efectos inmediatos de las tools, embeds, clasificación de errores, 
   comandos persistentes.
 - El catálogo y la guía son archivos versionados; todavía no existe sincronización con OpenMP/PCU.
 - No existe configuración por facción o tenant.
-- No se ejecuta una segunda revisión automática con otro modelo.
+- No se ejecuta una segunda revisión automática ni un fallback de veredicto con otro modelo.
 
 La separación entre contexto Discord, dominio, conocimiento y runner permite añadir más adelante una
 base de datos, configuración por servidor/facción, catálogo sincronizado mediante API y políticas

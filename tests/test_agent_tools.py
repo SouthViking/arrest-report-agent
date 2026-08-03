@@ -15,12 +15,16 @@ class FakePublisher:
     def __init__(self) -> None:
         self.begins: list[str | None] = []
         self.publications = []
+        self.replies: list[str] = []
 
     async def begin(self, case_subject: str | None = None) -> None:
         self.begins.append(case_subject)
 
     async def publish(self, publication) -> None:
         self.publications.append(publication)
+
+    async def reply(self, content: str) -> None:
+        self.replies.append(content)
 
     async def publish_failure(self, public_message) -> None:
         raise AssertionError("not expected")
@@ -79,3 +83,42 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
     assert publisher.begins == ["Terry Parker"]
     assert publisher.publications[0].verdict is ReviewVerdict.APPROVED
     assert run_context.started and run_context.published
+
+
+@pytest.mark.asyncio
+async def test_natural_reply_is_an_immediate_terminal_side_effect() -> None:
+    publisher = FakePublisher()
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=2,
+        root_message_id=3,
+        trigger_message_id=3,
+        requester_user_id=4,
+        interaction_mode=InteractionMode.INITIAL_REVIEW,
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(case=case, publisher=publisher, attempt=1)
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+    arguments = json.dumps(
+        {"content": "Claro, deputy. El código penal está disponible en el enlace oficial."}
+    )
+    tool_context = ToolContext(
+        context=run_context,
+        tool_name="reply_to_user",
+        tool_call_id="call-reply",
+        tool_arguments=arguments,
+    )
+
+    await tools["reply_to_user"].on_invoke_tool(tool_context, arguments)
+
+    assert publisher.replies == [
+        "Claro, deputy. El código penal está disponible en el enlace oficial."
+    ]
+    assert run_context.replied
+    assert not run_context.started
+    assert not run_context.published

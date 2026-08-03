@@ -2,9 +2,14 @@
 
 ## Datos procesados
 
-Una revisión envía a OpenAI el texto acotado del reporte/hilo, las imágenes seleccionadas, el nombre
-visible del solicitante y hasta ocho nombres de roles relevantes. No envía IDs de roles. Los datos se
-usan únicamente para producir el veredicto solicitado mediante mención explícita.
+Una mención que supera la política local envía primero al guardrail únicamente el texto del mensaje
+actual y señales compactas: si está en un hilo, si existe contexto previo y cuántos adjuntos tiene el
+mensaje. No envía imágenes, URLs, historial, nombre ni roles en esta etapa.
+
+Si la solicitud está dentro de alcance o es ambigua, el agente principal recibe el texto acotado del
+reporte/hilo, las imágenes seleccionadas, el nombre visible del solicitante y hasta ocho nombres de
+roles relevantes. No envía IDs de roles. Los datos se usan para responder dentro del ámbito o emitir
+el veredicto solicitado mediante mención explícita.
 
 Los mensajes sin mención no generan llamadas, almacenamiento ni logs de contenido. Guilds, canales
 y usuarios pasan por una política local antes de reconstruir el contexto. Una mención de un usuario

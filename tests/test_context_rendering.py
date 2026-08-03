@@ -78,6 +78,8 @@ def test_render_includes_every_selected_character_and_report_image() -> None:
     assert {image["image_url"] for image in images} == {attachment.url for attachment in attachments}
     assert "Solicitante: Teniente Charles Harrington" in text
     assert "Roles del solicitante: Teniente, GNT" in text
+    assert "Atiende la solicitud actual" in text
+    assert "Revisa el estado actual" not in text
 
 
 def test_render_preserves_reply_and_edit_context() -> None:

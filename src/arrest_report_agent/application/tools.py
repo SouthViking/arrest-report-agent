@@ -61,7 +61,7 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
     async def begin_review(
         ctx: RunContextWrapper[ReviewRunContext], case_subject: str | None = None
     ) -> dict[str, object]:
-        """Mark the Discord report as under review; call exactly once and before other tools.
+        """Mark an actual report review as started. Do not use for questions or missing material.
 
         Args:
             case_subject: Suspect or case label when confidently available.
@@ -94,11 +94,30 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
         run_context.publication = publication
         return {"ok": True, "verdict": publication.verdict.value}
 
+    @function_tool(failure_error_function=None)
+    async def reply_to_user(
+        ctx: RunContextWrapper[ReviewRunContext], content: str
+    ) -> dict[str, object]:
+        """Send a natural response to the user. Use this as the terminal tool outside a review.
+
+        Args:
+            content: The complete response, with any useful Discord markdown and moderate emojis.
+        """
+
+        run_context = ctx.context
+        if run_context.replied:
+            return {"ok": True, "already_replied": True}
+        if run_context.published:
+            return {"ok": True, "already_completed": "publish_review"}
+        await run_context.publisher.reply(content)
+        run_context.replied = True
+        return {"ok": True}
+
     return [
         begin_review,
         get_report_guide,
         list_charge_index,
         get_charge_details,
+        reply_to_user,
         publish_review,
     ]
-
