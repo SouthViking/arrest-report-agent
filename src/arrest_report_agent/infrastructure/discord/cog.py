@@ -1,4 +1,4 @@
-"""Discord event listener and operational slash commands."""
+"""Discord event listener and public help command."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from arrest_report_agent.config import AppSettings
 from arrest_report_agent.config.logging import log_event
 from arrest_report_agent.domain import ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError
-from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
 from .context import DiscordContextBuilder, render_agent_input
 from .publisher import DiscordReviewPublisher
@@ -27,31 +26,6 @@ PROCEDURES_MANUAL_URL = (
     "https://docs.google.com/document/d/1DrhSgzPbdLoe0ahFTVrNPb_zBPuhVeatxW5Hs8ECMHE/"
     "edit?pli=1&tab=t.0#heading=h.thzh3oj2x0rk"
 )
-
-REQUIRED_PERMISSIONS = (
-    "view_channel",
-    "read_message_history",
-    "send_messages",
-    "add_reactions",
-    "create_public_threads",
-    "send_messages_in_threads",
-    "manage_threads",
-    "embed_links",
-)
-
-PERMISSION_LABELS = {
-    "view_channel": "ver canal",
-    "read_message_history": "leer historial",
-    "send_messages": "enviar mensajes",
-    "add_reactions": "añadir reacciones",
-    "create_public_threads": "crear hilos públicos",
-    "send_messages_in_threads": "escribir en hilos",
-    "manage_threads": "gestionar hilos",
-    "embed_links": "insertar enlaces",
-}
-
-EMBED_SPACER = "\u200b"
-
 
 def build_help_embed(
     *,
@@ -119,40 +93,6 @@ def build_help_embed(
     return embed
 
 
-def build_status_embed(
-    *,
-    display_name: str,
-    discord_ready: bool,
-    environment: str,
-    model: str,
-    charge_count: int,
-    guide_version: str,
-    active_reviews: int,
-    channel_permission_lines: tuple[str, ...],
-) -> discord.Embed:
-    """Build a readable two-column operational status embed."""
-
-    embed = discord.Embed(
-        title=f"⭐ Estado · {display_name}",
-        color=discord.Color.green() if discord_ready else discord.Color.orange(),
-    )
-    rows = (
-        (("Discord", "conectado" if discord_ready else "iniciando"), ("Entorno", environment)),
-        (("Modelo", model), ("Catálogo", f"{charge_count} delitos")),
-        (("Guía", guide_version), ("Revisiones activas", str(active_reviews))),
-    )
-    for left, right in rows:
-        embed.add_field(name=left[0], value=left[1], inline=True)
-        embed.add_field(name=EMBED_SPACER, value=EMBED_SPACER, inline=True)
-        embed.add_field(name=right[0], value=right[1], inline=True)
-    embed.add_field(
-        name="🛡️ Canales y permisos",
-        value="\n".join(channel_permission_lines)[:1024],
-        inline=False,
-    )
-    return embed
-
-
 class ReviewCog(commands.Cog):
     wv = discord.SlashCommandGroup("wv", "Operaciones del revisor de reportes")
 
@@ -161,14 +101,10 @@ class ReviewCog(commands.Cog):
         bot: discord.Bot,
         settings: AppSettings,
         service: ReviewService,
-        catalog: ChargeCatalog,
-        guide: ReportGuide,
     ) -> None:
         self.bot = bot
         self.settings = settings
         self.service = service
-        self.catalog = catalog
-        self.guide = guide
         self.context_builder = DiscordContextBuilder(settings)
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_reviews)
         self._locks: dict[int, asyncio.Lock] = {}
@@ -270,49 +206,3 @@ class ReviewCog(commands.Cog):
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
         )
         await ctx.respond(embed=embed, ephemeral=False)
-
-    @wv.command(name="status", description="Muestra el estado operativo del revisor")
-    async def review_status(self, ctx: discord.ApplicationContext) -> None:
-        if not self._is_operator(ctx):
-            await ctx.respond("Este parte está reservado a supervisores.", ephemeral=True)
-            return
-        embed = build_status_embed(
-            display_name=self.settings.identity.display_name,
-            discord_ready=self.bot.is_ready(),
-            environment=self.settings.app_environment,
-            model=self.settings.openai_model,
-            charge_count=self.catalog.charge_count,
-            guide_version=self.guide.version,
-            active_reviews=len(self._locks),
-            channel_permission_lines=self._channel_permission_lines(),
-        )
-        await ctx.respond(embed=embed, ephemeral=True)
-
-    def _channel_permission_lines(self) -> tuple[str, ...]:
-        guild = self.bot.get_guild(self.settings.discord_guild_id)
-        if guild is None or guild.me is None:
-            return ("⚠️ No encuentro el servidor configurado en la caché.",)
-
-        lines: list[str] = []
-        for channel_id in sorted(self.settings.review_channel_ids):
-            channel = guild.get_channel(channel_id)
-            if channel is None:
-                lines.append(f"❌ <#{channel_id}> — canal no encontrado")
-                continue
-            permissions = channel.permissions_for(guild.me)
-            missing = [name for name in REQUIRED_PERMISSIONS if not getattr(permissions, name, False)]
-            if missing:
-                labels = ", ".join(PERMISSION_LABELS[name] for name in missing)
-                lines.append(f"❌ {channel.mention} — faltan: {labels}")
-            else:
-                lines.append(f"✅ {channel.mention} — permisos completos")
-        return tuple(lines) or ("⚠️ No hay canales de revisión configurados.",)
-
-    def _is_operator(self, ctx: discord.ApplicationContext) -> bool:
-        author = ctx.author
-        if not isinstance(author, discord.Member):
-            return False
-        if author.guild_permissions.manage_guild:
-            return True
-        role_id = self.settings.manual_review_role_id
-        return role_id is not None and any(role.id == role_id for role in author.roles)

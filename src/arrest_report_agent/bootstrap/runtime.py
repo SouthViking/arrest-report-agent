@@ -36,6 +36,5 @@ def build_runtime(settings: AppSettings) -> Runtime:
     guide = ReportGuide.load_default()
     bot = create_bot(settings)
     service = ReviewService(settings, catalog, guide)
-    bot.add_cog(ReviewCog(bot, settings, service, catalog, guide))
+    bot.add_cog(ReviewCog(bot, settings, service))
     return Runtime(bot=bot, catalog=catalog, guide=guide)
-
