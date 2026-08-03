@@ -6,10 +6,18 @@ from arrest_report_agent.infrastructure.discord import trigger
 from arrest_report_agent.infrastructure.discord.trigger import TriggerDecision, classify_message
 
 
-def make_message(settings, *, mentions: list[int], bot: bool = False, webhook_id=None, channel_id=None):
+def make_message(
+    settings,
+    *,
+    mentions: list[int],
+    user_id: int = 123,
+    bot: bool = False,
+    webhook_id=None,
+    channel_id=None,
+):
     return SimpleNamespace(
         guild=SimpleNamespace(id=settings.discord_guild_id),
-        author=SimpleNamespace(bot=bot),
+        author=SimpleNamespace(id=user_id, bot=bot),
         webhook_id=webhook_id,
         channel=SimpleNamespace(id=channel_id or min(settings.review_channel_ids)),
         raw_mentions=mentions,
@@ -56,6 +64,40 @@ def test_configured_child_thread_triggers(settings, monkeypatch) -> None:
     message.channel = FakeThread(min(settings.review_channel_ids))
 
     assert classify_message(message, 999, settings) is TriggerDecision.REVIEW
+
+
+def test_unauthorized_user_is_stopped_before_channel_routing(settings) -> None:
+    restricted = settings.model_copy(update={"authorized_user_ids_csv": "321"})
+
+    assert (
+        classify_message(
+            make_message(restricted, mentions=[999], user_id=123),
+            999,
+            restricted,
+        )
+        is TriggerDecision.REDIRECT_UNAUTHORIZED_USER
+    )
+    assert (
+        classify_message(
+            make_message(restricted, mentions=[999], user_id=123, channel_id=555),
+            999,
+            restricted,
+        )
+        is TriggerDecision.REDIRECT_UNAUTHORIZED_USER
+    )
+
+
+def test_authorized_user_can_reach_review(settings) -> None:
+    restricted = settings.model_copy(update={"authorized_user_ids_csv": "123,321"})
+
+    assert (
+        classify_message(
+            make_message(restricted, mentions=[999], user_id=123),
+            999,
+            restricted,
+        )
+        is TriggerDecision.REVIEW
+    )
 
 
 def test_wrong_guild_is_ignored_even_when_mentioned(settings) -> None:

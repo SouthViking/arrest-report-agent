@@ -8,9 +8,11 @@ import pytest
 from arrest_report_agent.infrastructure.discord.cog import (
     PENAL_CODE_URL,
     PROCEDURES_MANUAL_URL,
+    UNAUTHORIZED_USER_INTROS,
     WRONG_CHANNEL_INTROS,
     ReviewCog,
     build_help_embed,
+    build_unauthorized_user_message,
     build_wrong_channel_message,
     maintain_typing_indicator,
 )
@@ -43,6 +45,11 @@ class FakeTypingChannel:
 class UnexpectedReviewService:
     async def review(self, *_args, **_kwargs) -> None:
         raise AssertionError("The agent runner must not execute for a wrong-channel redirect")
+
+
+class UnexpectedContextBuilder:
+    async def resolve_target(self, *_args, **_kwargs):
+        raise AssertionError("Discord context must not be built for a blocked user")
 
 
 def test_operational_command_group_uses_distinct_wv_namespace() -> None:
@@ -93,6 +100,19 @@ def test_wrong_channel_message_varies_copy_but_keeps_stable_format() -> None:
         )
 
 
+def test_unauthorized_user_message_varies_copy_but_keeps_stable_format() -> None:
+    messages = [
+        build_unauthorized_user_message(message_id=message_id)
+        for message_id in range(len(UNAUTHORIZED_USER_INTROS))
+    ]
+
+    for intro, message in zip(UNAUTHORIZED_USER_INTROS, messages, strict=True):
+        assert message == (
+            f"🔒 **Un momento, deputy.** {intro}\n"
+            "Consulte con un mando para que revise su habilitación antes de continuar."
+        )
+
+
 @pytest.mark.asyncio
 async def test_wrong_channel_mention_replies_once_without_running_agent(settings) -> None:
     replies: list[dict[str, object]] = []
@@ -128,6 +148,36 @@ async def test_wrong_channel_mention_replies_once_without_running_agent(settings
     assert content.startswith("📍 **Fuera de mi zona de guardia, deputy.**")
     for channel_id in settings.review_channel_ids:
         assert f"<#{channel_id}>" in content
+
+
+@pytest.mark.asyncio
+async def test_unauthorized_mention_replies_once_without_context_or_agent(settings) -> None:
+    replies: list[dict[str, object]] = []
+
+    async def reply(**kwargs) -> None:
+        replies.append(kwargs)
+
+    restricted = settings.model_copy(update={"authorized_user_ids_csv": "321"})
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(bot, restricted, UnexpectedReviewService())  # type: ignore[arg-type]
+    cog.context_builder = UnexpectedContextBuilder()  # type: ignore[assignment]
+    message = SimpleNamespace(
+        id=42,
+        guild=SimpleNamespace(id=restricted.discord_guild_id),
+        author=SimpleNamespace(id=123, bot=False),
+        webhook_id=None,
+        channel=SimpleNamespace(id=min(restricted.review_channel_ids)),
+        raw_mentions=[999],
+        reply=reply,
+    )
+
+    await cog.on_message(message)  # type: ignore[arg-type]
+    await cog.on_message(message)  # type: ignore[arg-type]
+
+    assert len(replies) == 1
+    assert replies[0]["mention_author"] is False
+    assert isinstance(replies[0]["allowed_mentions"], discord.AllowedMentions)
+    assert replies[0]["content"] == build_unauthorized_user_message(message_id=42)
 
 
 @pytest.mark.asyncio

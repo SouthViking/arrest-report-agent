@@ -5,7 +5,9 @@
 Una revisión envía a OpenAI el texto acotado del reporte/hilo y las imágenes seleccionadas. Los datos
 se usan únicamente para producir el veredicto solicitado mediante mención explícita.
 
-Los mensajes sin mención no generan llamadas, almacenamiento ni logs de contenido.
+Los mensajes sin mención no generan llamadas, almacenamiento ni logs de contenido. Una mención de
+un usuario fuera de `AUTHORIZED_USER_IDS` se detiene antes de reconstruir el contexto y registra solo
+IDs técnicos mediante los eventos `unauthorized_user_redirect_*`.
 
 ## Logs
 

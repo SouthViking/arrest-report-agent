@@ -5,9 +5,10 @@ por defecto es **Sgt. Vigil**, pero el repositorio, el paquete y la lógica mant
 la identidad se inyecta desde `BOT_DISPLAY_NAME` y `BOT_ROLE_TITLE`.
 
 El MVP está preparado para los canales privados `gnt-arrestos` y `dlm-arrestos` del servidor LSSD.
-Solo actúa cuando un miembro menciona explícitamente al bot, en cualquier parte del mensaje. Las
-publicaciones sin mención, los bots, los webhooks, otros servidores y otros canales se ignoran sin
-llamar a OpenAI.
+Solo actúa cuando un usuario habilitado menciona explícitamente al bot, en cualquier parte del
+mensaje. Las publicaciones sin mención, los bots, los webhooks y otros servidores se ignoran sin
+llamar a OpenAI. Las menciones fuera de los canales configurados o realizadas por usuarios no
+habilitados reciben una orientación determinista, también sin ejecutar el agente.
 
 ## Qué hace
 
@@ -43,9 +44,15 @@ Completa al menos `DISCORD_TOKEN` y `OPENAI_API_KEY` en `.env`. Los valores por 
 ```dotenv
 DISCORD_GUILD_ID=1234674521416663070
 REVIEW_CHANNEL_IDS=1462992794569281617,1462992859761217745
+AUTHORIZED_USER_IDS=*
 OPENAI_MODEL=gpt-5.6-terra
 OPENAI_REASONING_EFFORT=medium
 ```
+
+`AUTHORIZED_USER_IDS` controla quién puede ejecutar una revisión. Si no existe, está vacía o vale
+`*`, cualquier usuario humano del servidor puede usar el bot. Una lista CSV como `123,456` restringe
+el acceso a esos IDs. El bloqueo ocurre antes de leer el contexto de Discord o iniciar el Runner;
+el usuario recibe una respuesta breve del pool de mensajes, sin consumo de OpenAI.
 
 El modelo y el nivel de razonamiento son la única selección de modelo requerida en el entorno. El
 detalle de imagen, verbosity, límite de salida, service tier, capacidades admitidas y precios se
@@ -95,6 +102,7 @@ Comandos disponibles:
 
 | Variable | Predeterminado | Función |
 |---|---:|---|
+| `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
 | `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | Modelo del runner. |
 | `OPENAI_REASONING_EFFORT` | `medium` | Esfuerzo validado contra los valores admitidos por el modelo. |
@@ -127,7 +135,8 @@ multimodal, efectos inmediatos de las tools, embeds, clasificación de errores, 
 ## Límites del MVP
 
 - No hay base de datos: intentos, locks y estado operativo se pierden al reiniciar.
-- Los canales, servidor y rol manual se configuran por entorno, no mediante comandos persistentes.
+- Los canales, usuarios habilitados, servidor y rol manual se configuran por entorno, no mediante
+  comandos persistentes.
 - El catálogo y la guía son archivos versionados; todavía no existe sincronización con OpenMP/PCU.
 - No existe configuración por facción o tenant.
 - No se ejecuta una segunda revisión automática con otro modelo.

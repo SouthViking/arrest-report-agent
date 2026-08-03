@@ -24,6 +24,7 @@ class AppSettings(BaseSettings):
     openai_api_key: SecretStr = Field(alias="OPENAI_API_KEY")
     discord_guild_id: int = Field(alias="DISCORD_GUILD_ID", gt=0)
     review_channel_ids_csv: str = Field(alias="REVIEW_CHANNEL_IDS")
+    authorized_user_ids_csv: str = Field(default="*", alias="AUTHORIZED_USER_IDS")
     manual_review_role_id: int | None = Field(default=None, alias="MANUAL_REVIEW_ROLE_ID")
 
     bot_display_name: str = Field(default="Sgt. Vigil", alias="BOT_DISPLAY_NAME", min_length=1)
@@ -96,6 +97,7 @@ class AppSettings(BaseSettings):
             raise ValueError("OPENAI_API_KEY must not be empty")
         if not self.review_channel_ids:
             raise ValueError("REVIEW_CHANNEL_IDS must contain at least one channel ID")
+        _ = self.authorized_user_ids
         return self
 
     @cached_property
@@ -110,6 +112,28 @@ class AppSettings(BaseSettings):
                 raise ValueError("REVIEW_CHANNEL_IDS must contain positive Discord snowflakes")
             values.add(channel_id)
         return frozenset(values)
+
+    @property
+    def authorized_user_ids(self) -> frozenset[int] | None:
+        """Return allowed Discord users, or ``None`` when access is unrestricted."""
+
+        normalized_config = self.authorized_user_ids_csv.strip()
+        if not normalized_config or normalized_config == "*":
+            return None
+        raw_values = [value.strip() for value in normalized_config.split(",") if value.strip()]
+        if "*" in raw_values:
+            raise ValueError("AUTHORIZED_USER_IDS cannot combine '*' with Discord user IDs")
+        values: set[int] = set()
+        for raw_value in raw_values:
+            user_id = int(raw_value)
+            if user_id <= 0:
+                raise ValueError("AUTHORIZED_USER_IDS must contain positive Discord snowflakes")
+            values.add(user_id)
+        return frozenset(values) or None
+
+    def is_user_authorized(self, user_id: int) -> bool:
+        authorized = self.authorized_user_ids
+        return authorized is None or user_id in authorized
 
     @property
     def identity(self) -> BotIdentity:

@@ -14,6 +14,7 @@ class TriggerDecision(StrEnum):
 
     REVIEW = "review"
     REDIRECT_WRONG_CHANNEL = "redirect_wrong_channel"
+    REDIRECT_UNAUTHORIZED_USER = "redirect_unauthorized_user"
     IGNORE_UNMENTIONED = "ignore_unmentioned"
     IGNORE_BOT_OR_WEBHOOK = "ignore_bot_or_webhook"
     IGNORE_WRONG_GUILD = "ignore_wrong_guild"
@@ -39,6 +40,8 @@ def classify_message(
         return TriggerDecision.IGNORE_BOT_OR_WEBHOOK
     if bot_user_id not in message.raw_mentions:
         return TriggerDecision.IGNORE_UNMENTIONED
+    if not settings.is_user_authorized(message.author.id):
+        return TriggerDecision.REDIRECT_UNAUTHORIZED_USER
     if configured_parent_channel_id(message) not in settings.review_channel_ids:
         return TriggerDecision.REDIRECT_WRONG_CHANNEL
     return TriggerDecision.REVIEW

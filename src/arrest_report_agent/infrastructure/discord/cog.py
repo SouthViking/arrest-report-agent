@@ -30,12 +30,18 @@ PROCEDURES_MANUAL_URL = (
     "https://docs.google.com/document/d/1DrhSgzPbdLoe0ahFTVrNPb_zBPuhVeatxW5Hs8ECMHE/"
     "edit?pli=1&tab=t.0#heading=h.thzh3oj2x0rk"
 )
-WRONG_CHANNEL_REDIRECT_COOLDOWN_SECONDS = 30.0
+DETERMINISTIC_REPLY_COOLDOWN_SECONDS = 30.0
 WRONG_CHANNEL_INTROS = (
     "En este canal no estoy de guardia.",
     "Este canal queda fuera de mi ronda asignada.",
     "Aquí no tengo habilitada la atención.",
     "Me encontró, pero en la oficina equivocada.",
+)
+UNAUTHORIZED_USER_INTROS = (
+    "Su placa no figura en el libro de guardia.",
+    "No tengo su nombre entre el personal habilitado para esta mesa.",
+    "La orden del turno no me permite atender solicitudes asociadas a su placa.",
+    "El listado de servicio no reconoce su autorización para esta oficina.",
 )
 
 
@@ -147,6 +153,16 @@ def build_wrong_channel_message(
     )
 
 
+def build_unauthorized_user_message(*, message_id: int) -> str:
+    """Build a concise in-character access notice without invoking AI."""
+
+    intro = UNAUTHORIZED_USER_INTROS[message_id % len(UNAUTHORIZED_USER_INTROS)]
+    return (
+        f"🔒 **Un momento, deputy.** {intro}\n"
+        "Consulte con un mando para que revise su habilitación antes de continuar."
+    )
+
+
 class ReviewCog(commands.Cog):
     wv = discord.SlashCommandGroup("wv", "Operaciones del revisor de reportes")
 
@@ -163,7 +179,7 @@ class ReviewCog(commands.Cog):
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_reviews)
         self._locks: dict[int, asyncio.Lock] = {}
         self._attempts: defaultdict[int, int] = defaultdict(int)
-        self._redirect_cooldowns: dict[tuple[int, int, int], float] = {}
+        self._deterministic_reply_cooldowns: dict[tuple[int, int, int], float] = {}
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
@@ -174,6 +190,10 @@ class ReviewCog(commands.Cog):
             bot_user_id=self.bot.user.id if self.bot.user else "unknown",
             guild_id=self.settings.discord_guild_id,
             configured_channels=len(self.settings.review_channel_ids),
+            authorization_mode=(
+                "open" if self.settings.authorized_user_ids is None else "restricted"
+            ),
+            authorized_users=len(self.settings.authorized_user_ids or ()),
         )
 
     @commands.Cog.listener()
@@ -182,6 +202,9 @@ class ReviewCog(commands.Cog):
         if bot_user is None:
             return
         decision = classify_message(message, bot_user.id, self.settings)
+        if decision is TriggerDecision.REDIRECT_UNAUTHORIZED_USER:
+            await self._redirect_unauthorized_user(message)
+            return
         if decision is TriggerDecision.REDIRECT_WRONG_CHANNEL:
             await self._redirect_wrong_channel(message)
             return
@@ -260,17 +283,40 @@ class ReviewCog(commands.Cog):
                 self._locks.pop(root_id, None)
 
     async def _redirect_wrong_channel(self, message: discord.Message) -> None:
+        await self._reply_deterministic_notice(
+            message,
+            content=build_wrong_channel_message(
+                channel_ids=self.settings.review_channel_ids,
+                message_id=message.id,
+            ),
+            event_prefix="wrong_channel_redirect",
+        )
+
+    async def _redirect_unauthorized_user(self, message: discord.Message) -> None:
+        await self._reply_deterministic_notice(
+            message,
+            content=build_unauthorized_user_message(message_id=message.id),
+            event_prefix="unauthorized_user_redirect",
+        )
+
+    async def _reply_deterministic_notice(
+        self,
+        message: discord.Message,
+        *,
+        content: str,
+        event_prefix: str,
+    ) -> None:
         guild = message.guild
         if guild is None:
             return
         cooldown_key = (guild.id, message.channel.id, message.author.id)
         now = monotonic()
-        last_redirect = self._redirect_cooldowns.get(cooldown_key)
-        if last_redirect is not None and now - last_redirect < WRONG_CHANNEL_REDIRECT_COOLDOWN_SECONDS:
+        last_reply = self._deterministic_reply_cooldowns.get(cooldown_key)
+        if last_reply is not None and now - last_reply < DETERMINISTIC_REPLY_COOLDOWN_SECONDS:
             log_event(
                 LOGGER,
                 "info",
-                "wrong_channel_redirect_suppressed",
+                f"{event_prefix}_suppressed",
                 guild_id=guild.id,
                 channel_id=message.channel.id,
                 message_id=message.id,
@@ -278,11 +324,7 @@ class ReviewCog(commands.Cog):
             )
             return
 
-        self._redirect_cooldowns[cooldown_key] = now
-        content = build_wrong_channel_message(
-            channel_ids=self.settings.review_channel_ids,
-            message_id=message.id,
-        )
+        self._deterministic_reply_cooldowns[cooldown_key] = now
         try:
             await message.reply(
                 content=content,
@@ -292,18 +334,18 @@ class ReviewCog(commands.Cog):
             log_event(
                 LOGGER,
                 "info",
-                "wrong_channel_redirect_sent",
+                f"{event_prefix}_sent",
                 guild_id=guild.id,
                 channel_id=message.channel.id,
                 message_id=message.id,
                 user_id=message.author.id,
             )
         except (discord.Forbidden, discord.HTTPException) as error:
-            self._redirect_cooldowns.pop(cooldown_key, None)
+            self._deterministic_reply_cooldowns.pop(cooldown_key, None)
             log_event(
                 LOGGER,
                 "warning",
-                "wrong_channel_redirect_failed",
+                f"{event_prefix}_failed",
                 exc_info=error,
                 guild_id=guild.id,
                 channel_id=message.channel.id,

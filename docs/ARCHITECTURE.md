@@ -5,7 +5,9 @@
 ```mermaid
 flowchart LR
     M["Mensaje con mención"] --> T["Política de trigger"]
-    T --> C["Contexto acotado de Discord"]
+    T -->|"usuario y canal habilitados"| C["Contexto acotado de Discord"]
+    T -->|"usuario no habilitado"| U["Respuesta local de acceso"]
+    T -->|"canal no habilitado"| W["Respuesta local con canales"]
     C --> R["Runner de OpenAI"]
     J["Catálogo JSON de modelos"] --> R
     R --> G["Guía local"]
@@ -14,7 +16,9 @@ flowchart LR
     P --> X["Reacción, hilo y embed"]
 ```
 
-La política de trigger se ejecuta antes de descargar contexto o llamar a OpenAI. El mensaje raíz es
+La política de trigger se ejecuta antes de descargar contexto o llamar a OpenAI. Tras validar
+servidor, autor humano y mención explícita, comprueba primero `AUTHORIZED_USER_IDS` y luego el canal.
+Ambos rechazos usan respuestas locales con cooldown y nunca alcanzan el Runner. El mensaje raíz es
 la unidad de exclusión mutua: dos menciones simultáneas para el mismo reporte no generan dos runs.
 
 ## Capas
