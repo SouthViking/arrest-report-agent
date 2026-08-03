@@ -49,9 +49,8 @@ def public_error_message(kind: ErrorKind) -> str:
 
     messages = {
         ErrorKind.QUOTA_EXCEEDED: (
-            "Central reporta una indisponibilidad operativa y no puedo completar la revisión "
-            "en este momento. El expediente queda derivado para revisión manual hasta que el "
-            "servicio vuelva a estar disponible."
+            "La mesa de revisión alcanzó su capacidad operativa para este turno. Para no emitir "
+            "un criterio apresurado, el expediente queda derivado a revisión manual."
         ),
         ErrorKind.RATE_LIMITED: (
             "La central está recibiendo demasiadas solicitudes. Intenta mencionarme nuevamente "

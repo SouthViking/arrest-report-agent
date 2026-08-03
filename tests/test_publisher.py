@@ -164,7 +164,7 @@ async def test_failure_publishes_only_contextual_message_and_next_step(settings)
     target = ReviewTarget(root=root, trigger=root, parent=SimpleNamespace(), thread=None)
     publisher = DiscordReviewPublisher(bot, settings, target)
 
-    public_message = "Central reporta una indisponibilidad operativa."
+    public_message = "La mesa de revisión alcanzó su capacidad operativa para este turno."
     await publisher.publish_failure(public_message)
 
     embed = root.thread.sent[0]["embed"]
