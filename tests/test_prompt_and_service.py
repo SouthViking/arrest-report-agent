@@ -57,9 +57,22 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert metadata["trigger_message_id"] == "4"
     assert metadata["user_id"] == "5"
     assert metadata["environment"] == settings.app_environment
-    assert metadata["charge_catalog_hash"] == catalog.source_hash
     assert metadata["reasoning_effort"] == model.reasoning_effort
-    assert metadata["pricing_version"] == model.pricing_version
+    assert set(metadata) == {
+        "environment",
+        "app_version",
+        "prompt_version",
+        "guild_id",
+        "parent_channel_id",
+        "thread_id",
+        "root_message_id",
+        "trigger_message_id",
+        "user_id",
+        "review_attempt",
+        "model",
+        "reasoning_effort",
+    }
+    assert len(metadata) <= 16
 
 
 def test_approved_publication_rejects_unresolved_charge() -> None:
