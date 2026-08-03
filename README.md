@@ -84,9 +84,9 @@ capturas de cargos, narrativa en el juego, un formulario o texto escrito directa
 
 Comandos disponibles:
 
-- `/review help`: instrucciones breves para cualquier miembro.
-- `/review status`: estado, entorno, modelo y versiones; requiere `Manage Server` o el rol manual.
-- `/review diagnose`: permisos efectivos en cada canal; requiere el mismo nivel de acceso.
+- `/wv help`: instrucciones breves para cualquier miembro.
+- `/wv status`: estado, entorno, modelo y versiones; requiere `Manage Server` o el rol manual.
+- `/wv diagnose`: permisos efectivos en cada canal; requiere el mismo nivel de acceso.
 
 ## Configuración relevante
 
@@ -136,4 +136,3 @@ Los logs contienen identificadores técnicos, latencia, modelo, uso de tokens, c
 veredicto. No registran nombres, narrativa, OCR, URLs de adjuntos ni respuestas completas. Los traces
 usan IDs de servidor, canal, hilo, mensajes y usuario para depuración, con payload sensible desactivado.
 Consulta [Privacidad y errores](docs/PRIVACY_AND_ERRORS.md).
-

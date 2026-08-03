@@ -65,7 +65,7 @@ def build_status_embed(
 
 
 class ReviewCog(commands.Cog):
-    review = discord.SlashCommandGroup("review", "Operaciones del revisor de reportes")
+    wv = discord.SlashCommandGroup("wv", "Operaciones del revisor de reportes")
 
     def __init__(
         self,
@@ -170,7 +170,7 @@ class ReviewCog(commands.Cog):
             if not lock.locked():
                 self._locks.pop(root_id, None)
 
-    @review.command(name="help", description="Explica cómo solicitar una revisión")
+    @wv.command(name="help", description="Explica cómo solicitar una revisión")
     async def review_help(self, ctx: discord.ApplicationContext) -> None:
         await ctx.respond(
             (
@@ -181,7 +181,7 @@ class ReviewCog(commands.Cog):
             ephemeral=True,
         )
 
-    @review.command(name="status", description="Muestra el estado operativo del revisor")
+    @wv.command(name="status", description="Muestra el estado operativo del revisor")
     async def review_status(self, ctx: discord.ApplicationContext) -> None:
         if not self._is_operator(ctx):
             await ctx.respond("Este parte está reservado a supervisores.", ephemeral=True)
@@ -197,7 +197,7 @@ class ReviewCog(commands.Cog):
         )
         await ctx.respond(embed=embed, ephemeral=True)
 
-    @review.command(name="diagnose", description="Comprueba permisos en los canales configurados")
+    @wv.command(name="diagnose", description="Comprueba permisos en los canales configurados")
     async def review_diagnose(self, ctx: discord.ApplicationContext) -> None:
         if not self._is_operator(ctx):
             await ctx.respond("Este diagnóstico está reservado a supervisores.", ephemeral=True)

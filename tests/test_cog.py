@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from arrest_report_agent.infrastructure.discord.cog import EMBED_SPACER, build_status_embed
+from arrest_report_agent.infrastructure.discord.cog import (
+    EMBED_SPACER,
+    ReviewCog,
+    build_status_embed,
+)
+
+
+def test_operational_command_group_uses_distinct_wv_namespace() -> None:
+    assert ReviewCog.wv.name == "wv"
 
 
 def test_status_embed_uses_star_and_spaced_two_column_rows() -> None:
