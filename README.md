@@ -18,6 +18,8 @@ habilitados reciben una orientación determinista, también sin ejecutar el agen
   compresión y limitaciones gráficas; no infiere atributos sensibles.
 - Consulta una guía local por secciones y un índice validado de 164 delitos descargados del PCU.
 - Mantiene el indicador nativo de escritura mientras procesa una solicitud.
+- Muestra `⭐ De guardia` en reposo y `📂 Revisando expedientes` mientras exista al menos una
+  revisión activa, sin actualizaciones redundantes ante ejecuciones paralelas.
 - Añade `⏳` al comenzar desde una tool del agente y publica el resultado desde una tool terminal.
 - Aprueba con `✅` sin crear un hilo nuevo; las correcciones usan `❌` y un hilo estructurado; los
   casos inconclusos o técnicos usan `⚠️` y derivación manual opcional.
@@ -45,6 +47,8 @@ Completa al menos `DISCORD_TOKEN` y `OPENAI_API_KEY` en `.env`. Los valores por 
 DISCORD_GUILD_IDS=1234674521416663070
 REVIEW_CHANNEL_IDS=1462992794569281617,1462992859761217745
 AUTHORIZED_USER_IDS=*
+BOT_IDLE_ACTIVITY=⭐ De guardia
+BOT_BUSY_ACTIVITY=📂 Revisando expedientes
 OPENAI_MODEL=gpt-5.6-terra
 OPENAI_REASONING_EFFORT=medium
 ```
@@ -110,6 +114,8 @@ Comandos disponibles:
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
 | `REVIEW_CHANNEL_IDS` | `*` | Canales padre permitidos; acepta CSV y cubre sus hilos. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
+| `BOT_IDLE_ACTIVITY` | `⭐ De guardia` | Presencia global cuando no hay revisiones activas. |
+| `BOT_BUSY_ACTIVITY` | `📂 Revisando expedientes` | Presencia global mientras haya una o más revisiones activas. |
 | `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | Modelo del runner. |
 | `OPENAI_REASONING_EFFORT` | `medium` | Esfuerzo validado contra los valores admitidos por el modelo. |

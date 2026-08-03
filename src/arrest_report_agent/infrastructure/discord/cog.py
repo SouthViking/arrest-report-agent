@@ -20,6 +20,7 @@ from arrest_report_agent.domain import ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError
 
 from .context import DiscordContextBuilder, render_agent_input
+from .presence import ReviewPresence
 from .publisher import DiscordReviewPublisher
 from .trigger import DiscordAccessPolicy, TriggerDecision
 
@@ -181,6 +182,11 @@ class ReviewCog(commands.Cog):
         self.service = service
         self.access_policy = DiscordAccessPolicy.from_settings(settings)
         self.context_builder = DiscordContextBuilder(settings)
+        self.presence = ReviewPresence(
+            bot,
+            idle_text=settings.bot_idle_activity,
+            busy_text=settings.bot_busy_activity,
+        )
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_reviews)
         self._locks: dict[int, asyncio.Lock] = {}
         self._attempts: defaultdict[int, int] = defaultdict(int)
@@ -188,6 +194,7 @@ class ReviewCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
+        await self.presence.synchronize()
         log_event(
             LOGGER,
             "info",
@@ -247,7 +254,12 @@ class ReviewCog(commands.Cog):
             )
             return
         try:
-            async with lock, maintain_typing_indicator(message.channel), self._semaphore:
+            async with (
+                lock,
+                maintain_typing_indicator(message.channel),
+                self._semaphore,
+                self.presence.reviewing(),
+            ):
                 self._attempts[root_id] += 1
                 attempt = self._attempts[root_id]
                 publisher = DiscordReviewPublisher(self.bot, self.settings, target)

@@ -74,6 +74,18 @@ class AppSettings(BaseSettings):
 
     bot_display_name: str = Field(default="Sgt. Vigil", alias="BOT_DISPLAY_NAME", min_length=1)
     bot_role_title: str = Field(default="Watch Sergeant", alias="BOT_ROLE_TITLE", min_length=1)
+    bot_idle_activity: str = Field(
+        default="⭐ De guardia",
+        alias="BOT_IDLE_ACTIVITY",
+        min_length=1,
+        max_length=128,
+    )
+    bot_busy_activity: str = Field(
+        default="📂 Revisando expedientes",
+        alias="BOT_BUSY_ACTIVITY",
+        min_length=1,
+        max_length=128,
+    )
 
     app_environment: str = Field(default="local", alias="APP_ENV", min_length=1)
     app_version: str = Field(default="0.1.0", alias="APP_VERSION", min_length=1)

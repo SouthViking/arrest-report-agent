@@ -14,6 +14,8 @@ def test_settings_parse_channel_ids_and_identity(settings: AppSettings) -> None:
         {1462992794569281617, 1462992859761217745}
     )
     assert settings.identity.display_name == "Sgt. Vigil"
+    assert settings.bot_idle_activity == "⭐ De guardia"
+    assert settings.bot_busy_activity == "📂 Revisando expedientes"
     assert settings.authorized_user_ids is None
     assert settings.user_allowlist.allows(999) is True
     assert settings.openai_model == "gpt-5.6-terra"

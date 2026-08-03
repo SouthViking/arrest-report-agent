@@ -50,6 +50,14 @@ menciones simultáneas para el mismo reporte no generan dos runs.
 `parallel_tool_calls` permanece deshabilitado para mantener un orden determinista en efectos
 externos. La publicación terminal impide que el runner continúe generando después de actuar.
 
+## Presencia global
+
+`ReviewPresence` mantiene un contador concurrente de revisiones activas. Solo llama a Discord en las
+transiciones globales de cero a una revisión y de una a cero; las entradas o salidas intermedias no
+pisan la presencia. `on_ready` resincroniza el estado tras una reconexión y cualquier fallo cosmético
+se registra sin interrumpir el expediente. Los textos se inyectan desde `BOT_IDLE_ACTIVITY` y
+`BOT_BUSY_ACTIVITY`.
+
 ## Resolución del modelo y costos
 
 El entorno selecciona únicamente `OPENAI_MODEL` y `OPENAI_REASONING_EFFORT`. Al arrancar, el runtime
