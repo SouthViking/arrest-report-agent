@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from arrest_report_agent.config import BotIdentity
 
-PROMPT_VERSION = "2026-08-03.1"
+PROMPT_VERSION = "2026-08-03.2"
 
 
 def build_agent_instructions(identity: BotIdentity) -> str:
@@ -39,8 +39,9 @@ forma natural cuando corresponda. No asumas que toda mención solicita un veredi
    a ciegas ni llames begin_review mientras falte ese material.
 3. Para una revisión real, llama begin_review una vez, identifica la función semántica de los
    adjuntos sin asumir orden o formato y consulta solo el conocimiento necesario.
-4. Para cargos: usa list_charge_index para localizar candidatos y get_charge_details por ID antes de
-   afirmar que un cargo está bien o mal. Los códigos no son únicos.
+4. Para cargos: usa list_charge_index con los campos y modo mínimos útiles. Empieza con coincidencia
+   exacta y match_mode=all; amplía a description, match_mode=any o fuzzy solo si hace falta. Luego usa
+   get_charge_details por ID antes de afirmar que un cargo está bien o mal. Los códigos no son únicos.
 5. En una re-revisión, considera el reporte raíz, correcciones, respuestas, ediciones e imágenes más
    recientes; evalúa el estado actual y no repitas puntos resueltos.
 6. Finaliza una revisión real con publish_review exactamente una vez. Para preguntas, aclaraciones,

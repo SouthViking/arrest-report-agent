@@ -20,7 +20,8 @@ habilitados reciben una orientación determinista, también sin ejecutar el agen
 - Envía todas las imágenes seleccionadas, incluidas las fotografías frontal y lateral.
 - Contrasta descripciones expresas de ropa y accesorios con flexibilidad por iluminación, ángulo,
   compresión y limitaciones gráficas; no infiere atributos sensibles.
-- Consulta una guía local por secciones y un índice validado de 164 delitos descargados del PCU.
+- Consulta una guía local por secciones y un índice validado de 164 delitos descargados del PCU; la
+  búsqueda de cargos permite seleccionar campos, combinar términos y tolerar typos cuando proceda.
 - Mantiene el indicador nativo de escritura mientras procesa una solicitud.
 - Muestra `⭐ De guardia` en reposo y `📂 Revisando expedientes` mientras exista al menos una
   revisión activa, sin actualizaciones redundantes ante ejecuciones paralelas.

@@ -20,6 +20,38 @@ def test_catalog_search_is_accent_and_case_insensitive() -> None:
 
     assert results["matched"] == 2
     assert {item["id"] for item in results["results"]} == {115, 238}
+    assert all(item["matched_fields"] == ["title"] for item in results["results"])
+
+
+def test_catalog_can_search_descriptions_and_quoted_phrases() -> None:
+    catalog = ChargeCatalog.load_default()
+
+    description_result = catalog.list_index(
+        query="movilización innecesaria",
+        fields=["description"],
+    )
+    phrase_result = catalog.list_index(
+        query='"orden legítima"',
+        fields=["description"],
+    )
+
+    assert [item["id"] for item in description_result["results"]] == [106]
+    assert description_result["results"][0]["matched_fields"] == ["description"]
+    assert [item["id"] for item in phrase_result["results"]] == [262]
+
+
+def test_catalog_supports_any_term_and_conservative_fuzzy_matching() -> None:
+    catalog = ChargeCatalog.load_default()
+
+    strict = catalog.list_index(query="evadir cuchillo", match_mode="all")
+    broad = catalog.list_index(query="evadir cuchillo", match_mode="any")
+    typo_without_fuzzy = catalog.list_index(query="evadr oficial", fuzzy=False)
+    typo_with_fuzzy = catalog.list_index(query="evadr oficial", fuzzy=True)
+
+    assert strict["matched"] == 0
+    assert broad["matched"] >= 2
+    assert typo_without_fuzzy["matched"] == 0
+    assert {item["id"] for item in typo_with_fuzzy["results"]} == {115, 238}
 
 
 def test_duplicate_codes_are_resolved_by_unique_id() -> None:
@@ -47,4 +79,3 @@ def test_guide_exposes_only_requested_sections() -> None:
     assert result["unknown_sections"] == ["missing"]
     physical = result["sections"]["physical_description"]
     assert "contradicción clara" in " ".join(physical["flexibility"])
-

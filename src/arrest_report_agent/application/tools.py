@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from agents import RunContextWrapper, function_tool
+from pydantic import Field
 
 from arrest_report_agent.domain import ReviewPublication
-from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+from arrest_report_agent.knowledge import (
+    ChargeCatalog,
+    ChargeMatchMode,
+    ChargeSearchField,
+    ReportGuide,
+)
 
 from .service_context import ReviewRunContext
 
@@ -29,20 +37,39 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
     @function_tool
     async def list_charge_index(
         ctx: RunContextWrapper[ReviewRunContext],
-        category_ids: list[int] | None = None,
-        query: str | None = None,
-        limit: int = 40,
+        category_ids: Annotated[
+            list[Annotated[int, Field(gt=0)]] | None,
+            Field(max_length=14),
+        ] = None,
+        query: Annotated[str | None, Field(min_length=1, max_length=200)] = None,
+        fields: Annotated[
+            list[ChargeSearchField] | None,
+            Field(min_length=1, max_length=5),
+        ] = None,
+        match_mode: ChargeMatchMode = "all",
+        fuzzy: bool = False,
+        limit: Annotated[int, Field(ge=1, le=100)] = 20,
     ) -> dict[str, object]:
-        """List charge categories or search compact charge IDs, codes and titles.
+        """List charge categories or search a configurable compact charge index.
 
         Args:
             category_ids: Optional category IDs to restrict the index.
-            query: Optional Spanish title, code or category search.
+            query: Spanish words or quoted phrases to find.
+            fields: Fields to inspect; defaults to code, title, type and category.
+            match_mode: Require all query terms or allow any one of them.
+            fuzzy: Allow conservative typo matching for terms of four or more characters.
             limit: Maximum compact results, from 1 to 100.
         """
 
         del ctx
-        return catalog.list_index(category_ids=category_ids, query=query, limit=limit)
+        return catalog.list_index(
+            category_ids=category_ids,
+            query=query,
+            fields=fields,
+            match_mode=match_mode,
+            fuzzy=fuzzy,
+            limit=limit,
+        )
 
     @function_tool
     async def get_charge_details(

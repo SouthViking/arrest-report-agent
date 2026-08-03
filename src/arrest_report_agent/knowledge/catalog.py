@@ -6,11 +6,32 @@ import hashlib
 import html
 import json
 import re
+import shlex
 import unicodedata
+from difflib import SequenceMatcher
 from importlib.resources import files
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+
+ChargeSearchField = Literal["code", "title", "type", "category", "description"]
+ChargeMatchMode = Literal["all", "any"]
+DEFAULT_SEARCH_FIELDS: tuple[ChargeSearchField, ...] = (
+    "code",
+    "title",
+    "type",
+    "category",
+)
+FIELD_WEIGHTS: dict[ChargeSearchField, int] = {
+    "code": 100,
+    "title": 80,
+    "type": 30,
+    "category": 20,
+    "description": 15,
+}
+FUZZY_MIN_TERM_LENGTH = 4
+FUZZY_MATCH_THRESHOLD = 0.82
 
 
 class Charge(BaseModel):
@@ -50,6 +71,10 @@ class ChargeCatalog:
         if len({charge.id for charge in charges}) != len(charges):
             raise ValueError("Charge IDs must be globally unique")
         self._charges_by_id = {charge.id: charge for charge in charges}
+        self._search_documents = {
+            charge.id: _search_document(charge, self._categories_by_id[charge.category])
+            for charge in charges
+        }
 
     @classmethod
     def load_default(cls) -> ChargeCatalog:
@@ -71,12 +96,23 @@ class ChargeCatalog:
         self,
         category_ids: list[int] | None = None,
         query: str | None = None,
-        limit: int = 40,
+        fields: list[ChargeSearchField] | None = None,
+        match_mode: ChargeMatchMode = "all",
+        fuzzy: bool = False,
+        limit: int = 20,
     ) -> dict[str, object]:
         """Return category counts or a compact filtered charge list."""
 
         bounded_limit = max(1, min(limit, 100))
         selected_category_ids = set(category_ids or [])
+        selected_fields = tuple(dict.fromkeys(fields or DEFAULT_SEARCH_FIELDS))
+        if not selected_fields:
+            raise ValueError("At least one search field is required")
+        unknown_fields = set(selected_fields) - set(FIELD_WEIGHTS)
+        if unknown_fields:
+            raise ValueError(f"Unknown search fields: {sorted(unknown_fields)}")
+        if match_mode not in {"all", "any"}:
+            raise ValueError("match_mode must be 'all' or 'any'")
         if not query and not selected_category_ids:
             return {
                 "categories": [
@@ -87,17 +123,36 @@ class ChargeCatalog:
             }
 
         normalized_query = _normalize(query or "")
-        query_terms = normalized_query.split()
-        matches: list[tuple[int, Charge, ChargeCategory]] = []
+        query_terms = _query_terms(query or "")
+        matches: list[tuple[int, Charge, ChargeCategory, list[ChargeSearchField]]] = []
         for charge in self._charges_by_id.values():
             category = self._categories_by_id[charge.category]
             if selected_category_ids and category.id not in selected_category_ids:
                 continue
-            haystack = _normalize(f"{charge.code} {charge.charge} {charge.type} {category.title}")
-            if query_terms and not all(term in haystack for term in query_terms):
+            document = self._search_documents[charge.id]
+            term_matches = [
+                _match_term(
+                    term,
+                    document,
+                    selected_fields,
+                    fuzzy=fuzzy,
+                )
+                for term in query_terms
+            ]
+            if query_terms and match_mode == "all" and not all(term_matches):
                 continue
-            score = _match_score(normalized_query, charge, category)
-            matches.append((score, charge, category))
+            if query_terms and match_mode == "any" and not any(term_matches):
+                continue
+            matched_fields = sorted(
+                {field for field_matches in term_matches for field in field_matches},
+                key=tuple(FIELD_WEIGHTS).index,
+            )
+            score = _match_score(
+                normalized_query,
+                document,
+                term_matches,
+            )
+            matches.append((score, charge, category, matched_fields))
         matches.sort(key=lambda item: (-item[0], item[1].code, item[1].id))
         return {
             "results": [
@@ -108,8 +163,9 @@ class ChargeCatalog:
                     "code": charge.code,
                     "title": charge.charge,
                     "type": charge.type,
+                    "matched_fields": matched_fields,
                 }
-                for _, charge, category in matches[:bounded_limit]
+                for _, charge, category, matched_fields in matches[:bounded_limit]
             ],
             "matched": len(matches),
             "returned": min(len(matches), bounded_limit),
@@ -156,23 +212,76 @@ def _normalize(value: str) -> str:
     return " ".join(unaccented.casefold().replace("_", " ").split())
 
 
-def _match_score(query: str, charge: Charge, category: ChargeCategory) -> int:
+def _query_terms(query: str) -> list[str]:
+    """Split ordinary words while preserving intentionally quoted phrases."""
+
+    try:
+        raw_terms = shlex.split(query)
+    except ValueError:
+        raw_terms = query.split()
+    return [normalized for term in raw_terms if (normalized := _normalize(term))]
+
+
+def _search_document(
+    charge: Charge,
+    category: ChargeCategory,
+) -> dict[ChargeSearchField, str]:
+    return {
+        "code": _normalize(charge.code),
+        "title": _normalize(charge.charge),
+        "type": _normalize(charge.type),
+        "category": _normalize(category.title),
+        "description": _normalize(_strip_html(charge.description)),
+    }
+
+
+def _match_term(
+    term: str,
+    document: dict[ChargeSearchField, str],
+    fields: tuple[ChargeSearchField, ...],
+    *,
+    fuzzy: bool,
+) -> dict[ChargeSearchField, int]:
+    matches: dict[ChargeSearchField, int] = {}
+    for field in fields:
+        value = document[field]
+        if term == value:
+            matches[field] = 30
+        elif value.startswith(term):
+            matches[field] = 20
+        elif term in value:
+            matches[field] = 10
+        elif fuzzy and len(term) >= FUZZY_MIN_TERM_LENGTH:
+            words = value.split()
+            similarity = max(
+                (SequenceMatcher(None, term, word).ratio() for word in words),
+                default=0.0,
+            )
+            if similarity >= FUZZY_MATCH_THRESHOLD:
+                matches[field] = max(1, round(similarity * 8))
+    return matches
+
+
+def _match_score(
+    query: str,
+    document: dict[ChargeSearchField, str],
+    term_matches: list[dict[ChargeSearchField, int]],
+) -> int:
     if not query:
         return 0
-    code = _normalize(charge.code)
-    title = _normalize(charge.charge)
-    category_title = _normalize(category.title)
-    if query == code:
-        return 100
-    if title.startswith(query):
-        return 80
-    if query in title:
-        return 60
-    if query in code:
-        return 50
-    if query in category_title:
-        return 20
-    return 10
+    score = sum(
+        max((FIELD_WEIGHTS[field] + quality for field, quality in matches.items()), default=0)
+        for matches in term_matches
+    )
+    if query == document["code"]:
+        score += 1000
+    elif query == document["title"]:
+        score += 800
+    elif document["title"].startswith(query):
+        score += 500
+    elif query in document["title"]:
+        score += 300
+    return score
 
 
 def _strip_html(value: str) -> str:

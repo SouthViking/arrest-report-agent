@@ -50,8 +50,10 @@ menciones simultáneas para el mismo reporte no generan dos runs.
 
 - `begin_review(case_subject)`: añade `⏳`; no abre hilo.
 - `get_report_guide(sections)`: devuelve solo las secciones solicitadas.
-- `list_charge_index(category_ids, query, limit)`: sin filtros lista categorías; con filtros retorna
-  IDs, códigos y títulos compactos.
+- `list_charge_index(category_ids, query, fields, match_mode, fuzzy, limit)`: sin filtros lista
+  categorías; con filtros busca sobre código, título, tipo, categoría o descripción y retorna IDs y
+  resultados compactos. Permite exigir todos/cualquiera de los términos y tolerar typos de forma
+  explícita; no acepta expresiones regulares.
 - `get_charge_details(charge_ids)`: devuelve hasta diez delitos por ID único.
 - `reply_to_user(content)`: respuesta conversacional terminal, sin crear estado de revisión.
 - `publish_review(publication)`: tool terminal que ejecuta inmediatamente el veredicto en Discord.

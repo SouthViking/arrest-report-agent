@@ -65,6 +65,18 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
         "publish_review",
     ]
     assert service.agent.input_guardrails[0].run_in_parallel is False
+    charge_search = next(tool for tool in service.agent.tools if tool.name == "list_charge_index")
+    search_properties = charge_search.params_json_schema["properties"]
+    assert search_properties["fields"]["anyOf"][0]["items"]["enum"] == [
+        "code",
+        "title",
+        "type",
+        "category",
+        "description",
+    ]
+    assert search_properties["match_mode"]["enum"] == ["all", "any"]
+    assert search_properties["fuzzy"]["default"] is False
+    assert search_properties["limit"]["default"] == 20
     assert metadata["root_message_id"] == "3"
     assert metadata["trigger_message_id"] == "4"
     assert metadata["user_id"] == "5"
