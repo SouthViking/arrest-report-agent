@@ -3,7 +3,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from arrest_report_agent.infrastructure.discord import trigger
-from arrest_report_agent.infrastructure.discord.trigger import TriggerDecision, classify_message
+from arrest_report_agent.infrastructure.discord.trigger import (
+    DiscordAccessPolicy,
+    TriggerDecision,
+    classify_message,
+)
 
 
 def make_message(
@@ -15,11 +19,15 @@ def make_message(
     webhook_id=None,
     channel_id=None,
 ):
+    configured_guilds = settings.discord_guild_ids
+    configured_channels = settings.review_channel_ids
     return SimpleNamespace(
-        guild=SimpleNamespace(id=settings.discord_guild_id),
+        guild=SimpleNamespace(id=min(configured_guilds) if configured_guilds else 1),
         author=SimpleNamespace(id=user_id, bot=bot),
         webhook_id=webhook_id,
-        channel=SimpleNamespace(id=channel_id or min(settings.review_channel_ids)),
+        channel=SimpleNamespace(
+            id=channel_id or (min(configured_channels) if configured_channels else 2)
+        ),
         raw_mentions=mentions,
     )
 
@@ -29,6 +37,14 @@ def test_explicit_mention_anywhere_triggers(settings) -> None:
     message.content = "Terry Parker — por favor <@999> revisa este reporte"
 
     assert classify_message(message, 999, settings) is TriggerDecision.REVIEW
+
+
+def test_central_policy_receives_all_configured_scopes(settings) -> None:
+    policy = DiscordAccessPolicy.from_settings(settings)
+
+    assert policy.guilds.ids == settings.discord_guild_ids
+    assert policy.channels.ids == settings.review_channel_ids
+    assert policy.users.ids == settings.authorized_user_ids
 
 
 def test_unmentioned_message_is_ignored(settings) -> None:
@@ -61,7 +77,7 @@ def test_configured_child_thread_triggers(settings, monkeypatch) -> None:
 
     monkeypatch.setattr(trigger.discord, "Thread", FakeThread)
     message = make_message(settings, mentions=[999])
-    message.channel = FakeThread(min(settings.review_channel_ids))
+    message.channel = FakeThread(min(settings.review_channel_ids or ()))
 
     assert classify_message(message, 999, settings) is TriggerDecision.REVIEW
 
@@ -105,3 +121,16 @@ def test_wrong_guild_is_ignored_even_when_mentioned(settings) -> None:
     message.guild.id = 456
 
     assert classify_message(message, 999, settings) is TriggerDecision.IGNORE_WRONG_GUILD
+
+
+def test_open_guild_and_channel_scopes_allow_any_ids(settings) -> None:
+    open_scopes = settings.model_copy(
+        update={
+            "discord_guild_ids_csv": "*",
+            "review_channel_ids_csv": "",
+        }
+    )
+    message = make_message(open_scopes, mentions=[999], channel_id=555)
+    message.guild.id = 456
+
+    assert classify_message(message, 999, open_scopes) is TriggerDecision.REVIEW

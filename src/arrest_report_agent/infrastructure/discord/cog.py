@@ -21,7 +21,7 @@ from arrest_report_agent.domain.errors import ContextUnavailableError
 
 from .context import DiscordContextBuilder, render_agent_input
 from .publisher import DiscordReviewPublisher
-from .trigger import TriggerDecision, classify_message
+from .trigger import DiscordAccessPolicy, TriggerDecision
 
 LOGGER = logging.getLogger(__name__)
 
@@ -75,12 +75,16 @@ def build_help_embed(
     display_name: str,
     role_title: str,
     bot_mention: str,
-    channel_ids: frozenset[int],
+    channel_ids: frozenset[int] | None,
     avatar_url: str | None = None,
 ) -> discord.Embed:
     """Introduce the reviewer and explain its workflow in character."""
 
-    channels = "\n".join(f"• <#{channel_id}>" for channel_id in sorted(channel_ids))
+    channels = (
+        "\n".join(f"• <#{channel_id}>" for channel_id in sorted(channel_ids))
+        if channel_ids is not None
+        else "• Todos los canales del servidor"
+    )
     embed = discord.Embed(
         title=f"⭐ {display_name} · {role_title}",
         description=(
@@ -175,6 +179,7 @@ class ReviewCog(commands.Cog):
         self.bot = bot
         self.settings = settings
         self.service = service
+        self.access_policy = DiscordAccessPolicy.from_settings(settings)
         self.context_builder = DiscordContextBuilder(settings)
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_reviews)
         self._locks: dict[int, asyncio.Lock] = {}
@@ -188,12 +193,18 @@ class ReviewCog(commands.Cog):
             "info",
             "discord_ready",
             bot_user_id=self.bot.user.id if self.bot.user else "unknown",
-            guild_id=self.settings.discord_guild_id,
-            configured_channels=len(self.settings.review_channel_ids),
-            authorization_mode=(
-                "open" if self.settings.authorized_user_ids is None else "restricted"
+            guild_access_mode=(
+                "restricted" if self.access_policy.guilds.is_restricted else "open"
             ),
-            authorized_users=len(self.settings.authorized_user_ids or ()),
+            configured_guilds=self.access_policy.guilds.configured_count,
+            channel_access_mode=(
+                "restricted" if self.access_policy.channels.is_restricted else "open"
+            ),
+            configured_channels=self.access_policy.channels.configured_count,
+            user_access_mode=(
+                "restricted" if self.access_policy.users.is_restricted else "open"
+            ),
+            configured_users=self.access_policy.users.configured_count,
         )
 
     @commands.Cog.listener()
@@ -201,7 +212,7 @@ class ReviewCog(commands.Cog):
         bot_user = self.bot.user
         if bot_user is None:
             return
-        decision = classify_message(message, bot_user.id, self.settings)
+        decision = self.access_policy.classify(message, bot_user.id)
         if decision is TriggerDecision.REDIRECT_UNAUTHORIZED_USER:
             await self._redirect_unauthorized_user(message)
             return
@@ -283,10 +294,13 @@ class ReviewCog(commands.Cog):
                 self._locks.pop(root_id, None)
 
     async def _redirect_wrong_channel(self, message: discord.Message) -> None:
+        channel_ids = self.access_policy.channels.ids
+        if channel_ids is None:
+            return
         await self._reply_deterministic_notice(
             message,
             content=build_wrong_channel_message(
-                channel_ids=self.settings.review_channel_ids,
+                channel_ids=channel_ids,
                 message_id=message.id,
             ),
             event_prefix="wrong_channel_redirect",
@@ -361,7 +375,7 @@ class ReviewCog(commands.Cog):
             display_name=self.settings.identity.display_name,
             role_title=self.settings.identity.role_title,
             bot_mention=bot_user.mention if bot_user else self.settings.identity.display_name,
-            channel_ids=self.settings.review_channel_ids,
+            channel_ids=self.access_policy.channels.ids,
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
         )
         await ctx.respond(embed=embed, ephemeral=False)

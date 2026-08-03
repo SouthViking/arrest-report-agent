@@ -4,8 +4,10 @@
 
 ```mermaid
 flowchart LR
-    M["Mensaje con mención"] --> T["Política de trigger"]
-    T -->|"usuario y canal habilitados"| C["Contexto acotado de Discord"]
+    M["Mensaje de Discord"] --> T["DiscordAccessPolicy"]
+    A["SnowflakeAllowlist x3"] --> T
+    T -->|"guild, usuario y canal habilitados"| C["Contexto acotado de Discord"]
+    T -->|"guild no habilitada"| I["Ignorar"]
     T -->|"usuario no habilitado"| U["Respuesta local de acceso"]
     T -->|"canal no habilitado"| W["Respuesta local con canales"]
     C --> R["Runner de OpenAI"]
@@ -16,18 +18,24 @@ flowchart LR
     P --> X["Reacción, hilo y embed"]
 ```
 
-La política de trigger se ejecuta antes de descargar contexto o llamar a OpenAI. Tras validar
-servidor, autor humano y mención explícita, comprueba primero `AUTHORIZED_USER_IDS` y luego el canal.
-Ambos rechazos usan respuestas locales con cooldown y nunca alcanzan el Runner. El mensaje raíz es
-la unidad de exclusión mutua: dos menciones simultáneas para el mismo reporte no generan dos runs.
+`SnowflakeAllowlist` centraliza el parseo de `DISCORD_GUILD_IDS`, `REVIEW_CHANNEL_IDS` y
+`AUTHORIZED_USER_IDS`: ausente, vacío o `*` abre el scope; cualquier CSV lo restringe.
+`DiscordAccessPolicy` es el único preprocesador del listener y se ejecuta antes de descargar contexto
+o llamar a OpenAI. Valida guild, autor humano, mención explícita, usuario y canal padre, en ese orden.
+Los rechazos de usuario o canal usan respuestas locales con cooldown y nunca alcanzan el Runner.
+
+Las tools de publicación reciben un `ReviewTarget` derivado del evento aprobado y no aceptan guilds,
+canales o mensajes arbitrarios como argumentos. Por ello sus reacciones, hilos y mensajes quedan
+acotados al objetivo que atravesó la política. El mensaje raíz es la unidad de exclusión mutua: dos
+menciones simultáneas para el mismo reporte no generan dos runs.
 
 ## Capas
 
 - `domain`: modelos Pydantic y enums que definen el contrato de revisión.
-- `config`: entorno y catálogo JSON validado de capacidades, defaults y precios por modelo.
+- `config`: entorno, allowlists uniformes y catálogo JSON validado de modelo y precios.
 - `knowledge`: guía versionada e índice del JSON del PCU, cargados y validados al iniciar.
 - `application`: prompt, tools, contexto del runner, errores, tracing y orquestación.
-- `infrastructure/discord`: trigger, reconstrucción de hilos, embeds, reacciones y comandos.
+- `infrastructure/discord`: política previa, reconstrucción de hilos, embeds, reacciones y comandos.
 - `bootstrap`: composición de dependencias y healthcheck.
 
 ## Herramientas del agente

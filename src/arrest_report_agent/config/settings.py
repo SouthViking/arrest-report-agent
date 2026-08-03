@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from functools import cached_property, lru_cache
+from dataclasses import dataclass
+from functools import lru_cache
 
-from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +16,47 @@ class BotIdentity(BaseModel):
     role_title: str
 
 
+@dataclass(frozen=True, slots=True)
+class SnowflakeAllowlist:
+    """Uniform open-or-restricted policy for Discord snowflake IDs."""
+
+    ids: frozenset[int] | None
+
+    @classmethod
+    def parse(cls, raw_value: str, *, variable_name: str) -> SnowflakeAllowlist:
+        normalized = raw_value.strip()
+        if not normalized or normalized == "*":
+            return cls(ids=None)
+
+        raw_ids = [value.strip() for value in normalized.split(",") if value.strip()]
+        if "*" in raw_ids:
+            raise ValueError(f"{variable_name} cannot combine '*' with Discord IDs")
+
+        ids: set[int] = set()
+        for raw_id in raw_ids:
+            try:
+                snowflake = int(raw_id)
+            except ValueError as error:
+                raise ValueError(
+                    f"{variable_name} must contain positive Discord snowflakes"
+                ) from error
+            if snowflake <= 0:
+                raise ValueError(f"{variable_name} must contain positive Discord snowflakes")
+            ids.add(snowflake)
+        return cls(ids=frozenset(ids) or None)
+
+    @property
+    def is_restricted(self) -> bool:
+        return self.ids is not None
+
+    @property
+    def configured_count(self) -> int:
+        return len(self.ids or ())
+
+    def allows(self, snowflake: int) -> bool:
+        return self.ids is None or snowflake in self.ids
+
+
 class AppSettings(BaseSettings):
     """Process settings loaded from environment or `.env`."""
 
@@ -22,8 +64,11 @@ class AppSettings(BaseSettings):
 
     discord_token: SecretStr = Field(alias="DISCORD_TOKEN")
     openai_api_key: SecretStr = Field(alias="OPENAI_API_KEY")
-    discord_guild_id: int = Field(alias="DISCORD_GUILD_ID", gt=0)
-    review_channel_ids_csv: str = Field(alias="REVIEW_CHANNEL_IDS")
+    discord_guild_ids_csv: str = Field(
+        default="*",
+        validation_alias=AliasChoices("DISCORD_GUILD_IDS", "DISCORD_GUILD_ID"),
+    )
+    review_channel_ids_csv: str = Field(default="*", alias="REVIEW_CHANNEL_IDS")
     authorized_user_ids_csv: str = Field(default="*", alias="AUTHORIZED_USER_IDS")
     manual_review_role_id: int | None = Field(default=None, alias="MANUAL_REVIEW_ROLE_ID")
 
@@ -90,50 +135,46 @@ class AppSettings(BaseSettings):
         return value
 
     @model_validator(mode="after")
-    def validate_secrets_and_channels(self) -> AppSettings:
+    def validate_secrets_and_allowlists(self) -> AppSettings:
         if not self.discord_token.get_secret_value().strip():
             raise ValueError("DISCORD_TOKEN must not be empty")
         if not self.openai_api_key.get_secret_value().strip():
             raise ValueError("OPENAI_API_KEY must not be empty")
-        if not self.review_channel_ids:
-            raise ValueError("REVIEW_CHANNEL_IDS must contain at least one channel ID")
-        _ = self.authorized_user_ids
+        _ = self.guild_allowlist, self.channel_allowlist, self.user_allowlist
         return self
 
-    @cached_property
-    def review_channel_ids(self) -> frozenset[int]:
-        values: set[int] = set()
-        for raw_value in self.review_channel_ids_csv.split(","):
-            normalized = raw_value.strip()
-            if not normalized:
-                continue
-            channel_id = int(normalized)
-            if channel_id <= 0:
-                raise ValueError("REVIEW_CHANNEL_IDS must contain positive Discord snowflakes")
-            values.add(channel_id)
-        return frozenset(values)
+    @property
+    def guild_allowlist(self) -> SnowflakeAllowlist:
+        return SnowflakeAllowlist.parse(
+            self.discord_guild_ids_csv,
+            variable_name="DISCORD_GUILD_IDS",
+        )
+
+    @property
+    def channel_allowlist(self) -> SnowflakeAllowlist:
+        return SnowflakeAllowlist.parse(
+            self.review_channel_ids_csv,
+            variable_name="REVIEW_CHANNEL_IDS",
+        )
+
+    @property
+    def user_allowlist(self) -> SnowflakeAllowlist:
+        return SnowflakeAllowlist.parse(
+            self.authorized_user_ids_csv,
+            variable_name="AUTHORIZED_USER_IDS",
+        )
+
+    @property
+    def discord_guild_ids(self) -> frozenset[int] | None:
+        return self.guild_allowlist.ids
+
+    @property
+    def review_channel_ids(self) -> frozenset[int] | None:
+        return self.channel_allowlist.ids
 
     @property
     def authorized_user_ids(self) -> frozenset[int] | None:
-        """Return allowed Discord users, or ``None`` when access is unrestricted."""
-
-        normalized_config = self.authorized_user_ids_csv.strip()
-        if not normalized_config or normalized_config == "*":
-            return None
-        raw_values = [value.strip() for value in normalized_config.split(",") if value.strip()]
-        if "*" in raw_values:
-            raise ValueError("AUTHORIZED_USER_IDS cannot combine '*' with Discord user IDs")
-        values: set[int] = set()
-        for raw_value in raw_values:
-            user_id = int(raw_value)
-            if user_id <= 0:
-                raise ValueError("AUTHORIZED_USER_IDS must contain positive Discord snowflakes")
-            values.add(user_id)
-        return frozenset(values) or None
-
-    def is_user_authorized(self, user_id: int) -> bool:
-        authorized = self.authorized_user_ids
-        return authorized is None or user_id in authorized
+        return self.user_allowlist.ids
 
     @property
     def identity(self) -> BotIdentity:

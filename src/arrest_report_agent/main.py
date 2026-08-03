@@ -20,6 +20,9 @@ async def run() -> None:
     configure_logging(settings.log_level, json_indented=settings.log_json_indented)
     runtime = build_runtime(settings)
     health_server = await serve_health(settings.health_host, settings.health_port, runtime.health)
+    guilds = settings.guild_allowlist
+    channels = settings.channel_allowlist
+    users = settings.user_allowlist
     log_event(
         LOGGER,
         "info",
@@ -31,8 +34,12 @@ async def run() -> None:
         service_tier=runtime.model.runtime_defaults.service_tier,
         model_catalog_schema_version=runtime.model.catalog_schema_version,
         pricing_version=runtime.model.pricing_version,
-        guild_id=settings.discord_guild_id,
-        channels=len(settings.review_channel_ids),
+        guild_access_mode="restricted" if guilds.is_restricted else "open",
+        configured_guilds=guilds.configured_count,
+        channel_access_mode="restricted" if channels.is_restricted else "open",
+        configured_channels=channels.configured_count,
+        user_access_mode="restricted" if users.is_restricted else "open",
+        configured_users=users.configured_count,
     )
     try:
         await runtime.bot.start(settings.discord_token.get_secret_value())

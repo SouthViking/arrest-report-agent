@@ -42,17 +42,22 @@ python3.12 -m venv .venv
 Completa al menos `DISCORD_TOKEN` y `OPENAI_API_KEY` en `.env`. Los valores por defecto ya incluyen:
 
 ```dotenv
-DISCORD_GUILD_ID=1234674521416663070
+DISCORD_GUILD_IDS=1234674521416663070
 REVIEW_CHANNEL_IDS=1462992794569281617,1462992859761217745
 AUTHORIZED_USER_IDS=*
 OPENAI_MODEL=gpt-5.6-terra
 OPENAI_REASONING_EFFORT=medium
 ```
 
-`AUTHORIZED_USER_IDS` controla quién puede ejecutar una revisión. Si no existe, está vacía o vale
-`*`, cualquier usuario humano del servidor puede usar el bot. Una lista CSV como `123,456` restringe
-el acceso a esos IDs. El bloqueo ocurre antes de leer el contexto de Discord o iniciar el Runner;
-el usuario recibe una respuesta breve del pool de mensajes, sin consumo de OpenAI.
+Las tres allowlists comparten una sola regla: variable ausente, vacía o con `*` permite cualquier ID
+del scope; una lista CSV como `123,456` restringe el acceso a esos IDs. Esto aplica a servidores
+(`DISCORD_GUILD_IDS`), canales (`REVIEW_CHANNEL_IDS`) y usuarios (`AUTHORIZED_USER_IDS`). El nombre
+anterior `DISCORD_GUILD_ID` sigue siendo compatible para no romper entornos existentes.
+
+Una política previa única evalúa las tres antes de leer contexto o iniciar el Runner. Los servidores
+no habilitados se ignoran; un canal o usuario no habilitado recibe una respuesta local breve, sin
+consumo de OpenAI. Las tools posteriores no reciben IDs de destino libres: operan exclusivamente
+sobre el mensaje y el hilo ya autorizados.
 
 El modelo y el nivel de razonamiento son la única selección de modelo requerida en el entorno. El
 detalle de imagen, verbosity, límite de salida, service tier, capacidades admitidas y precios se
@@ -102,6 +107,8 @@ Comandos disponibles:
 
 | Variable | Predeterminado | Función |
 |---|---:|---|
+| `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
+| `REVIEW_CHANNEL_IDS` | `*` | Canales padre permitidos; acepta CSV y cubre sus hilos. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
 | `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | Modelo del runner. |

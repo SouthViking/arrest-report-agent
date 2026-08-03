@@ -84,6 +84,17 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention() -> None:
     assert "Walter Vigil" not in str(embed.to_dict())
 
 
+def test_help_embed_describes_unrestricted_channel_scope() -> None:
+    embed = build_help_embed(
+        display_name="Sgt. Rivera",
+        role_title="Watch Sergeant",
+        bot_mention="<@999>",
+        channel_ids=None,
+    )
+
+    assert embed.fields[1].value == "• Todos los canales del servidor"
+
+
 def test_wrong_channel_message_varies_copy_but_keeps_stable_format() -> None:
     messages = [
         build_wrong_channel_message(
@@ -129,7 +140,7 @@ async def test_wrong_channel_mention_replies_once_without_running_agent(settings
     cog = ReviewCog(bot, settings, UnexpectedReviewService())  # type: ignore[arg-type]
     message = SimpleNamespace(
         id=42,
-        guild=SimpleNamespace(id=settings.discord_guild_id),
+        guild=SimpleNamespace(id=min(settings.discord_guild_ids or ())),
         author=SimpleNamespace(id=123, bot=False),
         webhook_id=None,
         channel=SimpleNamespace(id=555),
@@ -146,7 +157,7 @@ async def test_wrong_channel_mention_replies_once_without_running_agent(settings
     content = replies[0]["content"]
     assert isinstance(content, str)
     assert content.startswith("📍 **Fuera de mi zona de guardia, deputy.**")
-    for channel_id in settings.review_channel_ids:
+    for channel_id in settings.review_channel_ids or ():
         assert f"<#{channel_id}>" in content
 
 
@@ -163,10 +174,10 @@ async def test_unauthorized_mention_replies_once_without_context_or_agent(settin
     cog.context_builder = UnexpectedContextBuilder()  # type: ignore[assignment]
     message = SimpleNamespace(
         id=42,
-        guild=SimpleNamespace(id=restricted.discord_guild_id),
+        guild=SimpleNamespace(id=min(restricted.discord_guild_ids or ())),
         author=SimpleNamespace(id=123, bot=False),
         webhook_id=None,
-        channel=SimpleNamespace(id=min(restricted.review_channel_ids)),
+        channel=SimpleNamespace(id=min(restricted.review_channel_ids or ())),
         raw_mentions=[999],
         reply=reply,
     )
