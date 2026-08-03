@@ -83,8 +83,8 @@ class FailurePublisher:
     async def publish(self, publication) -> None:
         return None
 
-    async def publish_failure(self, kind, public_message, technical_reference) -> None:
-        self.failures.append((kind, public_message, technical_reference))
+    async def publish_failure(self, public_message) -> None:
+        self.failures.append(public_message)
 
 
 @pytest.mark.asyncio
@@ -115,6 +115,5 @@ async def test_service_contains_timeout_and_publishes_contextual_failure(setting
         [{"role": "user", "content": [{"type": "input_text", "text": "test"}]}],
     )
 
-    assert publisher.failures[0][0].value == "timeout"
-    assert "excedió el tiempo" in publisher.failures[0][1]
-    assert publisher.failures[0][2] == "3-1-timeout"
+    assert "excedió el tiempo" in publisher.failures[0]
+    assert settings.identity.display_name not in publisher.failures[0]

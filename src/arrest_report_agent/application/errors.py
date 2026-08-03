@@ -9,7 +9,6 @@ import discord
 import openai
 from agents.exceptions import AgentsException, MaxTurnsExceeded, ModelBehaviorError
 
-from arrest_report_agent.config import BotIdentity
 from arrest_report_agent.domain import ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError, PublicationError
 
@@ -45,7 +44,7 @@ def classify_error(error: BaseException) -> ClassifiedError:
     return ClassifiedError(ErrorKind.UNKNOWN, False)
 
 
-def public_error_message(kind: ErrorKind, identity: BotIdentity) -> str:
+def public_error_message(kind: ErrorKind) -> str:
     """Return a contextual message without leaking provider or report data."""
 
     messages = {
@@ -86,5 +85,4 @@ def public_error_message(kind: ErrorKind, identity: BotIdentity) -> str:
             "veredicto inseguro."
         ),
     }
-    return f"**{identity.display_name} informa:** {messages[kind]}"
-
+    return messages[kind]

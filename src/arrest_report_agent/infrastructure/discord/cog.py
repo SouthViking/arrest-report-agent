@@ -10,8 +10,9 @@ import discord
 from discord.ext import commands
 
 from arrest_report_agent.application import ReviewRunContext, ReviewService
+from arrest_report_agent.application.errors import public_error_message
 from arrest_report_agent.config import AppSettings
-from arrest_report_agent.config.logging import log_event
+from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError
 
@@ -128,14 +129,16 @@ class ReviewCog(commands.Cog):
             return
         try:
             target = await self.context_builder.resolve_target(message)
-        except ContextUnavailableError:
+        except ContextUnavailableError as error:
             log_event(
                 LOGGER,
                 "warning",
                 "review_target_unavailable",
+                exc_info=error,
                 message_id=message.id,
                 channel_id=message.channel.id,
                 user_id=message.author.id,
+                **exception_fields(error),
             )
             return
         root_id = target.root.id
@@ -161,27 +164,25 @@ class ReviewCog(commands.Cog):
                         LOGGER,
                         "error",
                         "context_build_failed",
+                        exc_info=error,
                         root_message_id=root_id,
                         trigger_message_id=message.id,
-                        error_type=type(error).__name__,
+                        technical_reference=f"{root_id}-{attempt}-context_unavailable",
+                        **exception_fields(error),
                     )
                     try:
                         await publisher.publish_failure(
-                            kind=ErrorKind.CONTEXT_UNAVAILABLE,
-                            public_message=(
-                                f"**{self.settings.identity.display_name} informa:** No pude "
-                                "reconstruir el expediente y su historial. Verifica mis permisos "
-                                "de lectura."
-                            ),
-                            technical_reference=f"{root_id}-{attempt}-context_unavailable",
+                            public_message=public_error_message(ErrorKind.CONTEXT_UNAVAILABLE),
                         )
                     except Exception as publication_error:
                         log_event(
                             LOGGER,
                             "error",
                             "context_failure_publication_failed",
+                            exc_info=publication_error,
                             root_message_id=root_id,
-                            error_type=type(publication_error).__name__,
+                            technical_reference=f"{root_id}-{attempt}-context_unavailable",
+                            **exception_fields(publication_error),
                         )
                     return
                 run_context = ReviewRunContext(

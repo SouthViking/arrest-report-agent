@@ -22,7 +22,7 @@ class FakePublisher:
     async def publish(self, publication) -> None:
         self.publications.append(publication)
 
-    async def publish_failure(self, kind, public_message, technical_reference) -> None:
+    async def publish_failure(self, public_message) -> None:
         raise AssertionError("not expected")
 
 

@@ -155,3 +155,24 @@ async def test_correction_creates_thread_and_posts_embed(settings) -> None:
     assert root.added == ["❌"]
     assert root.created == 1
     assert root.thread.sent[0]["embeds"][0].title.startswith("❌")
+
+
+@pytest.mark.asyncio
+async def test_failure_publishes_only_contextual_message_and_next_step(settings) -> None:
+    root = FakeRoot()
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(root=root, trigger=root, parent=SimpleNamespace(), thread=None)
+    publisher = DiscordReviewPublisher(bot, settings, target)
+
+    public_message = "Central no autorizó más consumo de IA por el momento."
+    await publisher.publish_failure(public_message)
+
+    embed = root.thread.sent[0]["embed"]
+    assert root.added == ["⚠️"]
+    assert embed.title == "⚠️ Incidencia de revisión"
+    assert embed.description == public_message
+    assert [field.name for field in embed.fields] == ["Siguiente paso"]
+    rendered = str(embed.to_dict())
+    assert "Clasificación" not in rendered
+    assert "Referencia técnica" not in rendered
+    assert "informa" not in rendered

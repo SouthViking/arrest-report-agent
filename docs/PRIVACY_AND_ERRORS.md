@@ -16,7 +16,8 @@ Formato heredado de RoomGate:
 ```
 
 Cada evento añade campos `clave=valor`. Se registran IDs técnicos, entorno, modelo, intento, latencia,
-tokens, costo aproximado, veredicto o clase de error. No se registran:
+tokens, costo aproximado, veredicto o clase de error. Los errores incluyen tipo, mensaje técnico,
+estado/código del proveedor cuando existe y stacktrace completo. No se registran:
 
 - nombres o narrativa del reporte;
 - texto extraído de imágenes;
@@ -51,7 +52,7 @@ El workflow se llama `arrest_report_review` y agrupa intentos mediante
 - `context_unavailable`: no fue posible leer el reporte raíz o el historial.
 - `unknown`: fallback seguro.
 
-Ante un error, el bot intenta quitar `⏳`, añade `⚠️`, reutiliza o crea un hilo y publica un mensaje
-contextualizado con una referencia técnica. Nunca muestra la excepción, el prompt o datos del
-proveedor en Discord. Si existe `MANUAL_REVIEW_ROLE_ID`, menciona el rol una sola vez por ejecución.
-
+Ante un error, el bot intenta quitar `⏳`, añade `⚠️`, reutiliza o crea un hilo y publica únicamente
+un mensaje contextualizado y el siguiente paso. La clasificación, referencia técnica, excepción y
+datos del proveedor quedan en los logs. Si existe `MANUAL_REVIEW_ROLE_ID`, menciona el rol una sola
+vez por ejecución.

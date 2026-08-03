@@ -8,7 +8,7 @@ import re
 import discord
 
 from arrest_report_agent.config import AppSettings
-from arrest_report_agent.domain import ErrorKind, FindingSeverity, ReviewPublication, ReviewVerdict
+from arrest_report_agent.domain import FindingSeverity, ReviewPublication, ReviewVerdict
 from arrest_report_agent.domain.errors import PublicationError
 
 from .context import ReviewTarget
@@ -55,21 +55,17 @@ class DiscordReviewPublisher:
 
     async def publish_failure(
         self,
-        kind: ErrorKind,
         public_message: str,
-        technical_reference: str,
     ) -> None:
         await self._clear_bot_status_reactions()
         with contextlib.suppress(discord.Forbidden, discord.HTTPException):
             await self.target.root.add_reaction("⚠️")
         thread = await self._ensure_thread()
         embed = discord.Embed(
-            title=f"⚠️ Incidencia de revisión · {self.settings.identity.display_name}",
+            title="⚠️ Incidencia de revisión",
             description=public_message,
             color=discord.Color.orange(),
         )
-        embed.add_field(name="Clasificación", value=kind.value, inline=True)
-        embed.add_field(name="Referencia técnica", value=technical_reference, inline=True)
         embed.add_field(
             name="Siguiente paso",
             value="Reintentar cuando corresponda o derivar el expediente a un supervisor.",

@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-import traceback
 from typing import Any
 
 from agents import Agent, ModelSettings, RunConfig, Runner, StopAtTools
@@ -13,7 +12,7 @@ from agents.retry import ModelRetrySettings
 from openai.types.shared.reasoning import Reasoning
 
 from arrest_report_agent.config import AppSettings
-from arrest_report_agent.config.logging import log_event
+from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import ReviewCase
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
@@ -109,33 +108,31 @@ class ReviewService:
                 LOGGER,
                 "error",
                 "review_failed",
+                exc_info=error,
                 root_message_id=case.root_message_id,
                 trigger_message_id=case.trigger_message_id,
                 attempt=run_context.attempt,
                 error_kind=classified.kind.value,
-                error_type=type(error).__name__,
                 retryable=classified.retryable,
-                stack=_safe_stack(error),
                 latency_ms=round((time.monotonic() - started_at) * 1000),
                 technical_reference=technical_reference,
+                **exception_fields(error),
             )
             if run_context.published:
                 return
             try:
                 await run_context.publisher.publish_failure(
-                    classified.kind,
-                    public_error_message(classified.kind, self.settings.identity),
-                    technical_reference,
+                    public_error_message(classified.kind),
                 )
             except Exception as publication_error:
                 log_event(
                     LOGGER,
                     "error",
                     "failure_publication_failed",
+                    exc_info=publication_error,
                     root_message_id=case.root_message_id,
-                    error_type=type(publication_error).__name__,
-                    stack=_safe_stack(publication_error),
                     technical_reference=technical_reference,
+                    **exception_fields(publication_error),
                 )
 
     def _trace_metadata(self, case: ReviewCase, attempt: int) -> dict[str, Any]:
@@ -158,8 +155,3 @@ class ReviewService:
             "model": self.settings.openai_model,
             "context_state": case.context_state.value,
         }
-
-
-def _safe_stack(error: BaseException) -> str:
-    frames = traceback.extract_tb(error.__traceback__)
-    return ">".join(f"{frame.name}:{frame.lineno}" for frame in frames[-6:]) or "none"

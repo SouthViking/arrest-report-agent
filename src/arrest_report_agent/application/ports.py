@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from arrest_report_agent.domain import ErrorKind, ReviewPublication
+from arrest_report_agent.domain import ReviewPublication
 
 
 class ReviewPublisher(Protocol):
@@ -16,9 +16,6 @@ class ReviewPublisher(Protocol):
 
     async def publish_failure(
         self,
-        kind: ErrorKind,
         public_message: str,
-        technical_reference: str,
     ) -> None:
         """Publish a safe contextual failure for manual follow-up."""
-
