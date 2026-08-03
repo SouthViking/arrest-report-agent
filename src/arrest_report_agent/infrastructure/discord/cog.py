@@ -33,6 +33,36 @@ REQUIRED_PERMISSIONS = (
     "embed_links",
 )
 
+EMBED_SPACER = "\u200b"
+
+
+def build_status_embed(
+    *,
+    display_name: str,
+    discord_ready: bool,
+    environment: str,
+    model: str,
+    charge_count: int,
+    guide_version: str,
+    active_reviews: int,
+) -> discord.Embed:
+    """Build a readable two-column operational status embed."""
+
+    embed = discord.Embed(
+        title=f"⭐ Estado · {display_name}",
+        color=discord.Color.green() if discord_ready else discord.Color.orange(),
+    )
+    rows = (
+        (("Discord", "conectado" if discord_ready else "iniciando"), ("Entorno", environment)),
+        (("Modelo", model), ("Catálogo", f"{charge_count} delitos")),
+        (("Guía", guide_version), ("Revisiones activas", str(active_reviews))),
+    )
+    for left, right in rows:
+        embed.add_field(name=left[0], value=left[1], inline=True)
+        embed.add_field(name=EMBED_SPACER, value=EMBED_SPACER, inline=True)
+        embed.add_field(name=right[0], value=right[1], inline=True)
+    return embed
+
 
 class ReviewCog(commands.Cog):
     review = discord.SlashCommandGroup("review", "Operaciones del revisor de reportes")
@@ -156,16 +186,15 @@ class ReviewCog(commands.Cog):
         if not self._is_operator(ctx):
             await ctx.respond("Este parte está reservado a supervisores.", ephemeral=True)
             return
-        embed = discord.Embed(
-            title=f"Estado · {self.settings.identity.display_name}",
-            color=discord.Color.green() if self.bot.is_ready() else discord.Color.orange(),
+        embed = build_status_embed(
+            display_name=self.settings.identity.display_name,
+            discord_ready=self.bot.is_ready(),
+            environment=self.settings.app_environment,
+            model=self.settings.openai_model,
+            charge_count=self.catalog.charge_count,
+            guide_version=self.guide.version,
+            active_reviews=len(self._locks),
         )
-        embed.add_field(name="Discord", value="conectado" if self.bot.is_ready() else "iniciando")
-        embed.add_field(name="Entorno", value=self.settings.app_environment)
-        embed.add_field(name="Modelo", value=self.settings.openai_model)
-        embed.add_field(name="Catálogo", value=f"{self.catalog.charge_count} delitos")
-        embed.add_field(name="Guía", value=self.guide.version)
-        embed.add_field(name="Revisiones activas", value=str(len(self._locks)))
         await ctx.respond(embed=embed, ephemeral=True)
 
     @review.command(name="diagnose", description="Comprueba permisos en los canales configurados")
@@ -204,4 +233,3 @@ class ReviewCog(commands.Cog):
             return True
         role_id = self.settings.manual_review_role_id
         return role_id is not None and any(role.id == role_id for role in author.roles)
-
