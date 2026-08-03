@@ -33,6 +33,17 @@ REQUIRED_PERMISSIONS = (
     "embed_links",
 )
 
+PERMISSION_LABELS = {
+    "view_channel": "ver canal",
+    "read_message_history": "leer historial",
+    "send_messages": "enviar mensajes",
+    "add_reactions": "añadir reacciones",
+    "create_public_threads": "crear hilos públicos",
+    "send_messages_in_threads": "escribir en hilos",
+    "manage_threads": "gestionar hilos",
+    "embed_links": "insertar enlaces",
+}
+
 EMBED_SPACER = "\u200b"
 
 
@@ -103,6 +114,7 @@ def build_status_embed(
     charge_count: int,
     guide_version: str,
     active_reviews: int,
+    channel_permission_lines: tuple[str, ...],
 ) -> discord.Embed:
     """Build a readable two-column operational status embed."""
 
@@ -119,6 +131,11 @@ def build_status_embed(
         embed.add_field(name=left[0], value=left[1], inline=True)
         embed.add_field(name=EMBED_SPACER, value=EMBED_SPACER, inline=True)
         embed.add_field(name=right[0], value=right[1], inline=True)
+    embed.add_field(
+        name="🛡️ Canales y permisos",
+        value="\n".join(channel_permission_lines)[:1024],
+        inline=False,
+    )
     return embed
 
 
@@ -253,36 +270,29 @@ class ReviewCog(commands.Cog):
             charge_count=self.catalog.charge_count,
             guide_version=self.guide.version,
             active_reviews=len(self._locks),
+            channel_permission_lines=self._channel_permission_lines(),
         )
         await ctx.respond(embed=embed, ephemeral=True)
 
-    @wv.command(name="diagnose", description="Comprueba permisos en los canales configurados")
-    async def review_diagnose(self, ctx: discord.ApplicationContext) -> None:
-        if not self._is_operator(ctx):
-            await ctx.respond("Este diagnóstico está reservado a supervisores.", ephemeral=True)
-            return
+    def _channel_permission_lines(self) -> tuple[str, ...]:
         guild = self.bot.get_guild(self.settings.discord_guild_id)
         if guild is None or guild.me is None:
-            await ctx.respond("No encuentro el servidor configurado en la caché.", ephemeral=True)
-            return
+            return ("⚠️ No encuentro el servidor configurado en la caché.",)
+
         lines: list[str] = []
         for channel_id in sorted(self.settings.review_channel_ids):
             channel = guild.get_channel(channel_id)
             if channel is None:
-                lines.append(f"❌ `{channel_id}` — canal no encontrado")
+                lines.append(f"❌ <#{channel_id}> — canal no encontrado")
                 continue
             permissions = channel.permissions_for(guild.me)
             missing = [name for name in REQUIRED_PERMISSIONS if not getattr(permissions, name, False)]
             if missing:
-                lines.append(f"❌ **#{channel.name}** — faltan: {', '.join(missing)}")
+                labels = ", ".join(PERMISSION_LABELS[name] for name in missing)
+                lines.append(f"❌ {channel.mention} — faltan: {labels}")
             else:
-                lines.append(f"✅ **#{channel.name}** — permisos completos")
-        embed = discord.Embed(
-            title=f"Diagnóstico · {self.settings.identity.display_name}",
-            description="\n".join(lines)[:4096],
-            color=discord.Color.blue(),
-        )
-        await ctx.respond(embed=embed, ephemeral=True)
+                lines.append(f"✅ {channel.mention} — permisos completos")
+        return tuple(lines) or ("⚠️ No hay canales de revisión configurados.",)
 
     def _is_operator(self, ctx: discord.ApplicationContext) -> bool:
         author = ctx.author

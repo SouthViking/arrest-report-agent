@@ -10,6 +10,7 @@ from arrest_report_agent.infrastructure.discord.cog import (
 
 def test_operational_command_group_uses_distinct_wv_namespace() -> None:
     assert ReviewCog.wv.name == "wv"
+    assert {command.name for command in ReviewCog.wv.subcommands} == {"help", "status"}
 
 
 def test_help_embed_uses_runtime_identity_channels_and_bot_mention() -> None:
@@ -44,6 +45,10 @@ def test_status_embed_uses_star_and_spaced_two_column_rows() -> None:
         charge_count=164,
         guide_version="2026.08",
         active_reviews=2,
+        channel_permission_lines=(
+            "✅ <#111> — permisos completos",
+            "❌ <#222> — faltan: gestionar hilos",
+        ),
     )
 
     assert embed.title == "⭐ Estado · Walter Vigil"
@@ -57,5 +62,10 @@ def test_status_embed_uses_star_and_spaced_two_column_rows() -> None:
         "Guía",
         EMBED_SPACER,
         "Revisiones activas",
+        "🛡️ Canales y permisos",
     ]
-    assert all(field.inline for field in embed.fields)
+    assert all(field.inline for field in embed.fields[:-1])
+    assert embed.fields[-1].inline is False
+    assert embed.fields[-1].value == (
+        "✅ <#111> — permisos completos\n❌ <#222> — faltan: gestionar hilos"
+    )
