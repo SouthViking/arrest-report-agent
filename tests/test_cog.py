@@ -1,11 +1,41 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import discord
+import pytest
+
 from arrest_report_agent.infrastructure.discord.cog import (
     PENAL_CODE_URL,
     PROCEDURES_MANUAL_URL,
     ReviewCog,
     build_help_embed,
+    maintain_typing_indicator,
 )
+
+
+class FakeTypingContext:
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+        self.active = False
+
+    async def __aenter__(self) -> None:
+        if self.error:
+            raise self.error
+        self.active = True
+
+    async def __aexit__(self, *_args) -> None:
+        self.active = False
+
+
+class FakeTypingChannel:
+    id = 123
+
+    def __init__(self, context: FakeTypingContext) -> None:
+        self.context = context
+
+    def typing(self) -> FakeTypingContext:
+        return self.context
 
 
 def test_operational_command_group_uses_distinct_wv_namespace() -> None:
@@ -39,3 +69,28 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention() -> None:
     )
     assert embed.thumbnail.url == "https://cdn.discordapp.com/avatar.png"
     assert "Walter Vigil" not in str(embed.to_dict())
+
+
+@pytest.mark.asyncio
+async def test_typing_indicator_stays_active_for_the_operation() -> None:
+    context = FakeTypingContext()
+    channel = FakeTypingChannel(context)
+
+    async with maintain_typing_indicator(channel):  # type: ignore[arg-type]
+        assert context.active is True
+
+    assert context.active is False
+
+
+@pytest.mark.asyncio
+async def test_typing_indicator_failure_does_not_block_the_operation() -> None:
+    response = SimpleNamespace(status=500, reason="Internal Server Error")
+    error = discord.HTTPException(response, "typing unavailable")
+    context = FakeTypingContext(error)
+    channel = FakeTypingChannel(context)
+    reached_operation = False
+
+    async with maintain_typing_indicator(channel):  # type: ignore[arg-type]
+        reached_operation = True
+
+    assert reached_operation is True

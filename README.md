@@ -16,6 +16,7 @@ llamar a OpenAI.
 - Contrasta descripciones expresas de ropa y accesorios con flexibilidad por iluminación, ángulo,
   compresión y limitaciones gráficas; no infiere atributos sensibles.
 - Consulta una guía local por secciones y un índice validado de 164 delitos descargados del PCU.
+- Mantiene el indicador nativo de escritura mientras procesa una solicitud.
 - Añade `⏳` al comenzar desde una tool del agente y publica el resultado desde una tool terminal.
 - Aprueba con `✅` sin crear un hilo nuevo; las correcciones usan `❌` y un hilo estructurado; los
   casos inconclusos o técnicos usan `⚠️` y derivación manual opcional.

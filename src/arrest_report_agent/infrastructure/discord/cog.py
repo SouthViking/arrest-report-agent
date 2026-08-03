@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import defaultdict
+from collections.abc import AsyncIterator
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 
 import discord
 from discord.ext import commands
@@ -27,6 +29,32 @@ PROCEDURES_MANUAL_URL = (
     "https://docs.google.com/document/d/1DrhSgzPbdLoe0ahFTVrNPb_zBPuhVeatxW5Hs8ECMHE/"
     "edit?pli=1&tab=t.0#heading=h.thzh3oj2x0rk"
 )
+
+
+@asynccontextmanager
+async def maintain_typing_indicator(
+    channel: discord.TextChannel | discord.Thread,
+) -> AsyncIterator[None]:
+    """Keep Discord's native typing indicator active without blocking the review on failure."""
+
+    stack = AsyncExitStack()
+    try:
+        await stack.enter_async_context(channel.typing())
+    except (discord.Forbidden, discord.HTTPException) as error:
+        log_event(
+            LOGGER,
+            "warning",
+            "typing_indicator_unavailable",
+            exc_info=error,
+            channel_id=channel.id,
+            **exception_fields(error),
+        )
+    try:
+        yield
+    finally:
+        with suppress(discord.Forbidden, discord.HTTPException):
+            await stack.aclose()
+
 
 def build_help_embed(
     *,
@@ -153,7 +181,7 @@ class ReviewCog(commands.Cog):
             )
             return
         try:
-            async with lock, self._semaphore:
+            async with lock, maintain_typing_indicator(message.channel), self._semaphore:
                 self._attempts[root_id] += 1
                 attempt = self._attempts[root_id]
                 publisher = DiscordReviewPublisher(self.bot, self.settings, target)
