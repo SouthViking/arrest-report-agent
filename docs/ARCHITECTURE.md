@@ -31,6 +31,12 @@ usuario y canal padre, en ese orden. Si Discord no incluyó el mensaje referenci
 referencia antes de decidir; una respuesta a cualquier otra persona se ignora. Los rechazos de
 usuario o canal usan respuestas locales con cooldown y nunca alcanzan el Runner.
 
+En una redirección por canal, el adaptador resuelve cada ID configurado primero desde la caché de la
+guild y confirma los ausentes mediante REST. Solo muestra canales de texto visibles para el bot y el
+solicitante. `NotFound` marca el ID como obsoleto durante la vida del proceso; `Forbidden` y errores
+temporales producen una orientación sin referencias y un warning estructurado. Esta comprobación es
+local a Discord y no consume una ejecución del agente.
+
 Una vez superada la política local, `request_scope` clasifica alcance e intención usando solo el
 texto de la solicitud actual y señales compactas de contexto. Es bloqueante
 (`run_in_parallel=False`), usa el modelo soportado con `reasoning=none` y no recibe imágenes. Solo

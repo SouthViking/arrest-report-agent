@@ -78,6 +78,12 @@ no habilitados se ignoran; un canal o usuario no habilitado recibe una respuesta
 consumo de OpenAI. Las tools posteriores no reciben IDs de destino libres: operan exclusivamente
 sobre el mensaje y el hilo ya autorizados.
 
+Antes de recomendar los canales permitidos, el bot los resuelve con Discord y comprueba que tanto él
+como el solicitante puedan verlos. Los IDs eliminados, inaccesibles o de tipos no soportados se
+omiten; si no queda un destino visible, entrega una orientación administrativa sin mostrar
+referencias `#desconocido`. Los canales confirmados como eliminados se recuerdan hasta reiniciar el
+proceso para evitar consultas REST repetidas.
+
 El modelo y el nivel de razonamiento son la única selección de modelo requerida en el entorno. El
 detalle de imagen, verbosity, límite de salida, service tier, capacidades admitidas y precios se
 resuelven al iniciar desde el catálogo JSON interno. Una combinación desconocida detiene el arranque
