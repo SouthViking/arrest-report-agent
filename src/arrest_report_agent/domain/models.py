@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -54,6 +54,10 @@ class ReviewCase(BaseModel):
     root_message_id: int
     trigger_message_id: int
     requester_user_id: int
+    requester_display_name: str | None = Field(default=None, max_length=100)
+    requester_role_names: list[
+        Annotated[str, Field(min_length=1, max_length=80)]
+    ] = Field(default_factory=list, max_length=8)
     interaction_mode: InteractionMode
     case_subject: str | None = None
     messages: list[ConversationMessage]

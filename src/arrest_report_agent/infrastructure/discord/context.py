@@ -18,6 +18,10 @@ from arrest_report_agent.domain import (
 )
 from arrest_report_agent.domain.errors import ContextUnavailableError
 
+REQUESTER_ROLE_LIMIT = 8
+REQUESTER_ROLE_NAME_MAX_CHARS = 80
+REQUESTER_ROLES_TOTAL_MAX_CHARS = 320
+
 
 @dataclass(frozen=True)
 class ReviewTarget:
@@ -83,6 +87,7 @@ class DiscordContextBuilder:
             notices.extend(attachment_notices)
             context_state = ContextState.TRUNCATED
         subject = _case_subject(target.root, self.settings.identity.display_name)
+        requester = target.trigger.author
         return ReviewCase(
             guild_id=target.root.guild.id,
             parent_channel_id=target.parent.id,
@@ -90,7 +95,9 @@ class DiscordContextBuilder:
             thread_id=target.thread.id if target.thread else None,
             root_message_id=target.root.id,
             trigger_message_id=target.trigger.id,
-            requester_user_id=target.trigger.author.id,
+            requester_user_id=requester.id,
+            requester_display_name=getattr(requester, "display_name", requester.name),
+            requester_role_names=_requester_role_names(requester),
             interaction_mode=(
                 InteractionMode.THREAD_FOLLOW_UP
                 if isinstance(target.trigger.channel, discord.Thread)
@@ -230,6 +237,12 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
         f"Modo: {case.interaction_mode.value}",
         f"Estado del contexto: {case.context_state.value}",
     ]
+    if case.requester_display_name:
+        transcript_lines.append(f"Solicitante: {case.requester_display_name}")
+    if case.requester_role_names:
+        transcript_lines.append(
+            "Roles del solicitante: " + ", ".join(case.requester_role_names)
+        )
     if case.context_notice:
         transcript_lines.append(f"Aviso de contexto: {case.context_notice}")
     transcript_lines.append("\nMensajes en orden cronológico:")
@@ -296,6 +309,46 @@ def _reply_excerpt(message: discord.Message, by_id: dict[int, discord.Message]) 
         return None
     excerpt = referenced.content.strip() or "[mensaje con adjuntos]"
     return excerpt[:180]
+
+
+def _requester_role_names(author: discord.abc.User) -> list[str]:
+    """Return a small hierarchy-ordered role summary without exposing role IDs."""
+
+    candidates: list[tuple[int, int, str]] = []
+    for role in getattr(author, "roles", ()):
+        name = " ".join(str(getattr(role, "name", "")).split())
+        is_default = getattr(role, "is_default", None)
+        if (
+            not name
+            or name == "@everyone"
+            or bool(getattr(role, "managed", False))
+            or (callable(is_default) and is_default())
+        ):
+            continue
+        candidates.append(
+            (
+                int(getattr(role, "position", 0)),
+                int(getattr(role, "id", 0)),
+                name[:REQUESTER_ROLE_NAME_MAX_CHARS],
+            )
+        )
+
+    names: list[str] = []
+    seen: set[str] = set()
+    total_chars = 0
+    for _, _, name in sorted(candidates, reverse=True):
+        normalized = name.casefold()
+        if normalized in seen:
+            continue
+        separator_chars = 2 if names else 0
+        if total_chars + separator_chars + len(name) > REQUESTER_ROLES_TOTAL_MAX_CHARS:
+            break
+        seen.add(normalized)
+        names.append(name)
+        total_chars += separator_chars + len(name)
+        if len(names) == REQUESTER_ROLE_LIMIT:
+            break
+    return names
 
 
 def _case_subject(message: discord.Message, display_name: str) -> str | None:

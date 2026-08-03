@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pytest
+
 from arrest_report_agent.domain import (
     ContextState,
     ConversationMessage,
@@ -47,6 +49,8 @@ def test_render_includes_every_selected_character_and_report_image() -> None:
         root_message_id=10,
         trigger_message_id=10,
         requester_user_id=20,
+        requester_display_name="Teniente Charles Harrington",
+        requester_role_names=["Teniente", "GNT"],
         interaction_mode=InteractionMode.INITIAL_REVIEW,
         messages=[
             ConversationMessage(
@@ -67,10 +71,13 @@ def test_render_includes_every_selected_character_and_report_image() -> None:
     rendered = render_agent_input(case, "original")
     content = rendered[0]["content"]
     images = [part for part in content if part["type"] == "input_image"]
+    text = content[0]["text"]
 
     assert len(images) == 4
     assert all(image["detail"] == "original" for image in images)
     assert {image["image_url"] for image in images} == {attachment.url for attachment in attachments}
+    assert "Solicitante: Teniente Charles Harrington" in text
+    assert "Roles del solicitante: Teniente, GNT" in text
 
 
 def test_render_preserves_reply_and_edit_context() -> None:
@@ -147,3 +154,74 @@ def test_context_trimming_preserves_root_and_current_request(settings) -> None:
     assert truncated
     assert {item.id for item in converted} == {1, 3}
     assert sum(len(item.content) for item in converted) <= 500
+
+
+@pytest.mark.asyncio
+async def test_context_includes_only_brief_relevant_requester_role_names(settings) -> None:
+    def role(
+        role_id: int,
+        name: str,
+        position: int,
+        *,
+        managed: bool = False,
+        default: bool = False,
+    ) -> SimpleNamespace:
+        return SimpleNamespace(
+            id=role_id,
+            name=name,
+            position=position,
+            managed=managed,
+            is_default=lambda: default,
+        )
+
+    roles = [role(1, "@everyone", 0, default=True)]
+    roles.extend(role(index, f"Rol {index}", index) for index in range(2, 11))
+    roles.append(role(99, "Integración", 99, managed=True))
+    author = SimpleNamespace(
+        id=20,
+        name="Charles",
+        display_name="Charles Harrington",
+        bot=False,
+        roles=roles,
+    )
+    message = SimpleNamespace(
+        id=10,
+        content="Reporte <@99>",
+        author=author,
+        created_at=datetime.now(UTC),
+        edited_at=None,
+        reference=None,
+        attachments=[],
+        raw_mentions=[99],
+        guild=SimpleNamespace(id=1),
+        channel=SimpleNamespace(id=2),
+        thread=None,
+    )
+    target = ReviewTarget(
+        root=message,
+        trigger=message,
+        parent=SimpleNamespace(id=2),
+        thread=None,
+    )
+
+    case = await DiscordContextBuilder(settings).build_case(target)
+
+    assert case.requester_display_name == "Charles Harrington"
+    assert case.requester_role_names == [
+        "Rol 10",
+        "Rol 9",
+        "Rol 8",
+        "Rol 7",
+        "Rol 6",
+        "Rol 5",
+        "Rol 4",
+        "Rol 3",
+    ]
+    rendered = render_agent_input(case, "original")[0]["content"][0]["text"]
+    assert (
+        "Roles del solicitante: Rol 10, Rol 9, Rol 8, Rol 7, Rol 6, Rol 5, Rol 4, Rol 3"
+        in rendered
+    )
+    assert "Integración" not in rendered
+    assert "@everyone" not in rendered
+    assert "role_id" not in rendered

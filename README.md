@@ -24,6 +24,8 @@ habilitados reciben una orientación determinista, también sin ejecutar el agen
 - Aprueba con `✅` sin crear un hilo nuevo; las correcciones usan `❌` y un hilo estructurado; los
   casos inconclusos o técnicos usan `⚠️` y derivación manual opcional.
 - Reconstruye hasta 20 mensajes de un hilo, incluyendo respuestas, ediciones y correcciones recientes.
+- Incluye el nombre visible y hasta ocho títulos de rol relevantes del solicitante para adaptar el
+  tratamiento; no envía IDs de roles y nunca altera el rigor de la revisión por jerarquía.
 - Conserva metadata útil en traces sin incluir contenidos sensibles por defecto.
 
 ## Requisitos

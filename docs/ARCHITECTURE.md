@@ -78,6 +78,8 @@ No se usan sesiones ni persistencia del SDK. Cada mención reconstruye un input 
 - referencias de respuesta y extractos acotados;
 - indicador de mensaje editado;
 - solicitud actual;
+- nombre visible del solicitante y hasta ocho nombres de roles no administrados, ordenados por
+  jerarquía y presentados en una sola línea, sin IDs de roles;
 - imágenes actuales, imágenes del reporte raíz y hasta dos imágenes históricas recientes.
 
 Los límites de mensajes, caracteres e imágenes se aplican antes del runner. El input indica si el

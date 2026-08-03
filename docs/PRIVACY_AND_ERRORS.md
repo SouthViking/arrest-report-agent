@@ -2,8 +2,9 @@
 
 ## Datos procesados
 
-Una revisión envía a OpenAI el texto acotado del reporte/hilo y las imágenes seleccionadas. Los datos
-se usan únicamente para producir el veredicto solicitado mediante mención explícita.
+Una revisión envía a OpenAI el texto acotado del reporte/hilo, las imágenes seleccionadas, el nombre
+visible del solicitante y hasta ocho nombres de roles relevantes. No envía IDs de roles. Los datos se
+usan únicamente para producir el veredicto solicitado mediante mención explícita.
 
 Los mensajes sin mención no generan llamadas, almacenamiento ni logs de contenido. Guilds, canales
 y usuarios pasan por una política local antes de reconstruir el contexto. Una mención de un usuario
@@ -43,6 +44,7 @@ de otra línea del log.
 No se registran:
 
 - nombres o narrativa del reporte;
+- nombres visibles o títulos de roles;
 - texto extraído de imágenes;
 - URLs de Discord CDN;
 - payloads de herramientas;
