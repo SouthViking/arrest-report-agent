@@ -9,6 +9,7 @@ from arrest_report_agent.application.prompt import build_agent_instructions
 from arrest_report_agent.application.service import ReviewService
 from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.config import BotIdentity
+from arrest_report_agent.config.logging import STRUCTURED_EVENT_ATTRIBUTE
 from arrest_report_agent.domain import InteractionMode, ReviewCase
 from arrest_report_agent.domain.models import ReviewPublication
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
@@ -122,17 +123,19 @@ async def test_service_contains_timeout_and_publishes_contextual_failure(
     assert "excedió el tiempo" in publisher.failures[0]
     assert settings.identity.display_name not in publisher.failures[0]
     failure_log = next(
-        record.getMessage() for record in caplog.records if "event=review_failed" in record.getMessage()
+        getattr(record, STRUCTURED_EVENT_ATTRIBUTE)
+        for record in caplog.records
+        if getattr(record, STRUCTURED_EVENT_ATTRIBUTE, {}).get("event") == "review_failed"
     )
-    for expected_field in (
-        "guild_id=1",
-        "parent_channel_id=2",
-        "channel_id=9",
-        "thread_id=9",
-        "user_id=4",
-        "message_id=3",
-        "root_message_id=3",
-        "trigger_message_id=3",
-        "attempt=1",
-    ):
-        assert expected_field in failure_log
+    expected_metadata = {
+        "guild_id": 1,
+        "parent_channel_id": 2,
+        "channel_id": 9,
+        "thread_id": 9,
+        "user_id": 4,
+        "message_id": 3,
+        "root_message_id": 3,
+        "trigger_message_id": 3,
+        "attempt": 1,
+    }
+    assert {key: failure_log[key] for key in expected_metadata} == expected_metadata

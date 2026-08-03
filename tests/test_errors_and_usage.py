@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from decimal import Decimal
 
@@ -9,7 +10,7 @@ from agents.usage import Usage
 
 from arrest_report_agent.application.errors import classify_error, public_error_message
 from arrest_report_agent.application.usage import summarize_usage
-from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.config.logging import JsonLogFormatter, exception_fields, log_event
 from arrest_report_agent.domain import ErrorKind
 
 
@@ -85,8 +86,33 @@ def test_error_log_keeps_structured_fields_and_full_traceback(caplog) -> None:
                 **exception_fields(error),
             )
 
-    assert "event=review_failed" in caplog.text
-    assert "error_type=RuntimeError" in caplog.text
-    assert "technical_reference=42-1-unknown" in caplog.text
-    assert "Traceback (most recent call last)" in caplog.text
-    assert "RuntimeError: provider exploded" in caplog.text
+    record = caplog.records[-1]
+    indented = JsonLogFormatter(indented=True).format(record)
+    compact = JsonLogFormatter(indented=False).format(record)
+    payload = json.loads(indented)
+
+    assert indented.startswith("{\n")
+    assert "\n" not in compact
+    assert json.loads(compact) == payload
+    assert payload["event"] == "review_failed"
+    assert payload["error_type"] == "RuntimeError"
+    assert payload["technical_reference"] == "42-1-unknown"
+    assert "Traceback (most recent call last)" in payload["exception"]
+    assert "RuntimeError: provider exploded" in payload["exception"]
+
+
+def test_dependency_log_is_also_valid_json() -> None:
+    record = logging.LogRecord(
+        name="httpx",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg='HTTP Request: POST /responses "HTTP/1.1 429 Too Many Requests"',
+        args=(),
+        exc_info=None,
+    )
+
+    payload = json.loads(JsonLogFormatter(indented=False).format(record))
+
+    assert payload["logger"] == "httpx"
+    assert payload["message"].startswith("HTTP Request")

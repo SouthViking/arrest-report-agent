@@ -9,11 +9,20 @@ Los mensajes sin mención no generan llamadas, almacenamiento ni logs de conteni
 
 ## Logs
 
-Formato heredado de RoomGate:
+Todos los logs, incluidos los de dependencias, se escriben como JSON. Por defecto son legibles en
+varias líneas:
 
-```text
-%(asctime)s %(levelname)s %(name)s %(message)s
+```json
+{
+  "timestamp": "2026-08-03T00:46:26.518Z",
+  "level": "ERROR",
+  "logger": "arrest_report_agent.application.service",
+  "event": "review_failed"
+}
 ```
+
+`LOG_JSON_INDENTED=false` genera el mismo objeto en una sola línea para facilitar su ingestión en
+plataformas de observabilidad.
 
 Cada evento añade campos `clave=valor`. Se registran IDs técnicos, entorno, modelo, intento, latencia,
 tokens, costo aproximado, veredicto o clase de error. Los errores incluyen tipo, mensaje técnico,

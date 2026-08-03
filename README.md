@@ -90,6 +90,7 @@ Comandos disponibles:
 
 | Variable | Predeterminado | Función |
 |---|---:|---|
+| `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | Modelo del runner. |
 | `OPENAI_REASONING_EFFORT` | `medium` | Esfuerzo de razonamiento; puede optimizarse después. |
 | `OPENAI_IMAGE_DETAIL` | `original` | Conserva texto pequeño y detalle visual. |

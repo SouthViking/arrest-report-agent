@@ -17,7 +17,7 @@ LOGGER = logging.getLogger(__name__)
 
 async def run() -> None:
     settings = load_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, json_indented=settings.log_json_indented)
     runtime = build_runtime(settings)
     health_server = await serve_health(settings.health_host, settings.health_port, runtime.health)
     log_event(
@@ -49,4 +49,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

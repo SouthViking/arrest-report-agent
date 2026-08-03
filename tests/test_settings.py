@@ -15,6 +15,7 @@ def test_settings_parse_channel_ids_and_identity(settings: AppSettings) -> None:
     assert settings.identity.display_name == "Sgt. Vigil"
     assert settings.openai_model == "gpt-5.6-terra"
     assert settings.openai_reasoning_effort == "medium"
+    assert settings.log_json_indented is True
 
 
 def test_empty_manual_role_is_none() -> None:
@@ -26,6 +27,18 @@ def test_empty_manual_role_is_none() -> None:
         MANUAL_REVIEW_ROLE_ID="",
     )
     assert settings.manual_review_role_id is None
+
+
+def test_json_log_indentation_can_be_disabled() -> None:
+    settings = AppSettings(
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        DISCORD_GUILD_ID=1,
+        REVIEW_CHANNEL_IDS="2",
+        LOG_JSON_INDENTED="false",
+    )
+
+    assert settings.log_json_indented is False
 
 
 def test_empty_secret_is_rejected() -> None:

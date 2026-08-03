@@ -34,6 +34,7 @@ class AppSettings(BaseSettings):
     app_environment: str = Field(default="local", alias="APP_ENV", min_length=1)
     app_version: str = Field(default="0.1.0", alias="APP_VERSION", min_length=1)
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    log_json_indented: bool = Field(default=True, alias="LOG_JSON_INDENTED")
     health_host: str = Field(default="0.0.0.0", alias="HEALTH_HOST")
     health_port: int = Field(default=8080, alias="HEALTH_PORT", ge=1, le=65535)
 
