@@ -36,6 +36,64 @@ REQUIRED_PERMISSIONS = (
 EMBED_SPACER = "\u200b"
 
 
+def build_help_embed(
+    *,
+    display_name: str,
+    role_title: str,
+    bot_mention: str,
+    channel_ids: frozenset[int],
+    avatar_url: str | None = None,
+) -> discord.Embed:
+    """Introduce the reviewer and explain its workflow in character."""
+
+    channels = "\n".join(f"• <#{channel_id}>" for channel_id in sorted(channel_ids))
+    embed = discord.Embed(
+        title=f"⭐ {display_name} · {role_title}",
+        description=(
+            f"Soy **{display_name}**, el **{role_title}** asignado a este turno. "
+            "Mi trabajo es revisar expedientes de arresto antes de que acumulen polvo… "
+            "o correcciones del mando."
+        ),
+        color=discord.Color.gold(),
+    )
+    embed.add_field(
+        name="📋 Qué reviso",
+        value=(
+            "• Narrativa, cronología y coherencia del procedimiento.\n"
+            "• Fotografías, evidencias y consistencia visual del expediente.\n"
+            "• Cargos declarados frente al catálogo y la guía oficial."
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="📍 Dónde estoy de guardia",
+        value=channels,
+        inline=False,
+    )
+    embed.add_field(
+        name="📣 Cómo solicitar una revisión",
+        value=(
+            f"Publica el reporte con sus adjuntos e incluye a {bot_mention} en cualquier parte "
+            "del mensaje. Si ya existe un hilo, puedes volver a mencionarme allí: leeré el "
+            "historial reciente para continuar la revisión."
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="🧵 Qué haré con el expediente",
+        value=(
+            "Marcaré la revisión en curso con ⏳. Si está correcta, dejaré ✅; "
+            "si requiere ajustes, dejaré ❌ y abriré un hilo con observaciones claras para "
+            "que podamos iterar sin llenar el canal de papeleo."
+        ),
+        inline=False,
+    )
+    embed.set_footer(text="No intervengo sin una mención. El papeleo no se aprueba solo, deputy.")
+    if avatar_url:
+        embed.set_thumbnail(url=avatar_url)
+    return embed
+
+
 def build_status_embed(
     *,
     display_name: str,
@@ -172,14 +230,15 @@ class ReviewCog(commands.Cog):
 
     @wv.command(name="help", description="Explica cómo solicitar una revisión")
     async def review_help(self, ctx: discord.ApplicationContext) -> None:
-        await ctx.respond(
-            (
-                f"Menciona a **{self.settings.identity.display_name}** en cualquier parte del mensaje "
-                "del reporte o dentro de su hilo. Solo atiendo los canales configurados y nunca "
-                "intervengo en publicaciones sin mención explícita."
-            ),
-            ephemeral=True,
+        bot_user = self.bot.user
+        embed = build_help_embed(
+            display_name=self.settings.identity.display_name,
+            role_title=self.settings.identity.role_title,
+            bot_mention=bot_user.mention if bot_user else self.settings.identity.display_name,
+            channel_ids=self.settings.review_channel_ids,
+            avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
         )
+        await ctx.respond(embed=embed, ephemeral=True)
 
     @wv.command(name="status", description="Muestra el estado operativo del revisor")
     async def review_status(self, ctx: discord.ApplicationContext) -> None:
