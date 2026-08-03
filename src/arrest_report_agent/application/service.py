@@ -63,12 +63,8 @@ class ReviewService:
             LOGGER,
             "info",
             "review_started",
-            guild_id=case.guild_id,
-            channel_id=case.channel_id,
-            root_message_id=case.root_message_id,
-            trigger_message_id=case.trigger_message_id,
-            attempt=run_context.attempt,
             model=self.settings.openai_model,
+            **self._log_metadata(case, run_context.attempt),
         )
         try:
             result = await asyncio.wait_for(
@@ -88,8 +84,6 @@ class ReviewService:
                 LOGGER,
                 "info",
                 "review_completed",
-                root_message_id=case.root_message_id,
-                attempt=run_context.attempt,
                 verdict=run_context.publication.verdict.value,
                 latency_ms=round((time.monotonic() - started_at) * 1000),
                 requests=usage.requests,
@@ -98,6 +92,7 @@ class ReviewService:
                 output_tokens=usage.output_tokens,
                 reasoning_tokens=usage.reasoning_tokens,
                 estimated_cost_usd=usage.estimated_cost_usd,
+                **self._log_metadata(case, run_context.attempt),
             )
         except Exception as error:
             classified = classify_error(error)
@@ -109,14 +104,12 @@ class ReviewService:
                 "error",
                 "review_failed",
                 exc_info=error,
-                root_message_id=case.root_message_id,
-                trigger_message_id=case.trigger_message_id,
-                attempt=run_context.attempt,
                 error_kind=classified.kind.value,
                 retryable=classified.retryable,
                 latency_ms=round((time.monotonic() - started_at) * 1000),
                 technical_reference=technical_reference,
                 **exception_fields(error),
+                **self._log_metadata(case, run_context.attempt),
             )
             if run_context.published:
                 return
@@ -130,10 +123,25 @@ class ReviewService:
                     "error",
                     "failure_publication_failed",
                     exc_info=publication_error,
-                    root_message_id=case.root_message_id,
                     technical_reference=technical_reference,
                     **exception_fields(publication_error),
+                    **self._log_metadata(case, run_context.attempt),
                 )
+
+    def _log_metadata(self, case: ReviewCase, attempt: int) -> dict[str, Any]:
+        """Return filterable Discord identifiers shared by every runner event."""
+
+        return {
+            "guild_id": case.guild_id,
+            "parent_channel_id": case.parent_channel_id,
+            "channel_id": case.channel_id,
+            "thread_id": case.thread_id if case.thread_id is not None else "none",
+            "user_id": case.requester_user_id,
+            "message_id": case.trigger_message_id,
+            "root_message_id": case.root_message_id,
+            "trigger_message_id": case.trigger_message_id,
+            "attempt": attempt,
+        }
 
     def _trace_metadata(self, case: ReviewCase, attempt: int) -> dict[str, Any]:
         return {

@@ -88,16 +88,19 @@ class FailurePublisher:
 
 
 @pytest.mark.asyncio
-async def test_service_contains_timeout_and_publishes_contextual_failure(settings, monkeypatch) -> None:
+async def test_service_contains_timeout_and_publishes_contextual_failure(
+    settings, monkeypatch, caplog
+) -> None:
     service = ReviewService(settings, ChargeCatalog.load_default(), ReportGuide.load_default())
     case = ReviewCase(
         guild_id=1,
         parent_channel_id=2,
-        channel_id=2,
+        channel_id=9,
+        thread_id=9,
         root_message_id=3,
         trigger_message_id=3,
         requester_user_id=4,
-        interaction_mode=InteractionMode.INITIAL_REVIEW,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
         messages=[],
         attachments=[],
     )
@@ -110,10 +113,26 @@ async def test_service_contains_timeout_and_publishes_contextual_failure(setting
 
     monkeypatch.setattr("arrest_report_agent.application.service.Runner.run", fail)
 
-    await service.review(
-        context,
-        [{"role": "user", "content": [{"type": "input_text", "text": "test"}]}],
-    )
+    with caplog.at_level("ERROR", logger="arrest_report_agent.application.service"):
+        await service.review(
+            context,
+            [{"role": "user", "content": [{"type": "input_text", "text": "test"}]}],
+        )
 
     assert "excedió el tiempo" in publisher.failures[0]
     assert settings.identity.display_name not in publisher.failures[0]
+    failure_log = next(
+        record.getMessage() for record in caplog.records if "event=review_failed" in record.getMessage()
+    )
+    for expected_field in (
+        "guild_id=1",
+        "parent_channel_id=2",
+        "channel_id=9",
+        "thread_id=9",
+        "user_id=4",
+        "message_id=3",
+        "root_message_id=3",
+        "trigger_message_id=3",
+        "attempt=1",
+    ):
+        assert expected_field in failure_log

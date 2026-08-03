@@ -17,7 +17,13 @@ Formato heredado de RoomGate:
 
 Cada evento añade campos `clave=valor`. Se registran IDs técnicos, entorno, modelo, intento, latencia,
 tokens, costo aproximado, veredicto o clase de error. Los errores incluyen tipo, mensaje técnico,
-estado/código del proveedor cuando existe y stacktrace completo. No se registran:
+estado/código del proveedor cuando existe y stacktrace completo.
+
+Los eventos del runner repiten `guild_id`, `parent_channel_id`, `channel_id`, `thread_id`, `user_id`,
+`message_id`, `root_message_id`, `trigger_message_id` e `attempt` para poder filtrarlos sin depender
+de otra línea del log.
+
+No se registran:
 
 - nombres o narrativa del reporte;
 - texto extraído de imágenes;
