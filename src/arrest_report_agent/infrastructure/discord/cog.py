@@ -22,6 +22,12 @@ from .trigger import should_review_message
 
 LOGGER = logging.getLogger(__name__)
 
+PENAL_CODE_URL = "https://ucp.sarp.es/app/ucp/penalcode"
+PROCEDURES_MANUAL_URL = (
+    "https://docs.google.com/document/d/1DrhSgzPbdLoe0ahFTVrNPb_zBPuhVeatxW5Hs8ECMHE/"
+    "edit?pli=1&tab=t.0#heading=h.thzh3oj2x0rk"
+)
+
 REQUIRED_PERMISSIONS = (
     "view_channel",
     "read_message_history",
@@ -96,6 +102,14 @@ def build_help_embed(
             "Marcaré la revisión en curso con ⏳. Si está correcta, dejaré ✅; "
             "si requiere ajustes, dejaré ❌ y abriré un hilo con observaciones claras para "
             "que podamos iterar sin llenar el canal de papeleo."
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="📚 Documentación oficial",
+        value=(
+            f"• [Código Penal]({PENAL_CODE_URL})\n"
+            f"• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"
         ),
         inline=False,
     )
@@ -255,7 +269,7 @@ class ReviewCog(commands.Cog):
             channel_ids=self.settings.review_channel_ids,
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
         )
-        await ctx.respond(embed=embed, ephemeral=True)
+        await ctx.respond(embed=embed, ephemeral=False)
 
     @wv.command(name="status", description="Muestra el estado operativo del revisor")
     async def review_status(self, ctx: discord.ApplicationContext) -> None:

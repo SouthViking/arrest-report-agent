@@ -84,7 +84,7 @@ capturas de cargos, narrativa en el juego, un formulario o texto escrito directa
 
 Comandos disponibles:
 
-- `/wv help`: instrucciones breves para cualquier miembro.
+- `/wv help`: presentación, instrucciones y enlaces oficiales visibles para todo el canal.
 - `/wv status`: estado, entorno, modelo, versiones y permisos efectivos en cada canal; requiere
   `Manage Server` o el rol manual.
 
