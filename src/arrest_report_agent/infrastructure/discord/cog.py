@@ -7,6 +7,7 @@ import logging
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
+from time import monotonic
 
 import discord
 from discord.ext import commands
@@ -20,7 +21,7 @@ from arrest_report_agent.domain.errors import ContextUnavailableError
 
 from .context import DiscordContextBuilder, render_agent_input
 from .publisher import DiscordReviewPublisher
-from .trigger import should_review_message
+from .trigger import TriggerDecision, classify_message
 
 LOGGER = logging.getLogger(__name__)
 
@@ -28,6 +29,13 @@ PENAL_CODE_URL = "https://ucp.sarp.es/app/ucp/penalcode"
 PROCEDURES_MANUAL_URL = (
     "https://docs.google.com/document/d/1DrhSgzPbdLoe0ahFTVrNPb_zBPuhVeatxW5Hs8ECMHE/"
     "edit?pli=1&tab=t.0#heading=h.thzh3oj2x0rk"
+)
+WRONG_CHANNEL_REDIRECT_COOLDOWN_SECONDS = 30.0
+WRONG_CHANNEL_INTROS = (
+    "En este canal no estoy de guardia.",
+    "Este canal queda fuera de mi ronda asignada.",
+    "Aquí no tengo habilitada la atención.",
+    "Me encontró, pero en la oficina equivocada.",
 )
 
 
@@ -110,16 +118,33 @@ def build_help_embed(
     )
     embed.add_field(
         name="📚 Documentación oficial",
-        value=(
-            f"• [Código Penal]({PENAL_CODE_URL})\n"
-            f"• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"
-        ),
+        value=(f"• [Código Penal]({PENAL_CODE_URL})\n• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"),
         inline=False,
     )
     embed.set_footer(text="No intervengo sin una mención. El papeleo no se aprueba solo, deputy.")
     if avatar_url:
         embed.set_thumbnail(url=avatar_url)
     return embed
+
+
+def build_wrong_channel_message(
+    *,
+    channel_ids: frozenset[int],
+    message_id: int,
+) -> str:
+    """Build a concise rich-text redirect without using AI."""
+
+    intro = WRONG_CHANNEL_INTROS[message_id % len(WRONG_CHANNEL_INTROS)]
+    channel_mentions = [f"<#{channel_id}>" for channel_id in sorted(channel_ids)]
+    channels = (
+        channel_mentions[0]
+        if len(channel_mentions) == 1
+        else f"{', '.join(channel_mentions[:-1])} o {channel_mentions[-1]}"
+    )
+    return (
+        f"📍 **Fuera de mi zona de guardia, deputy.** {intro}\n"
+        f"Puede encontrarme en {channels}; mencióneme allí para continuar."
+    )
 
 
 class ReviewCog(commands.Cog):
@@ -138,6 +163,7 @@ class ReviewCog(commands.Cog):
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_reviews)
         self._locks: dict[int, asyncio.Lock] = {}
         self._attempts: defaultdict[int, int] = defaultdict(int)
+        self._redirect_cooldowns: dict[tuple[int, int, int], float] = {}
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
@@ -153,7 +179,13 @@ class ReviewCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         bot_user = self.bot.user
-        if bot_user is None or not should_review_message(message, bot_user.id, self.settings):
+        if bot_user is None:
+            return
+        decision = classify_message(message, bot_user.id, self.settings)
+        if decision is TriggerDecision.REDIRECT_WRONG_CHANNEL:
+            await self._redirect_wrong_channel(message)
+            return
+        if decision is not TriggerDecision.REVIEW:
             return
         try:
             target = await self.context_builder.resolve_target(message)
@@ -223,6 +255,59 @@ class ReviewCog(commands.Cog):
         finally:
             if not lock.locked():
                 self._locks.pop(root_id, None)
+
+    async def _redirect_wrong_channel(self, message: discord.Message) -> None:
+        guild = message.guild
+        if guild is None:
+            return
+        cooldown_key = (guild.id, message.channel.id, message.author.id)
+        now = monotonic()
+        last_redirect = self._redirect_cooldowns.get(cooldown_key)
+        if last_redirect is not None and now - last_redirect < WRONG_CHANNEL_REDIRECT_COOLDOWN_SECONDS:
+            log_event(
+                LOGGER,
+                "info",
+                "wrong_channel_redirect_suppressed",
+                guild_id=guild.id,
+                channel_id=message.channel.id,
+                message_id=message.id,
+                user_id=message.author.id,
+            )
+            return
+
+        self._redirect_cooldowns[cooldown_key] = now
+        content = build_wrong_channel_message(
+            channel_ids=self.settings.review_channel_ids,
+            message_id=message.id,
+        )
+        try:
+            await message.reply(
+                content=content,
+                mention_author=False,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "wrong_channel_redirect_sent",
+                guild_id=guild.id,
+                channel_id=message.channel.id,
+                message_id=message.id,
+                user_id=message.author.id,
+            )
+        except (discord.Forbidden, discord.HTTPException) as error:
+            self._redirect_cooldowns.pop(cooldown_key, None)
+            log_event(
+                LOGGER,
+                "warning",
+                "wrong_channel_redirect_failed",
+                exc_info=error,
+                guild_id=guild.id,
+                channel_id=message.channel.id,
+                message_id=message.id,
+                user_id=message.author.id,
+                **exception_fields(error),
+            )
 
     @wv.command(name="help", description="Explica cómo solicitar una revisión")
     async def review_help(self, ctx: discord.ApplicationContext) -> None:
