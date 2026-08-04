@@ -9,9 +9,12 @@ roles en esta etapa. El resultado clasifica alcance e intención para decidir si
 determinísticamente una revisión antes de invocar al agente principal.
 
 Si la solicitud está dentro de alcance o es ambigua, el agente principal recibe el texto acotado del
-reporte/hilo, las imágenes seleccionadas, el nombre visible del solicitante y hasta ocho nombres de
-roles relevantes. No envía IDs de roles. Los datos se usan para responder dentro del ámbito o emitir
-el veredicto solicitado mediante mención explícita.
+reporte/hilo, las imágenes y documentos seleccionados, el nombre visible del solicitante y hasta
+ocho nombres de roles relevantes. No envía IDs de roles. Los datos se usan para responder dentro del
+ámbito o emitir el veredicto solicitado mediante mención explícita.
+
+Los IDs de `REVIEW_ESCALATION_ROLE_IDS` tampoco se entregan al modelo. Discord los resuelve y limita
+de forma determinista únicamente cuando corresponde publicar una derivación.
 
 Los mensajes sin mención no generan llamadas, almacenamiento ni logs de contenido. Guilds, canales
 y usuarios pasan por una política local antes de reconstruir el contexto. Una mención de un usuario
@@ -63,12 +66,10 @@ No se registran:
 El workflow se llama `arrest_report_review` y agrupa intentos mediante
 `discord-report:{guild_id}:{root_message_id}`. Cada run incluye:
 
-- environment, app_version, prompt_version y modelo;
-- guild_id, channel_id, parent_channel_id y thread_id;
-- message_id, root_message_id, trigger_message_id y user_id;
-- review_attempt e interaction_mode;
-- guide_version y hash SHA-256 del catálogo;
-- estado del contexto.
+- environment, app_version, prompt_version y scope_guardrail_version;
+- guild_id, parent_channel_id y thread_id;
+- root_message_id, trigger_message_id y user_id;
+- review_attempt, modelo y reasoning_effort.
 
 `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA=false` es el valor predeterminado y recomendado.
 
@@ -86,5 +87,6 @@ El workflow se llama `arrest_report_review` y agrupa intentos mediante
 
 Ante un error, el bot intenta quitar `⏳`, añade `⚠️`, reutiliza o crea un hilo y publica únicamente
 un mensaje contextualizado y el siguiente paso. La clasificación, referencia técnica, excepción y
-datos del proveedor quedan en los logs. Si existe `MANUAL_REVIEW_ROLE_ID`, menciona el rol una sola
-vez por ejecución.
+datos del proveedor quedan en los logs. Si `REVIEW_ESCALATION_ROLE_IDS` contiene roles válidos de la
+guild, los menciona una sola vez por ejecución mediante una allowlist exacta de Discord. Los IDs
+eliminados se omiten con un warning y `MANUAL_REVIEW_ROLE_ID` permanece como alias legado.

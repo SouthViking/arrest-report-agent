@@ -31,6 +31,10 @@ conservar un número de forma manual.
 
 `Change Nickname` es opcional: la identidad del producto no depende de modificar el apodo de Discord.
 
+Los roles configurados en `REVIEW_ESCALATION_ROLE_IDS` deben permitir menciones para producir una
+notificación. Se recomienda habilitar esa propiedad solamente en dichos roles; el bot no necesita el
+permiso amplio **Mention @everyone, @here, and All Roles**.
+
 ## Canales privados
 
 Los permisos deben ser efectivos en ambos canales y sus overrides:

@@ -17,6 +17,7 @@ flowchart LR
     R --> G["Guía local"]
     R --> D["Índice de delitos"]
     R --> P["Tools de publicación"]
+    E["Roles de escalamiento configurados"] --> P
     P --> X["Ruta fijada antes del runner"]
     X --> H["Mención nueva: hilo"]
     X --> N["Reply al bot: reply"]
@@ -47,6 +48,12 @@ Las tools de publicación reciben un `ReviewTarget` derivado del evento aprobado
 canales o mensajes arbitrarios como argumentos. Por ello sus reacciones, hilos y mensajes quedan
 acotados al objetivo que atravesó la política. El mensaje raíz es la unidad de exclusión mutua: dos
 invocaciones simultáneas para el mismo reporte no generan dos runs.
+
+Ante una revisión inconclusa o una falla técnica, el adaptador resuelve
+`REVIEW_ESCALATION_ROLE_IDS` dentro de la guild y menciona una sola vez únicamente los roles que
+todavía existen. La mención y su `AllowedMentions` se construyen de forma determinista; el modelo no
+recibe IDs de roles ni decide a quién derivar. El alias legado `MANUAL_REVIEW_ROLE_ID` sigue
+admitiendo una configuración de un solo rol.
 
 La política también conserva si la activación fue una mención o una respuesta directa al bot. Una
 mención nueva en un canal padre fija la ruta `thread`; un reply al bot en el canal fija
@@ -127,12 +134,18 @@ No se usan sesiones ni persistencia del SDK. Cada mención reconstruye un input 
 - solicitud actual;
 - nombre visible del solicitante y hasta ocho nombres de roles no administrados, ordenados por
   jerarquía y presentados en una sola línea, sin IDs de roles;
-- imágenes actuales, imágenes del reporte raíz y hasta dos imágenes históricas recientes.
+- imágenes y documentos del mensaje actual;
+- adjuntos del reporte raíz y una cantidad acotada de imágenes y archivos históricos recientes.
 
-Los límites de mensajes, caracteres e imágenes se aplican antes del runner. El reporte raíz y la
-solicitud actual se protegen al recortar; el resto conserva los mensajes más recientes hasta
-`THREAD_CONTEXT_MAX_MESSAGES`. El input indica si el contexto quedó `complete`, `truncated` o
-`unavailable` para evitar conclusiones excesivas.
+Cada mensaje se reconstruye como un turno nativo. Solo los mensajes producidos por la cuenta
+autenticada del bot usan el rol `assistant`; miembros, webhooks y otros bots permanecen como `user`.
+Los adjuntos conservan el turno donde se publicaron y una versión documental incluida en la
+solicitud actual prevalece sobre versiones anteriores del mismo material.
+
+Los límites de mensajes, caracteres, imágenes, archivos y tamaño combinado se aplican antes del
+runner. El reporte raíz y la solicitud actual se protegen al recortar; el resto conserva los
+mensajes más recientes hasta `THREAD_CONTEXT_MAX_MESSAGES`. El input indica si el contexto quedó
+`complete`, `truncated` o `unavailable` para evitar conclusiones excesivas.
 
 ## Extensión futura
 

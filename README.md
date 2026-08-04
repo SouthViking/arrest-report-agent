@@ -190,8 +190,8 @@ y costos.
 ## Límites del MVP
 
 - No hay base de datos: intentos, locks y estado operativo se pierden al reiniciar.
-- Los canales, usuarios habilitados, servidor y roles de escalamiento se configuran por entorno, no mediante
-  comandos persistentes.
+- Los canales, usuarios habilitados, servidor y roles de escalamiento se configuran por entorno, no
+  mediante comandos persistentes.
 - El catálogo y la guía son archivos versionados; todavía no existe sincronización con OpenMP/PCU.
 - No existe configuración por facción o tenant.
 - No se ejecuta una segunda revisión automática ni un fallback de veredicto con otro modelo.
