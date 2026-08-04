@@ -96,8 +96,12 @@ BOT_DISPLAY_NAME=Sgt. Vigil
 BOT_ROLE_TITLE=Watch Sergeant
 ```
 
-`MANUAL_REVIEW_ROLE_ID` es opcional. Si se configura, el rol recibe una sola mención en una
-derivación inconclusa o técnica.
+`REVIEW_ESCALATION_ROLE_IDS` es una lista CSV opcional de roles que reciben una sola mención ante
+una revisión inconclusa o una falla técnica. Solo se mencionan roles que todavía existan en la guild;
+los IDs eliminados se omiten sin interrumpir el manejo del error. `MANUAL_REVIEW_ROLE_ID` sigue
+siendo compatible como nombre legado para una configuración de un solo rol. Para que Discord envíe
+la notificación sin conceder al bot el permiso amplio de mencionar cualquier rol, los roles de
+escalamiento deben estar configurados como mencionables.
 
 ## Ejecución
 
@@ -144,6 +148,7 @@ Comandos disponibles:
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
 | `REVIEW_CHANNEL_IDS` | `*` | Canales padre permitidos; acepta CSV y cubre sus hilos. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
+| `REVIEW_ESCALATION_ROLE_IDS` | vacío | Roles existentes que reciben una mención ante resultados inconclusos o fallas; acepta CSV. |
 | `BOT_IDLE_ACTIVITY` | `⭐ De guardia` | Presencia global sin solicitudes activas. |
 | `BOT_CONVERSATION_ACTIVITY` | `📻 Atendiendo consultas` | Presencia inicial de una consulta habilitada. |
 | `BOT_KNOWLEDGE_ACTIVITY` | `🔎 Consultando el código` | Presencia al consultar la guía o el catálogo. |
@@ -185,7 +190,7 @@ y costos.
 ## Límites del MVP
 
 - No hay base de datos: intentos, locks y estado operativo se pierden al reiniciar.
-- Los canales, usuarios habilitados, servidor y rol manual se configuran por entorno, no mediante
+- Los canales, usuarios habilitados, servidor y roles de escalamiento se configuran por entorno, no mediante
   comandos persistentes.
 - El catálogo y la guía son archivos versionados; todavía no existe sincronización con OpenMP/PCU.
 - No existe configuración por facción o tenant.

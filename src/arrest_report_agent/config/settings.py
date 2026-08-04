@@ -57,6 +57,34 @@ class SnowflakeAllowlist:
         return self.ids is None or snowflake in self.ids
 
 
+def parse_configured_snowflakes(raw_value: str, *, variable_name: str) -> tuple[int, ...]:
+    """Parse an ordered, deduplicated list of explicitly configured Discord IDs."""
+
+    normalized = raw_value.strip()
+    if not normalized:
+        return ()
+
+    raw_ids = [value.strip() for value in normalized.split(",") if value.strip()]
+    if "*" in raw_ids:
+        raise ValueError(f"{variable_name} does not support '*'")
+
+    ids: list[int] = []
+    seen: set[int] = set()
+    for raw_id in raw_ids:
+        try:
+            snowflake = int(raw_id)
+        except ValueError as error:
+            raise ValueError(
+                f"{variable_name} must contain positive Discord snowflakes"
+            ) from error
+        if snowflake <= 0:
+            raise ValueError(f"{variable_name} must contain positive Discord snowflakes")
+        if snowflake not in seen:
+            ids.append(snowflake)
+            seen.add(snowflake)
+    return tuple(ids)
+
+
 class AppSettings(BaseSettings):
     """Process settings loaded from environment or `.env`."""
 
@@ -70,7 +98,10 @@ class AppSettings(BaseSettings):
     )
     review_channel_ids_csv: str = Field(default="*", alias="REVIEW_CHANNEL_IDS")
     authorized_user_ids_csv: str = Field(default="*", alias="AUTHORIZED_USER_IDS")
-    manual_review_role_id: int | None = Field(default=None, alias="MANUAL_REVIEW_ROLE_ID")
+    review_escalation_role_ids_csv: str = Field(
+        default="",
+        validation_alias=AliasChoices("REVIEW_ESCALATION_ROLE_IDS", "MANUAL_REVIEW_ROLE_ID"),
+    )
 
     bot_display_name: str = Field(default="Sgt. Vigil", alias="BOT_DISPLAY_NAME", min_length=1)
     bot_role_title: str = Field(default="Watch Sergeant", alias="BOT_ROLE_TITLE", min_length=1)
@@ -154,13 +185,6 @@ class AppSettings(BaseSettings):
     def normalize_log_level(cls, value: str) -> str:
         return value.upper()
 
-    @field_validator("manual_review_role_id", mode="before")
-    @classmethod
-    def parse_optional_snowflake(cls, value: object) -> object:
-        if value == "":
-            return None
-        return value
-
     @field_validator("thread_auto_archive_minutes")
     @classmethod
     def validate_archive_duration(cls, value: int) -> int:
@@ -175,7 +199,12 @@ class AppSettings(BaseSettings):
             raise ValueError("DISCORD_TOKEN must not be empty")
         if not self.openai_api_key.get_secret_value().strip():
             raise ValueError("OPENAI_API_KEY must not be empty")
-        _ = self.guild_allowlist, self.channel_allowlist, self.user_allowlist
+        _ = (
+            self.guild_allowlist,
+            self.channel_allowlist,
+            self.user_allowlist,
+            self.review_escalation_role_ids,
+        )
         return self
 
     @property
@@ -197,6 +226,13 @@ class AppSettings(BaseSettings):
         return SnowflakeAllowlist.parse(
             self.authorized_user_ids_csv,
             variable_name="AUTHORIZED_USER_IDS",
+        )
+
+    @property
+    def review_escalation_role_ids(self) -> tuple[int, ...]:
+        return parse_configured_snowflakes(
+            self.review_escalation_role_ids_csv,
+            variable_name="REVIEW_ESCALATION_ROLE_IDS",
         )
 
     @property

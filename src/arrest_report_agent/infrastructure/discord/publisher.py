@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import re
 
 import discord
 
 from arrest_report_agent.config import AppSettings
+from arrest_report_agent.config.logging import log_event
 from arrest_report_agent.domain import FindingSeverity, ReviewPublication, ReviewVerdict
 from arrest_report_agent.domain.errors import PublicationError
 
 from .context import DiscordResponseRoute, ReviewTarget
 
 STATUS_EMOJIS = ("⏳", "✅", "❌", "⚠️")
+LOGGER = logging.getLogger(__name__)
 
 
 class DiscordReviewPublisher:
@@ -22,7 +25,7 @@ class DiscordReviewPublisher:
         self.settings = settings
         self.target = target
         self._thread = target.thread
-        self._manual_role_pinged = False
+        self._escalation_roles_pinged = False
 
     async def mark_review_started(self) -> None:
         try:
@@ -44,12 +47,13 @@ class DiscordReviewPublisher:
         reaction = "❌" if publication.verdict is ReviewVerdict.CORRECTIONS_REQUIRED else "⚠️"
         await self.target.root.add_reaction(reaction)
         mention = None
+        allowed_mentions = discord.AllowedMentions.none()
         if publication.verdict is ReviewVerdict.INCONCLUSIVE:
-            mention = self._manual_role_mention()
+            mention, allowed_mentions = self._escalation_notice()
         await self._send_routed_payload(
             content=mention,
             embeds=build_review_embeds(publication, self.settings),
-            allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False),
+            allowed_mentions=allowed_mentions,
         )
 
     async def send_message(self, content: str) -> None:
@@ -135,10 +139,11 @@ class DiscordReviewPublisher:
             value="Reintentar cuando corresponda o derivar el expediente a un supervisor.",
             inline=False,
         )
+        mention, allowed_mentions = self._escalation_notice()
         await self._send_routed_payload(
-            content=self._manual_role_mention(),
+            content=mention,
             embed=embed,
-            allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False),
+            allowed_mentions=allowed_mentions,
         )
 
     async def _ensure_thread(self) -> discord.Thread:
@@ -175,12 +180,45 @@ class DiscordReviewPublisher:
         with contextlib.suppress(discord.Forbidden, discord.HTTPException):
             await thread.edit(archived=True, locked=True)
 
-    def _manual_role_mention(self) -> str | None:
-        role_id = self.settings.manual_review_role_id
-        if role_id is None or self._manual_role_pinged:
-            return None
-        self._manual_role_pinged = True
-        return f"<@&{role_id}>"
+    def _escalation_notice(self) -> tuple[str | None, discord.AllowedMentions]:
+        if self._escalation_roles_pinged:
+            return None, discord.AllowedMentions.none()
+        self._escalation_roles_pinged = True
+
+        roles = self._resolve_escalation_roles()
+        if not roles:
+            return None, discord.AllowedMentions.none()
+        mentions = " ".join(role.mention for role in roles)
+        return (
+            f"📣 Se requiere supervisión: {mentions}",
+            discord.AllowedMentions(
+                everyone=False,
+                users=False,
+                roles=roles,
+                replied_user=False,
+            ),
+        )
+
+    def _resolve_escalation_roles(self) -> list[discord.Role]:
+        role_ids = self.settings.review_escalation_role_ids
+        if not role_ids:
+            return []
+        guild = self.target.root.guild
+        roles: list[discord.Role] = []
+        for role_id in role_ids:
+            role = guild.get_role(role_id)
+            if role is not None:
+                roles.append(role)
+                continue
+            log_event(
+                LOGGER,
+                "warning",
+                "review_escalation_role_unavailable",
+                guild_id=guild.id,
+                root_message_id=self.target.root.id,
+                role_id=role_id,
+            )
+        return roles
 
 
 def build_review_embed(publication: ReviewPublication, settings: AppSettings) -> discord.Embed:

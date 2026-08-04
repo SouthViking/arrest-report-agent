@@ -29,7 +29,7 @@ def test_settings_parse_channel_ids_and_identity(settings: AppSettings) -> None:
     assert settings.thread_context_max_historical_files == 2
 
 
-def test_empty_manual_role_is_none() -> None:
+def test_empty_escalation_roles_disable_mentions_and_legacy_name_is_supported() -> None:
     settings = AppSettings(
         DISCORD_TOKEN="discord",
         OPENAI_API_KEY="openai",
@@ -37,7 +37,34 @@ def test_empty_manual_role_is_none() -> None:
         REVIEW_CHANNEL_IDS="2",
         MANUAL_REVIEW_ROLE_ID="",
     )
-    assert settings.manual_review_role_id is None
+    assert settings.review_escalation_role_ids == ()
+
+    legacy = AppSettings(
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        MANUAL_REVIEW_ROLE_ID="123",
+    )
+    assert legacy.review_escalation_role_ids == (123,)
+
+
+def test_escalation_roles_parse_csv_in_order_and_remove_duplicates() -> None:
+    settings = AppSettings(
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        REVIEW_ESCALATION_ROLE_IDS="123,456,123",
+    )
+
+    assert settings.review_escalation_role_ids == (123, 456)
+
+
+@pytest.mark.parametrize("configured", ["*", "123,*", "invalid", "0", "-1"])
+def test_escalation_roles_reject_open_or_invalid_values(configured: str) -> None:
+    with pytest.raises(ValidationError):
+        AppSettings(
+            DISCORD_TOKEN="discord",
+            OPENAI_API_KEY="openai",
+            REVIEW_ESCALATION_ROLE_IDS=configured,
+        )
 
 
 def test_json_log_indentation_can_be_disabled() -> None:

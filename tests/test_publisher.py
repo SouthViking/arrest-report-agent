@@ -32,10 +32,11 @@ class FakeThread:
 
 
 class FakeRoot:
-    def __init__(self, thread=None) -> None:
+    def __init__(self, thread=None, guild=None) -> None:
         self.id = 42
         self.content = "Terry Parker <@999>"
         self.thread = thread
+        self.guild = guild
         self.added = []
         self.removed = []
         self.created = 0
@@ -259,6 +260,62 @@ async def test_failure_publishes_only_contextual_message_and_next_step(settings)
     assert "Clasificación" not in rendered
     assert "Referencia técnica" not in rendered
     assert "informa" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_failure_mentions_only_existing_configured_roles_once(settings) -> None:
+    roles = {
+        111: SimpleNamespace(id=111, mention="<@&111>"),
+        333: SimpleNamespace(id=333, mention="<@&333>"),
+    }
+    guild = SimpleNamespace(id=10, get_role=roles.get)
+    settings.review_escalation_role_ids_csv = "111,222,333,111"
+    root = FakeRoot(guild=guild)
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.THREAD,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target)
+
+    await publisher.publish_failure("No pude completar la revisión con seguridad.")
+    await publisher.publish_failure("El segundo aviso no debe repetir la derivación.")
+
+    first, second = root.thread.sent
+    assert first["content"] == "📣 Se requiere supervisión: <@&111> <@&333>"
+    assert first["allowed_mentions"].to_dict() == {
+        "roles": [111, 333],
+        "parse": [],
+    }
+    assert second["content"] is None
+    assert second["allowed_mentions"].to_dict() == {"parse": []}
+
+
+@pytest.mark.asyncio
+async def test_inconclusive_review_uses_the_same_escalation_roles(settings) -> None:
+    role = SimpleNamespace(id=111, mention="<@&111>")
+    guild = SimpleNamespace(id=10, get_role=lambda role_id: role if role_id == 111 else None)
+    settings.review_escalation_role_ids_csv = "111"
+    root = FakeRoot(guild=guild)
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.THREAD,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target)
+
+    await publisher.publish(publication("inconclusive"))
+
+    sent = root.thread.sent[0]
+    assert root.added == ["⚠️"]
+    assert sent["content"] == "📣 Se requiere supervisión: <@&111>"
+    assert sent["allowed_mentions"].to_dict() == {"roles": [111], "parse": []}
 
 
 @pytest.mark.asyncio
