@@ -140,6 +140,15 @@ justifican; si faltan antecedentes, los solicita mediante una respuesta normal.
 Comandos disponibles:
 
 - `/wv help`: presentación, instrucciones y enlaces oficiales visibles para todo el canal.
+- `/wv mis-reportes`: abre un modal privado para filtrar por periodo, estado y estación; entrega
+  referencias directas a cada publicación y a su hilo cuando existe.
+- `/wv mi-resumen`: muestra de forma privada el estado personal del mes actual.
+
+Los dos comandos personales son deterministas y no ejecutan el runner ni consumen OpenAI. Consultan
+un máximo acotado del historial de los canales configurados, cuentan solo publicaciones raíz del
+usuario con adjuntos o estado asignado por el bot y leen exclusivamente las reacciones propias de
+esta instancia (`⏳`, `✅`, `❌`, `⚠️`). Los resultados representan el estado actual de Discord, no
+un historial de cambios.
 
 ## Configuración relevante
 
@@ -190,6 +199,8 @@ y costos.
 ## Límites del MVP
 
 - No hay base de datos: intentos, locks y estado operativo se pierden al reiniciar.
+- Las consultas personales reconstruyen un snapshot desde mensajes y reacciones conservados en
+  Discord; no pueden recuperar publicaciones eliminadas ni recordar correcciones anteriores.
 - Los canales, usuarios habilitados, servidor y roles de escalamiento se configuran por entorno, no
   mediante comandos persistentes.
 - El catálogo y la guía son archivos versionados; todavía no existe sincronización con OpenMP/PCU.

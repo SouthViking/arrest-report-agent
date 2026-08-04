@@ -14,7 +14,13 @@ from time import monotonic
 import discord
 from discord.ext import commands
 
-from arrest_report_agent.application import ReviewRunContext, ReviewService
+from arrest_report_agent.application import (
+    PersonalReportPeriod,
+    PersonalReportQuery,
+    PersonalReportStatusFilter,
+    ReviewRunContext,
+    ReviewService,
+)
 from arrest_report_agent.application.errors import public_error_message
 from arrest_report_agent.config import AppSettings
 from arrest_report_agent.config.logging import exception_fields, log_event
@@ -22,6 +28,11 @@ from arrest_report_agent.domain import ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError
 
 from .context import DiscordContextBuilder, render_agent_input
+from .personal_reports import (
+    DiscordPersonalReportFinder,
+    PersonalReportsModal,
+    build_personal_summary_embed,
+)
 from .presence import ReviewPresence
 from .publisher import DiscordReviewPublisher
 from .trigger import DiscordAccessPolicy, TriggerDecision
@@ -143,6 +154,14 @@ def build_help_embed(
         inline=False,
     )
     embed.add_field(
+        name="🗂️ Consultas privadas",
+        value=(
+            "• `/wv mis-reportes`: filtra tus publicaciones y abre rápidamente cada expediente.\n"
+            "• `/wv mi-resumen`: consulta tus cifras del mes actual."
+        ),
+        inline=False,
+    )
+    embed.add_field(
         name="📚 Documentación oficial",
         value=(f"• [Código Penal]({PENAL_CODE_URL})\n• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"),
         inline=False,
@@ -215,6 +234,7 @@ class ReviewCog(commands.Cog):
         self.service = service
         self.access_policy = DiscordAccessPolicy.from_settings(settings)
         self.context_builder = DiscordContextBuilder(settings, bot)
+        self.personal_report_finder = DiscordPersonalReportFinder(bot, settings)
         self.presence = ReviewPresence(
             bot,
             idle_text=settings.bot_idle_activity,
@@ -521,3 +541,116 @@ class ReviewCog(commands.Cog):
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
         )
         await ctx.respond(embed=embed, ephemeral=False)
+
+    @wv.command(name="mis-reportes", description="Busca tus reportes y abre sus publicaciones")
+    async def personal_reports(self, ctx: discord.ApplicationContext) -> None:
+        identity = await self._authorize_personal_command(ctx)
+        if identity is None:
+            return
+        guild, member = identity
+        channels = self.personal_report_finder.visible_channels(guild, member)
+        if not channels:
+            await ctx.respond(
+                "📁 No tengo canales de reportes visibles disponibles para esta consulta.",
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await ctx.send_modal(
+            PersonalReportsModal(
+                finder=self.personal_report_finder,
+                guild=guild,
+                member=member,
+                channels=channels,
+                display_name=self.settings.identity.display_name,
+            )
+        )
+
+    @wv.command(name="mi-resumen", description="Muestra tu resumen privado del mes actual")
+    async def personal_summary(self, ctx: discord.ApplicationContext) -> None:
+        identity = await self._authorize_personal_command(ctx)
+        if identity is None:
+            return
+        guild, member = identity
+        await ctx.defer(ephemeral=True)
+        try:
+            result = await self.personal_report_finder.find(
+                guild,
+                member,
+                PersonalReportQuery(
+                    period=PersonalReportPeriod.CURRENT_MONTH,
+                    status=PersonalReportStatusFilter.ALL,
+                ),
+            )
+            await ctx.send_followup(
+                embed=build_personal_summary_embed(
+                    result,
+                    display_name=self.settings.identity.display_name,
+                ),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "personal_report_summary_completed",
+                guild_id=guild.id,
+                user_id=member.id,
+                result_count=len(result.reports),
+                truncated=result.truncated,
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "personal_report_summary_failed",
+                exc_info=error,
+                guild_id=guild.id,
+                user_id=member.id,
+                interaction_id=ctx.interaction.id,
+                **exception_fields(error),
+            )
+            await ctx.send_followup(
+                "📁 No pude preparar su resumen en este momento. Inténtelo nuevamente.",
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+
+    async def _authorize_personal_command(
+        self,
+        ctx: discord.ApplicationContext,
+    ) -> tuple[discord.Guild, discord.Member] | None:
+        """Apply the central guild/user allowlists before reading Discord history."""
+
+        guild = ctx.guild
+        member = ctx.author
+        if guild is None or not self.access_policy.guilds.allows(guild.id):
+            await ctx.respond(
+                "📍 Este archivo personal solo está disponible en un servidor asignado.",
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return None
+        if not isinstance(member, discord.Member):
+            await ctx.respond(
+                "📁 No pude identificar su ficha dentro del servidor.",
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return None
+        if not self.access_policy.users.allows(member.id):
+            await ctx.respond(
+                build_unauthorized_user_message(message_id=ctx.interaction.id),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "personal_report_command_blocked",
+                guild_id=guild.id,
+                user_id=member.id,
+                interaction_id=ctx.interaction.id,
+            )
+            return None
+        return guild, member

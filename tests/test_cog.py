@@ -95,7 +95,11 @@ class FakeGuild:
 
 def test_operational_command_group_uses_distinct_wv_namespace() -> None:
     assert ReviewCog.wv.name == "wv"
-    assert [command.name for command in ReviewCog.wv.subcommands] == ["help"]
+    assert [command.name for command in ReviewCog.wv.subcommands] == [
+        "help",
+        "mis-reportes",
+        "mi-resumen",
+    ]
 
 
 def test_help_embed_uses_runtime_identity_channels_and_bot_mention() -> None:
@@ -114,12 +118,15 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention() -> None:
         "📍 Dónde estoy de guardia",
         "📣 Cómo solicitar una revisión",
         "🧵 Qué haré con el expediente",
+        "🗂️ Consultas privadas",
         "📚 Documentación oficial",
     ]
     assert embed.fields[1].value == "• <#111>\n• <#222>"
     assert "<@999>" in embed.fields[2].value
     assert "respondes directamente" in embed.fields[2].value
-    assert embed.fields[4].value == (
+    assert "/wv mis-reportes" in embed.fields[4].value
+    assert "/wv mi-resumen" in embed.fields[4].value
+    assert embed.fields[5].value == (
         f"• [Código Penal]({PENAL_CODE_URL})\n• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"
     )
     assert embed.thumbnail.url == "https://cdn.discordapp.com/avatar.png"

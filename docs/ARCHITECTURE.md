@@ -68,6 +68,11 @@ guardrail bloqueado no deja hilos vacíos.
 - `knowledge`: guía versionada e índice del JSON del PCU, cargados y validados al iniciar.
 - `application`: prompt, tools, contexto del runner, errores, tracing y orquestación.
 - `infrastructure/discord`: política previa, reconstrucción de hilos, embeds, reacciones y comandos.
+
+Los comandos personales `/wv mis-reportes` y `/wv mi-resumen` siguen una ruta determinista separada
+del runner. Leen de forma acotada los canales de revisión visibles, atribuyen publicaciones raíz al
+usuario que invoca el comando y derivan el estado solo de las reacciones creadas por esta cuenta del
+bot. Sus respuestas son efímeras y nunca incorporan información de otros miembros.
 - `bootstrap`: composición de dependencias y healthcheck.
 
 ## Herramientas del agente
