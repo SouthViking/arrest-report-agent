@@ -79,3 +79,12 @@ def test_guide_exposes_only_requested_sections() -> None:
     assert result["unknown_sections"] == ["missing"]
     physical = result["sections"]["physical_description"]
     assert "contradicción clara" in " ".join(physical["flexibility"])
+
+
+def test_evidence_guide_treats_recordings_as_roleplay_and_requires_bag_reference() -> None:
+    evidence = ReportGuide.load_default().get(["evidence"])["sections"]["evidence"]
+
+    assert "entorno narrativo de roleplay" in evidence["role_environment"][0]
+    assert "No exigir" in evidence["role_environment"][1]
+    assert "número de la bolsa" in evidence["evidence_bag_reference"]["rule"]
+    assert "#NÚMERO" in evidence["evidence_bag_reference"]["suggested_format"]

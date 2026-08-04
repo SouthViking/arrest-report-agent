@@ -39,6 +39,9 @@ def test_identity_is_injected_without_prompt_hardcoding() -> None:
     assert "Revisa solo ante una petición expresa" in prompt
     assert "solicítalo con `finish_interaction`" in prompt
     assert "Usa `send_message` únicamente para avances útiles" in prompt
+    assert "son entorno narrativo" in prompt
+    assert "no exijas sus archivos" in prompt
+    assert "#NÚMERO" in prompt
 
 
 def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, model) -> None:

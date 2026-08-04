@@ -1,5 +1,5 @@
 {
-  "version": "2026-08-02",
+  "version": "2026-08-04",
   "source": "Manual de procedimientos LSSD proporcionado para el MVP",
   "sections": {
     "overview": {
@@ -55,9 +55,19 @@
         "Fotografías frontal y lateral del personaje detenido cuando se adjunten.",
         "Narrativa del reporte, ya sea como captura, formulario o texto.",
         "Listado o captura de los cargos declarados.",
-        "Evidencia adicional como bolsas, inventarios o grabaciones cuando corresponda."
+        "Material adicional que el usuario decida aportar; su ausencia no demuestra que falte la evidencia mencionada dentro del rol."
       ],
-      "closing_note": "La narrativa debería indicar por rol qué evidencia o grabaciones respaldarían el arresto cuando resulte aplicable.",
+      "role_environment": [
+        "Las menciones a BWC, DICV, Axon u otras grabaciones funcionan como entorno narrativo de roleplay.",
+        "No exigir que esas grabaciones existan como archivos, enlaces o capturas entre los adjuntos de Discord.",
+        "No marcar como faltante una grabación anunciada dentro de la narrativa."
+      ],
+      "evidence_bag_reference": {
+        "rule": "Cuando exista evidencia física asociada al arresto, el reporte debe indicar el número de la bolsa de evidencia.",
+        "placement": "Ubicar la referencia en el bloque final de anexos o evidencia del reporte.",
+        "suggested_format": "** Se adjunta la referencia a la bolsa de evidencias: #NÚMERO. **",
+        "review_scope": "Verificar la referencia y su número; no exigir imágenes o archivos reales de la evidencia descrita."
+      },
       "format_flexibility": "La cantidad, orden y diseño de las imágenes puede variar. Identificar su función semántica antes de declarar que falta material."
     },
     "physical_description": {
@@ -79,4 +89,3 @@
     }
   }
 }
-

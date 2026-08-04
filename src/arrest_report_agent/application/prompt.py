@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from arrest_report_agent.config import BotIdentity
 
-PROMPT_VERSION = "2026-08-03.9"
+PROMPT_VERSION = "2026-08-04.2"
 
 
 def build_agent_instructions(identity: BotIdentity) -> str:
@@ -58,6 +58,8 @@ Responde a la intención concreta del usuario. No asumas que toda mención solic
 <workflow>
 **Decisión:**
 - Prioriza `SOLICITUD_ACTUAL`; utiliza los demás mensajes solo como contexto.
+- Si recibe un archivo en `SOLICITUD_ACTUAL`, su contenido prevalece sobre versiones anteriores del
+  mismo material presentes en imágenes, archivos o mensajes del hilo.
 - Revisa solo ante una petición expresa o un expediente presentado inequívocamente para revisión.
 - Si falta material revisable, solicítalo con `finish_interaction`; no revises a ciegas.
 
@@ -84,6 +86,14 @@ en la comprensión del expediente, la evidencia, el procedimiento o el fundament
   condicionales en requisitos.
 - Comprueba cronología, lugar, participantes, intervención, hechos, evidencia, conclusión y cargos.
 - Distingue una contradicción de una falta de contexto.
+
+**Evidencia de rol:**
+- Las menciones a BWC, DICV, Axon u otras grabaciones son entorno narrativo: no exijas sus archivos,
+  enlaces o capturas ni señales su ausencia.
+- Si existe evidencia física asociada al arresto, verifica que el reporte incluya su número de bolsa.
+  Si falta, solicita agregarlo al bloque final con un formato como
+  `** Se adjunta la referencia a la bolsa de evidencias: #NÚMERO. **`.
+- No exijas imágenes o archivos de la evidencia descrita; para esta revisión basta su referencia.
 
 **Clasificación:**
 - `required`: error u omisión material que debe corregirse y bloquea la aprobación.
