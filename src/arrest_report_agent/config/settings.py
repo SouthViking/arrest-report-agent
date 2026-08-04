@@ -124,6 +124,14 @@ class AppSettings(BaseSettings):
     max_concurrent_reviews: int = Field(default=2, alias="MAX_CONCURRENT_REVIEWS", ge=1, le=20)
     max_images_per_review: int = Field(default=10, alias="MAX_IMAGES_PER_REVIEW", ge=1, le=30)
     max_image_bytes: int = Field(default=10_485_760, alias="MAX_IMAGE_BYTES", ge=1)
+    max_files_per_review: int = Field(default=5, alias="MAX_FILES_PER_REVIEW", ge=1, le=10)
+    max_file_bytes: int = Field(default=10_485_760, alias="MAX_FILE_BYTES", ge=1)
+    max_total_file_bytes: int = Field(
+        default=52_428_800,
+        alias="MAX_TOTAL_FILE_BYTES",
+        ge=1,
+        le=52_428_800,
+    )
     thread_context_max_messages: int = Field(
         default=20, alias="THREAD_CONTEXT_MAX_MESSAGES", ge=1, le=100
     )
@@ -133,6 +141,9 @@ class AppSettings(BaseSettings):
     )
     thread_context_max_historical_images: int = Field(
         default=2, alias="THREAD_CONTEXT_MAX_HISTORICAL_IMAGES", ge=0, le=10
+    )
+    thread_context_max_historical_files: int = Field(
+        default=2, alias="THREAD_CONTEXT_MAX_HISTORICAL_FILES", ge=0, le=5
     )
     thread_auto_archive_minutes: int = Field(
         default=1440, alias="THREAD_AUTO_ARCHIVE_MINUTES"

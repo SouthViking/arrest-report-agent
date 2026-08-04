@@ -214,7 +214,7 @@ class ReviewCog(commands.Cog):
         self.settings = settings
         self.service = service
         self.access_policy = DiscordAccessPolicy.from_settings(settings)
-        self.context_builder = DiscordContextBuilder(settings)
+        self.context_builder = DiscordContextBuilder(settings, bot)
         self.presence = ReviewPresence(
             bot,
             idle_text=settings.bot_idle_activity,

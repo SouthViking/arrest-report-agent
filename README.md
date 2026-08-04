@@ -125,7 +125,11 @@ las fuentes locales de conocimiento están cargadas; durante el arranque devuelv
    sin abrir un hilo.
 
 El agente no exige cuatro imágenes ni un orden fijo. Puede reconocer fotografías de personaje,
-capturas de cargos, narrativa en el juego, un formulario o texto escrito directamente en Discord.
+capturas de cargos, narrativa en el juego, un formulario, texto escrito directamente en Discord o
+archivos compatibles con el runner (PDF, documentos, planillas, presentaciones, texto y código).
+El historial se reconstruye como turnos nativos: solamente los mensajes de esta instancia del bot
+son `assistant`; miembros, webhooks y otros bots permanecen como `user`. Cada adjunto conserva el
+turno de Discord donde fue publicado.
 Solo activa el estado y el dictamen de revisión cuando la intención y el material disponible lo
 justifican; si faltan antecedentes, los solicita mediante una respuesta normal.
 
@@ -151,9 +155,13 @@ Comandos disponibles:
 | `REVIEW_TIMEOUT_SECONDS` | `180` | Tiempo total máximo de una revisión. |
 | `MAX_CONCURRENT_REVIEWS` | `2` | Límite global en memoria. |
 | `MAX_IMAGES_PER_REVIEW` | `10` | Máximo multimodal por ejecución. |
+| `MAX_FILES_PER_REVIEW` | `5` | Máximo de documentos compatibles por ejecución. |
+| `MAX_FILE_BYTES` | `10485760` | Tamaño máximo de cada archivo enviado al runner. |
+| `MAX_TOTAL_FILE_BYTES` | `52428800` | Máximo combinado para archivos en una ejecución. |
 | `THREAD_CONTEXT_MAX_MESSAGES` | `20` | Historial reciente reconstruido. |
+| `THREAD_CONTEXT_MAX_HISTORICAL_FILES` | `2` | Archivos previos reutilizados como contexto. |
 | `OPENAI_TRACING_ENABLED` | `true` | Habilita traces del Agents SDK. |
-| `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA` | `false` | Excluye mensajes, imágenes y tool payloads del trace. |
+| `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA` | `false` | Excluye mensajes, imágenes, archivos y tool payloads del trace. |
 
 El catálogo versionado
 [`models.json`](src/arrest_report_agent/config/data/models.json) contiene las capacidades, defaults y
@@ -171,7 +179,8 @@ tokens de salida. Estas cifras son estimaciones operativas y no reemplazan la fa
 ```
 
 Las pruebas no llaman a Discord ni a OpenAI. Cubren catálogo, configuración, trigger, contexto
-multimodal, efectos inmediatos de las tools, embeds, clasificación de errores, metadata y costos.
+multimodal y documental, efectos inmediatos de las tools, embeds, clasificación de errores, metadata
+y costos.
 
 ## Límites del MVP
 

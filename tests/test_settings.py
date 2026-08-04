@@ -23,6 +23,10 @@ def test_settings_parse_channel_ids_and_identity(settings: AppSettings) -> None:
     assert settings.openai_model == "gpt-5.6-terra"
     assert settings.openai_reasoning_effort == "medium"
     assert settings.log_json_indented is True
+    assert settings.max_files_per_review == 5
+    assert settings.max_file_bytes == 10_485_760
+    assert settings.max_total_file_bytes == 52_428_800
+    assert settings.thread_context_max_historical_files == 2
 
 
 def test_empty_manual_role_is_none() -> None:

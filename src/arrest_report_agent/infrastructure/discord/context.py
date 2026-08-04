@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import mimetypes
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -19,6 +18,7 @@ from arrest_report_agent.domain import (
 )
 from arrest_report_agent.domain.errors import ContextUnavailableError
 
+from .attachments import AttachmentInputKind, classify_attachment
 from .trigger import TriggerActivation
 
 REQUESTER_ROLE_LIMIT = 8
@@ -43,8 +43,9 @@ class ReviewTarget:
 
 
 class DiscordContextBuilder:
-    def __init__(self, settings: AppSettings) -> None:
+    def __init__(self, settings: AppSettings, bot: discord.Client | None = None) -> None:
         self.settings = settings
+        self.bot = bot
 
     async def resolve_target(
         self,
@@ -144,7 +145,7 @@ class DiscordContextBuilder:
         by_id = {message.id: message for message in ordered}
         truncated = False
         for message in ordered:
-            content = message.content.strip()
+            content = _message_context_text(message)
             per_message_limit = self.settings.thread_context_max_message_chars
             if len(content) > per_message_limit:
                 content = content[: per_message_limit - 1] + "…"
@@ -157,6 +158,7 @@ class DiscordContextBuilder:
                     author_id=message.author.id,
                     author_display=getattr(message.author, "display_name", message.author.name),
                     author_is_bot=message.author.bot,
+                    author_is_assistant=_is_own_bot(message.author, self.bot),
                     content=content,
                     created_at=message.created_at,
                     edited=message.edited_at is not None,
@@ -208,31 +210,67 @@ class DiscordContextBuilder:
         ]
         prioritized = trigger_messages + root_messages
         historical_images_used = 0
+        historical_files_used = 0
+        image_count = 0
+        file_count = 0
+        total_file_bytes = 0
         selected: list[DiscordAttachment] = []
         seen_ids: set[int] = set()
 
         def add_from(message: discord.Message, historical: bool) -> None:
-            nonlocal historical_images_used
+            nonlocal historical_files_used, historical_images_used
+            nonlocal image_count, file_count, total_file_bytes
             for attachment in message.attachments:
                 if attachment.id in seen_ids:
                     continue
-                content_type = attachment.content_type or mimetypes.guess_type(attachment.filename)[0]
-                if not content_type or not content_type.startswith("image/"):
-                    continue
-                if attachment.size > self.settings.max_image_bytes:
-                    notices.append(f"Se omitió un adjunto mayor al límite de tamaño ({attachment.id}).")
-                    continue
-                if (
-                    historical
-                    and historical_images_used
-                    >= self.settings.thread_context_max_historical_images
-                ):
-                    notices.append("Se limitaron las imágenes históricas del hilo.")
-                    return
-                if len(selected) >= self.settings.max_images_per_review:
-                    notices.append("Se alcanzó el máximo de imágenes por revisión.")
-                    return
                 seen_ids.add(attachment.id)
+                input_kind, content_type = classify_attachment(
+                    attachment.filename,
+                    attachment.content_type,
+                )
+                if input_kind is None:
+                    if not historical:
+                        notices.append(
+                            f"Se omitió el archivo no compatible {attachment.filename!r}."
+                        )
+                    continue
+
+                if input_kind is AttachmentInputKind.IMAGE:
+                    if attachment.size > self.settings.max_image_bytes:
+                        notices.append(
+                            f"Se omitió una imagen mayor al límite de tamaño ({attachment.id})."
+                        )
+                        continue
+                    if (
+                        historical
+                        and historical_images_used
+                        >= self.settings.thread_context_max_historical_images
+                    ):
+                        notices.append("Se limitaron las imágenes históricas del hilo.")
+                        continue
+                    if image_count >= self.settings.max_images_per_review:
+                        notices.append("Se alcanzó el máximo de imágenes por revisión.")
+                        continue
+                else:
+                    if attachment.size > self.settings.max_file_bytes:
+                        notices.append(
+                            f"Se omitió un archivo mayor al límite de tamaño ({attachment.id})."
+                        )
+                        continue
+                    if (
+                        historical
+                        and historical_files_used
+                        >= self.settings.thread_context_max_historical_files
+                    ):
+                        notices.append("Se limitaron los archivos históricos del hilo.")
+                        continue
+                    if file_count >= self.settings.max_files_per_review:
+                        notices.append("Se alcanzó el máximo de archivos por revisión.")
+                        continue
+                    if total_file_bytes + attachment.size > self.settings.max_total_file_bytes:
+                        notices.append("Los archivos alcanzaron el límite de tamaño total.")
+                        continue
+
                 selected.append(
                     DiscordAttachment(
                         id=attachment.id,
@@ -244,10 +282,18 @@ class DiscordContextBuilder:
                         width=attachment.width,
                         height=attachment.height,
                         is_current=message.id == target.trigger.id,
+                        input_kind=input_kind.value,
                     )
                 )
-                if historical:
-                    historical_images_used += 1
+                if input_kind is AttachmentInputKind.IMAGE:
+                    image_count += 1
+                    if historical:
+                        historical_images_used += 1
+                else:
+                    file_count += 1
+                    total_file_bytes += attachment.size
+                    if historical:
+                        historical_files_used += 1
 
         for message in prioritized:
             add_from(message, historical=False)
@@ -257,71 +303,190 @@ class DiscordContextBuilder:
 
 
 def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, Any]]:
-    """Render compact text plus labeled images for one Agents SDK run."""
+    """Render Discord history as native user/assistant turns for one SDK run."""
 
-    transcript_lines = [
+    attachments_by_message: dict[int, list[DiscordAttachment]] = {}
+    for attachment in case.attachments:
+        attachments_by_message.setdefault(attachment.message_id, []).append(attachment)
+
+    known_message_ids = {message.id for message in case.messages}
+    orphan_attachments = [
+        attachment
+        for attachment in case.attachments
+        if attachment.message_id not in known_message_ids
+    ]
+    rendered: list[dict[str, Any]] = []
+    orphan_rendered = False
+    for message in case.messages:
+        if message.is_trigger and orphan_attachments:
+            rendered.append(
+                _render_orphan_attachments(orphan_attachments, image_detail)
+            )
+            orphan_rendered = True
+
+        text = _render_discord_message(message, case)
+        if message.is_trigger:
+            text = _render_operational_context(case) + "\n\n" + text
+        message_attachments = attachments_by_message.get(message.id, [])
+        if message.author_is_assistant:
+            content: list[dict[str, Any]] = [
+                {"type": "output_text", "text": text, "annotations": []}
+            ]
+        else:
+            content = [{"type": "input_text", "text": text}]
+            _append_attachment_inputs(content, message_attachments, image_detail)
+        rendered.append(
+            {
+                "role": "assistant" if message.author_is_assistant else "user",
+                "content": content,
+            }
+        )
+        if message.author_is_assistant and message_attachments:
+            rendered.append(
+                _render_assistant_attachment_context(message_attachments, image_detail)
+            )
+
+    if orphan_attachments and not orphan_rendered:
+        rendered.append(_render_orphan_attachments(orphan_attachments, image_detail))
+    if not any(message.is_trigger for message in case.messages):
+        fallback_content: list[dict[str, Any]] = [
+            {
+                "type": "input_text",
+                "text": _render_operational_context(case)
+                + "\n\n[SOLICITUD_ACTUAL]\n[sin texto]",
+            }
+        ]
+        if not rendered:
+            _append_attachment_inputs(fallback_content, case.attachments, image_detail)
+        rendered.append({"role": "user", "content": fallback_content})
+    return rendered
+
+
+def _render_operational_context(case: ReviewCase) -> str:
+    lines = [
+        "[CONTEXTO_OPERATIVO]",
         "Atiende la solicitud actual dentro de tu ámbito usando el contexto disponible.",
         f"Modo: {case.interaction_mode.value}",
         _discord_environment(case),
         f"Estado del contexto: {case.context_state.value}",
     ]
     if case.requester_display_name:
-        transcript_lines.append(f"Solicitante: {case.requester_display_name}")
+        lines.append(f"Solicitante: {case.requester_display_name}")
     if case.requester_role_names:
-        transcript_lines.append(
-            "Roles del solicitante: " + ", ".join(case.requester_role_names)
-        )
+        lines.append("Roles del solicitante: " + ", ".join(case.requester_role_names))
     if case.context_notice:
-        transcript_lines.append(f"Aviso de contexto: {case.context_notice}")
-    transcript_lines.append("\nMensajes en orden cronológico:")
-    for message in case.messages:
-        flags = []
-        if message.id == case.root_message_id:
-            flags.append("REPORTE_RAIZ")
-        if message.is_trigger:
-            flags.append("SOLICITUD_ACTUAL")
-        if message.author_is_bot:
-            flags.append("BOT")
-        if message.edited:
-            flags.append("EDITADO")
-        label = ",".join(flags) or "MENSAJE"
-        transcript_lines.append(
-            f"[{label} id={message.id} autor={message.author_display} autor_id={message.author_id}]"
-        )
-        if message.reply_to_message_id:
-            reply = f"respuesta_a={message.reply_to_message_id}"
-            if message.reply_excerpt:
-                reply += f' extracto="{message.reply_excerpt}"'
-            transcript_lines.append(reply)
-        transcript_lines.append(message.content or "[sin texto]")
-        if message.attachment_ids:
-            transcript_lines.append(
-                "adjuntos=" + ",".join(str(attachment_id) for attachment_id in message.attachment_ids)
-            )
+        lines.append(f"Aviso de contexto: {case.context_notice}")
+    return "\n".join(lines)
 
-    content: list[dict[str, Any]] = [
-        {"type": "input_text", "text": "\n".join(transcript_lines)}
-    ]
-    for index, attachment in enumerate(case.attachments, start=1):
-        dimensions = (
-            f"{attachment.width}x{attachment.height}"
-            if attachment.width and attachment.height
-            else "desconocidas"
-        )
+
+def _render_discord_message(message: ConversationMessage, case: ReviewCase) -> str:
+    flags: list[str] = []
+    if message.id == case.root_message_id:
+        flags.append("REPORTE_RAIZ")
+    if message.is_trigger:
+        flags.append("SOLICITUD_ACTUAL")
+    if message.author_is_assistant:
+        flags.append("RESPUESTA_DEL_AGENTE")
+    elif message.author_is_bot:
+        flags.append("BOT_EXTERNO")
+    if message.edited:
+        flags.append("EDITADO")
+    label = ",".join(flags) or "MENSAJE"
+    lines = [f"[{label} mensaje={message.id} autor={message.author_display}]"]
+    if message.reply_to_message_id:
+        reply = f"respuesta_a={message.reply_to_message_id}"
+        if message.reply_excerpt:
+            reply += f' extracto="{message.reply_excerpt}"'
+        lines.append(reply)
+    lines.append(message.content or "[sin texto]")
+    if message.attachment_ids:
+        lines.append(f"Adjuntos recibidos: {len(message.attachment_ids)}")
+    return "\n".join(lines)
+
+
+def _append_attachment_inputs(
+    content: list[dict[str, Any]],
+    attachments: list[DiscordAttachment],
+    image_detail: str,
+) -> None:
+    images = [attachment for attachment in attachments if attachment.is_image]
+    files = [attachment for attachment in attachments if not attachment.is_image]
+    image_position = 0
+    file_position = 0
+    for attachment in attachments:
+        if attachment.is_image:
+            image_position += 1
+            dimensions = (
+                f"{attachment.width}x{attachment.height}"
+                if attachment.width and attachment.height
+                else "desconocidas"
+            )
+            content.append(
+                {
+                    "type": "input_text",
+                    "text": (
+                        f"Imagen adjunta {image_position}/{len(images)}; "
+                        f"archivo={attachment.filename}; dimensiones={dimensions}. "
+                        "Identifica su función por el contenido, no por el nombre."
+                    ),
+                }
+            )
+            content.append(
+                {"type": "input_image", "image_url": attachment.url, "detail": image_detail}
+            )
+            continue
+
+        file_position += 1
         content.append(
             {
                 "type": "input_text",
                 "text": (
-                    f"Imagen {index}/{len(case.attachments)}; adjunto_id={attachment.id}; "
-                    f"mensaje_id={attachment.message_id}; archivo={attachment.filename}; "
-                    f"dimensiones={dimensions}. Identifica su función por el contenido, no por el nombre."
+                    f"Archivo adjunto {file_position}/{len(files)}; "
+                    f"archivo={attachment.filename}; tipo={attachment.content_type or 'desconocido'}. "
+                    "Usa su contenido como material del expediente."
                 ),
             }
         )
         content.append(
-            {"type": "input_image", "image_url": attachment.url, "detail": image_detail}
+            {
+                "type": "input_file",
+                "file_url": attachment.url,
+            }
         )
-    return [{"role": "user", "content": content}]
+
+
+def _render_orphan_attachments(
+    attachments: list[DiscordAttachment],
+    image_detail: str,
+) -> dict[str, Any]:
+    content: list[dict[str, Any]] = [
+        {
+            "type": "input_text",
+            "text": (
+                "[CONTEXTO_PREVIO]\n"
+                "Adjuntos históricos cuyo texto fue omitido por los límites de contexto."
+            ),
+        }
+    ]
+    _append_attachment_inputs(content, attachments, image_detail)
+    return {"role": "user", "content": content}
+
+
+def _render_assistant_attachment_context(
+    attachments: list[DiscordAttachment],
+    image_detail: str,
+) -> dict[str, Any]:
+    content: list[dict[str, Any]] = [
+        {
+            "type": "input_text",
+            "text": (
+                "[CONTEXTO_PREVIO]\n"
+                "Adjuntos publicados por el agente en su respuesta anterior."
+            ),
+        }
+    ]
+    _append_attachment_inputs(content, attachments, image_detail)
+    return {"role": "user", "content": content}
 
 
 def _discord_environment(case: ReviewCase) -> str:
@@ -343,8 +508,35 @@ def _reply_excerpt(message: discord.Message, by_id: dict[int, discord.Message]) 
     )
     if referenced is None:
         return None
-    excerpt = referenced.content.strip() or "[mensaje con adjuntos]"
+    excerpt = _message_context_text(referenced) or "[mensaje con adjuntos]"
     return excerpt[:180]
+
+
+def _message_context_text(message: discord.Message) -> str:
+    """Merge message text with compact bot embeds so thread context is complete."""
+
+    parts = [message.content.strip()] if message.content.strip() else []
+    if bool(getattr(message.author, "bot", False)):
+        for embed in getattr(message, "embeds", ()):
+            embed_lines: list[str] = []
+            title = str(getattr(embed, "title", "") or "").strip()
+            description = str(getattr(embed, "description", "") or "").strip()
+            if title:
+                embed_lines.append(f"Título: {title}")
+            if description:
+                embed_lines.append(description)
+            for field in getattr(embed, "fields", ()):
+                name = str(getattr(field, "name", "") or "").strip()
+                value = str(getattr(field, "value", "") or "").strip()
+                if name or value:
+                    embed_lines.append(f"{name or 'Detalle'}: {value}")
+            footer = getattr(embed, "footer", None)
+            footer_text = str(getattr(footer, "text", "") or "").strip()
+            if footer_text:
+                embed_lines.append(f"Pie: {footer_text}")
+            if embed_lines:
+                parts.append("[EMBED]\n" + "\n".join(embed_lines))
+    return "\n\n".join(parts)
 
 
 def _requester_role_names(author: discord.abc.User) -> list[str]:
@@ -385,6 +577,11 @@ def _requester_role_names(author: discord.abc.User) -> list[str]:
         if len(names) == REQUESTER_ROLE_LIMIT:
             break
     return names
+
+
+def _is_own_bot(author: discord.abc.User, bot: discord.Client | None) -> bool:
+    bot_user = bot.user if bot is not None else None
+    return bot_user is not None and author.id == bot_user.id
 
 
 def _case_subject(message: discord.Message, display_name: str) -> str | None:

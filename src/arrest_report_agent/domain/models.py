@@ -22,10 +22,11 @@ class DiscordAttachment(BaseModel):
     width: int | None = Field(default=None, ge=1)
     height: int | None = Field(default=None, ge=1)
     is_current: bool = False
+    input_kind: Literal["image", "file"] = "image"
 
     @property
     def is_image(self) -> bool:
-        return bool(self.content_type and self.content_type.startswith("image/"))
+        return self.input_kind == "image"
 
 
 class ConversationMessage(BaseModel):
@@ -35,6 +36,7 @@ class ConversationMessage(BaseModel):
     author_id: int
     author_display: str
     author_is_bot: bool
+    author_is_assistant: bool = False
     content: str
     created_at: datetime
     edited: bool = False
