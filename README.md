@@ -140,15 +140,22 @@ justifican; si faltan antecedentes, los solicita mediante una respuesta normal.
 Comandos disponibles:
 
 - `/wv help`: presentación, instrucciones y enlaces oficiales visibles para todo el canal.
+- `/wv guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.
+- `/wv cargos`: modal privado para buscar por código, título, descripción o categoría en el catálogo
+  penal local; muestra detalles y sanciones con paginación cuando corresponde.
+- `/wv faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
 - `/wv mis-reportes`: abre un modal privado para filtrar por periodo, estado y estación; entrega
   referencias directas a cada publicación y a su hilo cuando existe.
 - `/wv mi-resumen`: muestra de forma privada el estado personal del mes actual.
 
-Los dos comandos personales son deterministas y no ejecutan el runner ni consumen OpenAI. Consultan
-un máximo acotado del historial de los canales configurados, cuentan solo publicaciones raíz del
-usuario con adjuntos o estado asignado por el bot y leen exclusivamente las reacciones propias de
-esta instancia (`⏳`, `✅`, `❌`, `⚠️`). Los resultados representan el estado actual de Discord, no
-un historial de cambios.
+Los comandos de guía, cargos, FAQ y consultas personales son deterministas: no ejecutan el runner ni
+consumen OpenAI. Los comandos personales consultan un máximo acotado del historial de los canales
+configurados, cuentan solo publicaciones raíz del usuario con adjuntos o estado asignado por el bot
+y leen exclusivamente las reacciones propias de esta instancia (`⏳`, `✅`, `❌`, `⚠️`). Los
+resultados representan el estado actual de Discord, no un historial de cambios.
+
+Consulta [Comandos de Discord](docs/COMMANDS.md) para conocer acceso, navegación, fuentes, límites y
+el contenido exacto del FAQ.
 
 ## Configuración relevante
 

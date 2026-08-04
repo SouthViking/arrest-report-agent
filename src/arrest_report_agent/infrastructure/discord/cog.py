@@ -1,4 +1,4 @@
-"""Discord event listener and public help command."""
+"""Discord event listener and deterministic slash commands."""
 
 from __future__ import annotations
 
@@ -28,6 +28,13 @@ from arrest_report_agent.domain import ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError
 
 from .context import DiscordContextBuilder, render_agent_input
+from .general_knowledge import (
+    PENAL_CODE_URL,
+    PROCEDURES_MANUAL_URL,
+    ChargeSearchModal,
+    FaqNavigationView,
+    GuideNavigationView,
+)
 from .personal_reports import (
     DiscordPersonalReportFinder,
     PersonalReportsModal,
@@ -39,11 +46,6 @@ from .trigger import DiscordAccessPolicy, TriggerDecision
 
 LOGGER = logging.getLogger(__name__)
 
-PENAL_CODE_URL = "https://ucp.sarp.es/app/ucp/penalcode"
-PROCEDURES_MANUAL_URL = (
-    "https://docs.google.com/document/d/1DrhSgzPbdLoe0ahFTVrNPb_zBPuhVeatxW5Hs8ECMHE/"
-    "edit?pli=1&tab=t.0#heading=h.thzh3oj2x0rk"
-)
 DETERMINISTIC_REPLY_COOLDOWN_SECONDS = 30.0
 WRONG_CHANNEL_INTROS = (
     "En este canal no estoy de guardia.",
@@ -158,6 +160,15 @@ def build_help_embed(
         value=(
             "• `/wv mis-reportes`: filtra tus publicaciones y abre rápidamente cada expediente.\n"
             "• `/wv mi-resumen`: consulta tus cifras del mes actual."
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="📚 Consultas generales",
+        value=(
+            "• `/wv guia`: consulta las reglas de redacción y revisión por sección.\n"
+            "• `/wv cargos`: busca delitos y sanciones en el catálogo local.\n"
+            "• `/wv faq`: resuelve dudas frecuentes del procedimiento."
         ),
         inline=False,
     )
@@ -541,6 +552,57 @@ class ReviewCog(commands.Cog):
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
         )
         await ctx.respond(embed=embed, ephemeral=False)
+
+    @wv.command(name="guia", description="Consulta la guía de reportes por secciones")
+    async def report_guide(self, ctx: discord.ApplicationContext) -> None:
+        view = GuideNavigationView(
+            requester_id=ctx.author.id,
+            guide=self.service.guide,
+            display_name=self.settings.identity.display_name,
+        )
+        await ctx.respond(
+            embed=view.current_embed,
+            view=view,
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        log_event(
+            LOGGER,
+            "info",
+            "report_guide_opened",
+            guild_id=ctx.guild.id if ctx.guild else "direct_message",
+            user_id=ctx.author.id,
+        )
+
+    @wv.command(name="cargos", description="Busca cargos en el código penal")
+    async def charge_search(self, ctx: discord.ApplicationContext) -> None:
+        await ctx.send_modal(
+            ChargeSearchModal(
+                catalog=self.service.catalog,
+                requester_id=ctx.author.id,
+                display_name=self.settings.identity.display_name,
+            )
+        )
+
+    @wv.command(name="faq", description="Consulta preguntas frecuentes sobre reportes")
+    async def report_faq(self, ctx: discord.ApplicationContext) -> None:
+        view = FaqNavigationView(
+            requester_id=ctx.author.id,
+            display_name=self.settings.identity.display_name,
+        )
+        await ctx.respond(
+            embed=view.current_embed,
+            view=view,
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        log_event(
+            LOGGER,
+            "info",
+            "report_faq_opened",
+            guild_id=ctx.guild.id if ctx.guild else "direct_message",
+            user_id=ctx.author.id,
+        )
 
     @wv.command(name="mis-reportes", description="Busca tus reportes y abre sus publicaciones")
     async def personal_reports(self, ctx: discord.ApplicationContext) -> None:

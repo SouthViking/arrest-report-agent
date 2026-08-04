@@ -73,6 +73,13 @@ Los comandos personales `/wv mis-reportes` y `/wv mi-resumen` siguen una ruta de
 del runner. Leen de forma acotada los canales de revisión visibles, atribuyen publicaciones raíz al
 usuario que invoca el comando y derivan el estado solo de las reacciones creadas por esta cuenta del
 bot. Sus respuestas son efímeras y nunca incorporan información de otros miembros.
+
+Los comandos generales `/wv guia`, `/wv cargos` y `/wv faq` también evitan el runner. Presentan la
+guía y el catálogo versionados mediante vistas efímeras ligadas al usuario: los selectores y botones
+editan el mismo mensaje, mientras que la búsqueda de cargos resuelve localmente código, título,
+categoría y descripción con un límite acotado de resultados.
+
+El contrato funcional completo de los comandos está documentado en [Comandos de Discord](COMMANDS.md).
 - `bootstrap`: composición de dependencias y healthcheck.
 
 ## Herramientas del agente

@@ -97,6 +97,9 @@ def test_operational_command_group_uses_distinct_wv_namespace() -> None:
     assert ReviewCog.wv.name == "wv"
     assert [command.name for command in ReviewCog.wv.subcommands] == [
         "help",
+        "guia",
+        "cargos",
+        "faq",
         "mis-reportes",
         "mi-resumen",
     ]
@@ -119,6 +122,7 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention() -> None:
         "📣 Cómo solicitar una revisión",
         "🧵 Qué haré con el expediente",
         "🗂️ Consultas privadas",
+        "📚 Consultas generales",
         "📚 Documentación oficial",
     ]
     assert embed.fields[1].value == "• <#111>\n• <#222>"
@@ -126,7 +130,10 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention() -> None:
     assert "respondes directamente" in embed.fields[2].value
     assert "/wv mis-reportes" in embed.fields[4].value
     assert "/wv mi-resumen" in embed.fields[4].value
-    assert embed.fields[5].value == (
+    assert "/wv guia" in embed.fields[5].value
+    assert "/wv cargos" in embed.fields[5].value
+    assert "/wv faq" in embed.fields[5].value
+    assert embed.fields[6].value == (
         f"• [Código Penal]({PENAL_CODE_URL})\n• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"
     )
     assert embed.thumbnail.url == "https://cdn.discordapp.com/avatar.png"
