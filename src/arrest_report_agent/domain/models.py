@@ -59,6 +59,7 @@ class ReviewCase(BaseModel):
         Annotated[str, Field(min_length=1, max_length=80)]
     ] = Field(default_factory=list, max_length=8)
     interaction_mode: InteractionMode
+    response_route: Literal["inline_reply", "thread"] = "thread"
     case_subject: str | None = None
     messages: list[ConversationMessage]
     attachments: list[DiscordAttachment]
@@ -94,15 +95,19 @@ class ReviewPublication(BaseModel):
     @model_validator(mode="after")
     def validate_verdict_consistency(self) -> ReviewPublication:
         material_findings = [
-            finding
-            for finding in self.findings
-            if finding.severity in {FindingSeverity.REQUIRED, FindingSeverity.WARNING}
+            finding for finding in self.findings if finding.severity is FindingSeverity.REQUIRED
         ]
         unsupported_charges = [
-            charge for charge in self.charges if charge.alignment != "supported"
+            charge for charge in self.charges if charge.alignment == "unsupported"
+        ]
+        unverifiable_charges = [
+            charge for charge in self.charges if charge.alignment == "not_found"
         ]
         if self.verdict is ReviewVerdict.APPROVED and (
-            material_findings or unsupported_charges or self.manual_review_reason
+            material_findings
+            or unsupported_charges
+            or unverifiable_charges
+            or self.manual_review_reason
         ):
             raise ValueError("An approved review cannot contain unresolved material findings")
         if self.verdict is ReviewVerdict.CORRECTIONS_REQUIRED and not (

@@ -137,8 +137,58 @@ def test_long_charge_review_stays_within_discord_embed_limits(settings) -> None:
 
     embeds = build_review_embeds(review, settings)
 
-    assert len(embeds) <= 10
+    charge_embeds = [embed for embed in embeds if embed.title.startswith("⚖️")]
+
+    assert len(embeds) == 4
+    assert len(charge_embeds) == 2
+    assert all(len(embed.fields) == 5 for embed in charge_embeds)
+    assert all(field.inline is False for embed in charge_embeds for field in embed.fields)
+    assert {field.name for embed in charge_embeds for field in embed.fields} == {
+        f"Cargo {index}" for index in range(10)
+    }
     assert all(len(embed) <= 6000 for embed in embeds)
+
+
+def test_charge_alignments_are_rendered_as_user_facing_spanish_labels(settings) -> None:
+    review = ReviewPublication(
+        verdict="inconclusive",
+        summary="Se revisaron los cargos declarados.",
+        findings=[],
+        charges=[
+            {
+                "declared_charge": f"Cargo {alignment}",
+                "alignment": alignment,
+                "note": "Resultado de la comprobación.",
+            }
+            for alignment in ("supported", "unsupported", "uncertain", "not_found")
+        ],
+        next_step="Confirmar la información pendiente.",
+    )
+
+    embeds = build_review_embeds(review, settings)
+    charge_embed = next(embed for embed in embeds if embed.title.startswith("⚖️"))
+    rendered = "\n".join(field.value for field in charge_embed.fields)
+
+    assert [field.name for field in charge_embed.fields] == [
+        "Cargo supported",
+        "Cargo unsupported",
+        "Cargo uncertain",
+        "Cargo not_found",
+    ]
+    assert all(field.inline is False for field in charge_embed.fields)
+    assert "✅ Sustentado" in rendered
+    assert "❌ No sustentado" in rendered
+    assert "⚠️ Requiere confirmación" in rendered
+    assert "🔎 No encontrado en el catálogo" in rendered
+    assert not any(
+        f"— **{alignment}:" in rendered
+        for alignment in (
+            "supported",
+            "unsupported",
+            "uncertain",
+            "not_found",
+        )
+    )
 
 
 @pytest.mark.asyncio

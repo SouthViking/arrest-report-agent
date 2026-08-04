@@ -230,20 +230,21 @@ def build_review_embeds(publication: ReviewPublication, settings: AppSettings) -
         )
 
     if publication.charges:
-        charge_lines = [
-            f"• **{charge.declared_charge}** — {charge.alignment}: {charge.note}"
-            for charge in publication.charges
-        ]
-        charge_chunks = _chunk_lines(charge_lines, limit=1000)
-        for group_start in range(0, len(charge_chunks), 5):
+        alignment_labels = {
+            "supported": "✅ Sustentado",
+            "unsupported": "❌ No sustentado",
+            "uncertain": "⚠️ Requiere confirmación",
+            "not_found": "🔎 No encontrado en el catálogo",
+        }
+        for group_start in range(0, len(publication.charges), 5):
             charge_embed = discord.Embed(
-                title="⚖️ Revisión de cargos",
+                title=("⚖️ Revisión de cargos" if group_start == 0 else "⚖️ Revisión de cargos · continuación"),
                 color=colors[publication.verdict],
             )
-            for index, chunk in enumerate(charge_chunks[group_start : group_start + 5]):
+            for charge in publication.charges[group_start : group_start + 5]:
                 charge_embed.add_field(
-                    name=("Cargos" if group_start == 0 and index == 0 else "Cargos · continuación"),
-                    value=chunk,
+                    name=charge.declared_charge,
+                    value=f"**{alignment_labels[charge.alignment]}**\n{charge.note}",
                     inline=False,
                 )
             embeds.append(charge_embed)
@@ -268,23 +269,6 @@ def _safe_thread_name(content: str, message_id: int) -> str:
     without_mentions = re.sub(r"<@!?\d+>", "", first_line).strip()
     normalized = " ".join(without_mentions.split())
     return normalized[:90] or f"Revisión {message_id}"
-
-
-def _chunk_lines(lines: list[str], limit: int) -> list[str]:
-    chunks: list[str] = []
-    current = ""
-    for line in lines:
-        bounded_line = line[:limit]
-        candidate = bounded_line if not current else f"{current}\n{bounded_line}"
-        if len(candidate) <= limit:
-            current = candidate
-            continue
-        if current:
-            chunks.append(current)
-        current = bounded_line
-    if current:
-        chunks.append(current)
-    return chunks
 
 
 def _chunk_text(content: str, limit: int) -> list[str]:

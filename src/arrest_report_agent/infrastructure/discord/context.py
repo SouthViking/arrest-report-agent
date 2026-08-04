@@ -129,6 +129,7 @@ class DiscordContextBuilder:
                 if isinstance(target.trigger.channel, discord.Thread)
                 else InteractionMode.INITIAL_REVIEW
             ),
+            response_route=target.response_route.value,
             case_subject=subject,
             messages=messages,
             attachments=attachments,
@@ -261,6 +262,7 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
     transcript_lines = [
         "Atiende la solicitud actual dentro de tu ámbito usando el contexto disponible.",
         f"Modo: {case.interaction_mode.value}",
+        _discord_environment(case),
         f"Estado del contexto: {case.context_state.value}",
     ]
     if case.requester_display_name:
@@ -320,6 +322,14 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
             {"type": "input_image", "image_url": attachment.url, "detail": image_detail}
         )
     return [{"role": "user", "content": content}]
+
+
+def _discord_environment(case: ReviewCase) -> str:
+    if case.interaction_mode is InteractionMode.THREAD_FOLLOW_UP:
+        return "Entorno de Discord: hilo; la respuesta se publicará en este mismo hilo."
+    if case.response_route == DiscordResponseRoute.INLINE_REPLY.value:
+        return "Entorno de Discord: canal; la respuesta se publicará como reply al mensaje actual."
+    return "Entorno de Discord: canal; la respuesta se publicará en el hilo de la solicitud."
 
 
 def _reply_excerpt(message: discord.Message, by_id: dict[int, discord.Message]) -> str | None:

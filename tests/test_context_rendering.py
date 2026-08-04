@@ -81,6 +81,7 @@ def test_render_includes_every_selected_character_and_report_image() -> None:
     assert "Solicitante: Teniente Charles Harrington" in text
     assert "Roles del solicitante: Teniente, GNT" in text
     assert "Atiende la solicitud actual" in text
+    assert "Entorno de Discord: canal; la respuesta se publicará en el hilo" in text
     assert "Revisa el estado actual" not in text
 
 
@@ -124,6 +125,29 @@ def test_render_preserves_reply_and_edit_context() -> None:
     assert "EDITADO" in text
     assert "respuesta_a=4" in text
     assert "Falta justificar el cargo" in text
+    assert "Entorno de Discord: hilo; la respuesta se publicará en este mismo hilo." in text
+
+
+def test_render_describes_inline_reply_without_delegating_routing() -> None:
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=2,
+        root_message_id=5,
+        trigger_message_id=5,
+        requester_user_id=20,
+        interaction_mode=InteractionMode.INITIAL_REVIEW,
+        response_route="inline_reply",
+        messages=[],
+        attachments=[],
+    )
+
+    text = render_agent_input(case, "original")[0]["content"][0]["text"]
+
+    assert (
+        "Entorno de Discord: canal; la respuesta se publicará como reply al mensaje actual."
+        in text
+    )
 
 
 def test_context_trimming_preserves_root_and_current_request(settings) -> None:
@@ -247,6 +271,7 @@ async def test_existing_thread_history_uses_message_limit_and_preserves_root_and
     assert [item.id for item in case.messages] == [1, 2, 3]
     assert case.context_state is ContextState.TRUNCATED
     assert case.context_notice == "El historial fue limitado a los mensajes más recientes."
+    assert case.response_route == "thread"
     assert "BOT" in render_agent_input(case, "original")[0]["content"][0]["text"]
 
 
