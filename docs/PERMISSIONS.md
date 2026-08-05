@@ -29,7 +29,12 @@ No requiere Server Members Intent ni Presence Intent.
 El bitfield combinado es `326417599552`, aunque se recomienda revisar permisos por nombre en lugar de
 conservar un número de forma manual.
 
-`Change Nickname` es opcional: la identidad del producto no depende de modificar el apodo de Discord.
+`Change Nickname` es opcional. La persona `walter_vigil` configura `nickname: null`, por lo que su
+identidad global se sincroniza sin ese permiso. Solo una persona futura con nickname gestionado lo
+requeriría.
+
+La biografía propia del bot se sincroniza mediante el perfil de miembro de cada servidor y no
+requiere agregar un permiso de Discord.
 
 Los roles configurados en `REVIEW_ESCALATION_ROLE_IDS` deben permitir menciones para producir una
 notificación. Se recomienda habilitar esa propiedad solamente en dichos roles; el bot no necesita el

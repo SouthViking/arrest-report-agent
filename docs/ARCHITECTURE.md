@@ -4,6 +4,10 @@
 
 ```mermaid
 flowchart LR
+    V["BOT_PERSONA"] --> B["PersonaProvider"]
+    B --> Q["BotPersona + assets en memoria"]
+    Q --> R
+    Q --> Y["Perfil y presencia de Discord"]
     M["Mensaje de Discord"] --> T["DiscordAccessPolicy"]
     A["SnowflakeAllowlist x3"] --> T
     T -->|"guild, usuario y canal habilitados"| C["Contexto acotado de Discord"]
@@ -64,28 +68,45 @@ guardrail bloqueado no deja hilos vacíos.
 ## Capas
 
 - `domain`: modelos Pydantic y enums que definen el contrato de revisión.
-- `config`: entorno, allowlists uniformes y catálogo JSON validado de modelo y precios.
+- `config`: entorno, allowlists, proveedor de personas y catálogos JSON validados.
 - `knowledge`: guía versionada e índice del JSON del PCU, cargados y validados al iniciar.
 - `application`: prompt, tools, contexto del runner, errores, tracing y orquestación.
 - `infrastructure/discord`: política previa, reconstrucción de hilos, embeds, reacciones y comandos.
 
-Los comandos personales `/wv mis-reportes` y `/wv mi-resumen` siguen una ruta determinista separada
+Los comandos personales `/mis-reportes` y `/mi-resumen` siguen una ruta determinista separada
 del runner. Leen de forma acotada los canales de revisión visibles, atribuyen publicaciones raíz al
 usuario que invoca el comando y derivan el estado solo de las reacciones creadas por esta cuenta del
 bot. Sus respuestas son efímeras y nunca incorporan información de otros miembros.
 
-Los comandos generales `/wv guia`, `/wv cargos` y `/wv faq` también evitan el runner. Presentan la
+Los comandos generales `/guia`, `/cargos` y `/faq` también evitan el runner. Presentan la
 guía y el catálogo versionados mediante vistas efímeras ligadas al usuario: los selectores y botones
 editan el mismo mensaje, mientras que la búsqueda de cargos resuelve localmente código, título,
 categoría y descripción con un límite acotado de resultados.
 
 El contrato funcional completo de los comandos está documentado en [Comandos de Discord](COMMANDS.md).
 
-Los comandos `/wv pendientes` y `/wv ranking` reutilizan el mismo finder acotado, pero permiten
+Los comandos `/pendientes` y `/ranking` reutilizan el mismo finder acotado, pero permiten
 consultar autores distintos al solicitante. Una política de roles independiente se construye desde
 `SUPERVISOR_ROLE_IDS` y se aplica antes de cualquier lectura; esta frontera permite reemplazar la
 configuración por guild desde una base de datos sin modificar las vistas ni las agregaciones.
 - `bootstrap`: composición de dependencias y healthcheck.
+
+## Personas
+
+`BOT_PERSONA` es obligatorio y selecciona un perfil empaquetado. `PackagedPersonaProvider` valida el
+JSON y carga su avatar antes de construir Discord o el runner. El resultado inmutable se comparte
+en memoria; prompt, embeds, mensajes deterministas, presencia, trazas y perfil no vuelven a leer el
+entorno ni los archivos.
+
+`PersonaProvider` separa el contrato de su almacenamiento. Una implementación futura puede obtener
+el mismo `BotPersona` y assets desde una base de datos sin cambiar los consumidores. En el MVP
+existen `walter_vigil` y `roy_velazco`; cambiar la selección requiere reiniciar el proceso.
+
+En `on_ready`, `DiscordProfileSynchronizer` aplica username y avatar desde la persona, el banner
+verde musgo global de LSSD y la biografía por guild. Los campos globales se envían por separado para
+que el cooldown de uno no bloquee los demás. Un lock evita duplicados durante reconexiones; un error
+conserva el bot operativo y permite reintentar solo el campo pendiente en el siguiente `on_ready`.
+El nickname es opcional y `null` significa que no se administra por guild.
 
 ## Herramientas del agente
 
@@ -124,7 +145,7 @@ ronda adicional de modelo que requería una tool no terminal.
 búsqueda de conocimiento no degrada una revisión. Al terminar la actividad prioritaria se recupera
 la siguiente que siga activa; el último cierre vuelve a reposo. Solo se llama a Discord cuando cambia
 el modo global. `on_ready` resincroniza tras una reconexión y cualquier fallo cosmético se registra
-sin interrumpir el expediente. Los cuatro textos se inyectan mediante variables de entorno.
+sin interrumpir el expediente. Los cuatro textos provienen de la persona cargada.
 
 ## Resolución del modelo y costos
 

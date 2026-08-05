@@ -39,8 +39,9 @@ varias líneas:
 plataformas de observabilidad.
 
 Cada evento añade campos `clave=valor`. Se registran IDs técnicos, entorno, modelo, effort, intento,
-latencia, tokens crudos, costo aproximado, versión de precios, veredicto o clase de error. Los errores
-incluyen tipo, mensaje técnico, estado/código del proveedor cuando existe y stacktrace completo.
+persona seleccionada, latencia, tokens crudos, costo aproximado, versión de precios, veredicto o
+clase de error. Los errores incluyen tipo, mensaje técnico, estado/código del proveedor cuando existe
+y stacktrace completo.
 
 Una ejecución completada conserva `input_tokens`, `cached_input_tokens`,
 `cache_write_input_tokens`, `output_tokens`, `reasoning_tokens` y `total_tokens`. Además registra los
@@ -69,7 +70,7 @@ El workflow se llama `arrest_report_review` y agrupa intentos mediante
 - environment, app_version, prompt_version y scope_guardrail_version;
 - guild_id, parent_channel_id y thread_id;
 - root_message_id, trigger_message_id y user_id;
-- review_attempt, modelo y reasoning_effort.
+- review_attempt, modelo, reasoning_effort y persona_id.
 
 `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA=false` es el valor predeterminado y recomendado.
 

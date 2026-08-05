@@ -1,8 +1,8 @@
 # Arrest Report Agent
 
-Bot agente de Discord para revisar reportes de arresto de roleplay en español. La identidad visible
-por defecto es **Sgt. Vigil**, pero el repositorio, el paquete y la lógica mantienen un nombre neutral:
-la identidad se inyecta desde `BOT_DISPLAY_NAME` y `BOT_ROLE_TITLE`.
+Bot agente de Discord para revisar reportes de arresto de roleplay en español. El perfil incluido es
+**Walter Vigil**, pero el repositorio, el paquete y la lógica mantienen un nombre neutral: identidad,
+personalidad, presencia y perfil de Discord se cargan desde la persona elegida con `BOT_PERSONA`.
 
 El MVP está preparado para los canales privados `gnt-arrestos` y `dlm-arrestos` del servidor LSSD.
 Solo actúa cuando un usuario habilitado menciona explícitamente al bot, en cualquier parte del
@@ -26,6 +26,9 @@ determinista, también sin ejecutar el agente.
 - Mantiene el indicador nativo de escritura mientras procesa una solicitud.
 - Muestra una presencia global priorizada: `⭐ De guardia`, `📻 Atendiendo consultas`,
   `🔎 Consultando el código` o `📂 Revisando expedientes`. Las ejecuciones paralelas no se pisan.
+- Al iniciar, sincroniza por separado el nombre y avatar de la personalidad, el banner global LSSD
+  y la biografía por servidor; una falla cosmética se registra, no bloquea los demás campos y no
+  impide que el bot atienda.
 - Añade `⏳` desde un hook determinista cuando el preflight detecta una revisión con material; no
   expone esa operación como tool ni consume una ronda adicional del modelo.
 - Puede enviar varios mensajes intermedios enriquecidos con Markdown de Discord mientras continúa
@@ -60,10 +63,7 @@ Completa al menos `DISCORD_TOKEN` y `OPENAI_API_KEY` en `.env`. Los valores por 
 DISCORD_GUILD_IDS=1234674521416663070
 REVIEW_CHANNEL_IDS=1462992794569281617,1462992859761217745
 AUTHORIZED_USER_IDS=*
-BOT_IDLE_ACTIVITY=⭐ De guardia
-BOT_CONVERSATION_ACTIVITY=📻 Atendiendo consultas
-BOT_KNOWLEDGE_ACTIVITY=🔎 Consultando el código
-BOT_REVIEW_ACTIVITY=📂 Revisando expedientes
+BOT_PERSONA=walter_vigil
 OPENAI_MODEL=gpt-5.6-terra
 OPENAI_REASONING_EFFORT=medium
 ```
@@ -89,12 +89,23 @@ detalle de imagen, verbosity, límite de salida, service tier, capacidades admit
 resuelven al iniciar desde el catálogo JSON interno. Una combinación desconocida detiene el arranque
 con un error explícito en vez de aplicar valores silenciosos.
 
-La identidad puede cambiarse sin tocar código ni prompts:
+La identidad se selecciona con una sola variable obligatoria:
 
 ```dotenv
-BOT_DISPLAY_NAME=Sgt. Vigil
-BOT_ROLE_TITLE=Watch Sergeant
+BOT_PERSONA=walter_vigil
 ```
+
+Los perfiles
+[`walter_vigil.json`](src/arrest_report_agent/config/personas/walter_vigil.json) y
+[`roy_velazco.json`](src/arrest_report_agent/config/personas/roy_velazco.json) definen nombre,
+organización, tratamiento, tono, presencia, biografía y referencia al avatar empaquetado. Se validan y
+cargan una sola vez antes de conectar con Discord. Un ID ausente, desconocido o inseguro detiene el
+arranque en vez de aplicar una identidad parcial. Para usar a Roy se configura
+`BOT_PERSONA=roy_velazco`. La sincronización modifica el usuario bot; el nombre e icono de la
+aplicación mostrados en Developer Portal siguen siendo configuración de Discord.
+
+El banner no pertenece a una personalidad: todas comparten el asset global verde musgo
+`config/assets/lssd-profile-banner.png`.
 
 `REVIEW_ESCALATION_ROLE_IDS` es una lista CSV opcional de roles que reciben una sola mención ante
 una revisión inconclusa o una falla técnica. Solo se mencionan roles que todavía existan en la guild;
@@ -139,16 +150,16 @@ justifican; si faltan antecedentes, los solicita mediante una respuesta normal.
 
 Comandos disponibles:
 
-- `/wv help`: presentación, instrucciones y enlaces oficiales visibles para todo el canal.
-- `/wv guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.
-- `/wv cargos`: modal privado para buscar por código, título, descripción o categoría en el catálogo
+- `/ayuda`: presentación, instrucciones y enlaces oficiales visibles para todo el canal.
+- `/guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.
+- `/cargos`: modal privado para buscar por código, título, descripción o categoría en el catálogo
   penal local; muestra detalles y sanciones con paginación cuando corresponde.
-- `/wv faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
-- `/wv pendientes`: consulta de supervisión para expedientes sin estado terminal o en revisión.
-- `/wv ranking`: ranking de supervisión por volumen, aprobaciones, correcciones o tasa de aprobación.
-- `/wv mis-reportes`: abre un modal privado para filtrar por periodo, estado y estación; entrega
+- `/faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
+- `/pendientes`: consulta de supervisión para expedientes sin estado terminal o en revisión.
+- `/ranking`: ranking de supervisión por volumen, aprobaciones, correcciones o tasa de aprobación.
+- `/mis-reportes`: abre un modal privado para filtrar por periodo, estado y estación; entrega
   referencias directas a cada publicación y a su hilo cuando existe.
-- `/wv mi-resumen`: muestra de forma privada el estado personal del mes actual.
+- `/mi-resumen`: muestra de forma privada el estado personal del mes actual.
 
 Los comandos de guía, cargos, FAQ y consultas personales son deterministas: no ejecutan el runner ni
 consumen OpenAI. Los comandos personales consultan un máximo acotado del historial de los canales
@@ -168,10 +179,7 @@ el contenido exacto del FAQ.
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
 | `SUPERVISOR_ROLE_IDS` | `*` | Roles autorizados para los comandos de supervisión; `*`/vacío permite a todos. |
 | `REVIEW_ESCALATION_ROLE_IDS` | vacío | Roles existentes que reciben una mención ante resultados inconclusos o fallas; acepta CSV. |
-| `BOT_IDLE_ACTIVITY` | `⭐ De guardia` | Presencia global sin solicitudes activas. |
-| `BOT_CONVERSATION_ACTIVITY` | `📻 Atendiendo consultas` | Presencia inicial de una consulta habilitada. |
-| `BOT_KNOWLEDGE_ACTIVITY` | `🔎 Consultando el código` | Presencia al consultar la guía o el catálogo. |
-| `BOT_REVIEW_ACTIVITY` | `📂 Revisando expedientes` | Presencia de una revisión con material. `BOT_BUSY_ACTIVITY` queda como alias compatible. |
+| `BOT_PERSONA` | obligatorio | ID del perfil empaquetado que controla identidad, tono, presencia y perfil de Discord. |
 | `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | Modelo del runner. |
 | `OPENAI_REASONING_EFFORT` | `medium` | Esfuerzo validado contra los valores admitidos por el modelo. |
@@ -228,6 +236,8 @@ en el entorno o en `.env` y se habilita de forma explícita:
   mediante comandos persistentes.
 - El catálogo y la guía son archivos versionados; todavía no existe sincronización con OpenMP/PCU.
 - No existe configuración por facción o tenant.
+- Se incluyen `walter_vigil` y `roy_velazco`; cambiar la persona requiere reiniciar y todavía no
+  existe carga desde base de datos ni configuración distinta por servidor.
 - No se ejecuta una segunda revisión automática ni un fallback de veredicto con otro modelo.
 
 La separación entre contexto Discord, dominio, conocimiento y runner permite añadir más adelante una
