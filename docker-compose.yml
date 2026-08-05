@@ -1,8 +1,7 @@
 services:
   bot:
     build: .
-    env_file: .env
+    env_file: ${BOT_ENV_FILE:-.env}
     restart: unless-stopped
     ports:
       - "8080:8080"
-

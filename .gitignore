@@ -1,5 +1,6 @@
 .DS_Store
 .env
+.env.production
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
@@ -9,4 +10,3 @@ __pycache__/
 *.py[cod]
 build/
 dist/
-
