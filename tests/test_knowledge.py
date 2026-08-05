@@ -88,3 +88,16 @@ def test_evidence_guide_treats_recordings_as_roleplay_and_requires_bag_reference
     assert "No exigir" in evidence["role_environment"][1]
     assert "número de la bolsa" in evidence["evidence_bag_reference"]["rule"]
     assert "#NÚMERO" in evidence["evidence_bag_reference"]["suggested_format"]
+
+
+def test_review_calibration_uses_semantic_coverage_and_material_threshold() -> None:
+    calibration = ReportGuide.load_default().get(["review_calibration"])["sections"][
+        "review_calibration"
+    ]
+
+    assert "cantidad ni un orden fijo" in calibration["semantic_coverage"][0]
+    assert "cargos" in calibration["semantic_coverage"][2]
+    assert "bloquea la aprobación" in calibration["blocking_threshold"][1]
+    assert "agrupar errores lingüísticos" in calibration["blocking_threshold"][2]
+    assert "versión más reciente" in calibration["iteration"][0]
+    assert "fuente oficial" in calibration["iteration"][2]

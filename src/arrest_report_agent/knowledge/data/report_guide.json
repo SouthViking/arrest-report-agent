@@ -1,5 +1,5 @@
 {
-  "version": "2026-08-04",
+  "version": "2026-08-05",
   "source": "Manual de procedimientos LSSD proporcionado para el MVP",
   "sections": {
     "overview": {
@@ -85,6 +85,25 @@
         "No asumir elementos del delito que no estén narrados o visibles.",
         "Distinguir un cargo potencialmente incorrecto de un caso donde falta contexto para confirmarlo.",
         "Usar IDs únicos del catálogo; un mismo código puede aparecer en más de una entrada."
+      ]
+    },
+    "review_calibration": {
+      "semantic_coverage": [
+        "Evaluar qué información aporta cada adjunto, no exigir una cantidad ni un orden fijo de archivos.",
+        "Una sola composición puede contener las vistas frontal y lateral u otras piezas del expediente.",
+        "La narrativa vigente y el listado o captura de cargos son materiales esenciales para una revisión completa."
+      ],
+      "blocking_threshold": [
+        "Solicitar corrección obligatoria solo cuando el problema afecte la comprensión de los hechos, el fundamento del arresto, los elementos de un cargo, la identificación relevante o la trazabilidad de evidencia física.",
+        "Toda falta verificable de ortografía, gramática, puntuación o redacción debe corregirse y bloquea la aprobación.",
+        "Citar ejemplos representativos y agrupar errores lingüísticos del mismo tipo en un solo hallazgo accionable.",
+        "Una preferencia de formato, como el diseño, el formato horario o el callsign, no bloquea si la guía no la exige y el dato continúa siendo inequívoco.",
+        "Agrupar observaciones relacionadas y omitir preferencias editoriales sin impacto operativo."
+      ],
+      "iteration": [
+        "En una re-revisión, juzgar la versión más reciente y considerar resueltos los puntos efectivamente corregidos.",
+        "Un reporte con correcciones pendientes puede volver a revisarse; no tratar ese estado como rechazo definitivo.",
+        "Si un comentario previo contradice la guía o el catálogo, prevalece la fuente oficial y no se repite la corrección errónea."
       ]
     }
   }

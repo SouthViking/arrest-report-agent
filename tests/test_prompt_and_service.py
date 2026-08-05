@@ -42,6 +42,14 @@ def test_identity_is_injected_without_prompt_hardcoding() -> None:
     assert "son entorno narrativo" in prompt
     assert "no exijas sus archivos" in prompt
     assert "#NÚMERO" in prompt
+    assert "Evalúa cobertura semántica, no cantidad de archivos" in prompt
+    assert "narrativa vigente" in prompt
+    assert "cargos\n  declarados" in prompt
+    assert "Toda falta verificable de ortografía" in prompt
+    assert "agrupa errores del mismo tipo" in prompt
+    assert "No bloquees por preferencias de formato" in prompt
+    assert "prevalece la fuente oficial" in prompt
+    assert "no un rechazo definitivo" in prompt
 
 
 def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, model) -> None:
