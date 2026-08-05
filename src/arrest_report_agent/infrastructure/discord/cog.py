@@ -22,7 +22,7 @@ from arrest_report_agent.application import (
     ReviewService,
 )
 from arrest_report_agent.application.errors import public_error_message
-from arrest_report_agent.config import AppSettings
+from arrest_report_agent.config import AppSettings, BotPersona
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError
@@ -41,6 +41,7 @@ from .personal_reports import (
     build_personal_summary_embed,
 )
 from .presence import ReviewPresence
+from .profile import DiscordProfileSynchronizer
 from .publisher import DiscordReviewPublisher
 from .supervision import (
     PendingReportsModal,
@@ -107,23 +108,23 @@ async def maintain_typing_indicator(
 
 def build_help_embed(
     *,
-    display_name: str,
-    role_title: str,
+    persona: BotPersona,
     bot_mention: str,
     channel_ids: frozenset[int] | None,
     avatar_url: str | None = None,
 ) -> discord.Embed:
     """Introduce the reviewer and explain its workflow in character."""
 
+    identity = persona.identity
     channels = (
         "\n".join(f"• <#{channel_id}>" for channel_id in sorted(channel_ids))
         if channel_ids is not None
         else "• Todos los canales del servidor"
     )
     embed = discord.Embed(
-        title=f"⭐ {display_name} · {role_title}",
+        title=f"⭐ {identity.display_name} · {identity.role_title}",
         description=(
-            f"Soy **{display_name}**, el **{role_title}** asignado a este turno. "
+            f"Soy **{identity.display_name}**, el **{identity.role_title}** asignado a este turno. "
             "Mi trabajo es revisar expedientes de arresto antes de que acumulen polvo… "
             "o correcciones del mando."
         ),
@@ -164,25 +165,25 @@ def build_help_embed(
     embed.add_field(
         name="🗂️ Consultas privadas",
         value=(
-            "• `/wv mis-reportes`: filtra tus publicaciones y abre rápidamente cada expediente.\n"
-            "• `/wv mi-resumen`: consulta tus cifras del mes actual."
+            "• `/mis-reportes`: filtra tus publicaciones y abre rápidamente cada expediente.\n"
+            "• `/mi-resumen`: consulta tus cifras del mes actual."
         ),
         inline=False,
     )
     embed.add_field(
         name="📚 Consultas generales",
         value=(
-            "• `/wv guia`: consulta las reglas de redacción y revisión por sección.\n"
-            "• `/wv cargos`: busca delitos y sanciones en el catálogo local.\n"
-            "• `/wv faq`: resuelve dudas frecuentes del procedimiento."
+            "• `/guia`: consulta las reglas de redacción y revisión por sección.\n"
+            "• `/cargos`: busca delitos y sanciones en el catálogo local.\n"
+            "• `/faq`: resuelve dudas frecuentes del procedimiento."
         ),
         inline=False,
     )
     embed.add_field(
         name="🛡️ Supervisión",
         value=(
-            "• `/wv pendientes`: localiza expedientes sin estado terminal.\n"
-            "• `/wv ranking`: compara actividad y resultados por miembro.\n"
+            "• `/pendientes`: localiza expedientes sin estado terminal.\n"
+            "• `/ranking`: compara actividad y resultados por miembro.\n"
             "Requieren un rol de supervisión autorizado."
         ),
         inline=False,
@@ -193,7 +194,10 @@ def build_help_embed(
         inline=False,
     )
     embed.set_footer(
-        text="Intervengo con una mención o una respuesta directa. El papeleo no se aprueba solo, deputy."
+        text=(
+            "Intervengo con una mención o una respuesta directa. El papeleo no se aprueba solo, "
+            f"{identity.default_form_of_address}."
+        )
     )
     if avatar_url:
         embed.set_thumbnail(url=avatar_url)
@@ -202,6 +206,7 @@ def build_help_embed(
 
 def build_wrong_channel_message(
     *,
+    form_of_address: str,
     channel_ids: tuple[int, ...],
     message_id: int,
     availability: ReviewChannelAvailability = ReviewChannelAvailability.UNAVAILABLE,
@@ -209,7 +214,7 @@ def build_wrong_channel_message(
     """Build a concise rich-text redirect without using AI."""
 
     intro = WRONG_CHANNEL_INTROS[message_id % len(WRONG_CHANNEL_INTROS)]
-    heading = f"📍 **Fuera de mi zona de guardia, deputy.** {intro}\n"
+    heading = f"📍 **Fuera de mi zona de guardia, {form_of_address}.** {intro}\n"
     if channel_ids:
         channel_mentions = [f"<#{channel_id}>" for channel_id in sorted(channel_ids)]
         channels = (
@@ -236,38 +241,40 @@ def build_wrong_channel_message(
     )
 
 
-def build_unauthorized_user_message(*, message_id: int) -> str:
+def build_unauthorized_user_message(*, message_id: int, form_of_address: str) -> str:
     """Build a concise in-character access notice without invoking AI."""
 
     intro = UNAUTHORIZED_USER_INTROS[message_id % len(UNAUTHORIZED_USER_INTROS)]
     return (
-        f"🔒 **Un momento, deputy.** {intro}\n"
+        f"🔒 **Un momento, {form_of_address}.** {intro}\n"
         "Consulte con un mando para que revise su habilitación antes de continuar."
     )
 
 
 class ReviewCog(commands.Cog):
-    wv = discord.SlashCommandGroup("wv", "Operaciones del revisor de reportes")
-
     def __init__(
         self,
         bot: discord.Bot,
         settings: AppSettings,
         service: ReviewService,
+        persona: BotPersona,
+        profile_synchronizer: DiscordProfileSynchronizer | None = None,
     ) -> None:
         self.bot = bot
         self.settings = settings
         self.service = service
+        self.persona = persona
+        self.profile_synchronizer = profile_synchronizer
         self.access_policy = DiscordAccessPolicy.from_settings(settings)
         self.supervisor_policy = SupervisorRolePolicy.from_settings(settings)
-        self.context_builder = DiscordContextBuilder(settings, bot)
+        self.context_builder = DiscordContextBuilder(settings, persona, bot)
         self.personal_report_finder = DiscordPersonalReportFinder(bot, settings)
         self.presence = ReviewPresence(
             bot,
-            idle_text=settings.bot_idle_activity,
-            conversation_text=settings.bot_conversation_activity,
-            knowledge_text=settings.bot_knowledge_activity,
-            review_text=settings.bot_review_activity,
+            idle_text=persona.presence.idle,
+            conversation_text=persona.presence.conversation,
+            knowledge_text=persona.presence.knowledge,
+            review_text=persona.presence.review,
         )
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_reviews)
         self._locks: dict[int, asyncio.Lock] = {}
@@ -277,6 +284,8 @@ class ReviewCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
+        if self.profile_synchronizer is not None:
+            await self.profile_synchronizer.synchronize()
         await self.presence.synchronize()
         log_event(
             LOGGER,
@@ -293,6 +302,8 @@ class ReviewCog(commands.Cog):
                 "restricted" if self.supervisor_policy.is_restricted else "open"
             ),
             configured_supervisor_roles=self.supervisor_policy.roles.configured_count,
+            persona_id=self.persona.id,
+            persona_revision=self.persona.revision,
         )
 
     @commands.Cog.listener()
@@ -357,7 +368,12 @@ class ReviewCog(commands.Cog):
             ):
                 self._attempts[root_id] += 1
                 attempt = self._attempts[root_id]
-                publisher = DiscordReviewPublisher(self.bot, self.settings, target)
+                publisher = DiscordReviewPublisher(
+                    self.bot,
+                    self.settings,
+                    target,
+                    self.persona,
+                )
                 try:
                     case = await self.context_builder.build_case(target)
                 except Exception as error:
@@ -409,6 +425,7 @@ class ReviewCog(commands.Cog):
         await self._reply_deterministic_notice(
             message,
             content=build_wrong_channel_message(
+                form_of_address=self.persona.identity.default_form_of_address,
                 channel_ids=resolution.visible_ids,
                 message_id=message.id,
                 availability=resolution.availability,
@@ -502,7 +519,10 @@ class ReviewCog(commands.Cog):
     async def _redirect_unauthorized_user(self, message: discord.Message) -> None:
         await self._reply_deterministic_notice(
             message,
-            content=build_unauthorized_user_message(message_id=message.id),
+            content=build_unauthorized_user_message(
+                message_id=message.id,
+                form_of_address=self.persona.identity.default_form_of_address,
+            ),
             event_prefix="unauthorized_user_redirect",
         )
 
@@ -561,24 +581,23 @@ class ReviewCog(commands.Cog):
                 **exception_fields(error),
             )
 
-    @wv.command(name="help", description="Explica cómo solicitar una revisión")
+    @discord.slash_command(name="ayuda", description="Explica cómo solicitar una revisión")
     async def review_help(self, ctx: discord.ApplicationContext) -> None:
         bot_user = self.bot.user
         embed = build_help_embed(
-            display_name=self.settings.identity.display_name,
-            role_title=self.settings.identity.role_title,
-            bot_mention=bot_user.mention if bot_user else self.settings.identity.display_name,
+            persona=self.persona,
+            bot_mention=bot_user.mention if bot_user else self.persona.identity.display_name,
             channel_ids=self.access_policy.channels.ids,
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
         )
         await ctx.respond(embed=embed, ephemeral=False)
 
-    @wv.command(name="guia", description="Consulta la guía de reportes por secciones")
+    @discord.slash_command(name="guia", description="Consulta la guía de reportes por secciones")
     async def report_guide(self, ctx: discord.ApplicationContext) -> None:
         view = GuideNavigationView(
             requester_id=ctx.author.id,
             guide=self.service.guide,
-            display_name=self.settings.identity.display_name,
+            display_name=self.persona.identity.display_name,
         )
         await ctx.respond(
             embed=view.current_embed,
@@ -594,21 +613,21 @@ class ReviewCog(commands.Cog):
             user_id=ctx.author.id,
         )
 
-    @wv.command(name="cargos", description="Busca cargos en el código penal")
+    @discord.slash_command(name="cargos", description="Busca cargos en el código penal")
     async def charge_search(self, ctx: discord.ApplicationContext) -> None:
         await ctx.send_modal(
             ChargeSearchModal(
                 catalog=self.service.catalog,
                 requester_id=ctx.author.id,
-                display_name=self.settings.identity.display_name,
+                display_name=self.persona.identity.display_name,
             )
         )
 
-    @wv.command(name="faq", description="Consulta preguntas frecuentes sobre reportes")
+    @discord.slash_command(name="faq", description="Consulta preguntas frecuentes sobre reportes")
     async def report_faq(self, ctx: discord.ApplicationContext) -> None:
         view = FaqNavigationView(
             requester_id=ctx.author.id,
-            display_name=self.settings.identity.display_name,
+            display_name=self.persona.identity.display_name,
         )
         await ctx.respond(
             embed=view.current_embed,
@@ -624,7 +643,7 @@ class ReviewCog(commands.Cog):
             user_id=ctx.author.id,
         )
 
-    @wv.command(name="pendientes", description="Consulta reportes pendientes de supervisión")
+    @discord.slash_command(name="pendientes", description="Consulta reportes pendientes de supervisión")
     async def supervisor_pending(self, ctx: discord.ApplicationContext) -> None:
         identity = await self._authorize_supervisor_command(ctx)
         if identity is None:
@@ -645,11 +664,11 @@ class ReviewCog(commands.Cog):
                 guild=guild,
                 member=member,
                 channels=channels,
-                display_name=self.settings.identity.display_name,
+                display_name=self.persona.identity.display_name,
             )
         )
 
-    @wv.command(name="ranking", description="Compara resultados de reportes por miembro")
+    @discord.slash_command(name="ranking", description="Compara resultados de reportes por miembro")
     async def supervisor_ranking(self, ctx: discord.ApplicationContext) -> None:
         identity = await self._authorize_supervisor_command(ctx)
         if identity is None:
@@ -670,11 +689,11 @@ class ReviewCog(commands.Cog):
                 guild=guild,
                 member=member,
                 channels=channels,
-                display_name=self.settings.identity.display_name,
+                display_name=self.persona.identity.display_name,
             )
         )
 
-    @wv.command(name="mis-reportes", description="Busca tus reportes y abre sus publicaciones")
+    @discord.slash_command(name="mis-reportes", description="Busca tus reportes y abre sus publicaciones")
     async def personal_reports(self, ctx: discord.ApplicationContext) -> None:
         identity = await self._authorize_personal_command(ctx)
         if identity is None:
@@ -694,11 +713,11 @@ class ReviewCog(commands.Cog):
                 guild=guild,
                 member=member,
                 channels=channels,
-                display_name=self.settings.identity.display_name,
+                display_name=self.persona.identity.display_name,
             )
         )
 
-    @wv.command(name="mi-resumen", description="Muestra tu resumen privado del mes actual")
+    @discord.slash_command(name="mi-resumen", description="Muestra tu resumen privado del mes actual")
     async def personal_summary(self, ctx: discord.ApplicationContext) -> None:
         identity = await self._authorize_personal_command(ctx)
         if identity is None:
@@ -717,7 +736,7 @@ class ReviewCog(commands.Cog):
             await ctx.send_followup(
                 embed=build_personal_summary_embed(
                     result,
-                    display_name=self.settings.identity.display_name,
+                    display_name=self.persona.identity.display_name,
                 ),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),

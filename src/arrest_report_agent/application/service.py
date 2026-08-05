@@ -18,7 +18,7 @@ from agents import (
 from agents.retry import ModelRetrySettings
 from openai.types.shared.reasoning import Reasoning
 
-from arrest_report_agent.config import AppSettings, ResolvedModel
+from arrest_report_agent.config import AppSettings, BotPersona, ResolvedModel
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import ReviewCase
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
@@ -43,17 +43,19 @@ class ReviewService:
         catalog: ChargeCatalog,
         guide: ReportGuide,
         model: ResolvedModel,
+        persona: BotPersona,
     ) -> None:
         self.settings = settings
         self.catalog = catalog
         self.guide = guide
         self.model = model
+        self.persona = persona
         tools = build_agent_tools(catalog, guide)
         scope_guardrail = build_scope_guardrail(settings, model)
         self.hooks = ReviewLifecycleHooks()
         self.agent: Agent[ReviewRunContext] = Agent(
-            name=settings.identity.display_name,
-            instructions=build_agent_instructions(settings.identity),
+            name=persona.identity.display_name,
+            instructions=build_agent_instructions(persona),
             model=model.id,
             model_settings=ModelSettings(
                 reasoning=Reasoning(effort=model.reasoning_effort),
@@ -137,7 +139,9 @@ class ReviewService:
                 **self._log_metadata(case, run_context.attempt),
             )
             try:
-                await run_context.publisher.send_message(scope_refusal_message())
+                await run_context.publisher.send_message(
+                    scope_refusal_message(self.persona.identity.default_form_of_address)
+                )
                 run_context.message_sent = True
                 run_context.messages_sent_count += 1
                 run_context.interaction_completed = True
@@ -198,6 +202,8 @@ class ReviewService:
             "root_message_id": case.root_message_id,
             "trigger_message_id": case.trigger_message_id,
             "attempt": attempt,
+            "persona_id": self.persona.id,
+            "persona_revision": self.persona.revision,
         }
 
     def _trace_metadata(self, case: ReviewCase, attempt: int) -> dict[str, Any]:
@@ -215,4 +221,5 @@ class ReviewService:
             "review_attempt": str(attempt),
             "model": self.model.id,
             "reasoning_effort": self.model.reasoning_effort,
+            "persona_id": self.persona.id,
         }

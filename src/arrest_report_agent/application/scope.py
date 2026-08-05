@@ -123,18 +123,18 @@ def has_revisable_material(case: ReviewCase) -> bool:
     )
 
 
-def scope_refusal_message() -> str:
+def scope_refusal_message(form_of_address: str) -> str:
     """Return role-aware public copy without exposing implementation details."""
 
     return (
-        "Eso queda fuera de mi guardia, deputy. Puedo ayudar con reportes de arresto, "
+        f"Eso queda fuera de mi guardia, {form_of_address}. Puedo ayudar con reportes de arresto, "
         "correcciones, evidencia, cargos y el manual de procedimientos."
     )
 
 
 def _scope_instructions() -> str:
-    return """Clasifica alcance e intención de la solicitud actual para un sargento que asiste con
-reportes de arresto de roleplay. Usa intent=review solo ante una petición expresa de revisión o
+    return """Clasifica alcance e intención de la solicitud actual para un asistente de reportes de
+arresto de roleplay. Usa intent=review solo ante una petición expresa de revisión o
 re-revisión, o una entrega inequívoca de expediente para revisar. Usa intent=conversation para
 preguntas, redacción, correcciones, evidencia, manual, cargos, dudas sobre feedback, ayuda de uso,
 saludos o conversación relacionada. Usa intent=out_of_scope y allowed=false solo para solicitudes

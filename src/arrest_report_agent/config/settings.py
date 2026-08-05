@@ -5,15 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 
-from pydantic import AliasChoices, BaseModel, Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-class BotIdentity(BaseModel):
-    """Runtime identity injected into prompts and Discord copy."""
-
-    display_name: str
-    role_title: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,32 +96,10 @@ class AppSettings(BaseSettings):
         default="",
         validation_alias=AliasChoices("REVIEW_ESCALATION_ROLE_IDS", "MANUAL_REVIEW_ROLE_ID"),
     )
-
-    bot_display_name: str = Field(default="Sgt. Vigil", alias="BOT_DISPLAY_NAME", min_length=1)
-    bot_role_title: str = Field(default="Watch Sergeant", alias="BOT_ROLE_TITLE", min_length=1)
-    bot_idle_activity: str = Field(
-        default="⭐ De guardia",
-        alias="BOT_IDLE_ACTIVITY",
+    bot_persona: str = Field(
+        alias="BOT_PERSONA",
         min_length=1,
-        max_length=128,
-    )
-    bot_conversation_activity: str = Field(
-        default="📻 Atendiendo consultas",
-        alias="BOT_CONVERSATION_ACTIVITY",
-        min_length=1,
-        max_length=128,
-    )
-    bot_knowledge_activity: str = Field(
-        default="🔎 Consultando el código",
-        alias="BOT_KNOWLEDGE_ACTIVITY",
-        min_length=1,
-        max_length=128,
-    )
-    bot_review_activity: str = Field(
-        default="📂 Revisando expedientes",
-        validation_alias=AliasChoices("BOT_REVIEW_ACTIVITY", "BOT_BUSY_ACTIVITY"),
-        min_length=1,
-        max_length=128,
+        pattern=r"^[a-z0-9]+(?:_[a-z0-9]+)*$",
     )
 
     app_environment: str = Field(default="local", alias="APP_ENV", min_length=1)
@@ -185,6 +156,11 @@ class AppSettings(BaseSettings):
     @classmethod
     def normalize_log_level(cls, value: str) -> str:
         return value.upper()
+
+    @field_validator("bot_persona")
+    @classmethod
+    def normalize_bot_persona(cls, value: str) -> str:
+        return value.strip()
 
     @field_validator("thread_auto_archive_minutes")
     @classmethod
@@ -259,11 +235,6 @@ class AppSettings(BaseSettings):
     @property
     def supervisor_role_ids(self) -> frozenset[int] | None:
         return self.supervisor_role_allowlist.ids
-
-    @property
-    def identity(self) -> BotIdentity:
-        return BotIdentity(display_name=self.bot_display_name, role_title=self.bot_role_title)
-
 
 @lru_cache(maxsize=1)
 def load_settings() -> AppSettings:

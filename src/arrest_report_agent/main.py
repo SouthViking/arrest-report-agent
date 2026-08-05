@@ -10,7 +10,7 @@ from agents import flush_traces
 from arrest_report_agent.bootstrap import build_runtime
 from arrest_report_agent.bootstrap.health import serve_health
 from arrest_report_agent.config import load_settings
-from arrest_report_agent.config.logging import configure_logging, log_event
+from arrest_report_agent.config.logging import configure_logging, exception_fields, log_event
 
 LOGGER = logging.getLogger(__name__)
 
@@ -18,7 +18,18 @@ LOGGER = logging.getLogger(__name__)
 async def run() -> None:
     settings = load_settings()
     configure_logging(settings.log_level, json_indented=settings.log_json_indented)
-    runtime = build_runtime(settings)
+    try:
+        runtime = await build_runtime(settings)
+    except Exception as error:
+        log_event(
+            LOGGER,
+            "error",
+            "runtime_start_failed",
+            exc_info=error,
+            persona_id=settings.bot_persona,
+            **exception_fields(error),
+        )
+        raise
     health_server = await serve_health(settings.health_host, settings.health_port, runtime.health)
     guilds = settings.guild_allowlist
     channels = settings.channel_allowlist
@@ -35,6 +46,8 @@ async def run() -> None:
         service_tier=runtime.model.runtime_defaults.service_tier,
         model_catalog_schema_version=runtime.model.catalog_schema_version,
         pricing_version=runtime.model.pricing_version,
+        persona_id=runtime.persona.profile.id,
+        persona_revision=runtime.persona.profile.revision,
         guild_access_mode="restricted" if guilds.is_restricted else "open",
         configured_guilds=guilds.configured_count,
         channel_access_mode="restricted" if channels.is_restricted else "open",

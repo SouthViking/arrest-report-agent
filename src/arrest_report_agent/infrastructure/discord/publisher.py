@@ -8,7 +8,7 @@ import re
 
 import discord
 
-from arrest_report_agent.config import AppSettings
+from arrest_report_agent.config import AppSettings, BotPersona
 from arrest_report_agent.config.logging import log_event
 from arrest_report_agent.domain import FindingSeverity, ReviewPublication, ReviewVerdict
 from arrest_report_agent.domain.errors import PublicationError
@@ -20,10 +20,17 @@ LOGGER = logging.getLogger(__name__)
 
 
 class DiscordReviewPublisher:
-    def __init__(self, bot: discord.Bot, settings: AppSettings, target: ReviewTarget) -> None:
+    def __init__(
+        self,
+        bot: discord.Bot,
+        settings: AppSettings,
+        target: ReviewTarget,
+        persona: BotPersona,
+    ) -> None:
         self.bot = bot
         self.settings = settings
         self.target = target
+        self.persona = persona
         self._thread = target.thread
         self._escalation_roles_pinged = False
 
@@ -38,7 +45,7 @@ class DiscordReviewPublisher:
         if publication.verdict is ReviewVerdict.APPROVED:
             await self.target.root.add_reaction("✅")
             thread = await self._send_routed_payload(
-                embeds=build_review_embeds(publication, self.settings),
+                embeds=build_review_embeds(publication, self.persona),
             )
             if thread is not None:
                 await self._archive_bot_owned_thread(thread)
@@ -52,7 +59,7 @@ class DiscordReviewPublisher:
             mention, allowed_mentions = self._escalation_notice()
         await self._send_routed_payload(
             content=mention,
-            embeds=build_review_embeds(publication, self.settings),
+            embeds=build_review_embeds(publication, self.persona),
             allowed_mentions=allowed_mentions,
         )
 
@@ -221,13 +228,13 @@ class DiscordReviewPublisher:
         return roles
 
 
-def build_review_embed(publication: ReviewPublication, settings: AppSettings) -> discord.Embed:
+def build_review_embed(publication: ReviewPublication, persona: BotPersona) -> discord.Embed:
     """Build the primary embed; retained as a compact rendering helper for tests and previews."""
 
-    return build_review_embeds(publication, settings)[0]
+    return build_review_embeds(publication, persona)[0]
 
 
-def build_review_embeds(publication: ReviewPublication, settings: AppSettings) -> list[discord.Embed]:
+def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> list[discord.Embed]:
     """Split a structured review into Discord-safe embeds without dropping findings."""
 
     colors = {
@@ -241,7 +248,7 @@ def build_review_embeds(publication: ReviewPublication, settings: AppSettings) -
         ReviewVerdict.INCONCLUSIVE: "⚠️ Revisión inconclusa",
     }
     primary = discord.Embed(
-        title=f"{titles[publication.verdict]} · {settings.identity.display_name}",
+        title=f"{titles[publication.verdict]} · {persona.identity.display_name}",
         description=publication.summary,
         color=colors[publication.verdict],
     )
@@ -255,7 +262,7 @@ def build_review_embeds(publication: ReviewPublication, settings: AppSettings) -
         if index and index % 5 == 0:
             embeds.append(
                 discord.Embed(
-                    title=f"Continuación · {settings.identity.display_name}",
+                    title=f"Continuación · {persona.identity.display_name}",
                     color=colors[publication.verdict],
                 )
             )
@@ -297,7 +304,7 @@ def build_review_embeds(publication: ReviewPublication, settings: AppSettings) -
             value=publication.manual_review_reason[:1024],
             inline=False,
         )
-    conclusion.set_footer(text=settings.identity.role_title)
+    conclusion.set_footer(text=persona.identity.role_title)
     embeds.append(conclusion)
     return embeds[:10]
 

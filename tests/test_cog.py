@@ -53,6 +53,14 @@ class UnexpectedContextBuilder:
         raise AssertionError("Discord context must not be built for a blocked user")
 
 
+class RecordingProfileSynchronizer:
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+
+    async def synchronize(self) -> None:
+        self.events.append("profile")
+
+
 class FakePermissions:
     def __init__(self, *, view_channel: bool) -> None:
         self.view_channel = view_channel
@@ -93,10 +101,20 @@ class FakeGuild:
         return self.channels.get(channel_id)
 
 
-def test_operational_command_group_uses_distinct_wv_namespace() -> None:
-    assert ReviewCog.wv.name == "wv"
-    assert [command.name for command in ReviewCog.wv.subcommands] == [
-        "help",
+def test_operational_commands_are_registered_at_the_root() -> None:
+    commands = [
+        ReviewCog.review_help,
+        ReviewCog.report_guide,
+        ReviewCog.charge_search,
+        ReviewCog.report_faq,
+        ReviewCog.supervisor_pending,
+        ReviewCog.supervisor_ranking,
+        ReviewCog.personal_reports,
+        ReviewCog.personal_summary,
+    ]
+
+    assert [command.name for command in commands] == [
+        "ayuda",
         "guia",
         "cargos",
         "faq",
@@ -105,19 +123,20 @@ def test_operational_command_group_uses_distinct_wv_namespace() -> None:
         "mis-reportes",
         "mi-resumen",
     ]
+    assert all(command.parent is None for command in commands)
+    assert not hasattr(ReviewCog, "wv")
 
 
-def test_help_embed_uses_runtime_identity_channels_and_bot_mention() -> None:
+def test_help_embed_uses_runtime_identity_channels_and_bot_mention(persona) -> None:
     embed = build_help_embed(
-        display_name="Sgt. Rivera",
-        role_title="Watch Sergeant",
+        persona=persona,
         bot_mention="<@999>",
         channel_ids=frozenset({222, 111}),
         avatar_url="https://cdn.discordapp.com/avatar.png",
     )
 
-    assert embed.title == "⭐ Sgt. Rivera · Watch Sergeant"
-    assert "Sgt. Rivera" in embed.description
+    assert embed.title == f"⭐ {persona.identity.display_name} · {persona.identity.role_title}"
+    assert persona.identity.display_name in embed.description
     assert [field.name for field in embed.fields] == [
         "📋 Qué reviso",
         "📍 Dónde estoy de guardia",
@@ -131,24 +150,23 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention() -> None:
     assert embed.fields[1].value == "• <#111>\n• <#222>"
     assert "<@999>" in embed.fields[2].value
     assert "respondes directamente" in embed.fields[2].value
-    assert "/wv mis-reportes" in embed.fields[4].value
-    assert "/wv mi-resumen" in embed.fields[4].value
-    assert "/wv guia" in embed.fields[5].value
-    assert "/wv cargos" in embed.fields[5].value
-    assert "/wv faq" in embed.fields[5].value
-    assert "/wv pendientes" in embed.fields[6].value
-    assert "/wv ranking" in embed.fields[6].value
+    assert "/mis-reportes" in embed.fields[4].value
+    assert "/mi-resumen" in embed.fields[4].value
+    assert "/guia" in embed.fields[5].value
+    assert "/cargos" in embed.fields[5].value
+    assert "/faq" in embed.fields[5].value
+    assert "/pendientes" in embed.fields[6].value
+    assert "/ranking" in embed.fields[6].value
     assert embed.fields[7].value == (
         f"• [Código Penal]({PENAL_CODE_URL})\n• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"
     )
     assert embed.thumbnail.url == "https://cdn.discordapp.com/avatar.png"
-    assert "Walter Vigil" not in str(embed.to_dict())
+    assert persona.identity.default_form_of_address in embed.footer.text
 
 
-def test_help_embed_describes_unrestricted_channel_scope() -> None:
+def test_help_embed_describes_unrestricted_channel_scope(persona) -> None:
     embed = build_help_embed(
-        display_name="Sgt. Rivera",
-        role_title="Watch Sergeant",
+        persona=persona,
         bot_mention="<@999>",
         channel_ids=None,
     )
@@ -156,9 +174,34 @@ def test_help_embed_describes_unrestricted_channel_scope() -> None:
     assert embed.fields[1].value == "• Todos los canales del servidor"
 
 
-def test_wrong_channel_message_varies_copy_but_keeps_stable_format() -> None:
+@pytest.mark.asyncio
+async def test_ready_synchronizes_profile_before_presence(settings, persona) -> None:
+    events: list[str] = []
+
+    async def change_presence(**_kwargs) -> None:
+        events.append("presence")
+
+    bot = SimpleNamespace(
+        user=SimpleNamespace(id=999),
+        change_presence=change_presence,
+    )
+    cog = ReviewCog(
+        bot,
+        settings,
+        UnexpectedReviewService(),
+        persona,
+        RecordingProfileSynchronizer(events),
+    )  # type: ignore[arg-type]
+
+    await cog.on_ready()
+
+    assert events == ["profile", "presence"]
+
+
+def test_wrong_channel_message_varies_copy_but_keeps_stable_format(persona) -> None:
     messages = [
         build_wrong_channel_message(
+            form_of_address=persona.identity.default_form_of_address,
             channel_ids=(222, 111),
             message_id=message_id,
         )
@@ -183,8 +226,10 @@ def test_wrong_channel_message_varies_copy_but_keeps_stable_format() -> None:
 def test_wrong_channel_message_omits_references_when_no_destination_is_visible(
     availability: ReviewChannelAvailability,
     expected: str,
+    persona,
 ) -> None:
     message = build_wrong_channel_message(
+        form_of_address=persona.identity.default_form_of_address,
         channel_ids=(),
         message_id=1,
         availability=availability,
@@ -194,9 +239,12 @@ def test_wrong_channel_message_omits_references_when_no_destination_is_visible(
     assert "<#" not in message
 
 
-def test_unauthorized_user_message_varies_copy_but_keeps_stable_format() -> None:
+def test_unauthorized_user_message_varies_copy_but_keeps_stable_format(persona) -> None:
     messages = [
-        build_unauthorized_user_message(message_id=message_id)
+        build_unauthorized_user_message(
+            message_id=message_id,
+            form_of_address=persona.identity.default_form_of_address,
+        )
         for message_id in range(len(UNAUTHORIZED_USER_INTROS))
     ]
 
@@ -210,6 +258,7 @@ def test_unauthorized_user_message_varies_copy_but_keeps_stable_format() -> None
 @pytest.mark.asyncio
 async def test_wrong_channel_reply_to_bot_replies_once_without_running_agent(
     settings,
+    persona,
     monkeypatch,
 ) -> None:
     replies: list[dict[str, object]] = []
@@ -233,7 +282,7 @@ async def test_wrong_channel_reply_to_bot_replies_once_without_running_agent(
         "arrest_report_agent.infrastructure.discord.cog.discord.TextChannel",
         FakeReviewChannel,
     )
-    cog = ReviewCog(bot, settings, UnexpectedReviewService())  # type: ignore[arg-type]
+    cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
     message = SimpleNamespace(
         id=42,
         guild=guild,
@@ -265,6 +314,7 @@ async def test_wrong_channel_reply_to_bot_replies_once_without_running_agent(
 @pytest.mark.asyncio
 async def test_deleted_review_channels_are_omitted_and_cached(
     settings,
+    persona,
     monkeypatch,
 ) -> None:
     replies: list[dict[str, object]] = []
@@ -282,7 +332,7 @@ async def test_deleted_review_channels_are_omitted_and_cached(
         "arrest_report_agent.infrastructure.discord.cog.discord.TextChannel",
         FakeReviewChannel,
     )
-    cog = ReviewCog(bot, settings, UnexpectedReviewService())  # type: ignore[arg-type]
+    cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
     message = SimpleNamespace(
         id=43,
         guild=guild,
@@ -308,6 +358,7 @@ async def test_deleted_review_channels_are_omitted_and_cached(
 @pytest.mark.asyncio
 async def test_hidden_review_channels_are_not_disclosed(
     settings,
+    persona,
     monkeypatch,
 ) -> None:
     replies: list[dict[str, object]] = []
@@ -329,7 +380,7 @@ async def test_hidden_review_channels_are_not_disclosed(
         "arrest_report_agent.infrastructure.discord.cog.discord.TextChannel",
         FakeReviewChannel,
     )
-    cog = ReviewCog(bot, settings, UnexpectedReviewService())  # type: ignore[arg-type]
+    cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
     message = SimpleNamespace(
         id=44,
         guild=guild,
@@ -350,7 +401,7 @@ async def test_hidden_review_channels_are_not_disclosed(
 
 
 @pytest.mark.asyncio
-async def test_unauthorized_mention_replies_once_without_context_or_agent(settings) -> None:
+async def test_unauthorized_mention_replies_once_without_context_or_agent(settings, persona) -> None:
     replies: list[dict[str, object]] = []
 
     async def reply(**kwargs) -> None:
@@ -358,7 +409,7 @@ async def test_unauthorized_mention_replies_once_without_context_or_agent(settin
 
     restricted = settings.model_copy(update={"authorized_user_ids_csv": "321"})
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
-    cog = ReviewCog(bot, restricted, UnexpectedReviewService())  # type: ignore[arg-type]
+    cog = ReviewCog(bot, restricted, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
     cog.context_builder = UnexpectedContextBuilder()  # type: ignore[assignment]
     message = SimpleNamespace(
         id=42,
@@ -376,7 +427,10 @@ async def test_unauthorized_mention_replies_once_without_context_or_agent(settin
     assert len(replies) == 1
     assert replies[0]["mention_author"] is False
     assert isinstance(replies[0]["allowed_mentions"], discord.AllowedMentions)
-    assert replies[0]["content"] == build_unauthorized_user_message(message_id=42)
+    assert replies[0]["content"] == build_unauthorized_user_message(
+        message_id=42,
+        form_of_address=persona.identity.default_form_of_address,
+    )
 
 
 @pytest.mark.asyncio

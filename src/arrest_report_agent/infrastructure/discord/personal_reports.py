@@ -187,7 +187,7 @@ class DiscordPersonalReportFinder:
 
 
 class PersonalReportsModal(discord.ui.DesignerModal):
-    """Single-user filter modal for `/wv mis-reportes`."""
+    """Single-user filter modal for `/mis-reportes`."""
 
     def __init__(
         self,
@@ -444,7 +444,7 @@ def build_personal_summary_embed(
     display_name: str,
     now: datetime | None = None,
 ) -> discord.Embed:
-    """Render a private current-month snapshot for `/wv mi-resumen`."""
+    """Render a private current-month snapshot for `/mi-resumen`."""
 
     reference_time = now or datetime.now(UTC)
     summary = PersonalReportSummary.from_reports(result.reports)
@@ -463,7 +463,7 @@ def build_personal_summary_embed(
     )
     embed.add_field(
         name="Navegación rápida",
-        value="Use `/wv mis-reportes` para filtrar y abrir cada publicación o hilo.",
+        value="Use `/mis-reportes` para filtrar y abrir cada publicación o hilo.",
         inline=False,
     )
     footer = f"Estado actual según las reacciones de {display_name}"

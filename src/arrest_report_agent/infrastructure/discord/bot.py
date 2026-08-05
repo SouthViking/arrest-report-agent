@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import discord
 
-from arrest_report_agent.config import AppSettings
+from arrest_report_agent.config import AppSettings, BotPersona
 
 
-def create_bot(settings: AppSettings) -> discord.Bot:
+def create_bot(settings: AppSettings, persona: BotPersona) -> discord.Bot:
     """Create a bot with only the intents required by the review workflow."""
 
     guild_ids = settings.guild_allowlist.ids
@@ -17,6 +17,6 @@ def create_bot(settings: AppSettings) -> discord.Bot:
     intents.message_content = True
     return discord.Bot(
         intents=intents,
-        description=f"{settings.identity.display_name} · Revisión de reportes de arresto",
+        description=f"{persona.identity.display_name} · Revisión de reportes de arresto",
         debug_guilds=sorted(guild_ids) if guild_ids is not None else None,
     )

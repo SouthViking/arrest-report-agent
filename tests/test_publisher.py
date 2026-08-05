@@ -85,15 +85,15 @@ def publication(verdict: str) -> ReviewPublication:
     )
 
 
-def test_embed_is_structured_and_uses_runtime_identity(settings) -> None:
-    embed = build_review_embed(publication("corrections_required"), settings)
+def test_embed_is_structured_and_uses_runtime_identity(persona) -> None:
+    embed = build_review_embed(publication("corrections_required"), persona)
 
-    assert settings.identity.display_name in embed.title
+    assert persona.identity.display_name in embed.title
     assert embed.fields[0].name.endswith("Cronología")
     assert "Cómo corregirlo" in embed.fields[0].value
 
 
-def test_long_review_is_split_without_dropping_findings(settings) -> None:
+def test_long_review_is_split_without_dropping_findings(persona) -> None:
     findings = [
         ReviewFinding(
             severity=FindingSeverity.REQUIRED,
@@ -111,7 +111,7 @@ def test_long_review_is_split_without_dropping_findings(settings) -> None:
         next_step="Corregir y solicitar una nueva revisión.",
     )
 
-    embeds = build_review_embeds(review, settings)
+    embeds = build_review_embeds(review, persona)
     rendered_names = [field.name for embed in embeds for field in embed.fields]
 
     assert len(embeds) == 4
@@ -119,7 +119,7 @@ def test_long_review_is_split_without_dropping_findings(settings) -> None:
     assert all(len(embed) <= 6000 for embed in embeds)
 
 
-def test_long_charge_review_stays_within_discord_embed_limits(settings) -> None:
+def test_long_charge_review_stays_within_discord_embed_limits(persona) -> None:
     review = ReviewPublication(
         verdict="corrections_required",
         summary="Los cargos requieren ajustes.",
@@ -136,7 +136,7 @@ def test_long_charge_review_stays_within_discord_embed_limits(settings) -> None:
         next_step="Revisar los cargos y corregir el expediente.",
     )
 
-    embeds = build_review_embeds(review, settings)
+    embeds = build_review_embeds(review, persona)
 
     charge_embeds = [embed for embed in embeds if embed.title.startswith("⚖️")]
 
@@ -150,7 +150,7 @@ def test_long_charge_review_stays_within_discord_embed_limits(settings) -> None:
     assert all(len(embed) <= 6000 for embed in embeds)
 
 
-def test_charge_alignments_are_rendered_as_user_facing_spanish_labels(settings) -> None:
+def test_charge_alignments_are_rendered_as_user_facing_spanish_labels(persona) -> None:
     review = ReviewPublication(
         verdict="inconclusive",
         summary="Se revisaron los cargos declarados.",
@@ -166,7 +166,7 @@ def test_charge_alignments_are_rendered_as_user_facing_spanish_labels(settings) 
         next_step="Confirmar la información pendiente.",
     )
 
-    embeds = build_review_embeds(review, settings)
+    embeds = build_review_embeds(review, persona)
     charge_embed = next(embed for embed in embeds if embed.title.startswith("⚖️"))
     rendered = "\n".join(field.value for field in charge_embed.fields)
 
@@ -193,7 +193,7 @@ def test_charge_alignments_are_rendered_as_user_facing_spanish_labels(settings) 
 
 
 @pytest.mark.asyncio
-async def test_initial_mention_approval_uses_and_archives_thread(settings) -> None:
+async def test_initial_mention_approval_uses_and_archives_thread(settings, persona) -> None:
     root = FakeRoot()
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     target = ReviewTarget(
@@ -203,7 +203,7 @@ async def test_initial_mention_approval_uses_and_archives_thread(settings) -> No
         thread=None,
         response_route=DiscordResponseRoute.THREAD,
     )
-    publisher = DiscordReviewPublisher(bot, settings, target)
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
     await publisher.mark_review_started()
     await publisher.publish(publication("approved"))
@@ -216,7 +216,7 @@ async def test_initial_mention_approval_uses_and_archives_thread(settings) -> No
 
 
 @pytest.mark.asyncio
-async def test_correction_creates_thread_and_posts_embed(settings) -> None:
+async def test_correction_creates_thread_and_posts_embed(settings, persona) -> None:
     root = FakeRoot()
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     target = ReviewTarget(
@@ -226,7 +226,7 @@ async def test_correction_creates_thread_and_posts_embed(settings) -> None:
         thread=None,
         response_route=DiscordResponseRoute.THREAD,
     )
-    publisher = DiscordReviewPublisher(bot, settings, target)
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
     await publisher.publish(publication("corrections_required"))
 
@@ -236,7 +236,7 @@ async def test_correction_creates_thread_and_posts_embed(settings) -> None:
 
 
 @pytest.mark.asyncio
-async def test_failure_publishes_only_contextual_message_and_next_step(settings) -> None:
+async def test_failure_publishes_only_contextual_message_and_next_step(settings, persona) -> None:
     root = FakeRoot()
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     target = ReviewTarget(
@@ -246,7 +246,7 @@ async def test_failure_publishes_only_contextual_message_and_next_step(settings)
         thread=None,
         response_route=DiscordResponseRoute.THREAD,
     )
-    publisher = DiscordReviewPublisher(bot, settings, target)
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
     public_message = "La mesa de revisión alcanzó su capacidad operativa para este turno."
     await publisher.publish_failure(public_message)
@@ -263,7 +263,7 @@ async def test_failure_publishes_only_contextual_message_and_next_step(settings)
 
 
 @pytest.mark.asyncio
-async def test_failure_mentions_only_existing_configured_roles_once(settings) -> None:
+async def test_failure_mentions_only_existing_configured_roles_once(settings, persona) -> None:
     roles = {
         111: SimpleNamespace(id=111, mention="<@&111>"),
         333: SimpleNamespace(id=333, mention="<@&333>"),
@@ -279,7 +279,7 @@ async def test_failure_mentions_only_existing_configured_roles_once(settings) ->
         thread=None,
         response_route=DiscordResponseRoute.THREAD,
     )
-    publisher = DiscordReviewPublisher(bot, settings, target)
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
     await publisher.publish_failure("No pude completar la revisión con seguridad.")
     await publisher.publish_failure("El segundo aviso no debe repetir la derivación.")
@@ -295,7 +295,7 @@ async def test_failure_mentions_only_existing_configured_roles_once(settings) ->
 
 
 @pytest.mark.asyncio
-async def test_inconclusive_review_uses_the_same_escalation_roles(settings) -> None:
+async def test_inconclusive_review_uses_the_same_escalation_roles(settings, persona) -> None:
     role = SimpleNamespace(id=111, mention="<@&111>")
     guild = SimpleNamespace(id=10, get_role=lambda role_id: role if role_id == 111 else None)
     settings.review_escalation_role_ids_csv = "111"
@@ -308,7 +308,7 @@ async def test_inconclusive_review_uses_the_same_escalation_roles(settings) -> N
         thread=None,
         response_route=DiscordResponseRoute.THREAD,
     )
-    publisher = DiscordReviewPublisher(bot, settings, target)
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
     await publisher.publish(publication("inconclusive"))
 
@@ -319,11 +319,11 @@ async def test_inconclusive_review_uses_the_same_escalation_roles(settings) -> N
 
 
 @pytest.mark.asyncio
-async def test_natural_reply_is_simple_and_does_not_create_review_state(settings) -> None:
+async def test_natural_reply_is_simple_and_does_not_create_review_state(settings, persona) -> None:
     root = FakeRoot()
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     target = ReviewTarget(root=root, trigger=root, parent=SimpleNamespace(), thread=None)
-    publisher = DiscordReviewPublisher(bot, settings, target)
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
     await publisher.send_message("A la orden, deputy. ¿Qué punto del manual necesita revisar?")
 
@@ -334,7 +334,7 @@ async def test_natural_reply_is_simple_and_does_not_create_review_state(settings
 
 
 @pytest.mark.asyncio
-async def test_mention_conversation_reuses_existing_thread(settings) -> None:
+async def test_mention_conversation_reuses_existing_thread(settings, persona) -> None:
     thread = FakeThread(owner_id=123)
     root = FakeRoot(thread=thread)
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
@@ -345,7 +345,7 @@ async def test_mention_conversation_reuses_existing_thread(settings) -> None:
         thread=thread,
         response_route=DiscordResponseRoute.THREAD,
     )
-    publisher = DiscordReviewPublisher(bot, settings, target)
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
     await publisher.send_message("A la orden, deputy.")
 
@@ -355,7 +355,7 @@ async def test_mention_conversation_reuses_existing_thread(settings) -> None:
 
 
 @pytest.mark.asyncio
-async def test_inline_reply_review_never_creates_thread(settings) -> None:
+async def test_inline_reply_review_never_creates_thread(settings, persona) -> None:
     root = FakeRoot()
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     target = ReviewTarget(
@@ -365,7 +365,7 @@ async def test_inline_reply_review_never_creates_thread(settings) -> None:
         thread=None,
         response_route=DiscordResponseRoute.INLINE_REPLY,
     )
-    publisher = DiscordReviewPublisher(bot, settings, target)
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
     await publisher.publish(publication("corrections_required"))
 

@@ -138,7 +138,7 @@ def test_render_sends_supported_documents_as_file_url_inputs() -> None:
     assert not any(part["type"] == "input_image" for part in content)
 
 
-def test_attachment_selection_includes_files_and_rejects_unsupported_types(settings) -> None:
+def test_attachment_selection_includes_files_and_rejects_unsupported_types(settings, persona) -> None:
     def attachment(
         attachment_id: int,
         filename: str,
@@ -175,7 +175,7 @@ def test_attachment_selection_includes_files_and_rejects_unsupported_types(setti
         thread=SimpleNamespace(id=11),
     )
 
-    selected, notices = DiscordContextBuilder(settings)._select_attachments(
+    selected, notices = DiscordContextBuilder(settings, persona)._select_attachments(
         [root, trigger],
         target,
     )
@@ -187,7 +187,9 @@ def test_attachment_selection_includes_files_and_rejects_unsupported_types(setti
     assert notices == ["Se omitió el archivo no compatible 'material.zip'."]
 
 
-def test_attachment_selection_limits_historical_files_separately_from_images(settings) -> None:
+def test_attachment_selection_limits_historical_files_separately_from_images(
+    settings, persona
+) -> None:
     settings.thread_context_max_historical_files = 1
     settings.thread_context_max_historical_images = 1
 
@@ -220,7 +222,7 @@ def test_attachment_selection_limits_historical_files_separately_from_images(set
         thread=SimpleNamespace(id=11),
     )
 
-    selected, notices = DiscordContextBuilder(settings)._select_attachments(
+    selected, notices = DiscordContextBuilder(settings, persona)._select_attachments(
         [root, old_file, recent_file, old_image, recent_image, trigger],
         target,
     )
@@ -230,7 +232,7 @@ def test_attachment_selection_limits_historical_files_separately_from_images(set
     assert "Se limitaron las imágenes históricas del hilo." in notices
 
 
-def test_bot_embed_content_is_preserved_in_thread_history(settings) -> None:
+def test_bot_embed_content_is_preserved_in_thread_history(settings, persona) -> None:
     author = SimpleNamespace(id=999, display_name="Sgt. Vigil", name="Sgt. Vigil", bot=True)
     embed = SimpleNamespace(
         title="❌ Correcciones requeridas",
@@ -260,7 +262,9 @@ def test_bot_embed_content_is_preserved_in_thread_history(settings) -> None:
         thread=SimpleNamespace(id=3),
     )
 
-    converted, truncated = DiscordContextBuilder(settings)._convert_messages([message], target)
+    converted, truncated = DiscordContextBuilder(settings, persona)._convert_messages(
+        [message], target
+    )
 
     assert truncated is False
     assert "Título: ❌ Correcciones requeridas" in converted[0].content
@@ -335,7 +339,7 @@ def test_render_describes_inline_reply_without_delegating_routing() -> None:
     )
 
 
-def test_context_trimming_preserves_root_and_current_request(settings) -> None:
+def test_context_trimming_preserves_root_and_current_request(settings, persona) -> None:
     settings.thread_context_max_chars = 500
     settings.thread_context_max_message_chars = 300
 
@@ -360,7 +364,7 @@ def test_context_trimming_preserves_root_and_current_request(settings) -> None:
         parent=SimpleNamespace(id=20),
         thread=SimpleNamespace(id=1),
     )
-    builder = DiscordContextBuilder(settings)
+    builder = DiscordContextBuilder(settings, persona)
 
     converted, truncated = builder._convert_messages([root, old, trigger], target)
 
@@ -370,7 +374,9 @@ def test_context_trimming_preserves_root_and_current_request(settings) -> None:
 
 
 @pytest.mark.asyncio
-async def test_response_route_is_derived_from_activation_and_channel(settings, monkeypatch) -> None:
+async def test_response_route_is_derived_from_activation_and_channel(
+    settings, persona, monkeypatch
+) -> None:
     class FakeTextChannel:
         def __init__(self) -> None:
             self.id = 20
@@ -388,7 +394,7 @@ async def test_response_route_is_derived_from_activation_and_channel(settings, m
         "arrest_report_agent.infrastructure.discord.context.discord.Thread",
         FakeThread,
     )
-    builder = DiscordContextBuilder(settings)
+    builder = DiscordContextBuilder(settings, persona)
     parent = FakeTextChannel()
     mention = SimpleNamespace(channel=parent, thread=None)
     reply = SimpleNamespace(channel=parent, thread=None)
@@ -403,6 +409,7 @@ async def test_response_route_is_derived_from_activation_and_channel(settings, m
 @pytest.mark.asyncio
 async def test_existing_thread_history_uses_message_limit_and_preserves_root_and_trigger(
     settings,
+    persona,
 ) -> None:
     settings.thread_context_max_messages = 2
 
@@ -452,7 +459,7 @@ async def test_existing_thread_history_uses_message_limit_and_preserves_root_and
     )
 
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
-    case = await DiscordContextBuilder(settings, bot).build_case(target)
+    case = await DiscordContextBuilder(settings, persona, bot).build_case(target)
 
     assert [item.id for item in case.messages] == [1, 2, 3]
     assert case.context_state is ContextState.TRUNCATED
@@ -468,7 +475,7 @@ async def test_existing_thread_history_uses_message_limit_and_preserves_root_and
     }
 
 
-def test_only_authenticated_discord_bot_is_rendered_as_assistant(settings) -> None:
+def test_only_authenticated_discord_bot_is_rendered_as_assistant(settings, persona) -> None:
     def message(message_id: int, author_id: int, *, bot: bool) -> SimpleNamespace:
         author = SimpleNamespace(
             id=author_id,
@@ -498,7 +505,7 @@ def test_only_authenticated_discord_bot_is_rendered_as_assistant(settings) -> No
         thread=SimpleNamespace(id=30),
     )
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
-    builder = DiscordContextBuilder(settings, bot)
+    builder = DiscordContextBuilder(settings, persona, bot)
 
     converted, _ = builder._convert_messages(
         [human, own_bot, external_bot, trigger],
@@ -661,7 +668,7 @@ def test_assistant_attachments_are_reintroduced_as_user_input_context() -> None:
 
 
 @pytest.mark.asyncio
-async def test_context_includes_only_brief_relevant_requester_role_names(settings) -> None:
+async def test_context_includes_only_brief_relevant_requester_role_names(settings, persona) -> None:
     def role(
         role_id: int,
         name: str,
@@ -708,7 +715,7 @@ async def test_context_includes_only_brief_relevant_requester_role_names(setting
         thread=None,
     )
 
-    case = await DiscordContextBuilder(settings).build_case(target)
+    case = await DiscordContextBuilder(settings, persona).build_case(target)
 
     assert case.requester_display_name == "Charles Harrington"
     assert case.requester_role_names == [

@@ -2,15 +2,31 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import discord
 from agents import set_default_openai_key
 
 from arrest_report_agent.application import ReviewService
-from arrest_report_agent.config import AppSettings, ModelCatalog, ResolvedModel
-from arrest_report_agent.infrastructure.discord import ReviewCog, create_bot
+from arrest_report_agent.config import (
+    AppSettings,
+    LoadedPersona,
+    ModelCatalog,
+    PackagedPersonaProvider,
+    PersonaProvider,
+    ResolvedModel,
+    load_global_profile_banner,
+)
+from arrest_report_agent.config.logging import log_event
+from arrest_report_agent.infrastructure.discord import (
+    DiscordProfileSynchronizer,
+    ReviewCog,
+    create_bot,
+)
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -19,6 +35,7 @@ class Runtime:
     catalog: ChargeCatalog
     guide: ReportGuide
     model: ResolvedModel
+    persona: LoadedPersona
 
     async def health(self) -> dict[str, object]:
         discord_ready = self.bot.is_ready()
@@ -28,10 +45,24 @@ class Runtime:
             "discord": discord_ready,
             "knowledge": knowledge_ready,
             "charges": self.catalog.charge_count,
+            "persona": self.persona.profile.id,
+            "persona_revision": self.persona.profile.revision,
         }
 
 
-def build_runtime(settings: AppSettings) -> Runtime:
+async def build_runtime(
+    settings: AppSettings,
+    persona_provider: PersonaProvider | None = None,
+) -> Runtime:
+    persona = await (persona_provider or PackagedPersonaProvider()).load(settings.bot_persona)
+    log_event(
+        LOGGER,
+        "info",
+        "persona_loaded",
+        persona_id=persona.profile.id,
+        persona_revision=persona.profile.revision,
+        persona_schema_version=persona.profile.schema_version,
+    )
     set_default_openai_key(settings.openai_api_key.get_secret_value(), use_for_tracing=True)
     catalog = ChargeCatalog.load_default()
     guide = ReportGuide.load_default()
@@ -39,7 +70,12 @@ def build_runtime(settings: AppSettings) -> Runtime:
         settings.openai_model,
         settings.openai_reasoning_effort,
     )
-    bot = create_bot(settings)
-    service = ReviewService(settings, catalog, guide, model)
-    bot.add_cog(ReviewCog(bot, settings, service))
-    return Runtime(bot=bot, catalog=catalog, guide=guide, model=model)
+    bot = create_bot(settings, persona.profile)
+    service = ReviewService(settings, catalog, guide, model, persona.profile)
+    profile_synchronizer = DiscordProfileSynchronizer(
+        bot,
+        persona,
+        global_banner_bytes=load_global_profile_banner(),
+    )
+    bot.add_cog(ReviewCog(bot, settings, service, persona.profile, profile_synchronizer))
+    return Runtime(bot=bot, catalog=catalog, guide=guide, model=model, persona=persona)

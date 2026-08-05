@@ -13,7 +13,7 @@ from agents import set_default_openai_key
 from pydantic import ValidationError
 
 from arrest_report_agent.application import ReviewRunContext, ReviewService
-from arrest_report_agent.config import AppSettings, ModelCatalog
+from arrest_report_agent.config import AppSettings, ModelCatalog, PackagedPersonaProvider
 from arrest_report_agent.domain import (
     ConversationMessage,
     InteractionMode,
@@ -85,11 +85,13 @@ async def _run_agent(
     )
     publisher = InMemoryPublisher()
     context = ReviewRunContext(case=case, publisher=publisher, attempt=1)
+    persona = (await PackagedPersonaProvider().load(settings.bot_persona)).profile
     service = ReviewService(
         settings,
         ChargeCatalog.load_default(),
         ReportGuide.load_default(),
         model,
+        persona,
     )
 
     await service.review(

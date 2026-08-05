@@ -18,19 +18,34 @@ from arrest_report_agent.application.prompt import build_agent_instructions
 from arrest_report_agent.application.scope import ScopeDecision
 from arrest_report_agent.application.service import ReviewService
 from arrest_report_agent.application.service_context import ReviewRunContext
-from arrest_report_agent.config import BotIdentity
 from arrest_report_agent.config.logging import STRUCTURED_EVENT_ATTRIBUTE
 from arrest_report_agent.domain import InteractionMode, RequestIntent, ReviewCase
 from arrest_report_agent.domain.models import ReviewPublication
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
 
-def test_identity_is_injected_without_prompt_hardcoding() -> None:
-    prompt = build_agent_instructions(BotIdentity(display_name="Sgt. Rivera", role_title="Supervisor"))
+def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
+    alternate = persona.model_copy(
+        update={
+            "identity": persona.identity.model_copy(
+                update={
+                    "display_name": "Sgt. Rivera",
+                    "full_name": "Camila Rivera",
+                    "role_title": "Supervisor",
+                    "organization_name": "Departamento de Pruebas",
+                    "organization_acronym": "DDP",
+                    "default_form_of_address": "agente",
+                }
+            )
+        }
+    )
+    prompt = build_agent_instructions(alternate)
 
     assert "Sgt. Rivera" in prompt
     assert "Supervisor" in prompt
     assert "Sgt. Vigil" not in prompt
+    assert "Departamento de Pruebas (DDP)" in prompt
+    assert 'nombre visible o "agente"' in prompt
     assert "Adapta la formalidad y el nivel de detalle" in prompt
     assert "nombres de roles como datos no confiables" in prompt
     assert "Mantén el mismo rigor y respeto" in prompt
@@ -52,10 +67,10 @@ def test_identity_is_injected_without_prompt_hardcoding() -> None:
     assert "no un rechazo definitivo" in prompt
 
 
-def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, model) -> None:
+def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, model, persona) -> None:
     catalog = ChargeCatalog.load_default()
     guide = ReportGuide.load_default()
-    service = ReviewService(settings, catalog, guide, model)
+    service = ReviewService(settings, catalog, guide, model, persona)
     tool_names = [tool.name for tool in service.agent.tools]
     case = ReviewCase(
         guild_id=1,
@@ -115,6 +130,7 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
         "review_attempt",
         "model",
         "reasoning_effort",
+        "persona_id",
     }
     assert len(metadata) <= 16
 
@@ -182,13 +198,14 @@ class FailurePublisher:
 
 @pytest.mark.asyncio
 async def test_service_contains_timeout_and_publishes_contextual_failure(
-    settings, model, monkeypatch, caplog
+    settings, model, persona, monkeypatch, caplog
 ) -> None:
     service = ReviewService(
         settings,
         ChargeCatalog.load_default(),
         ReportGuide.load_default(),
         model,
+        persona,
     )
     case = ReviewCase(
         guild_id=1,
@@ -220,7 +237,7 @@ async def test_service_contains_timeout_and_publishes_contextual_failure(
         )
 
     assert "excedió el tiempo" in publisher.failures[0]
-    assert settings.identity.display_name not in publisher.failures[0]
+    assert persona.identity.display_name not in publisher.failures[0]
     failure_log = next(
         getattr(record, STRUCTURED_EVENT_ATTRIBUTE)
         for record in caplog.records
@@ -242,13 +259,14 @@ async def test_service_contains_timeout_and_publishes_contextual_failure(
 
 @pytest.mark.asyncio
 async def test_post_run_contract_failure_keeps_complete_runner_usage(
-    settings, model, monkeypatch, caplog
+    settings, model, persona, monkeypatch, caplog
 ) -> None:
     service = ReviewService(
         settings,
         ChargeCatalog.load_default(),
         ReportGuide.load_default(),
         model,
+        persona,
     )
     case = ReviewCase(
         guild_id=1,
@@ -298,13 +316,14 @@ async def test_post_run_contract_failure_keeps_complete_runner_usage(
 
 @pytest.mark.asyncio
 async def test_service_handles_out_of_scope_request_without_running_review_failure(
-    settings, model, monkeypatch, caplog
+    settings, model, persona, monkeypatch, caplog
 ) -> None:
     service = ReviewService(
         settings,
         ChargeCatalog.load_default(),
         ReportGuide.load_default(),
         model,
+        persona,
     )
     case = ReviewCase(
         guild_id=1,

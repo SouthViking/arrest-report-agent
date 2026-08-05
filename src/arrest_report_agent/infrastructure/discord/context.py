@@ -8,7 +8,7 @@ from typing import Any
 
 import discord
 
-from arrest_report_agent.config import AppSettings
+from arrest_report_agent.config import AppSettings, BotPersona
 from arrest_report_agent.domain import (
     ContextState,
     ConversationMessage,
@@ -43,9 +43,15 @@ class ReviewTarget:
 
 
 class DiscordContextBuilder:
-    def __init__(self, settings: AppSettings, bot: discord.Client | None = None) -> None:
+    def __init__(
+        self,
+        settings: AppSettings,
+        persona: BotPersona,
+        bot: discord.Client | None = None,
+    ) -> None:
         self.settings = settings
         self.bot = bot
+        self.persona = persona
 
     async def resolve_target(
         self,
@@ -113,7 +119,7 @@ class DiscordContextBuilder:
         if attachment_notices:
             notices.extend(attachment_notices)
             context_state = ContextState.TRUNCATED
-        subject = _case_subject(target.root, self.settings.identity.display_name)
+        subject = _case_subject(target.root, self.persona.identity.display_name)
         requester = target.trigger.author
         return ReviewCase(
             guild_id=target.root.guild.id,

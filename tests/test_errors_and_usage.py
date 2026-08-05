@@ -19,7 +19,7 @@ def response(status_code: int) -> httpx.Response:
     return httpx.Response(status_code, request=request)
 
 
-def test_error_classifier_distinguishes_quota_and_rate_limit(settings) -> None:
+def test_error_classifier_distinguishes_quota_and_rate_limit(persona) -> None:
     quota = openai.RateLimitError(
         "quota",
         response=response(429),
@@ -38,7 +38,7 @@ def test_error_classifier_distinguishes_quota_and_rate_limit(settings) -> None:
     assert "crédito" not in message.casefold()
     assert "openai" not in message.casefold()
     assert "servicio" not in message.casefold()
-    assert settings.identity.display_name not in message
+    assert persona.identity.display_name not in message
     assert "informa" not in message
 
 

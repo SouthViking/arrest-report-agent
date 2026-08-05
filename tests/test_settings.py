@@ -8,16 +8,12 @@ from pydantic import ValidationError
 from arrest_report_agent.config import AppSettings
 
 
-def test_settings_parse_channel_ids_and_identity(settings: AppSettings) -> None:
+def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings) -> None:
     assert settings.discord_guild_ids == frozenset({1234674521416663070})
     assert settings.review_channel_ids == frozenset(
         {1462992794569281617, 1462992859761217745}
     )
-    assert settings.identity.display_name == "Sgt. Vigil"
-    assert settings.bot_idle_activity == "⭐ De guardia"
-    assert settings.bot_conversation_activity == "📻 Atendiendo consultas"
-    assert settings.bot_knowledge_activity == "🔎 Consultando el código"
-    assert settings.bot_review_activity == "📂 Revisando expedientes"
+    assert settings.bot_persona == "walter_vigil"
     assert settings.authorized_user_ids is None
     assert settings.user_allowlist.allows(999) is True
     assert settings.supervisor_role_ids is None
@@ -174,15 +170,14 @@ def test_legacy_singular_guild_variable_remains_supported() -> None:
     assert settings.discord_guild_ids == frozenset({123})
 
 
-def test_legacy_busy_presence_variable_remains_supported() -> None:
-    settings = AppSettings(
-        _env_file=None,
-        DISCORD_TOKEN="discord",
-        OPENAI_API_KEY="openai",
-        BOT_BUSY_ACTIVITY="📁 Revisando archivos",
-    )
-
-    assert settings.bot_review_activity == "📁 Revisando archivos"
+def test_missing_persona_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("BOT_PERSONA", raising=False)
+    with pytest.raises(ValidationError):
+        AppSettings(
+            _env_file=None,
+            DISCORD_TOKEN="discord",
+            OPENAI_API_KEY="openai",
+        )
 
 
 def test_empty_secret_is_rejected() -> None:
@@ -206,6 +201,7 @@ def test_default_env_template_values_are_parseable(tmp_path) -> None:
     settings = AppSettings(_env_file=env_file)
 
     assert settings.thread_auto_archive_minutes == 1440
+    assert settings.bot_persona == "walter_vigil"
     assert settings.discord_guild_ids == frozenset({1234674521416663070})
     assert settings.authorized_user_ids is None
     assert settings.supervisor_role_ids is None
