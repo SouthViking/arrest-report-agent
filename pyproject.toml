@@ -34,6 +34,9 @@ dependencies = {file = ["requirements.txt"]}
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "ai_eval: live evaluation that calls the configured OpenAI model and consumes credits",
+]
 
 [tool.ruff]
 line-length = 110

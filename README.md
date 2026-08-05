@@ -202,9 +202,22 @@ tokens de salida. Estas cifras son estimaciones operativas y no reemplazan la fa
 .venv/bin/mypy
 ```
 
-Las pruebas no llaman a Discord ni a OpenAI. Cubren catálogo, configuración, trigger, contexto
-multimodal y documental, efectos inmediatos de las tools, embeds, clasificación de errores, metadata
-y costos.
+La suite predeterminada no llama a Discord ni a OpenAI. Cubre catálogo, configuración, trigger,
+contexto multimodal y documental, efectos inmediatos de las tools, embeds, clasificación de errores,
+metadata y costos.
+
+También existe una suite de evaluaciones reales del agente, marcada como `ai_eval` y omitida por
+defecto para impedir consumo accidental. Usa el prompt, guardrail, Runner, modelo y tools de
+producción, pero reemplaza Discord por un publicador en memoria. Requiere una `OPENAI_API_KEY` válida
+en el entorno o en `.env` y se habilita de forma explícita:
+
+```bash
+# Ejecutar un solo comportamiento para controlar el gasto.
+.venv/bin/pytest tests/ai_eval -k spelling --run-ai-evals -q
+
+# Ejecutar todos los casos; cada uno consume créditos.
+.venv/bin/pytest tests/ai_eval --run-ai-evals -q
+```
 
 ## Límites del MVP
 
