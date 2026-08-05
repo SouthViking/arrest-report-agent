@@ -98,6 +98,7 @@ class AppSettings(BaseSettings):
     )
     review_channel_ids_csv: str = Field(default="*", alias="REVIEW_CHANNEL_IDS")
     authorized_user_ids_csv: str = Field(default="*", alias="AUTHORIZED_USER_IDS")
+    supervisor_role_ids_csv: str = Field(default="*", alias="SUPERVISOR_ROLE_IDS")
     review_escalation_role_ids_csv: str = Field(
         default="",
         validation_alias=AliasChoices("REVIEW_ESCALATION_ROLE_IDS", "MANUAL_REVIEW_ROLE_ID"),
@@ -203,6 +204,7 @@ class AppSettings(BaseSettings):
             self.guild_allowlist,
             self.channel_allowlist,
             self.user_allowlist,
+            self.supervisor_role_allowlist,
             self.review_escalation_role_ids,
         )
         return self
@@ -229,6 +231,13 @@ class AppSettings(BaseSettings):
         )
 
     @property
+    def supervisor_role_allowlist(self) -> SnowflakeAllowlist:
+        return SnowflakeAllowlist.parse(
+            self.supervisor_role_ids_csv,
+            variable_name="SUPERVISOR_ROLE_IDS",
+        )
+
+    @property
     def review_escalation_role_ids(self) -> tuple[int, ...]:
         return parse_configured_snowflakes(
             self.review_escalation_role_ids_csv,
@@ -246,6 +255,10 @@ class AppSettings(BaseSettings):
     @property
     def authorized_user_ids(self) -> frozenset[int] | None:
         return self.user_allowlist.ids
+
+    @property
+    def supervisor_role_ids(self) -> frozenset[int] | None:
+        return self.supervisor_role_allowlist.ids
 
     @property
     def identity(self) -> BotIdentity:

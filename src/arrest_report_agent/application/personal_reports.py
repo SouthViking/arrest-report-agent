@@ -72,6 +72,8 @@ class PersonalReport:
     status: PersonalReportStatus
     post_url: str
     thread_url: str | None = None
+    author_id: int | None = None
+    author_display_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

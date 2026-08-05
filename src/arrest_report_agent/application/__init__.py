@@ -11,6 +11,11 @@ from .personal_reports import (
 )
 from .service import ReviewService
 from .service_context import ReviewRunContext
+from .supervision import (
+    SupervisorRankingEntry,
+    SupervisorRankingMetric,
+    build_supervisor_ranking,
+)
 
 __all__ = [
     "PersonalReport",
@@ -22,4 +27,7 @@ __all__ = [
     "PersonalReportSummary",
     "ReviewRunContext",
     "ReviewService",
+    "SupervisorRankingEntry",
+    "SupervisorRankingMetric",
+    "build_supervisor_ranking",
 ]

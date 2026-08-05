@@ -100,6 +100,8 @@ def test_operational_command_group_uses_distinct_wv_namespace() -> None:
         "guia",
         "cargos",
         "faq",
+        "pendientes",
+        "ranking",
         "mis-reportes",
         "mi-resumen",
     ]
@@ -123,6 +125,7 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention() -> None:
         "🧵 Qué haré con el expediente",
         "🗂️ Consultas privadas",
         "📚 Consultas generales",
+        "🛡️ Supervisión",
         "📚 Documentación oficial",
     ]
     assert embed.fields[1].value == "• <#111>\n• <#222>"
@@ -133,7 +136,9 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention() -> None:
     assert "/wv guia" in embed.fields[5].value
     assert "/wv cargos" in embed.fields[5].value
     assert "/wv faq" in embed.fields[5].value
-    assert embed.fields[6].value == (
+    assert "/wv pendientes" in embed.fields[6].value
+    assert "/wv ranking" in embed.fields[6].value
+    assert embed.fields[7].value == (
         f"• [Código Penal]({PENAL_CODE_URL})\n• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"
     )
     assert embed.thumbnail.url == "https://cdn.discordapp.com/avatar.png"

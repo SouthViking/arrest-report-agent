@@ -109,9 +109,44 @@ class DiscordPersonalReportFinder:
         *,
         now: datetime | None = None,
     ) -> PersonalReportSearchResult:
+        return await self._find(
+            guild,
+            member,
+            query,
+            author_id=member.id,
+            now=now,
+        )
+
+    async def find_all(
+        self,
+        guild: discord.Guild,
+        viewer: discord.Member,
+        query: PersonalReportQuery,
+        *,
+        now: datetime | None = None,
+    ) -> PersonalReportSearchResult:
+        """Return reports from every human author visible to a supervisor."""
+
+        return await self._find(
+            guild,
+            viewer,
+            query,
+            author_id=None,
+            now=now,
+        )
+
+    async def _find(
+        self,
+        guild: discord.Guild,
+        viewer: discord.Member,
+        query: PersonalReportQuery,
+        *,
+        author_id: int | None,
+        now: datetime | None,
+    ) -> PersonalReportSearchResult:
         reference_time = now or datetime.now(UTC)
         after = query.period.starts_at(reference_time)
-        channels = self.visible_channels(guild, member)
+        channels = self.visible_channels(guild, viewer)
         if query.channel_id is not None:
             channels = tuple(channel for channel in channels if channel.id == query.channel_id)
 
@@ -127,7 +162,7 @@ class DiscordPersonalReportFinder:
                 ):
                     scanned += 1
                     status = _status_from_bot_reactions(message)
-                    if not _is_report_candidate(message, member.id, status):
+                    if not _is_report_candidate(message, author_id, status):
                         continue
                     if not query.status.includes(status):
                         continue
@@ -140,7 +175,7 @@ class DiscordPersonalReportFinder:
                     exc_info=error,
                     guild_id=guild.id,
                     channel_id=channel.id,
-                    user_id=member.id,
+                    user_id=viewer.id,
                     **exception_fields(error),
                 )
                 continue
@@ -462,10 +497,12 @@ def _status_from_bot_reactions(message: discord.Message) -> PersonalReportStatus
 
 def _is_report_candidate(
     message: discord.Message,
-    member_id: int,
+    member_id: int | None,
     status: PersonalReportStatus,
 ) -> bool:
-    if message.author.id != member_id or message.author.bot or message.webhook_id is not None:
+    if member_id is not None and message.author.id != member_id:
+        return False
+    if message.author.bot or message.webhook_id is not None:
         return False
     if message.reference is not None:
         return False
@@ -489,6 +526,8 @@ def _to_personal_report(
         status=status,
         post_url=message.jump_url,
         thread_url=thread_url,
+        author_id=message.author.id,
+        author_display_name=_author_display_name(message.author),
     )
 
 
@@ -499,3 +538,10 @@ def _report_title(message: discord.Message) -> str:
     if not normalized:
         normalized = f"Expediente #{str(message.id)[-6:]}"
     return discord.utils.escape_markdown(normalized)[:80]
+
+
+def _author_display_name(author: discord.User | discord.Member) -> str:
+    display_name = getattr(author, "display_name", None)
+    if not display_name:
+        display_name = getattr(author, "global_name", None) or getattr(author, "name", None)
+    return str(display_name or f"Usuario {author.id}")

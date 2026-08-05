@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from math import ceil
-from typing import Mapping, cast
+from typing import cast
 
 import discord
 
@@ -89,7 +90,8 @@ FAQ_ENTRIES = (
         question="¿Debo seguir una plantilla exacta?",
         answer=(
             "No. La estructura indicada es un orden recomendado.",
-            "No todos los incidentes requieren cada etapa ni el mismo orden; se evalúan coherencia y suficiencia.",
+            "No todos los incidentes requieren cada etapa ni el mismo orden; "
+            "se evalúan coherencia y suficiencia.",
         ),
         guide_section="narrative_structure",
     ),
@@ -137,7 +139,8 @@ FAQ_ENTRIES = (
         category="Evidencia",
         question="¿Cuándo una descripción física requiere corrección?",
         answer=(
-            "Solo ante una contradicción clara, relevante y visible con una característica afirmada expresamente.",
+            "Solo ante una contradicción clara, relevante y visible con una característica "
+            "afirmada expresamente.",
             "Una diferencia dudosa se trata como observación, no como corrección obligatoria.",
         ),
         guide_section="physical_description",

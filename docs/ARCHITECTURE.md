@@ -80,6 +80,11 @@ editan el mismo mensaje, mientras que la búsqueda de cargos resuelve localmente
 categoría y descripción con un límite acotado de resultados.
 
 El contrato funcional completo de los comandos está documentado en [Comandos de Discord](COMMANDS.md).
+
+Los comandos `/wv pendientes` y `/wv ranking` reutilizan el mismo finder acotado, pero permiten
+consultar autores distintos al solicitante. Una política de roles independiente se construye desde
+`SUPERVISOR_ROLE_IDS` y se aplica antes de cualquier lectura; esta frontera permite reemplazar la
+configuración por guild desde una base de datos sin modificar las vistas ni las agregaciones.
 - `bootstrap`: composición de dependencias y healthcheck.
 
 ## Herramientas del agente

@@ -23,6 +23,7 @@ async def run() -> None:
     guilds = settings.guild_allowlist
     channels = settings.channel_allowlist
     users = settings.user_allowlist
+    supervisor_roles = settings.supervisor_role_allowlist
     log_event(
         LOGGER,
         "info",
@@ -40,6 +41,10 @@ async def run() -> None:
         configured_channels=channels.configured_count,
         user_access_mode="restricted" if users.is_restricted else "open",
         configured_users=users.configured_count,
+        supervisor_access_mode=(
+            "restricted" if supervisor_roles.is_restricted else "open"
+        ),
+        configured_supervisor_roles=supervisor_roles.configured_count,
     )
     try:
         await runtime.bot.start(settings.discord_token.get_secret_value())

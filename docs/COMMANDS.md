@@ -14,12 +14,18 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/wv guia` | Todos | Efímera | `report_guide.json` |
 | `/wv cargos` | Todos | Efímera | `delitos.json` |
 | `/wv faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
+| `/wv pendientes` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
+| `/wv ranking` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/wv mis-reportes` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
 | `/wv mi-resumen` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
 
 Los comandos generales no aplican `AUTHORIZED_USER_IDS`; están destinados a todos los miembros que
 puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists centrales antes de
 leer el historial de Discord.
+
+Los comandos de supervisión comparten `SUPERVISOR_ROLE_IDS`. Ausente, vacío o `*` permite a
+todos; una lista CSV exige que el miembro posea al menos uno de esos roles. La comprobación está
+centralizada y no depende de `AUTHORIZED_USER_IDS`.
 
 ## `/wv help`
 
@@ -87,6 +93,26 @@ Preguntas disponibles:
 
 Cada respuesta indica la sección de la guía que la respalda y enlaza el manual oficial. Al modificar
 la guía debe revisarse también este listado para evitar que una respuesta quede desactualizada.
+
+## `/wv pendientes`
+
+Abre un modal para filtrar por periodo y estación. Devuelve publicaciones sin estado terminal e
+incluye tanto expedientes todavía sin reacción como aquellos marcados `⏳` durante una revisión
+activa. Cada resultado muestra autor, estación, fecha y enlaces directos a la publicación y al hilo.
+Presenta cinco expedientes por página.
+
+## `/wv ranking`
+
+Abre un modal con periodo, estación y criterio de orden. Puede ordenar por:
+
+- Reportes presentados.
+- Reportes aprobados.
+- Reportes con correcciones.
+- Porcentaje de aprobación.
+
+Cada fila muestra los conteos actuales de aprobados, correcciones, pendientes, supervisiones y tasa
+de aprobación. Presenta diez miembros por página. Es un snapshot de las reacciones actuales; no
+representa cuántas veces cambió un resultado ni conserva publicaciones eliminadas.
 
 ## `/wv mis-reportes`
 

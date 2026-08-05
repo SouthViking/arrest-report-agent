@@ -42,6 +42,12 @@ from .personal_reports import (
 )
 from .presence import ReviewPresence
 from .publisher import DiscordReviewPublisher
+from .supervision import (
+    PendingReportsModal,
+    RankingModal,
+    SupervisorRolePolicy,
+    build_supervisor_unauthorized_message,
+)
 from .trigger import DiscordAccessPolicy, TriggerDecision
 
 LOGGER = logging.getLogger(__name__)
@@ -173,6 +179,15 @@ def build_help_embed(
         inline=False,
     )
     embed.add_field(
+        name="🛡️ Supervisión",
+        value=(
+            "• `/wv pendientes`: localiza expedientes sin estado terminal.\n"
+            "• `/wv ranking`: compara actividad y resultados por miembro.\n"
+            "Requieren un rol de supervisión autorizado."
+        ),
+        inline=False,
+    )
+    embed.add_field(
         name="📚 Documentación oficial",
         value=(f"• [Código Penal]({PENAL_CODE_URL})\n• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"),
         inline=False,
@@ -244,6 +259,7 @@ class ReviewCog(commands.Cog):
         self.settings = settings
         self.service = service
         self.access_policy = DiscordAccessPolicy.from_settings(settings)
+        self.supervisor_policy = SupervisorRolePolicy.from_settings(settings)
         self.context_builder = DiscordContextBuilder(settings, bot)
         self.personal_report_finder = DiscordPersonalReportFinder(bot, settings)
         self.presence = ReviewPresence(
@@ -273,6 +289,10 @@ class ReviewCog(commands.Cog):
             configured_channels=self.access_policy.channels.configured_count,
             user_access_mode=("restricted" if self.access_policy.users.is_restricted else "open"),
             configured_users=self.access_policy.users.configured_count,
+            supervisor_access_mode=(
+                "restricted" if self.supervisor_policy.is_restricted else "open"
+            ),
+            configured_supervisor_roles=self.supervisor_policy.roles.configured_count,
         )
 
     @commands.Cog.listener()
@@ -604,6 +624,56 @@ class ReviewCog(commands.Cog):
             user_id=ctx.author.id,
         )
 
+    @wv.command(name="pendientes", description="Consulta reportes pendientes de supervisión")
+    async def supervisor_pending(self, ctx: discord.ApplicationContext) -> None:
+        identity = await self._authorize_supervisor_command(ctx)
+        if identity is None:
+            return
+        guild, member = identity
+        channels = self.personal_report_finder.visible_channels(guild, member)
+        if not channels:
+            await ctx.respond(
+                "📁 No tengo estaciones visibles disponibles para esta consulta.",
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await ctx.send_modal(
+            PendingReportsModal(
+                finder=self.personal_report_finder,
+                policy=self.supervisor_policy,
+                guild=guild,
+                member=member,
+                channels=channels,
+                display_name=self.settings.identity.display_name,
+            )
+        )
+
+    @wv.command(name="ranking", description="Compara resultados de reportes por miembro")
+    async def supervisor_ranking(self, ctx: discord.ApplicationContext) -> None:
+        identity = await self._authorize_supervisor_command(ctx)
+        if identity is None:
+            return
+        guild, member = identity
+        channels = self.personal_report_finder.visible_channels(guild, member)
+        if not channels:
+            await ctx.respond(
+                "📁 No tengo estaciones visibles disponibles para esta consulta.",
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await ctx.send_modal(
+            RankingModal(
+                finder=self.personal_report_finder,
+                policy=self.supervisor_policy,
+                guild=guild,
+                member=member,
+                channels=channels,
+                display_name=self.settings.identity.display_name,
+            )
+        )
+
     @wv.command(name="mis-reportes", description="Busca tus reportes y abre sus publicaciones")
     async def personal_reports(self, ctx: discord.ApplicationContext) -> None:
         identity = await self._authorize_personal_command(ctx)
@@ -710,6 +780,45 @@ class ReviewCog(commands.Cog):
                 LOGGER,
                 "info",
                 "personal_report_command_blocked",
+                guild_id=guild.id,
+                user_id=member.id,
+                interaction_id=ctx.interaction.id,
+            )
+            return None
+        return guild, member
+
+    async def _authorize_supervisor_command(
+        self,
+        ctx: discord.ApplicationContext,
+    ) -> tuple[discord.Guild, discord.Member] | None:
+        """Apply the guild and supervisor-role policies before reading report data."""
+
+        guild = ctx.guild
+        member = ctx.author
+        if guild is None or not self.access_policy.guilds.allows(guild.id):
+            await ctx.respond(
+                "📍 El archivo de supervisión solo está disponible en un servidor asignado.",
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return None
+        if not isinstance(member, discord.Member):
+            await ctx.respond(
+                "📁 No pude identificar sus roles dentro del servidor.",
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return None
+        if not self.supervisor_policy.allows(member):
+            await ctx.respond(
+                build_supervisor_unauthorized_message(),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "supervisor_command_blocked",
                 guild_id=guild.id,
                 user_id=member.id,
                 interaction_id=ctx.interaction.id,

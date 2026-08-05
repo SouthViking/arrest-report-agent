@@ -147,6 +147,16 @@ async def test_finder_returns_only_root_report_posts_and_uses_only_bot_reactions
     assert channel.history_calls[0]["limit"] == 500
     assert channel.history_calls[0]["after"] == datetime(2026, 7, 6, tzinfo=UTC)
 
+    supervisor_result = await finder.find_all(
+        guild,  # type: ignore[arg-type]
+        member,  # type: ignore[arg-type]
+        PersonalReportQuery(period=PersonalReportPeriod.LAST_30_DAYS),
+        now=datetime(2026, 8, 5, tzinfo=UTC),
+    )
+
+    assert [report.message_id for report in supervisor_result.reports] == [7, 6, 3, 2, 1]
+    assert supervisor_result.reports[1].author_id == 456
+
 
 @pytest.mark.asyncio
 async def test_finder_applies_status_and_channel_filters(settings, monkeypatch) -> None:

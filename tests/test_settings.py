@@ -20,6 +20,8 @@ def test_settings_parse_channel_ids_and_identity(settings: AppSettings) -> None:
     assert settings.bot_review_activity == "📂 Revisando expedientes"
     assert settings.authorized_user_ids is None
     assert settings.user_allowlist.allows(999) is True
+    assert settings.supervisor_role_ids is None
+    assert settings.supervisor_role_allowlist.allows(999) is True
     assert settings.openai_model == "gpt-5.6-terra"
     assert settings.openai_reasoning_effort == "medium"
     assert settings.log_json_indented is True
@@ -85,6 +87,7 @@ def test_json_log_indentation_can_be_disabled() -> None:
         ("DISCORD_GUILD_IDS", "guild_allowlist"),
         ("REVIEW_CHANNEL_IDS", "channel_allowlist"),
         ("AUTHORIZED_USER_IDS", "user_allowlist"),
+        ("SUPERVISOR_ROLE_IDS", "supervisor_role_allowlist"),
     ],
 )
 @pytest.mark.parametrize("configured", [None, "", "*"])
@@ -115,6 +118,7 @@ def test_all_allowlists_default_to_unrestricted(
         ("DISCORD_GUILD_IDS", "guild_allowlist"),
         ("REVIEW_CHANNEL_IDS", "channel_allowlist"),
         ("AUTHORIZED_USER_IDS", "user_allowlist"),
+        ("SUPERVISOR_ROLE_IDS", "supervisor_role_allowlist"),
     ],
 )
 def test_all_allowlists_parse_csv_and_restrict_access(
@@ -138,7 +142,12 @@ def test_all_allowlists_parse_csv_and_restrict_access(
 
 @pytest.mark.parametrize(
     "variable_name",
-    ["DISCORD_GUILD_IDS", "REVIEW_CHANNEL_IDS", "AUTHORIZED_USER_IDS"],
+    [
+        "DISCORD_GUILD_IDS",
+        "REVIEW_CHANNEL_IDS",
+        "AUTHORIZED_USER_IDS",
+        "SUPERVISOR_ROLE_IDS",
+    ],
 )
 @pytest.mark.parametrize("configured", ["*,123", "0", "not-a-snowflake"])
 def test_invalid_allowlist_configuration_is_rejected(
@@ -199,6 +208,7 @@ def test_default_env_template_values_are_parseable(tmp_path) -> None:
     assert settings.thread_auto_archive_minutes == 1440
     assert settings.discord_guild_ids == frozenset({1234674521416663070})
     assert settings.authorized_user_ids is None
+    assert settings.supervisor_role_ids is None
     assert settings.review_channel_ids == frozenset(
         {1462992794569281617, 1462992859761217745}
     )

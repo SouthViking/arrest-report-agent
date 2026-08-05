@@ -144,6 +144,8 @@ Comandos disponibles:
 - `/wv cargos`: modal privado para buscar por código, título, descripción o categoría en el catálogo
   penal local; muestra detalles y sanciones con paginación cuando corresponde.
 - `/wv faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
+- `/wv pendientes`: consulta de supervisión para expedientes sin estado terminal o en revisión.
+- `/wv ranking`: ranking de supervisión por volumen, aprobaciones, correcciones o tasa de aprobación.
 - `/wv mis-reportes`: abre un modal privado para filtrar por periodo, estado y estación; entrega
   referencias directas a cada publicación y a su hilo cuando existe.
 - `/wv mi-resumen`: muestra de forma privada el estado personal del mes actual.
@@ -164,6 +166,7 @@ el contenido exacto del FAQ.
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
 | `REVIEW_CHANNEL_IDS` | `*` | Canales padre permitidos; acepta CSV y cubre sus hilos. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
+| `SUPERVISOR_ROLE_IDS` | `*` | Roles autorizados para los comandos de supervisión; `*`/vacío permite a todos. |
 | `REVIEW_ESCALATION_ROLE_IDS` | vacío | Roles existentes que reciben una mención ante resultados inconclusos o fallas; acepta CSV. |
 | `BOT_IDLE_ACTIVITY` | `⭐ De guardia` | Presencia global sin solicitudes activas. |
 | `BOT_CONVERSATION_ACTIVITY` | `📻 Atendiendo consultas` | Presencia inicial de una consulta habilitada. |
