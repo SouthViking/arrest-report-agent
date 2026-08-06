@@ -35,7 +35,7 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
 
     assert profile.id == "roy_velazco"
     assert profile.schema_version == 7
-    assert profile.revision == 11
+    assert profile.revision == 12
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -78,6 +78,10 @@ async def test_personas_define_distinct_deterministic_copy(loaded_persona) -> No
     )
     assert "Su rol" in walter.messages.access.supervisor_unauthorized
     assert "bonito intento" in roy.messages.access.supervisor_unauthorized
+    assert (
+        "pa q arregle tu caga de acceso antes de volver"
+        in roy.messages.access.unauthorized_user
+    )
     assert walter.messages.failures.review_failure_title == "⚠️ Incidencia de revisión"
     assert roy.messages.failures.review_failure_title == "⚠️ Se trabó el papeleo"
     assert walter.messages.interface.review.narrative_scope_label == "solo narrativa"

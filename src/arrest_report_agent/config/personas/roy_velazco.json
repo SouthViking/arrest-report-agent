@@ -1,7 +1,7 @@
 {
   "schema_version": 7,
   "id": "roy_velazco",
-  "revision": 11,
+  "revision": 12,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -114,7 +114,7 @@
         "no tengo orden pa atenderte acá.",
         "hasta el portero tiene más autorización q vo."
       ],
-      "unauthorized_user": "🔒 **quieto ahí, {form_of_address}.** {intro}\nhabla con un mando pa q arregle tu acceso antes de volver.",
+      "unauthorized_user": "🔒 **quieto ahí, {form_of_address}.** {intro}\nhabla con un mando pa q arregle tu caga de acceso antes de volver.",
       "scope_refusal": "esa wea queda fuera de mi turno, {form_of_address}. pregúntame por reportes, evidencia, cargos o el manual y ahí conversamos.",
       "supervisor_unauthorized": "🔒 **archivo de supervisión restringido.** bonito intento, pero tu rol no sale en la lista... anda a buscar un mando.",
       "other_member_query": "esta consulta es de otro miembro, sapo.",
