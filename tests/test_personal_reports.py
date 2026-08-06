@@ -46,15 +46,47 @@ class FakeHistoryChannel:
             yield message
 
 
+class FakeReaction:
+    def __init__(
+        self,
+        emoji: str,
+        is_mine: bool,
+        reactors: tuple[object, ...],
+    ) -> None:
+        self.emoji = emoji
+        self.me = is_mine
+        self._reactors = reactors
+
+    def users(self):
+        async def iterate():
+            for reactor in self._reactors:
+                yield reactor
+
+        return iterate()
+
+
 class FakeGuild:
-    def __init__(self, guild_id: int, channels: list[FakeHistoryChannel]) -> None:
+    def __init__(
+        self,
+        guild_id: int,
+        channels: list[FakeHistoryChannel],
+        members: tuple[object, ...] = (),
+    ) -> None:
         self.id = guild_id
         self.text_channels = channels
         self._channels = {channel.id: channel for channel in channels}
+        self._members = {member.id: member for member in members}
         self.me = SimpleNamespace(id=999)
+        for channel in channels:
+            channel.guild = self
+            for message in channel.messages:
+                message.guild = self
 
     def get_channel(self, channel_id: int):
         return self._channels.get(channel_id)
+
+    def get_member(self, member_id: int):
+        return self._members.get(member_id)
 
 
 def fake_message(
@@ -65,6 +97,7 @@ def fake_message(
     content: str = "<@999> Terry Parker",
     attachments: bool = True,
     reactions: tuple[tuple[str, bool], ...] = (),
+    reaction_users: tuple[object, ...] = (),
     reference=None,
     thread_id: int | None = None,
 ) -> SimpleNamespace:
@@ -75,9 +108,7 @@ def fake_message(
         channel=channel,
         content=content,
         attachments=[SimpleNamespace(filename="report.png")] if attachments else [],
-        reactions=[
-            SimpleNamespace(emoji=emoji, me=is_mine) for emoji, is_mine in reactions
-        ],
+        reactions=[FakeReaction(emoji, is_mine, reaction_users) for emoji, is_mine in reactions],
         reference=reference,
         thread=SimpleNamespace(id=thread_id) if thread_id else None,
         created_at=datetime(2026, 8, 4, 12, message_id % 60, tzinfo=UTC),
@@ -100,7 +131,7 @@ def test_periods_and_status_filters_are_bounded_and_explicit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_finder_returns_only_root_report_posts_and_uses_only_bot_reactions(
+async def test_finder_returns_only_root_report_posts_and_uses_trusted_reactions(
     settings,
     monkeypatch,
 ) -> None:
@@ -156,6 +187,128 @@ async def test_finder_returns_only_root_report_posts_and_uses_only_bot_reactions
 
     assert [report.message_id for report in supervisor_result.reports] == [7, 6, 3, 2, 1]
     assert supervisor_result.reports[1].author_id == 456
+
+
+@pytest.mark.asyncio
+async def test_finder_accepts_manual_status_only_from_authorized_supervisors(
+    settings,
+    monkeypatch,
+) -> None:
+    authorized = SimpleNamespace(
+        id=700,
+        bot=False,
+        roles=[SimpleNamespace(id=42)],
+    )
+    unauthorized = SimpleNamespace(
+        id=701,
+        bot=False,
+        roles=[SimpleNamespace(id=99)],
+    )
+    channel = FakeHistoryChannel(1462992794569281617, "gnt-arrestos", [])
+    channel.messages = [
+        fake_message(
+            20,
+            channel=channel,
+            reactions=(("✅", False),),
+            reaction_users=(authorized,),
+        ),
+        fake_message(
+            21,
+            channel=channel,
+            reactions=(("✅", False),),
+            reaction_users=(unauthorized,),
+        ),
+        fake_message(22, channel=channel, reactions=(("❌", True),)),
+    ]
+    guild = FakeGuild(
+        1234674521416663070,
+        [channel],
+        members=(authorized, unauthorized),
+    )
+    member = SimpleNamespace(id=123)
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.personal_reports.discord.TextChannel",
+        FakeHistoryChannel,
+    )
+    restricted_settings = settings.model_copy(
+        update={"supervisor_role_ids_csv": "42"},
+    )
+    finder = DiscordPersonalReportFinder(SimpleNamespace(), restricted_settings)
+
+    result = await finder.find(
+        guild,  # type: ignore[arg-type]
+        member,  # type: ignore[arg-type]
+        PersonalReportQuery(period=PersonalReportPeriod.CURRENT_MONTH),
+        now=datetime(2026, 8, 5, tzinfo=UTC),
+    )
+
+    assert [report.status for report in result.reports] == [
+        PersonalReportStatus.CORRECTIONS_REQUIRED,
+        PersonalReportStatus.PENDING,
+        PersonalReportStatus.APPROVED,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_finder_fetches_uncached_supervisor_once_per_query(
+    settings,
+    monkeypatch,
+) -> None:
+    authorized = SimpleNamespace(
+        id=700,
+        bot=False,
+        roles=[SimpleNamespace(id=42)],
+    )
+
+    class FetchingGuild(FakeGuild):
+        def __init__(self, guild_id, channels) -> None:
+            super().__init__(guild_id, channels)
+            self.fetch_calls: list[int] = []
+
+        def get_member(self, _member_id: int):
+            return None
+
+        async def fetch_member(self, member_id: int):
+            self.fetch_calls.append(member_id)
+            return authorized
+
+    channel = FakeHistoryChannel(1462992794569281617, "gnt-arrestos", [])
+    channel.messages = [
+        fake_message(
+            30,
+            channel=channel,
+            reactions=(("✅", False),),
+            reaction_users=(authorized,),
+        ),
+        fake_message(
+            31,
+            channel=channel,
+            reactions=(("✅", False),),
+            reaction_users=(authorized,),
+        ),
+    ]
+    guild = FetchingGuild(1234674521416663070, [channel])
+    member = SimpleNamespace(id=123)
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.personal_reports.discord.TextChannel",
+        FakeHistoryChannel,
+    )
+    restricted_settings = settings.model_copy(
+        update={"supervisor_role_ids_csv": "42"},
+    )
+    finder = DiscordPersonalReportFinder(SimpleNamespace(), restricted_settings)
+
+    result = await finder.find(
+        guild,  # type: ignore[arg-type]
+        member,  # type: ignore[arg-type]
+        PersonalReportQuery(period=PersonalReportPeriod.CURRENT_MONTH),
+        now=datetime(2026, 8, 5, tzinfo=UTC),
+    )
+
+    assert all(
+        report.status is PersonalReportStatus.APPROVED for report in result.reports
+    )
+    assert guild.fetch_calls == [authorized.id]
 
 
 @pytest.mark.asyncio

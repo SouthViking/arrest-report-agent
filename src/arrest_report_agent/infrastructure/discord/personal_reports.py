@@ -27,6 +27,8 @@ from arrest_report_agent.config import (
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
 
+from .supervisor_access import SupervisorRolePolicy
+
 LOGGER = logging.getLogger(__name__)
 
 MAX_HISTORY_MESSAGES_PER_CHANNEL = 500
@@ -59,6 +61,7 @@ class DiscordPersonalReportFinder:
     def __init__(self, bot: discord.Bot, settings: AppSettings) -> None:
         self.bot = bot
         self.settings = settings
+        self.supervisor_policy = SupervisorRolePolicy.from_settings(settings)
 
     def visible_channels(
         self,
@@ -111,7 +114,7 @@ class DiscordPersonalReportFinder:
         *,
         now: datetime | None = None,
     ) -> PersonalReportSearchResult:
-        """Return reports from every human author visible to a supervisor."""
+        """Return reports from every human author in channels visible to the viewer."""
 
         return await self._find(
             guild,
@@ -137,6 +140,7 @@ class DiscordPersonalReportFinder:
             channels = tuple(channel for channel in channels if channel.id == query.channel_id)
 
         reports: list[PersonalReport] = []
+        supervisor_member_cache: dict[int, discord.Member | None] = {}
         truncated = False
         for channel in channels:
             scanned = 0
@@ -147,7 +151,11 @@ class DiscordPersonalReportFinder:
                     oldest_first=False,
                 ):
                     scanned += 1
-                    status = _status_from_bot_reactions(message)
+                    status = await _status_from_trusted_reactions(
+                        message,
+                        self.supervisor_policy,
+                        supervisor_member_cache,
+                    )
                     if not _is_report_candidate(message, author_id, status):
                         continue
                     if not query.status.includes(status):
@@ -542,12 +550,24 @@ def _can_read_history(channel: discord.TextChannel, member: discord.Member) -> b
     return permissions.view_channel and permissions.read_message_history
 
 
-def _status_from_bot_reactions(message: discord.Message) -> PersonalReportStatus:
-    detected = {
-        BOT_STATUS_REACTIONS[str(reaction.emoji)]
-        for reaction in message.reactions
-        if reaction.me and str(reaction.emoji) in BOT_STATUS_REACTIONS
-    }
+async def _status_from_trusted_reactions(
+    message: discord.Message,
+    supervisor_policy: SupervisorRolePolicy,
+    member_cache: dict[int, discord.Member | None],
+) -> PersonalReportStatus:
+    detected: set[PersonalReportStatus] = set()
+    for reaction in message.reactions:
+        emoji = str(reaction.emoji)
+        if emoji not in BOT_STATUS_REACTIONS:
+            continue
+        if reaction.me or await _has_authorized_supervisor_reaction(
+            reaction,
+            message,
+            supervisor_policy,
+            member_cache,
+        ):
+            detected.add(BOT_STATUS_REACTIONS[emoji])
+
     for status in (
         PersonalReportStatus.APPROVED,
         PersonalReportStatus.CORRECTIONS_REQUIRED,
@@ -557,6 +577,79 @@ def _status_from_bot_reactions(message: discord.Message) -> PersonalReportStatus
         if status in detected:
             return status
     return PersonalReportStatus.PENDING
+
+
+async def _has_authorized_supervisor_reaction(
+    reaction: discord.Reaction,
+    message: discord.Message,
+    supervisor_policy: SupervisorRolePolicy,
+    member_cache: dict[int, discord.Member | None],
+) -> bool:
+    try:
+        async for reactor in reaction.users():
+            if reactor.bot:
+                continue
+            if not supervisor_policy.is_restricted:
+                return True
+            member = await _resolve_reactor_member(
+                message,
+                reactor,
+                member_cache,
+            )
+            if member is not None and supervisor_policy.allows(member):
+                return True
+    except (discord.Forbidden, discord.HTTPException) as error:
+        guild_id = message.guild.id if message.guild is not None else "none"
+        log_event(
+            LOGGER,
+            "warning",
+            "report_status_reactors_unavailable",
+            exc_info=error,
+            guild_id=guild_id,
+            channel_id=message.channel.id,
+            message_id=message.id,
+            emoji=str(reaction.emoji),
+            **exception_fields(error),
+        )
+    return False
+
+
+async def _resolve_reactor_member(
+    message: discord.Message,
+    reactor: discord.User | discord.Member,
+    member_cache: dict[int, discord.Member | None],
+) -> discord.Member | None:
+    if isinstance(reactor, discord.Member):
+        member_cache[reactor.id] = reactor
+        return reactor
+    if message.guild is None:
+        return None
+    if reactor.id in member_cache:
+        return member_cache[reactor.id]
+
+    member = message.guild.get_member(reactor.id)
+    if member is None:
+        try:
+            member = await message.guild.fetch_member(reactor.id)
+        except discord.NotFound:
+            member_cache[reactor.id] = None
+            return None
+        except (discord.Forbidden, discord.HTTPException) as error:
+            log_event(
+                LOGGER,
+                "warning",
+                "report_status_reactor_unavailable",
+                exc_info=error,
+                guild_id=message.guild.id,
+                channel_id=message.channel.id,
+                message_id=message.id,
+                reactor_id=reactor.id,
+                **exception_fields(error),
+            )
+            return None
+
+    member_cache[reactor.id] = member
+    return member
 
 
 def _is_report_candidate(
