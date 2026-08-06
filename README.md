@@ -18,6 +18,8 @@ también sin ejecutar el agente.
 - Aplica primero un guardrail textual de alcance e intención; las consultas claramente ajenas
   reciben una orientación breve sin enviar imágenes al agente principal.
 - Revisa la narrativa, evidencia visible y cargos de un reporte multimodal.
+- Señala cargos no sustentados como advertencias informativas, pero no bloquea la aprobación por un
+  cargo ya inmutable; solo las deficiencias corregibles del reporte pueden exigir correcciones.
 - Envía todas las imágenes seleccionadas, incluidas las fotografías frontal y lateral.
 - Contrasta descripciones expresas de ropa y accesorios con flexibilidad por iluminación, ángulo,
   compresión y limitaciones gráficas; no infiere atributos sensibles.
@@ -33,8 +35,9 @@ también sin ejecutar el agente.
   expone esa operación como tool ni consume una ronda adicional del modelo.
 - Puede enviar varios mensajes intermedios enriquecidos con Markdown de Discord mientras continúa
   trabajando y cerrar la conversación mediante una tool terminal explícita.
-- Una mención nueva en un canal padre crea o reutiliza un hilo; una respuesta directa al bot en el
-  canal permanece como reply y toda interacción iniciada dentro de un hilo se mantiene allí.
+- Ante una mención nueva, una respuesta breve puede quedar como reply y una conversación extensa o
+  revisión usa un hilo; un reply al bot permanece como reply y toda interacción iniciada dentro de
+  un hilo se mantiene allí.
 - Aprueba con `✅`, las correcciones usan `❌` y los casos inconclusos o técnicos usan `⚠️` con
   derivación manual opcional; el contenido se publica siempre en el destino ya autorizado.
 - Reconstruye hasta 20 mensajes de un hilo, incluyendo respuestas, ediciones y correcciones recientes.
@@ -82,7 +85,8 @@ visibles para él y para el solicitante, evitando referencias `#desconocido` ent
 
 La política previa valida guild, autor y usuario antes de leer contexto o iniciar el Runner. Las
 tools posteriores no reciben IDs de destino libres: operan exclusivamente sobre el mensaje y el hilo
-ya autorizados.
+ya autorizados. El agente solo puede escoger `reply` o `thread` para una mención nueva; una revisión
+estructurada se publica en hilo y la primera respuesta fija la ruta de toda esa ejecución.
 
 El modelo y el nivel de razonamiento son la única selección de modelo requerida en el entorno. El
 detalle de imagen, verbosity, límite de salida, service tier, capacidades admitidas y precios se
@@ -144,8 +148,9 @@ las fuentes locales de conocimiento están cargadas; durante el arranque devuelv
 1. Para una revisión, publica el nombre o identificador del sospechoso junto con el material habitual
    y solicita la revisión; también puedes hacer preguntas pertinentes sin adjuntar un expediente.
 2. Menciona al bot en cualquier parte del mensaje.
-3. El bot abrirá un hilo para esa solicitud. Dentro de él, vuelve a mencionarlo o responde uno de
-   sus mensajes para continuar con el historial reciente.
+3. Una revisión abrirá un hilo. Una consulta breve puede responderse como reply; si requiere una
+   conversación extensa, el bot puede abrir un hilo. Dentro de él, vuelve a mencionarlo o responde
+   uno de sus mensajes para continuar con el historial reciente.
 4. Si respondes directamente a un mensaje del bot en el canal padre, contestará mediante otro reply
    sin abrir un hilo.
 

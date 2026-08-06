@@ -10,7 +10,12 @@ import discord
 
 from arrest_report_agent.config import AppSettings, BotPersona
 from arrest_report_agent.config.logging import log_event
-from arrest_report_agent.domain import FindingSeverity, ReviewPublication, ReviewVerdict
+from arrest_report_agent.domain import (
+    ConversationResponseRoute,
+    FindingSeverity,
+    ReviewPublication,
+    ReviewVerdict,
+)
 from arrest_report_agent.domain.errors import PublicationError
 
 from .context import DiscordResponseRoute, ReviewTarget
@@ -63,8 +68,12 @@ class DiscordReviewPublisher:
             allowed_mentions=allowed_mentions,
         )
 
-    async def send_message(self, content: str) -> None:
-        """Send plain enriched text through the preselected Discord response route."""
+    async def send_message(
+        self,
+        content: str,
+        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
+    ) -> ConversationResponseRoute:
+        """Send plain enriched text through the effective safe Discord route."""
 
         chunks = _chunk_text(content.strip(), limit=2000)
         if not chunks:
@@ -76,7 +85,8 @@ class DiscordReviewPublisher:
             replied_user=False,
         )
         try:
-            if self.target.response_route is DiscordResponseRoute.THREAD:
+            effective_route = self._conversation_route(response_route)
+            if effective_route is ConversationResponseRoute.THREAD:
                 thread = await self._ensure_thread()
                 for chunk in chunks:
                     await thread.send(
@@ -94,8 +104,21 @@ class DiscordReviewPublisher:
                         content=chunk,
                         allowed_mentions=allowed_mentions,
                     )
+            return effective_route
         except (discord.Forbidden, discord.HTTPException) as error:
             raise PublicationError("Unable to publish agent response") from error
+
+    def _conversation_route(
+        self,
+        requested_route: ConversationResponseRoute,
+    ) -> ConversationResponseRoute:
+        if self.target.thread is not None:
+            return ConversationResponseRoute.THREAD
+        if self.target.response_route is DiscordResponseRoute.THREAD:
+            return ConversationResponseRoute.THREAD
+        if self.target.response_route is DiscordResponseRoute.INLINE_REPLY:
+            return ConversationResponseRoute.REPLY
+        return requested_route
 
     async def _send_routed_payload(
         self,
@@ -105,11 +128,11 @@ class DiscordReviewPublisher:
         embeds: list[discord.Embed] | None = None,
         allowed_mentions: discord.AllowedMentions | None = None,
     ) -> discord.Thread | None:
-        """Send review output to the route fixed before the runner was invoked."""
+        """Send review output to a thread unless activation fixed an inline reply."""
 
         mentions = allowed_mentions or discord.AllowedMentions.none()
         try:
-            if self.target.response_route is DiscordResponseRoute.THREAD:
+            if self.target.response_route is not DiscordResponseRoute.INLINE_REPLY:
                 thread = await self._ensure_thread()
                 await thread.send(
                     content=content,

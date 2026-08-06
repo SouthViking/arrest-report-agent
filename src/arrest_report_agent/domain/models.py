@@ -62,7 +62,7 @@ class ReviewCase(BaseModel):
     requester_display_name: str | None = Field(default=None, max_length=100)
     requester_role_names: list[DiscordRoleName] = Field(default_factory=list, max_length=8)
     interaction_mode: InteractionMode
-    response_route: Literal["inline_reply", "thread"] = "thread"
+    response_route: Literal["agent_choice", "inline_reply", "thread"] = "thread"
     case_subject: str | None = None
     messages: list[ConversationMessage]
     attachments: list[DiscordAttachment]
@@ -131,21 +131,11 @@ class ReviewPublication(BaseModel):
         material_findings = [
             finding for finding in self.findings if finding.severity is FindingSeverity.REQUIRED
         ]
-        unsupported_charges = [
-            charge for charge in self.charges if charge.alignment == "unsupported"
-        ]
-        unverifiable_charges = [
-            charge for charge in self.charges if charge.alignment == "not_found"
-        ]
         if self.verdict is ReviewVerdict.APPROVED and (
             material_findings
-            or unsupported_charges
-            or unverifiable_charges
             or self.manual_review_reason
         ):
             raise ValueError("An approved review cannot contain unresolved material findings")
-        if self.verdict is ReviewVerdict.CORRECTIONS_REQUIRED and not (
-            material_findings or unsupported_charges
-        ):
+        if self.verdict is ReviewVerdict.CORRECTIONS_REQUIRED and not material_findings:
             raise ValueError("Corrections required must identify a material finding")
         return self

@@ -34,6 +34,13 @@ class RequestIntent(StrEnum):
     OUT_OF_SCOPE = "out_of_scope"
 
 
+class ConversationResponseRoute(StrEnum):
+    """Agent-selectable route without exposing arbitrary Discord destinations."""
+
+    REPLY = "reply"
+    THREAD = "thread"
+
+
 class AgentActivity(StrEnum):
     """User-facing activity of one in-flight agent interaction."""
 

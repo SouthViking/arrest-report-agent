@@ -20,7 +20,12 @@ from arrest_report_agent.application.service import ReviewService
 from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.config import PackagedPersonaProvider
 from arrest_report_agent.config.logging import STRUCTURED_EVENT_ATTRIBUTE
-from arrest_report_agent.domain import InteractionMode, RequestIntent, ReviewCase
+from arrest_report_agent.domain import (
+    ConversationResponseRoute,
+    InteractionMode,
+    RequestIntent,
+    ReviewCase,
+)
 from arrest_report_agent.domain.models import ReviewPublication
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
@@ -65,6 +70,9 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "Toda falta verificable de ortografía" in prompt
     assert "agrupa errores del mismo tipo" in prompt
     assert "No bloquees por preferencias de formato" in prompt
+    assert "los cargos del arresto ya son inmutables" in prompt
+    assert "ningún\n  `unsupported`, `uncertain` o `not_found` bloquea" in prompt
+    assert "sin pedir cambiarlo" in prompt
     assert "prevalece la fuente oficial" in prompt
     assert "no un rechazo definitivo" in prompt
     assert "**Conversación natural:**" in prompt
@@ -206,17 +214,34 @@ def test_approved_publication_allows_non_blocking_uncertainty() -> None:
 
 
 @pytest.mark.parametrize("alignment", ["unsupported", "not_found"])
-def test_approved_publication_rejects_blocking_charge(alignment: str) -> None:
+def test_approved_publication_allows_immutable_charge_mismatch(alignment: str) -> None:
+    publication = ReviewPublication(
+        verdict="approved",
+        summary="El reporte puede aprobarse con una advertencia sobre el cargo.",
+        findings=[],
+        charges=[
+            {
+                "declared_charge": "Cargo no validado",
+                "alignment": alignment,
+                "note": "La discrepancia queda documentada, pero el cargo ya es inmutable.",
+            }
+        ],
+    )
+
+    assert publication.verdict.value == "approved"
+
+
+def test_charge_mismatch_alone_cannot_require_report_corrections() -> None:
     with pytest.raises(ValidationError):
         ReviewPublication(
-            verdict="approved",
-            summary="Aprobado.",
+            verdict="corrections_required",
+            summary="El cargo no coincide.",
             findings=[],
             charges=[
                 {
-                    "declared_charge": "Cargo no validado",
-                    "alignment": alignment,
-                    "note": "El cargo no puede aprobarse en este estado.",
+                    "declared_charge": "Cargo no sustentado",
+                    "alignment": "unsupported",
+                    "note": "La narrativa contradice sus elementos.",
                 }
             ],
         )
@@ -233,8 +258,13 @@ class FailurePublisher:
     async def publish(self, publication) -> None:
         return None
 
-    async def send_message(self, content) -> None:
+    async def send_message(
+        self,
+        content,
+        response_route=ConversationResponseRoute.REPLY,
+    ) -> ConversationResponseRoute:
         self.messages.append(content)
+        return response_route
 
     async def publish_failure(self, public_message) -> None:
         self.failures.append(public_message)

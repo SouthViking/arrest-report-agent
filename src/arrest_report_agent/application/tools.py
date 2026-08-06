@@ -7,7 +7,11 @@ from typing import Annotated
 from agents import RunContextWrapper, function_tool
 from pydantic import Field
 
-from arrest_report_agent.domain import AgentActivity, ReviewPublication
+from arrest_report_agent.domain import (
+    AgentActivity,
+    ConversationResponseRoute,
+    ReviewPublication,
+)
 from arrest_report_agent.knowledge import (
     ChargeCatalog,
     ChargeMatchMode,
@@ -103,7 +107,11 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
         return {"ok": True, "verdict": publication.verdict.value}
 
     @function_tool(failure_error_function=None)
-    async def send_message(ctx: RunContextWrapper[ReviewRunContext], content: str) -> dict[str, object]:
+    async def send_message(
+        ctx: RunContextWrapper[ReviewRunContext],
+        content: str,
+        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
+    ) -> dict[str, object]:
         """Send an enriched intermediate Discord message and continue processing.
 
         Args:
@@ -111,6 +119,9 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
                 lists, quotes, emphasis, code, links and moderate emojis. Do not imitate embeds or
                 include mass mentions. This tool does not finish the interaction and may be called
                 more than once.
+            response_route: Use reply for a brief, visible exchange or thread for a longer exchange.
+                Existing replies and threads remain in their current route. The first message fixes
+                the route for the rest of this interaction.
         """
 
         run_context = ctx.context
@@ -118,24 +129,36 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
             return {"ok": True, "already_completed": "publish_review"}
         if run_context.interaction_completed:
             return {"ok": True, "already_completed": "finish_interaction"}
-        await run_context.publisher.send_message(content)
+        effective_route = await _send_conversation_message(
+            run_context,
+            content,
+            response_route,
+        )
         run_context.message_sent = True
         run_context.messages_sent_count += 1
         return {
             "ok": True,
             "delivery": "discord_message",
             "messages_sent": run_context.messages_sent_count,
+            "response_route": effective_route.value,
             "interaction_complete": False,
         }
 
     @function_tool(failure_error_function=None)
-    async def finish_interaction(ctx: RunContextWrapper[ReviewRunContext], content: str) -> dict[str, object]:
+    async def finish_interaction(
+        ctx: RunContextWrapper[ReviewRunContext],
+        content: str,
+        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
+    ) -> dict[str, object]:
         """Send the final conversational response and explicitly finish the interaction.
 
         Args:
             content: Complete final Discord message. It may be an answer, a clarification request or
                 a handoff back to the user. Discord Markdown, links and moderate emojis are allowed;
                 do not imitate embeds or include mass mentions.
+            response_route: Use reply for a brief, visible answer or thread when the topic warrants
+                a longer exchange. Existing replies and threads remain in their current route. The
+                first message fixes the route for the rest of this interaction.
         """
 
         run_context = ctx.context
@@ -143,7 +166,11 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
             return {"ok": True, "already_completed": "publish_review"}
         if run_context.interaction_completed:
             return {"ok": True, "already_completed": "finish_interaction"}
-        await run_context.publisher.send_message(content)
+        effective_route = await _send_conversation_message(
+            run_context,
+            content,
+            response_route,
+        )
         run_context.message_sent = True
         run_context.messages_sent_count += 1
         run_context.interaction_completed = True
@@ -151,6 +178,7 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
             "ok": True,
             "delivery": "discord_message",
             "messages_sent": run_context.messages_sent_count,
+            "response_route": effective_route.value,
             "interaction_complete": True,
         }
 
@@ -167,3 +195,15 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
 async def _mark_knowledge_activity(run_context: ReviewRunContext) -> None:
     if run_context.activity is not None:
         await run_context.activity.promote(AgentActivity.KNOWLEDGE)
+
+
+async def _send_conversation_message(
+    run_context: ReviewRunContext,
+    content: str,
+    requested_route: ConversationResponseRoute,
+) -> ConversationResponseRoute:
+    selected_route = run_context.selected_response_route or requested_route
+    effective_route = await run_context.publisher.send_message(content, selected_route)
+    if run_context.selected_response_route is None:
+        run_context.selected_response_route = effective_route
+    return effective_route

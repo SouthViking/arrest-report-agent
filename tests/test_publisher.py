@@ -4,7 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from arrest_report_agent.domain import FindingSeverity, ReviewFinding, ReviewPublication
+from arrest_report_agent.domain import (
+    ConversationResponseRoute,
+    FindingSeverity,
+    ReviewFinding,
+    ReviewPublication,
+)
 from arrest_report_agent.infrastructure.discord.context import (
     DiscordResponseRoute,
     ReviewTarget,
@@ -120,8 +125,8 @@ def test_long_review_is_split_without_dropping_findings(persona) -> None:
 
 def test_long_charge_review_stays_within_discord_embed_limits(persona) -> None:
     review = ReviewPublication(
-        verdict="corrections_required",
-        summary="Los cargos requieren ajustes.",
+        verdict="approved",
+        summary="El reporte se aprueba con observaciones sobre los cargos.",
         findings=[],
         charges=[
             {
@@ -215,7 +220,7 @@ async def test_initial_mention_approval_uses_and_archives_thread(settings, perso
         trigger=root,
         parent=SimpleNamespace(),
         thread=None,
-        response_route=DiscordResponseRoute.THREAD,
+        response_route=DiscordResponseRoute.AGENT_CHOICE,
     )
     publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
@@ -339,12 +344,62 @@ async def test_natural_reply_is_simple_and_does_not_create_review_state(settings
     target = ReviewTarget(root=root, trigger=root, parent=SimpleNamespace(), thread=None)
     publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
-    await publisher.send_message("A la orden, deputy. ¿Qué punto del manual necesita revisar?")
+    effective_route = await publisher.send_message(
+        "A la orden, deputy. ¿Qué punto del manual necesita revisar?"
+    )
 
     assert root.created == 0
     assert root.added == []
     assert root.replies[0]["content"].startswith("A la orden")
     assert root.replies[0]["mention_author"] is False
+    assert effective_route is ConversationResponseRoute.REPLY
+
+
+@pytest.mark.asyncio
+async def test_initial_mention_can_choose_a_conversation_thread(settings, persona) -> None:
+    root = FakeRoot()
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.AGENT_CHOICE,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
+
+    effective_route = await publisher.send_message(
+        "Abramos el expediente con calma.",
+        ConversationResponseRoute.THREAD,
+    )
+
+    assert effective_route is ConversationResponseRoute.THREAD
+    assert root.created == 1
+    assert root.replies == []
+    assert root.thread.sent[0]["content"] == "Abramos el expediente con calma."
+
+
+@pytest.mark.asyncio
+async def test_inline_reply_cannot_be_redirected_to_a_thread(settings, persona) -> None:
+    root = FakeRoot()
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.INLINE_REPLY,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
+
+    effective_route = await publisher.send_message(
+        "Respuesta corta.",
+        ConversationResponseRoute.THREAD,
+    )
+
+    assert effective_route is ConversationResponseRoute.REPLY
+    assert root.created == 0
+    assert root.replies[0]["content"] == "Respuesta corta."
 
 
 @pytest.mark.asyncio
@@ -361,11 +416,15 @@ async def test_mention_conversation_reuses_existing_thread(settings, persona) ->
     )
     publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
-    await publisher.send_message("A la orden, deputy.")
+    effective_route = await publisher.send_message(
+        "A la orden, deputy.",
+        ConversationResponseRoute.REPLY,
+    )
 
     assert root.created == 0
     assert root.replies == []
     assert thread.sent[0]["content"] == "A la orden, deputy."
+    assert effective_route is ConversationResponseRoute.THREAD
 
 
 @pytest.mark.asyncio

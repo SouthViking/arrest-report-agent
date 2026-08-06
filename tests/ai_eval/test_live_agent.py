@@ -16,6 +16,7 @@ from arrest_report_agent.application import ReviewRunContext, ReviewService
 from arrest_report_agent.config import AppSettings, ModelCatalog, PackagedPersonaProvider
 from arrest_report_agent.domain import (
     ConversationMessage,
+    ConversationResponseRoute,
     InteractionMode,
     ReviewCase,
     ReviewPublication,
@@ -46,8 +47,13 @@ class InMemoryPublisher:
     async def publish(self, publication: ReviewPublication) -> None:
         self.publications.append(publication)
 
-    async def send_message(self, content: str) -> None:
+    async def send_message(
+        self,
+        content: str,
+        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
+    ) -> ConversationResponseRoute:
         self.messages.append(content)
+        return response_route
 
     async def publish_failure(self, public_message: str) -> None:
         self.failures.append(public_message)
@@ -252,7 +258,7 @@ Revisa la coherencia del cargo con los hechos narrados.""",
     _, publisher = await _run_agent(ai_eval_settings, case)
     publication = _single_publication(publisher)
 
-    assert publication.verdict is ReviewVerdict.CORRECTIONS_REQUIRED
+    assert publication.verdict is ReviewVerdict.APPROVED
     assert any(charge.alignment == "unsupported" for charge in publication.charges)
 
 

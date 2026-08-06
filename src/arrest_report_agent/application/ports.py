@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from arrest_report_agent.domain import AgentActivity, ReviewPublication
+from arrest_report_agent.domain import (
+    AgentActivity,
+    ConversationResponseRoute,
+    ReviewPublication,
+)
 
 
 class ActivityTracker(Protocol):
@@ -19,8 +23,12 @@ class ReviewPublisher(Protocol):
     async def publish(self, publication: ReviewPublication) -> None:
         """Publish a terminal review and execute its Discord side effects."""
 
-    async def send_message(self, content: str) -> None:
-        """Send a natural Discord-formatted message to the triggering interaction."""
+    async def send_message(
+        self,
+        content: str,
+        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
+    ) -> ConversationResponseRoute:
+        """Send a message through a safe route and return the effective route."""
 
     async def publish_failure(
         self,

@@ -7,7 +7,13 @@ from agents.tool_context import ToolContext
 
 from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.application.tools import build_agent_tools
-from arrest_report_agent.domain import AgentActivity, InteractionMode, ReviewCase, ReviewVerdict
+from arrest_report_agent.domain import (
+    AgentActivity,
+    ConversationResponseRoute,
+    InteractionMode,
+    ReviewCase,
+    ReviewVerdict,
+)
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
 
@@ -16,6 +22,7 @@ class FakePublisher:
         self.markers = 0
         self.publications = []
         self.messages: list[str] = []
+        self.routes: list[ConversationResponseRoute] = []
 
     async def mark_review_started(self) -> None:
         self.markers += 1
@@ -23,8 +30,14 @@ class FakePublisher:
     async def publish(self, publication) -> None:
         self.publications.append(publication)
 
-    async def send_message(self, content: str) -> None:
+    async def send_message(
+        self,
+        content: str,
+        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
+    ) -> ConversationResponseRoute:
         self.messages.append(content)
+        self.routes.append(response_route)
+        return response_route
 
     async def publish_failure(self, public_message) -> None:
         raise AssertionError("not expected")
@@ -36,6 +49,21 @@ class ActivityRecorder:
 
     async def promote(self, activity: AgentActivity) -> None:
         self.activities.append(activity)
+
+
+def test_conversation_tools_only_expose_safe_response_routes() -> None:
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+        )
+    }
+
+    for name in ("send_message", "finish_interaction"):
+        properties = tools[name].params_json_schema["properties"]
+        assert properties["response_route"]["enum"] == ["reply", "thread"]
+        assert set(properties) == {"content", "response_route"}
 
 
 @pytest.mark.asyncio
@@ -117,7 +145,9 @@ async def test_messages_can_be_sent_before_explicit_conversational_completion() 
         progress_arguments,
     )
     second_progress = "Ya tengo las definiciones; estoy preparando la diferencia práctica."
-    second_arguments = json.dumps({"content": second_progress})
+    second_arguments = json.dumps(
+        {"content": second_progress, "response_route": "thread"}
+    )
     await tools["send_message"].on_invoke_tool(
         ToolContext(
             context=run_context,
@@ -133,8 +163,13 @@ async def test_messages_can_be_sent_before_explicit_conversational_completion() 
         "ok": True,
         "delivery": "discord_message",
         "messages_sent": 1,
+        "response_route": "reply",
         "interaction_complete": False,
     }
+    assert publisher.routes == [
+        ConversationResponseRoute.REPLY,
+        ConversationResponseRoute.REPLY,
+    ]
     assert run_context.message_sent
     assert run_context.messages_sent_count == 2
     assert not run_context.interaction_completed
@@ -157,6 +192,7 @@ async def test_messages_can_be_sent_before_explicit_conversational_completion() 
         "ok": True,
         "delivery": "discord_message",
         "messages_sent": 3,
+        "response_route": "reply",
         "interaction_complete": True,
     }
     assert run_context.messages_sent_count == 3

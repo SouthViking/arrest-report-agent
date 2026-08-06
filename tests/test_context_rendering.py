@@ -54,6 +54,7 @@ def test_render_includes_every_selected_character_and_report_image() -> None:
         requester_display_name="Teniente Charles Harrington",
         requester_role_names=["Teniente", "GNT"],
         interaction_mode=InteractionMode.INITIAL_REVIEW,
+        response_route="agent_choice",
         messages=[
             ConversationMessage(
                 id=10,
@@ -81,7 +82,8 @@ def test_render_includes_every_selected_character_and_report_image() -> None:
     assert "Solicitante: Teniente Charles Harrington" in text
     assert "Roles del solicitante: Teniente, GNT" in text
     assert "Atiende la solicitud actual" in text
-    assert "Entorno de Discord: canal; la respuesta se publicará en el hilo" in text
+    assert "una revisión se publicará en hilo" in text
+    assert "elige reply o hilo" in text
     assert "Revisa el estado actual" not in text
 
 
@@ -477,8 +479,120 @@ async def test_response_route_is_derived_from_activation_and_channel(
     mention_target = await builder.resolve_target(mention, TriggerActivation.MENTION)
     reply_target = await builder.resolve_target(reply, TriggerActivation.BOT_REPLY)
 
-    assert mention_target.response_route is DiscordResponseRoute.THREAD
+    assert mention_target.response_route is DiscordResponseRoute.AGENT_CHOICE
     assert reply_target.response_route is DiscordResponseRoute.INLINE_REPLY
+
+
+@pytest.mark.asyncio
+async def test_orphaned_thread_uses_oldest_visible_message_as_root(
+    settings, persona, monkeypatch, caplog
+) -> None:
+    class FakeDiscordError(Exception):
+        pass
+
+    class FakeTextChannel:
+        id = 20
+
+        async def fetch_message(self, message_id: int):
+            assert message_id == 30
+            raise FakeDiscordError("starter deleted")
+
+    oldest = SimpleNamespace(id=31)
+
+    class FakeThread:
+        id = 30
+
+        def __init__(self, parent: FakeTextChannel) -> None:
+            self.parent = parent
+
+        async def history(self, *, limit: int, oldest_first: bool):
+            assert limit == 1
+            assert oldest_first is True
+            yield oldest
+
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.TextChannel",
+        FakeTextChannel,
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.Thread",
+        FakeThread,
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.NotFound",
+        FakeDiscordError,
+    )
+    parent = FakeTextChannel()
+    thread = FakeThread(parent)
+    trigger = SimpleNamespace(
+        id=32,
+        channel=thread,
+        guild=SimpleNamespace(id=10),
+    )
+
+    with caplog.at_level("WARNING"):
+        target = await DiscordContextBuilder(settings, persona).resolve_target(
+            trigger,
+            TriggerActivation.MENTION,
+        )
+
+    assert target.root is oldest
+    assert target.thread is thread
+    assert target.response_route is DiscordResponseRoute.THREAD
+    assert any(record.message == "thread_root_fallback_used" for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_empty_orphaned_thread_falls_back_to_trigger_message(
+    settings, persona, monkeypatch
+) -> None:
+    class FakeDiscordError(Exception):
+        pass
+
+    class FakeTextChannel:
+        id = 20
+
+        async def fetch_message(self, message_id: int):
+            raise FakeDiscordError("starter deleted")
+
+    class FakeThread:
+        id = 30
+
+        def __init__(self, parent: FakeTextChannel) -> None:
+            self.parent = parent
+
+        async def history(self, *, limit: int, oldest_first: bool):
+            if False:
+                yield None
+
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.TextChannel",
+        FakeTextChannel,
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.Thread",
+        FakeThread,
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.NotFound",
+        FakeDiscordError,
+    )
+    parent = FakeTextChannel()
+    thread = FakeThread(parent)
+    trigger = SimpleNamespace(
+        id=32,
+        channel=thread,
+        guild=SimpleNamespace(id=10),
+    )
+
+    target = await DiscordContextBuilder(settings, persona).resolve_target(
+        trigger,
+        TriggerActivation.MENTION,
+    )
+
+    assert target.root is trigger
+    assert target.thread is thread
+    assert target.response_route is DiscordResponseRoute.THREAD
 
 
 @pytest.mark.asyncio

@@ -21,8 +21,8 @@ flowchart LR
     R --> D["Índice de delitos"]
     R --> P["Tools de publicación"]
     E["Roles de escalamiento configurados"] --> P
-    P --> X["Ruta fijada antes del runner"]
-    X --> H["Mención nueva: hilo"]
+    P --> X["Destino acotado por el evento"]
+    X --> H["Mención nueva: reply o hilo"]
     X --> N["Reply al bot: reply"]
     X --> F["Invocación en hilo: mismo hilo"]
 ```
@@ -60,11 +60,13 @@ todavía existen. La mención y su `AllowedMentions` se construyen de forma dete
 recibe IDs de roles ni decide a quién derivar. El alias legado `MANUAL_REVIEW_ROLE_ID` sigue
 admitiendo una configuración de un solo rol.
 
-La política también conserva si la activación fue una mención o una respuesta directa al bot. Una
-mención nueva en un canal padre fija la ruta `thread`; un reply al bot en el canal fija
-`inline_reply`; dentro de un hilo siempre se usa ese mismo hilo. El modelo no recibe IDs de destino
-ni decide esta ruta. El hilo se crea de forma perezosa con la primera publicación, por lo que un
-guardrail bloqueado no deja hilos vacíos.
+La política también conserva si la activación fue una mención o una respuesta directa al bot. Ante
+una mención nueva en un canal padre, el modelo puede escoger únicamente `reply` o `thread`: usa reply
+para una respuesta breve y visible, e hilo cuando espera continuidad o contenido extenso. La primera
+publicación conversacional fija la ruta durante toda la ejecución. Un reply al bot fuerza
+`inline_reply`, dentro de un hilo siempre se reutiliza ese hilo y `publish_review` lleva una revisión
+nueva al hilo. El modelo nunca recibe IDs de destino. El hilo se crea de forma perezosa, por lo que
+un guardrail bloqueado no deja hilos vacíos.
 
 ## Capas
 
@@ -134,10 +136,12 @@ El nickname es opcional y `null` significa que no se administra por guild.
   resultados compactos. Permite exigir todos/cualquiera de los términos y tolerar typos de forma
   explícita; no acepta expresiones regulares.
 - `get_charge_details(charge_ids)`: devuelve hasta diez delitos por ID único.
-- `send_message(content)`: mensaje intermedio reutilizable con Markdown de Discord, enlaces y emojis
-  moderados; ejecuta el envío de inmediato, pero permite que el agente continúe trabajando.
-- `finish_interaction(content)`: envía la respuesta conversacional final y termina explícitamente la
-  ejecución; también sirve para devolver el turno al usuario mediante una pregunta aclaratoria.
+- `send_message(content, response_route)`: mensaje intermedio reutilizable con Markdown de Discord,
+  enlaces y emojis moderados; ejecuta el envío de inmediato, pero permite que el agente continúe.
+- `finish_interaction(content, response_route)`: envía la respuesta conversacional final y termina
+  explícitamente la ejecución; también sirve para devolver el turno al usuario mediante una
+  pregunta aclaratoria. `response_route` solo admite `reply` o `thread` y no puede vencer una ruta
+  ya fijada por un reply, un hilo existente o un envío anterior.
 - `publish_review(publication)`: tool terminal que ejecuta inmediatamente el veredicto en Discord.
 
 `parallel_tool_calls` permanece deshabilitado para mantener un orden determinista en efectos
@@ -146,6 +150,11 @@ ejecutarse varias veces antes del cierre. El agente conserva `tool_choice=requir
 rondas: después de consultar conocimiento o enviar un avance debe escoger una tool siguiente y no
 puede finalizar con texto suelto o un mensaje vacío. Las tools locales de conocimiento pueden usarse
 también para responder dudas.
+
+El contrato de `ReviewPublication` trata la comparación de cargos como diagnóstico informativo.
+`unsupported`, `uncertain` y `not_found` pueden convivir con `approved`, ya que el cargo registrado es
+inmutable. `corrections_required` exige al menos un hallazgo `required` sobre una deficiencia
+corregible del reporte y nunca puede justificarse únicamente por el cargo.
 
 ## Lifecycle del agente
 
@@ -197,6 +206,10 @@ Cada mensaje se reconstruye como un turno nativo. Solo los mensajes producidos p
 autenticada del bot usan el rol `assistant`; miembros, webhooks y otros bots permanecen como `user`.
 Los adjuntos conservan el turno donde se publicaron y una versión documental incluida en la
 solicitud actual prevalece sobre versiones anteriores del mismo material.
+
+En un hilo, primero se intenta recuperar el mensaje que lo originó. Si fue eliminado o el hilo no
+nació desde un mensaje, se usa el mensaje visible más antiguo; si tampoco existe, la propia mención
+actual funciona como raíz. El contexto y todas las respuestas permanecen en el mismo hilo.
 
 Los límites de mensajes, caracteres, imágenes, archivos y tamaño combinado se aplican antes del
 runner. El reporte raíz y la solicitud actual se protegen al recortar; el resto conserva los

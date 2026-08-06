@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 import discord
 
 from arrest_report_agent.config import AppSettings, BotPersona
+from arrest_report_agent.config.logging import log_event
 from arrest_report_agent.domain import (
     ContextState,
     ConversationMessage,
@@ -24,11 +26,13 @@ from .trigger import TriggerActivation
 AUTHOR_ROLE_LIMIT = 8
 AUTHOR_ROLE_NAME_MAX_CHARS = 80
 AUTHOR_ROLES_TOTAL_MAX_CHARS = 320
+LOGGER = logging.getLogger(__name__)
 
 
 class DiscordResponseRoute(StrEnum):
-    """Deterministic Discord destination selected before the runner starts."""
+    """Safe routing constraint derived before the runner starts."""
 
+    AGENT_CHOICE = "agent_choice"
     INLINE_REPLY = "inline_reply"
     THREAD = "thread"
 
@@ -63,10 +67,7 @@ class DiscordContextBuilder:
             parent = thread.parent
             if not isinstance(parent, discord.TextChannel):
                 raise ContextUnavailableError("Configured thread has no text-channel parent")
-            try:
-                root = await parent.fetch_message(thread.id)
-            except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
-                raise ContextUnavailableError("Unable to fetch the thread starter message") from error
+            root = await self._resolve_thread_root(parent, thread, message)
             return ReviewTarget(
                 root=root,
                 trigger=message,
@@ -84,9 +85,48 @@ class DiscordContextBuilder:
             response_route=(
                 DiscordResponseRoute.INLINE_REPLY
                 if activation is TriggerActivation.BOT_REPLY
-                else DiscordResponseRoute.THREAD
+                else DiscordResponseRoute.AGENT_CHOICE
             ),
         )
+
+    async def _resolve_thread_root(
+        self,
+        parent: discord.TextChannel,
+        thread: discord.Thread,
+        trigger: discord.Message,
+    ) -> discord.Message:
+        """Resolve an optional thread starter without rejecting orphaned threads."""
+
+        try:
+            return await parent.fetch_message(thread.id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
+            root: discord.Message | None = None
+            fallback_source = "trigger_message"
+            try:
+                root = await anext(
+                    thread.history(limit=1, oldest_first=True),
+                    None,
+                )
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                root = None
+            if root is not None:
+                fallback_source = "oldest_thread_message"
+            else:
+                root = trigger
+            log_event(
+                LOGGER,
+                "warning",
+                "thread_root_fallback_used",
+                guild_id=trigger.guild.id if trigger.guild is not None else None,
+                parent_channel_id=parent.id,
+                thread_id=thread.id,
+                trigger_message_id=trigger.id,
+                resolved_root_message_id=root.id,
+                fallback_source=fallback_source,
+                error_type=type(error).__name__,
+                error_message=str(error),
+            )
+            return root
 
     async def build_case(self, target: ReviewTarget) -> ReviewCase:
         raw_messages: dict[int, discord.Message] = {target.root.id: target.root}
@@ -506,6 +546,11 @@ def _discord_environment(case: ReviewCase) -> str:
         return "Entorno de Discord: hilo; la respuesta se publicará en este mismo hilo."
     if case.response_route == DiscordResponseRoute.INLINE_REPLY.value:
         return "Entorno de Discord: canal; la respuesta se publicará como reply al mensaje actual."
+    if case.response_route == DiscordResponseRoute.AGENT_CHOICE.value:
+        return (
+            "Entorno de Discord: canal; una revisión se publicará en hilo. Para conversar, "
+            "elige reply o hilo según la extensión y continuidad esperada."
+        )
     return "Entorno de Discord: canal; la respuesta se publicará en el hilo de la solicitud."
 
 

@@ -3,6 +3,7 @@
 from .enums import (
     AgentActivity,
     ContextState,
+    ConversationResponseRoute,
     ErrorKind,
     FindingSeverity,
     InteractionMode,
@@ -22,6 +23,7 @@ __all__ = [
     "AgentActivity",
     "ChargeAssessment",
     "ContextState",
+    "ConversationResponseRoute",
     "ConversationMessage",
     "DiscordAttachment",
     "ErrorKind",
