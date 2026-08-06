@@ -1,7 +1,7 @@
 # Comandos de Discord
 
 Los comandos se registran directamente en la raíz, sin depender del nombre o personalidad del bot.
-Salvo `/ayuda`, sus respuestas son efímeras: solo las ve quien ejecutó el comando. Los selectores y
+Salvo `/ayuda` y el resultado de `/verguenza`, sus respuestas son efímeras: solo las ve quien ejecutó el comando. Los selectores y
 botones quedan ligados a ese usuario, expiran a los 180 segundos y editan el mensaje existente en
 vez de publicar respuestas adicionales.
 
@@ -15,6 +15,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/guia` | Todos | Efímera | `report_guide.json` |
 | `/cargos` | Todos | Efímera | `delitos.json` |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
+| `/verguenza` | Todos | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/pendientes` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/ranking` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/mis-reportes` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
@@ -27,6 +28,10 @@ leer el historial de Discord.
 Los comandos de supervisión comparten `SUPERVISOR_ROLE_IDS`. Ausente, vacío o `*` permite a
 todos; una lista CSV exige que el miembro posea al menos uno de esos roles. La comprobación está
 centralizada y no depende de `AUTHORIZED_USER_IDS`.
+
+Las consultas deterministas también reconocen `⏳`, `✅`, `❌` y `⚠️` cuando la reacción pertenece
+al bot o a un miembro autorizado por esta misma política. Las reacciones de otros miembros no
+alteran el estado del expediente.
 
 ## `/ayuda`
 
@@ -102,6 +107,19 @@ incluye tanto expedientes todavía sin reacción como aquellos marcados `⏳` du
 activa. Cada resultado muestra autor, estación, fecha y enlaces directos a la publicación y al hilo.
 Presenta cinco expedientes por página.
 
+## `/verguenza`
+
+Abre un modal para seleccionar mes actual o los últimos 7, 30 o 90 días. Al enviarlo, publica una
+sección por cada canal configurado con su propio top 10 de miembros que todavía no han alcanzado una
+reacción ✅ dentro del periodo. Cuenta como abiertos los estados sin reacción, `⏳`, `❌` y `⚠️`;
+los reportes aprobados quedan fuera antes de agrupar. Cada sección ordena por cantidad descendente y
+muestra el desglose con una leyenda común: `📭` sin revisión, `⏳` en revisión, `❌` con
+correcciones y `⚠️` inconcluso.
+
+El resultado es visible para todo el canal, pero usa menciones sin notificación. Cualquier miembro
+de una guild habilitada puede ejecutarlo y el snapshot solo incluye canales configurados que ese
+miembro y el bot puedan leer. No aplica `AUTHORIZED_USER_IDS`, no ejecuta IA y no conserva historial.
+
 ## `/ranking`
 
 Abre un modal con periodo, estación y criterio de orden. Puede ordenar por:
@@ -111,8 +129,8 @@ Abre un modal con periodo, estación y criterio de orden. Puede ordenar por:
 - Reportes con correcciones.
 - Porcentaje de aprobación.
 
-Cada fila muestra los conteos actuales de aprobados, correcciones, pendientes, supervisiones y tasa
-de aprobación. Presenta diez miembros por página. Es un snapshot de las reacciones actuales; no
+Cada fila muestra los conteos actuales de aprobados, correcciones, expedientes sin revisión,
+revisiones activas, inconclusos y tasa de aprobación. Presenta diez miembros por página. Es un snapshot de las reacciones actuales; no
 representa cuántas veces cambió un resultado ni conserva publicaciones eliminadas.
 
 ## `/mis-reportes`

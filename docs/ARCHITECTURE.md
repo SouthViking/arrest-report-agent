@@ -42,6 +42,10 @@ La colección `REPORT_CHANNEL_IDS` queda separada del acceso conversacional. El 
 consultas deterministas de reportes y para `/ayuda`; al presentarla, resuelve cada ID en la guild
 actual y solo muestra canales de texto visibles para el bot y el solicitante. Los IDs de otras guilds,
 eliminados o inaccesibles se omiten y se registran sin bloquear la conversación.
+`/verguenza` conserva ese origen en el resultado y construye una sección independiente por canal,
+en lugar de mezclar estaciones en un único ranking. La agregación conserva por separado los
+expedientes sin reacción y aquellos marcados `⏳`, para que la presentación no confunda ausencia de
+revisión con una revisión activa.
 
 Una vez superada la política local, `request_scope` clasifica alcance e intención usando solo el
 texto de la solicitud actual y señales compactas de contexto. Es bloqueante
@@ -86,12 +90,20 @@ guía y el catálogo versionados mediante vistas efímeras ligadas al usuario: l
 editan el mismo mensaje, mientras que la búsqueda de cargos resuelve localmente código, título,
 categoría y descripción con un límite acotado de resultados.
 
+`/verguenza` comparte el finder determinista: abre un modal privado para elegir mes actual o los
+últimos 7, 30 o 90 días y después publica un top 10 visible para el canal. Filtra primero todo reporte
+que ya tenga ✅ y agrupa los estados restantes por autor dentro del periodo. La consulta respeta la
+allowlist de guilds y los permisos efectivos de lectura del solicitante, pero deliberadamente no
+aplica la allowlist de usuarios ni los roles de supervisión.
+
 El contrato funcional completo de los comandos está documentado en [Comandos de Discord](COMMANDS.md).
 
 Los comandos `/pendientes` y `/ranking` reutilizan el mismo finder acotado, pero permiten
 consultar autores distintos al solicitante. Una política de roles independiente se construye desde
 `SUPERVISOR_ROLE_IDS` y se aplica antes de cualquier lectura; esta frontera permite reemplazar la
 configuración por guild desde una base de datos sin modificar las vistas ni las agregaciones.
+El finder reutiliza esa política para reconocer estados manuales: confía en las reacciones del bot y
+en las de miembros que posean un rol autorizado, ignorando las del resto.
 - `bootstrap`: composición de dependencias y healthcheck.
 
 ## Personas

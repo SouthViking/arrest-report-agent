@@ -15,15 +15,14 @@ from arrest_report_agent.application import (
     PersonalReportStatusFilter,
     SupervisorRankingEntry,
     SupervisorRankingMetric,
+    build_open_report_ranking,
     build_supervisor_ranking,
 )
 from arrest_report_agent.config import (
-    AppSettings,
     PersonaAccessMessages,
     PersonaFailureMessages,
     PersonaNavigationMessages,
     PersonaSupervisionMessages,
-    SnowflakeAllowlist,
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
 
@@ -32,30 +31,23 @@ from .personal_reports import (
     build_period_labels,
     build_status_presentation,
 )
+from .supervisor_access import SupervisorRolePolicy
 
 LOGGER = logging.getLogger(__name__)
 
 SUPERVISION_VIEW_TIMEOUT_SECONDS = 180
 PENDING_REPORTS_PER_PAGE = 5
 RANKING_ENTRIES_PER_PAGE = 10
+SHAME_RANKING_LIMIT = 10
+
+
 @dataclass(frozen=True, slots=True)
-class SupervisorRolePolicy:
-    """Central role policy that can later be backed by persisted configuration."""
+class ShameRankingSection:
+    """Open-report ranking for one configured Discord report channel."""
 
-    roles: SnowflakeAllowlist
-
-    @classmethod
-    def from_settings(cls, settings: AppSettings) -> SupervisorRolePolicy:
-        return cls(roles=settings.supervisor_role_allowlist)
-
-    @property
-    def is_restricted(self) -> bool:
-        return self.roles.is_restricted
-
-    def allows(self, member: discord.Member) -> bool:
-        if not self.roles.is_restricted:
-            return True
-        return any(self.roles.allows(role.id) for role in member.roles)
+    channel_id: int
+    channel_name: str
+    ranking: tuple[SupervisorRankingEntry, ...]
 
 
 def build_supervisor_unauthorized_message(messages: PersonaAccessMessages) -> str:
@@ -270,6 +262,118 @@ class RankingModal(discord.ui.DesignerModal):
                 guild_id=self.guild.id,
                 user_id=self.member.id,
                 messages=self.failure_messages,
+            )
+
+
+class ShameRankingModal(discord.ui.DesignerModal):
+    """Public period selector for the playful open-report ranking."""
+
+    def __init__(
+        self,
+        *,
+        finder: DiscordPersonalReportFinder,
+        guild: discord.Guild,
+        member: discord.Member,
+        display_name: str,
+        access_messages: PersonaAccessMessages,
+        failure_messages: PersonaFailureMessages,
+        ui: PersonaSupervisionMessages,
+        navigation: PersonaNavigationMessages,
+    ) -> None:
+        self.finder = finder
+        self.guild = guild
+        self.member = member
+        self.display_name = display_name
+        self.access_messages = access_messages
+        self.failure_messages = failure_messages
+        self.ui = ui
+        self.navigation = navigation
+        self.period_select = _period_select("shame_ranking_period", navigation)
+        super().__init__(
+            discord.ui.Label(ui.period_label, self.period_select),
+            title=ui.shame_modal_title,
+            custom_id=f"shame_ranking:{member.id}",
+            timeout=SUPERVISION_VIEW_TIMEOUT_SECONDS,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.member.id:
+            await interaction.response.send_message(
+                self.access_messages.other_member_query,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+
+        period = PersonalReportPeriod(self.period_select.values[0])
+        query = PersonalReportQuery(
+            period=period,
+            status=PersonalReportStatusFilter.ALL,
+        )
+        await interaction.response.defer(ephemeral=False)
+        try:
+            result = await self.finder.find_all(self.guild, self.member, query)
+            channels = self.finder.visible_channels(self.guild, self.member)
+            sections = tuple(
+                ShameRankingSection(
+                    channel_id=channel.id,
+                    channel_name=channel.name,
+                    ranking=build_open_report_ranking(
+                        tuple(
+                            report
+                            for report in result.reports
+                            if report.channel_id == channel.id
+                        )
+                    ),
+                )
+                for channel in channels
+            )
+            await interaction.followup.send(
+                embed=build_shame_ranking_embed(
+                    sections,
+                    period=period,
+                    truncated=result.truncated,
+                    display_name=self.display_name,
+                    ui=self.ui,
+                    navigation=self.navigation,
+                ),
+                ephemeral=False,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "open_report_shame_completed",
+                guild_id=self.guild.id,
+                user_id=self.member.id,
+                period=period.value,
+                report_count=len(result.reports),
+                channel_count=len(sections),
+                channel_ids=[section.channel_id for section in sections],
+                member_count=len(
+                    {
+                        entry.author_id
+                        for section in sections
+                        for entry in section.ranking
+                    }
+                ),
+                truncated=result.truncated,
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "open_report_shame_failed",
+                exc_info=error,
+                guild_id=self.guild.id,
+                user_id=self.member.id,
+                interaction_id=interaction.id,
+                **exception_fields(error),
+            )
+            await interaction.followup.send(
+                self.failure_messages.shame_query_failure,
+                ephemeral=False,
+                allowed_mentions=discord.AllowedMentions.none(),
             )
 
 
@@ -490,7 +594,8 @@ def build_ranking_embed(
         lines.append(
             f"{medal} <@{entry.author_id}> — **{_ranking_value(entry, metric, ui)}**\n"
             f"↳ 📂 {entry.total} · ✅ {entry.approved} · ❌ {entry.corrections_required} · "
-            f"⏳ {entry.pending} · ⚠️ {entry.inconclusive} · {entry.approval_rate:.1f}%"
+            f"📭 {entry.unreviewed} · ⏳ {entry.in_review} · "
+            f"⚠️ {entry.inconclusive} · {entry.approval_rate:.1f}%"
         )
     embed = discord.Embed(
         title=ui.ranking_title,
@@ -510,6 +615,62 @@ def build_ranking_embed(
     )
     if truncated:
         footer += f" · {ui.ranking_footer_truncated}"
+    embed.set_footer(text=footer)
+    return embed
+
+
+def build_shame_ranking_embed(
+    sections: tuple[ShameRankingSection, ...],
+    *,
+    period: PersonalReportPeriod,
+    truncated: bool,
+    display_name: str,
+    ui: PersonaSupervisionMessages,
+    navigation: PersonaNavigationMessages,
+) -> discord.Embed:
+    """Render the public top of authors whose reports have not reached approval."""
+
+    visible_author_ids: set[int] = set()
+    all_author_ids: set[int] = set()
+    embed = discord.Embed(
+        title=ui.shame_title,
+        description=(
+            ui.shame_description.format(
+                period=build_period_labels(navigation)[period],
+                entries="",
+            ).strip()
+            + f"\n\n{ui.shame_legend}"
+        ),
+        color=discord.Color.red(),
+    )
+
+    for section in sections:
+        entries = section.ranking[:SHAME_RANKING_LIMIT]
+        all_author_ids.update(entry.author_id for entry in section.ranking)
+        visible_author_ids.update(entry.author_id for entry in entries)
+        lines: list[str] = []
+        for position, entry in enumerate(entries, start=1):
+            medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(position, f"**{position}.**")
+            lines.append(
+                f"{medal} <@{entry.author_id}> — "
+                f"**{ui.shame_value.format(count=entry.total)}**\n"
+                f"↳ 📭 {entry.unreviewed} · ⏳ {entry.in_review} · "
+                f"❌ {entry.corrections_required} · "
+                f"⚠️ {entry.inconclusive}"
+            )
+        embed.add_field(
+            name=f"📍 #{section.channel_name}"[:256],
+            value="\n".join(lines) if lines else ui.shame_empty_body,
+            inline=False,
+        )
+
+    footer = ui.shame_footer.format(
+        shown=len(visible_author_ids),
+        count=len(all_author_ids),
+        display_name=display_name,
+    )
+    if truncated:
+        footer += f" · {ui.shame_footer_truncated}"
     embed.set_footer(text=footer)
     return embed
 

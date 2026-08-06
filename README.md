@@ -84,7 +84,7 @@ usuario habilitado puede activar al bot mediante una mención o una respuesta di
 canal visible para el bot.
 
 `REPORT_CHANNEL_IDS` no restringe conversaciones. Define los canales que `/mis-reportes`,
-`/mi-resumen`, `/pendientes` y `/ranking` utilizan como archivo de reportes y los que `/ayuda`
+`/mi-resumen`, `/pendientes`, `/ranking` y `/verguenza` utilizan como archivo de reportes y los que `/ayuda`
 presenta como destinos habituales. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` siguen siendo aliases
 de migración. Al mostrarlos, el bot conserva únicamente los que pertenecen a la guild actual y son
 visibles para él y para el solicitante, evitando referencias `#desconocido` entre servidores.
@@ -183,17 +183,22 @@ Comandos disponibles:
 - `/cargos`: modal privado para buscar por código, título, descripción o categoría en el catálogo
   penal local; muestra detalles y sanciones con paginación cuando corresponde.
 - `/faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
+- `/verguenza`: abre un modal para elegir mes actual o los últimos 7, 30 o 90 días, y publica por
+  cada canal configurado un top 10 de quienes acumulan más expedientes que todavía no alcanzan el
+  ✅; muestra una leyenda y separa los expedientes sin revisión (`📭`) de las revisiones activas
+  (`⏳`), correcciones (`❌`) e inconclusos (`⚠️`).
 - `/pendientes`: consulta de supervisión para expedientes sin estado terminal o en revisión.
 - `/ranking`: ranking de supervisión por volumen, aprobaciones, correcciones o tasa de aprobación.
 - `/mis-reportes`: abre un modal privado para filtrar por periodo, estado y estación; entrega
   referencias directas a cada publicación y a su hilo cuando existe.
 - `/mi-resumen`: muestra de forma privada el estado personal del mes actual.
 
-Los comandos de guía, cargos, FAQ y consultas personales son deterministas: no ejecutan el runner ni
+Los comandos de guía, cargos, FAQ, vergüenza y consultas personales son deterministas: no ejecutan el runner ni
 consumen OpenAI. Los comandos personales consultan un máximo acotado del historial de los canales
-configurados, cuentan solo publicaciones raíz del usuario con adjuntos o estado asignado por el bot
-y leen exclusivamente las reacciones propias de esta instancia (`⏳`, `✅`, `❌`, `⚠️`). Los
-resultados representan el estado actual de Discord, no un historial de cambios.
+configurados, cuentan solo publicaciones raíz del usuario con adjuntos o estado asignado y leen las
+reacciones (`⏳`, `✅`, `❌`, `⚠️`) puestas por esta instancia o por miembros que cumplan
+`SUPERVISOR_ROLE_IDS`. Los resultados representan el estado actual de Discord, no un historial de
+cambios.
 
 Aunque su lógica y sus datos son deterministas, todo el texto visual que rodea esas consultas se toma
 de `messages.interface` en la persona activa. Esto incluye opciones generales, placeholders, títulos,
@@ -207,9 +212,9 @@ el contenido exacto del FAQ.
 | Variable | Predeterminado | Función |
 |---|---:|---|
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
-| `REPORT_CHANNEL_IDS` | `*` | Canales usados por búsquedas, resúmenes, supervisión y ayuda; no restringe menciones. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` quedan como aliases compatibles. |
+| `REPORT_CHANNEL_IDS` | `*` | Canales usados por búsquedas, resúmenes, rankings, supervisión y ayuda; no restringe menciones. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` quedan como aliases compatibles. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
-| `SUPERVISOR_ROLE_IDS` | `*` | Roles autorizados para los comandos de supervisión; `*`/vacío permite a todos. |
+| `SUPERVISOR_ROLE_IDS` | `*` | Roles autorizados para comandos de supervisión y para asignar estados manuales reconocidos por las consultas; `*`/vacío permite a todos. |
 | `REVIEW_ESCALATION_ROLE_IDS` | vacío | Roles existentes que reciben una mención ante resultados inconclusos o fallas; acepta CSV. |
 | `BOT_PERSONA` | obligatorio | ID del perfil empaquetado que controla identidad, tono, presencia y perfil de Discord. |
 | `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |

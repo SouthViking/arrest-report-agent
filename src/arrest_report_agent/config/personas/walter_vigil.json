@@ -1,7 +1,7 @@
 {
-  "schema_version": 7,
+  "schema_version": 9,
   "id": "walter_vigil",
-  "revision": 7,
+  "revision": 9,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -121,7 +121,8 @@
       "charge_query_failure": "⚖️ No pude consultar el código en este momento. Inténtelo nuevamente.",
       "personal_report_query_failure": "📁 No pude consultar el archivo de reportes en este momento. Inténtelo nuevamente.",
       "personal_summary_failure": "📁 No pude preparar su resumen en este momento. Inténtelo nuevamente.",
-      "supervision_query_failure": "📁 No pude consultar el archivo de supervisión en este momento. Inténtelo nuevamente."
+      "supervision_query_failure": "📁 No pude consultar el archivo de supervisión en este momento. Inténtelo nuevamente.",
+      "shame_query_failure": "📁 No pude levantar el ranking de expedientes sin aprobar. Inténtelo nuevamente."
     },
     "help": {
       "title": "⭐ {display_name} · {role_title}",
@@ -137,7 +138,7 @@
       "personal_commands_title": "🗂️ Consultas privadas",
       "personal_commands": "• `/mis-reportes`: filtra sus publicaciones y abre rápidamente cada expediente.\n• `/mi-resumen`: consulta sus cifras del mes actual.",
       "general_commands_title": "📚 Consultas generales",
-      "general_commands": "• `/guia`: consulta las reglas de redacción y revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo local.\n• `/faq`: resuelve dudas frecuentes del procedimiento.",
+      "general_commands": "• `/guia`: consulta las reglas de redacción y revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo local.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: elige un periodo y publica quién acumula más expedientes sin aprobar.",
       "supervision_commands_title": "🛡️ Supervisión",
       "supervision_commands": "• `/pendientes`: localiza expedientes sin estado terminal.\n• `/ranking`: compara actividad y resultados por miembro.\nRequieren un rol de supervisión autorizado.",
       "official_docs_title": "📚 Documentación oficial",
@@ -223,6 +224,7 @@
         "ranking_order_label": "Ordenar por",
         "pending_modal_title": "Consultar reportes pendientes",
         "ranking_modal_title": "Ranking de reportes",
+        "shame_modal_title": "Elegir periodo del ranking",
         "metric_submitted": "Reportes presentados",
         "metric_approved": "Reportes aprobados",
         "metric_corrections_required": "Reportes con correcciones",
@@ -241,7 +243,14 @@
         "ranking_value_approved": "{count} aprobado(s)",
         "ranking_value_corrections_required": "{count} con correcciones",
         "ranking_value_approval_rate": "{rate}% de aprobación",
-        "ranking_value_submitted": "{count} presentado(s)"
+        "ranking_value_submitted": "{count} presentado(s)",
+        "shame_title": "🫵 Muro de expedientes sin aprobar",
+        "shame_description": "**Periodo:** {period}\nTodavía no han conseguido el ✅:\n\n{entries}",
+        "shame_legend": "**Leyenda:** 📭 Sin revisión · ⏳ En revisión · ❌ Con correcciones · ⚠️ Inconcluso",
+        "shame_empty_body": "No hay miembros con expedientes sin aprobar en este periodo. La guardia está al día.",
+        "shame_footer": "Top {shown} de {count} miembro(s) · {display_name}",
+        "shame_footer_truncated": "Snapshot limitado",
+        "shame_value": "{count} expediente(s) sin aprobar"
       },
       "review": {
         "failure_next_step_title": "Siguiente paso",
@@ -276,6 +285,7 @@
         "faq_description": "Consulta preguntas frecuentes sobre reportes",
         "pending_description": "Consulta reportes pendientes de supervisión",
         "ranking_description": "Compara resultados de reportes por miembro",
+        "shame_description": "Publica quién acumula más reportes sin aprobar",
         "personal_reports_description": "Busca sus reportes y abre sus publicaciones",
         "personal_summary_description": "Muestra su resumen privado del mes actual"
       }

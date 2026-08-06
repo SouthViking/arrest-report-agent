@@ -46,6 +46,7 @@ from .publisher import DiscordReviewPublisher
 from .supervision import (
     PendingReportsModal,
     RankingModal,
+    ShameRankingModal,
     SupervisorRolePolicy,
     build_supervisor_unauthorized_message,
 )
@@ -196,6 +197,7 @@ class ReviewCog(commands.Cog):
         self.report_faq.description = command_copy.faq_description
         self.supervisor_pending.description = command_copy.pending_description
         self.supervisor_ranking.description = command_copy.ranking_description
+        self.open_report_shame.description = command_copy.shame_description
         self.personal_reports.description = command_copy.personal_reports_description
         self.personal_summary.description = command_copy.personal_summary_description
         self.profile_synchronizer = profile_synchronizer
@@ -643,6 +645,36 @@ class ReviewCog(commands.Cog):
             )
         )
 
+    @discord.slash_command(
+        name="verguenza",
+        description="Muestra quién acumula más reportes sin aprobar",
+    )
+    async def open_report_shame(self, ctx: discord.ApplicationContext) -> None:
+        identity = await self._authorize_public_report_command(ctx)
+        if identity is None:
+            return
+        guild, member = identity
+        if not self.personal_report_finder.visible_channels(guild, member):
+            await ctx.respond(
+                self.persona.messages.access.no_personal_channels,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+
+        await ctx.send_modal(
+            ShameRankingModal(
+                finder=self.personal_report_finder,
+                guild=guild,
+                member=member,
+                display_name=self.persona.identity.display_name,
+                access_messages=self.persona.messages.access,
+                failure_messages=self.persona.messages.failures,
+                ui=self.persona.messages.interface.supervision,
+                navigation=self.persona.messages.interface.navigation,
+            )
+        )
+
     @discord.slash_command(name="mis-reportes", description="Busca tus reportes y abre sus publicaciones")
     async def personal_reports(self, ctx: discord.ApplicationContext) -> None:
         identity = await self._authorize_personal_command(ctx)
@@ -761,6 +793,30 @@ class ReviewCog(commands.Cog):
                 guild_id=guild.id,
                 user_id=member.id,
                 interaction_id=ctx.interaction.id,
+            )
+            return None
+        return guild, member
+
+    async def _authorize_public_report_command(
+        self,
+        ctx: discord.ApplicationContext,
+    ) -> tuple[discord.Guild, discord.Member] | None:
+        """Allow any member in an enabled guild to read report data visible to them."""
+
+        guild = ctx.guild
+        member = ctx.author
+        if guild is None or not self.access_policy.guilds.allows(guild.id):
+            await ctx.respond(
+                self.persona.messages.access.personal_wrong_guild,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return None
+        if not isinstance(member, discord.Member):
+            await ctx.respond(
+                self.persona.messages.access.personal_member_unavailable,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
             )
             return None
         return guild, member

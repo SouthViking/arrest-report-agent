@@ -22,8 +22,15 @@ class SupervisorRankingEntry:
     total: int
     approved: int
     corrections_required: int
-    pending: int
+    unreviewed: int
+    in_review: int
     inconclusive: int
+
+    @property
+    def pending(self) -> int:
+        """Return every non-terminal report that is not awaiting corrections."""
+
+        return self.unreviewed + self.in_review
 
     @property
     def approval_rate(self) -> float:
@@ -49,7 +56,8 @@ def build_supervisor_ranking(
                 "total": 0,
                 "approved": 0,
                 "corrections_required": 0,
-                "pending": 0,
+                "unreviewed": 0,
+                "in_review": 0,
                 "inconclusive": 0,
             },
         )
@@ -60,8 +68,10 @@ def build_supervisor_ranking(
             row["corrections_required"] = int(row["corrections_required"]) + 1
         elif report.status is PersonalReportStatus.INCONCLUSIVE:
             row["inconclusive"] = int(row["inconclusive"]) + 1
-        else:
-            row["pending"] = int(row["pending"]) + 1
+        elif report.status is PersonalReportStatus.IN_REVIEW:
+            row["in_review"] = int(row["in_review"]) + 1
+        elif report.status is PersonalReportStatus.PENDING:
+            row["unreviewed"] = int(row["unreviewed"]) + 1
 
     entries = [
         SupervisorRankingEntry(
@@ -70,13 +80,30 @@ def build_supervisor_ranking(
             total=int(row["total"]),
             approved=int(row["approved"]),
             corrections_required=int(row["corrections_required"]),
-            pending=int(row["pending"]),
+            unreviewed=int(row["unreviewed"]),
+            in_review=int(row["in_review"]),
             inconclusive=int(row["inconclusive"]),
         )
         for author_id, row in mutable.items()
     ]
     entries.sort(key=lambda entry: _ranking_sort_key(entry, metric))
     return tuple(entries)
+
+
+def build_open_report_ranking(
+    reports: tuple[PersonalReport, ...],
+) -> tuple[SupervisorRankingEntry, ...]:
+    """Rank authors by reports whose current Discord state has not reached approval."""
+
+    open_reports = tuple(
+        report
+        for report in reports
+        if report.status is not PersonalReportStatus.APPROVED
+    )
+    return build_supervisor_ranking(
+        open_reports,
+        SupervisorRankingMetric.SUBMITTED,
+    )
 
 
 def _ranking_sort_key(

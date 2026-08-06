@@ -14,6 +14,7 @@ from arrest_report_agent.infrastructure.discord.cog import (
     build_unauthorized_user_message,
     maintain_typing_indicator,
 )
+from arrest_report_agent.infrastructure.discord.supervision import ShameRankingModal
 
 
 class FakeTypingContext:
@@ -110,6 +111,7 @@ def test_operational_commands_are_registered_at_the_root() -> None:
         ReviewCog.report_faq,
         ReviewCog.supervisor_pending,
         ReviewCog.supervisor_ranking,
+        ReviewCog.open_report_shame,
         ReviewCog.personal_reports,
         ReviewCog.personal_summary,
     ]
@@ -121,6 +123,7 @@ def test_operational_commands_are_registered_at_the_root() -> None:
         "faq",
         "pendientes",
         "ranking",
+        "verguenza",
         "mis-reportes",
         "mi-resumen",
     ]
@@ -156,6 +159,7 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention(persona) -> N
     assert "/guia" in embed.fields[5].value
     assert "/cargos" in embed.fields[5].value
     assert "/faq" in embed.fields[5].value
+    assert "/verguenza" in embed.fields[5].value
     assert "/pendientes" in embed.fields[6].value
     assert "/ranking" in embed.fields[6].value
     assert embed.fields[7].value == (
@@ -189,8 +193,60 @@ async def test_help_and_command_descriptions_use_selected_persona(settings, pers
     assert embed.fields[0].name == "📋 las weas q reviso"
     assert embed.fields[1].value == roy.messages.help.unrestricted_channels
     assert cog.charge_search.description == roy.messages.interface.commands.charges_description
+    assert cog.open_report_shame.description == (
+        roy.messages.interface.commands.shame_description
+    )
 
     ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_shame_command_is_public_and_does_not_apply_user_allowlist(
+    settings,
+    persona,
+    monkeypatch,
+) -> None:
+    class FakeMember:
+        def __init__(self, user_id: int) -> None:
+            self.id = user_id
+
+    modals: list[object] = []
+
+    async def send_modal(modal) -> None:
+        modals.append(modal)
+
+    restricted = settings.model_copy(update={"authorized_user_ids_csv": "999999"})
+    guild = SimpleNamespace(id=min(restricted.discord_guild_ids or ()))
+    member = FakeMember(123)
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(bot, restricted, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+    cog.personal_report_finder = SimpleNamespace(
+        visible_channels=lambda _guild, _member: (SimpleNamespace(id=200),)
+    )  # type: ignore[assignment]
+    ctx = SimpleNamespace(
+        guild=guild,
+        author=member,
+        interaction=SimpleNamespace(id=456),
+        send_modal=send_modal,
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.cog.discord.Member",
+        FakeMember,
+    )
+
+    await cog.open_report_shame.callback(cog, ctx)  # type: ignore[arg-type]
+
+    assert len(modals) == 1
+    modal = modals[0]
+    assert isinstance(modal, ShameRankingModal)
+    assert modal.title == "Elegir periodo del ranking"
+    assert [child.label for child in modal.children] == ["Periodo"]
+    assert [option.value for option in modal.period_select.options] == [
+        "current_month",
+        "last_7_days",
+        "last_30_days",
+        "last_90_days",
+    ]
 
 
 @pytest.mark.asyncio

@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 7
-    assert profile.revision == 7
+    assert profile.schema_version == 9
+    assert profile.revision == 9
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -34,8 +34,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 7
-    assert profile.revision == 12
+    assert profile.schema_version == 9
+    assert profile.revision == 14
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -91,6 +91,12 @@ async def test_personas_define_distinct_deterministic_copy(loaded_persona) -> No
     assert "{focus}" in walter.messages.interface.review.targeted_focus
     assert "{display_name}" in walter.messages.help.description
     assert "{display_name}" in roy.messages.help.description
+    assert "Muro de expedientes" in walter.messages.interface.supervision.shame_title
+    assert "muro de la vergüenza" in roy.messages.interface.supervision.shame_title
+    assert "📭" in walter.messages.interface.supervision.shame_legend
+    assert "sin revisión" in roy.messages.interface.supervision.shame_legend
+    assert "/verguenza" in walter.messages.help.general_commands
+    assert "/verguenza" in roy.messages.help.general_commands
 
 
 @pytest.mark.asyncio

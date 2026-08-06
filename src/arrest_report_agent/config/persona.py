@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 7
+PERSONA_SCHEMA_VERSION = 9
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -177,6 +177,7 @@ class PersonaFailureMessages(FrozenPersonaModel):
     personal_report_query_failure: str = Field(min_length=1, max_length=500)
     personal_summary_failure: str = Field(min_length=1, max_length=500)
     supervision_query_failure: str = Field(min_length=1, max_length=500)
+    shame_query_failure: str = Field(min_length=1, max_length=500)
 
 
 class PersonaHelpMessages(FrozenPersonaModel):
@@ -391,13 +392,14 @@ class PersonaPersonalReportMessages(FrozenPersonaModel):
 
 
 class PersonaSupervisionMessages(FrozenPersonaModel):
-    """Personality-aware UI copy for supervisor-only commands."""
+    """Personality-aware UI copy for report rankings and supervisor commands."""
 
     period_label: str = Field(min_length=1, max_length=100)
     station_label: str = Field(min_length=1, max_length=100)
     ranking_order_label: str = Field(min_length=1, max_length=100)
     pending_modal_title: str = Field(min_length=1, max_length=100)
     ranking_modal_title: str = Field(min_length=1, max_length=100)
+    shame_modal_title: str = Field(min_length=1, max_length=100)
     metric_submitted: str = Field(min_length=1, max_length=100)
     metric_approved: str = Field(min_length=1, max_length=100)
     metric_corrections_required: str = Field(min_length=1, max_length=100)
@@ -417,6 +419,13 @@ class PersonaSupervisionMessages(FrozenPersonaModel):
     ranking_value_corrections_required: str = Field(min_length=1, max_length=150)
     ranking_value_approval_rate: str = Field(min_length=1, max_length=150)
     ranking_value_submitted: str = Field(min_length=1, max_length=150)
+    shame_title: str = Field(min_length=1, max_length=256)
+    shame_description: str = Field(min_length=1, max_length=900)
+    shame_legend: str = Field(min_length=1, max_length=500)
+    shame_empty_body: str = Field(min_length=1, max_length=500)
+    shame_footer: str = Field(min_length=1, max_length=300)
+    shame_footer_truncated: str = Field(min_length=1, max_length=200)
+    shame_value: str = Field(min_length=1, max_length=150)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaSupervisionMessages:
@@ -457,6 +466,17 @@ class PersonaSupervisionMessages(FrozenPersonaModel):
                 {"count"},
                 "interface.supervision.ranking_value_submitted",
             ),
+            (
+                self.shame_description,
+                {"period", "entries"},
+                "interface.supervision.shame_description",
+            ),
+            (
+                self.shame_footer,
+                {"shown", "count", "display_name"},
+                "interface.supervision.shame_footer",
+            ),
+            (self.shame_value, {"count"}, "interface.supervision.shame_value"),
         )
         for template, fields, label in templates:
             _require_template_fields(template, fields, label)
@@ -524,6 +544,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     faq_description: str = Field(min_length=1, max_length=100)
     pending_description: str = Field(min_length=1, max_length=100)
     ranking_description: str = Field(min_length=1, max_length=100)
+    shame_description: str = Field(min_length=1, max_length=100)
     personal_reports_description: str = Field(min_length=1, max_length=100)
     personal_summary_description: str = Field(min_length=1, max_length=100)
 
