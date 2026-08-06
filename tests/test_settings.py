@@ -24,6 +24,7 @@ def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings)
     assert settings.max_files_per_review == 5
     assert settings.max_file_bytes == 10_485_760
     assert settings.max_total_file_bytes == 52_428_800
+    assert settings.channel_context_max_messages == 5
     assert settings.thread_context_max_historical_files == 2
 
 

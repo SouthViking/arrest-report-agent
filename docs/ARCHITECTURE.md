@@ -200,7 +200,7 @@ costo quedan incluidos en el total operativo de la solicitud. Si una validación
 de que el Runner terminó, el log conserva el uso completo del resultado en vez de degradarlo al uso
 parcial del guardrail.
 
-## Contexto de hilo
+## Contexto de conversación
 
 No se usan sesiones ni persistencia del SDK. Cada mención reconstruye un input autocontenido con:
 
@@ -222,6 +222,12 @@ solicitud actual prevalece sobre versiones anteriores del mismo material.
 En un hilo, primero se intenta recuperar el mensaje que lo originó. Si fue eliminado o el hilo no
 nació desde un mensaje, se usa el mensaje visible más antiguo; si tampoco existe, la propia mención
 actual funciona como raíz. El contexto y todas las respuestas permanecen en el mismo hilo.
+
+Fuera de hilos se incluyen, por defecto, hasta cinco mensajes de texto inmediatamente anteriores
+del mismo canal. `CHANNEL_CONTEXT_MAX_MESSAGES` permite ajustar el límite o desactivarlo con `0`.
+Estos turnos se etiquetan como contexto ambiental para resolver referencias conversacionales, no se
+consideran parte del expediente actual y sus adjuntos no se envían al runner. El modelo recibe solo
+una descripción compacta con cantidad, tipo y nombres de archivo, sin contenido ni URLs.
 
 Los límites de mensajes, caracteres, imágenes, archivos y tamaño combinado se aplican antes del
 runner. El reporte raíz y la solicitud actual se protegen al recortar; el resto conserva los

@@ -52,6 +52,7 @@ class ConversationMessage(BaseModel):
     reply_to_message_id: int | None = None
     reply_excerpt: str | None = None
     attachment_ids: list[int] = Field(default_factory=list)
+    ambient_attachment_summary: str | None = Field(default=None, max_length=500)
     is_trigger: bool = False
 
 

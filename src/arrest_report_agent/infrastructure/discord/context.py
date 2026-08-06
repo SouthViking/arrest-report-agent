@@ -149,6 +149,24 @@ class DiscordContextBuilder:
             if len(history) >= self.settings.thread_context_max_messages:
                 context_state = ContextState.TRUNCATED
                 notices.append("El historial fue limitado a los mensajes más recientes.")
+        elif self.settings.channel_context_max_messages > 0:
+            try:
+                history = [
+                    item
+                    async for item in target.parent.history(
+                        limit=self.settings.channel_context_max_messages,
+                        before=target.trigger,
+                        oldest_first=False,
+                    )
+                ]
+            except (discord.Forbidden, discord.HTTPException) as error:
+                raise ContextUnavailableError("Unable to read channel history") from error
+            for item in history:
+                raw_messages[item.id] = item
+            raw_messages[target.trigger.id] = target.trigger
+            if len(history) >= self.settings.channel_context_max_messages:
+                context_state = ContextState.TRUNCATED
+                notices.append("El contexto del canal fue limitado a los mensajes más recientes.")
 
         ordered = sorted(raw_messages.values(), key=lambda item: (item.created_at, item.id))
         messages, text_truncated = self._convert_messages(ordered, target)
@@ -192,6 +210,10 @@ class DiscordContextBuilder:
         truncated = False
         for message in ordered:
             content = _message_context_text(message)
+            is_prior_channel_message = (
+                target.thread is None
+                and message.id not in {target.root.id, target.trigger.id}
+            )
             per_message_limit = self.settings.thread_context_max_message_chars
             if len(content) > per_message_limit:
                 content = content[: per_message_limit - 1] + "…"
@@ -213,7 +235,16 @@ class DiscordContextBuilder:
                     edited=message.edited_at is not None,
                     reply_to_message_id=reference_id,
                     reply_excerpt=reply_excerpt,
-                    attachment_ids=[attachment.id for attachment in message.attachments],
+                    attachment_ids=(
+                        []
+                        if is_prior_channel_message
+                        else [attachment.id for attachment in message.attachments]
+                    ),
+                    ambient_attachment_summary=(
+                        _ambient_attachment_summary(message.attachments)
+                        if is_prior_channel_message
+                        else None
+                    ),
                     is_trigger=message.id == target.trigger.id,
                 )
             )
@@ -254,9 +285,15 @@ class DiscordContextBuilder:
         root_messages = [
             item for item in ordered if item.id == target.root.id and item.id != target.trigger.id
         ]
-        historical_messages = [
-            item for item in reversed(ordered) if item.id not in {target.root.id, target.trigger.id}
-        ]
+        historical_messages = (
+            [
+                item
+                for item in reversed(ordered)
+                if item.id not in {target.root.id, target.trigger.id}
+            ]
+            if target.thread is not None
+            else []
+        )
         prioritized = trigger_messages + root_messages
         historical_images_used = 0
         historical_files_used = 0
@@ -428,6 +465,11 @@ def _render_operational_context(case: ReviewCase) -> str:
         lines.append("Otros participantes y roles: " + " | ".join(participant_roles))
     if case.context_notice:
         lines.append(f"Aviso de contexto: {case.context_notice}")
+    if _has_prior_channel_context(case):
+        lines.append(
+            "Los mensajes CONTEXTO_PREVIO_CANAL son contexto ambiental: úsalos solo para "
+            "resolver referencias de la solicitud actual; no mezcles conversaciones ni expedientes."
+        )
     return "\n".join(lines)
 
 
@@ -435,6 +477,11 @@ def _render_discord_message(message: ConversationMessage, case: ReviewCase) -> s
     flags: list[str] = []
     if message.id == case.root_message_id:
         flags.append("REPORTE_RAIZ")
+    if (
+        case.interaction_mode is not InteractionMode.THREAD_FOLLOW_UP
+        and message.id not in {case.root_message_id, case.trigger_message_id}
+    ):
+        flags.append("CONTEXTO_PREVIO_CANAL")
     if message.is_trigger:
         flags.append("SOLICITUD_ACTUAL")
     if message.author_is_assistant:
@@ -453,7 +500,51 @@ def _render_discord_message(message: ConversationMessage, case: ReviewCase) -> s
     lines.append(message.content or "[sin texto]")
     if message.attachment_ids:
         lines.append(f"Adjuntos recibidos: {len(message.attachment_ids)}")
+    if message.ambient_attachment_summary:
+        lines.append(
+            "Adjuntos del contexto ambiental (contenido y URL omitidos): "
+            + message.ambient_attachment_summary
+        )
     return "\n".join(lines)
+
+
+def _has_prior_channel_context(case: ReviewCase) -> bool:
+    return case.interaction_mode is not InteractionMode.THREAD_FOLLOW_UP and any(
+        message.id not in {case.root_message_id, case.trigger_message_id}
+        for message in case.messages
+    )
+
+
+def _ambient_attachment_summary(attachments: list[discord.Attachment]) -> str | None:
+    if not attachments:
+        return None
+
+    image_names: list[str] = []
+    file_names: list[str] = []
+    for attachment in attachments:
+        input_kind, _ = classify_attachment(
+            attachment.filename,
+            attachment.content_type,
+        )
+        filename = " ".join(attachment.filename.split())[:80] or "sin nombre"
+        if input_kind is AttachmentInputKind.IMAGE:
+            image_names.append(filename)
+        else:
+            file_names.append(filename)
+
+    parts: list[str] = []
+    if image_names:
+        parts.append(_attachment_group_summary("imagen", "imágenes", image_names))
+    if file_names:
+        parts.append(_attachment_group_summary("archivo", "archivos", file_names))
+    return "; ".join(parts)[:500]
+
+
+def _attachment_group_summary(singular: str, plural: str, names: list[str]) -> str:
+    label = singular if len(names) == 1 else plural
+    visible_names = names[:5]
+    suffix = f", +{len(names) - len(visible_names)}" if len(names) > len(visible_names) else ""
+    return f"{len(names)} {label} ({', '.join(visible_names)}{suffix})"
 
 
 def _append_attachment_inputs(

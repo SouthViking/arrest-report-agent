@@ -145,6 +145,9 @@ class AppSettings(BaseSettings):
     thread_context_max_messages: int = Field(
         default=20, alias="THREAD_CONTEXT_MAX_MESSAGES", ge=1, le=100
     )
+    channel_context_max_messages: int = Field(
+        default=5, alias="CHANNEL_CONTEXT_MAX_MESSAGES", ge=0, le=25
+    )
     thread_context_max_chars: int = Field(default=8000, alias="THREAD_CONTEXT_MAX_CHARS", ge=500)
     thread_context_max_message_chars: int = Field(
         default=1500, alias="THREAD_CONTEXT_MAX_MESSAGE_CHARS", ge=100

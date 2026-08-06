@@ -664,6 +664,139 @@ async def test_existing_thread_history_uses_message_limit_and_preserves_root_and
     }
 
 
+@pytest.mark.asyncio
+async def test_channel_context_includes_bounded_prior_text_without_historical_attachments(
+    settings,
+    persona,
+) -> None:
+    settings.channel_context_max_messages = 2
+
+    def channel_message(
+        message_id: int,
+        content: str,
+        *,
+        attachments: list[SimpleNamespace] | None = None,
+    ) -> SimpleNamespace:
+        author = SimpleNamespace(
+            id=message_id + 100,
+            display_name=f"Deputy {message_id}",
+            name=f"Deputy {message_id}",
+            bot=False,
+            roles=[],
+        )
+        return SimpleNamespace(
+            id=message_id,
+            content=content,
+            author=author,
+            created_at=datetime.fromtimestamp(message_id, tz=UTC),
+            edited_at=None,
+            reference=None,
+            attachments=attachments or [],
+            embeds=[],
+            raw_mentions=[],
+        )
+
+    historical_attachment = SimpleNamespace(
+        id=501,
+        filename="captura-anterior.png",
+        content_type="image/png",
+    )
+    oldest = channel_message(1, "¿Dónde aparece esa regla?")
+    newest = channel_message(
+        2,
+        "Está en la guía de reportes.",
+        attachments=[historical_attachment],
+    )
+    trigger = channel_message(3, "¿Me explicas eso?")
+    trigger.guild = SimpleNamespace(id=10)
+
+    class FakeTextChannel:
+        id = 20
+
+        async def history(self, *, limit: int, before: object, oldest_first: bool):
+            assert limit == 2
+            assert before is trigger
+            assert oldest_first is False
+            for item in (newest, oldest):
+                yield item
+
+    parent = FakeTextChannel()
+    oldest.channel = parent
+    newest.channel = parent
+    trigger.channel = parent
+    target = ReviewTarget(
+        root=trigger,
+        trigger=trigger,
+        parent=parent,
+        thread=None,
+        response_route=DiscordResponseRoute.AGENT_CHOICE,
+    )
+
+    case = await DiscordContextBuilder(settings, persona).build_case(target)
+
+    assert [item.id for item in case.messages] == [1, 2, 3]
+    assert all(not item.attachment_ids for item in case.messages)
+    assert case.messages[1].ambient_attachment_summary == (
+        "1 imagen (captura-anterior.png)"
+    )
+    assert case.attachments == []
+    assert case.context_state is ContextState.TRUNCATED
+    assert case.context_notice == (
+        "El contexto del canal fue limitado a los mensajes más recientes."
+    )
+    rendered = render_agent_input(case, "original")
+    assert "CONTEXTO_PREVIO_CANAL" in rendered[0]["content"][0]["text"]
+    assert "CONTEXTO_PREVIO_CANAL" in rendered[1]["content"][0]["text"]
+    assert "contenido y URL omitidos" in rendered[1]["content"][0]["text"]
+    assert "captura-anterior.png" in rendered[1]["content"][0]["text"]
+    trigger_text = rendered[2]["content"][0]["text"]
+    assert "contexto ambiental" in trigger_text
+    assert "no mezcles conversaciones ni expedientes" in trigger_text
+
+
+@pytest.mark.asyncio
+async def test_channel_context_can_be_disabled(settings, persona) -> None:
+    settings.channel_context_max_messages = 0
+    trigger = SimpleNamespace(
+        id=3,
+        content="Consulta actual",
+        author=SimpleNamespace(
+            id=103,
+            display_name="Deputy",
+            name="Deputy",
+            bot=False,
+            roles=[],
+        ),
+        created_at=datetime.fromtimestamp(3, tz=UTC),
+        edited_at=None,
+        reference=None,
+        attachments=[],
+        embeds=[],
+        raw_mentions=[],
+        guild=SimpleNamespace(id=10),
+    )
+
+    class UnexpectedHistoryChannel:
+        id = 20
+
+        def history(self, **kwargs):
+            raise AssertionError("channel history must not be read when disabled")
+
+    parent = UnexpectedHistoryChannel()
+    trigger.channel = parent
+    target = ReviewTarget(
+        root=trigger,
+        trigger=trigger,
+        parent=parent,
+        thread=None,
+    )
+
+    case = await DiscordContextBuilder(settings, persona).build_case(target)
+
+    assert [item.id for item in case.messages] == [3]
+    assert case.context_state is ContextState.COMPLETE
+
+
 def test_only_authenticated_discord_bot_is_rendered_as_assistant(settings, persona) -> None:
     def message(message_id: int, author_id: int, *, bot: bool) -> SimpleNamespace:
         author = SimpleNamespace(
@@ -858,6 +991,8 @@ def test_assistant_attachments_are_reintroduced_as_user_input_context() -> None:
 
 @pytest.mark.asyncio
 async def test_context_includes_only_brief_relevant_requester_role_names(settings, persona) -> None:
+    settings.channel_context_max_messages = 0
+
     def role(
         role_id: int,
         name: str,
