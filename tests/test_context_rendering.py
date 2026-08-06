@@ -315,7 +315,7 @@ def test_bot_embed_content_is_preserved_in_thread_history(settings, persona) -> 
         fields=[
             SimpleNamespace(
                 name="🔴 Bolsa de evidencias",
-                value="Falta el número de bolsa.\n**Cómo corregirlo:** incorpórelo al cierre.",
+                value="Falta el número de bolsa.\n**Cómo corregirlo:** incorpóralo al cierre.",
             )
         ],
         footer=SimpleNamespace(text="Watch Sergeant"),

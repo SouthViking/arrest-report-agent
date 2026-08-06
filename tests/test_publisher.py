@@ -73,7 +73,7 @@ def publication(verdict: str) -> ReviewPublication:
                     severity=FindingSeverity.REQUIRED,
                     title="Cronología",
                     detail="La hora no coincide con la secuencia narrada.",
-                    recommendation="Aclarar la hora aproximada del inicio.",
+                    recommendation="Aclara la hora aproximada del inicio.",
                     evidence="Narrativa principal",
                 )
             ]
@@ -98,7 +98,7 @@ def test_long_review_is_split_without_dropping_findings(persona) -> None:
             severity=FindingSeverity.REQUIRED,
             title=f"Corrección {index}",
             detail="Detalle material " * 20,
-            recommendation="Corregir el punto indicado.",
+            recommendation="Corrige el punto indicado.",
         )
         for index in range(12)
     ]

@@ -73,7 +73,10 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "**Ejemplos de resumen de revisión:**" in prompt
     assert "no como respuestas fijas para copiar" in prompt
     assert "Solo `summary`" in prompt
-    assert "sin insultos, bromas, modismos ni errores deliberados" in prompt
+    assert "imperativos de **tú**" in prompt
+    assert "«incorpora», «corrige», «indica» o «agrega»" in prompt
+    assert "«incorpore», «corrija», «indique» o «agregue»" in prompt
+    assert "insultos, bromas, modismos ni errores deliberados" in prompt
     assert "`charges` y `manual_review_reason`" in prompt
 
 
@@ -89,7 +92,8 @@ async def test_roy_prompt_separates_persona_voice_from_technical_review() -> Non
     assert "saco wea" in prompt
     assert "no soy adivino tampoco po" in prompt
     assert "Solo `summary`, el texto superior del resultado" in prompt
-    assert "Escribe `findings`" in prompt
+    assert "título, detalle y referencia de cada `finding`" in prompt
+    assert "imperativos de **tú**" in prompt
     assert "con el mismo estándar técnico y\n  neutral" in prompt
 
 
@@ -102,6 +106,10 @@ def test_review_tool_schema_exposes_context_specific_writing_rules() -> None:
     assert "review-summary voice" in publication_properties["summary"]["description"]
     assert "next_step" not in publication_properties
     assert "neutral Spanish" in finding_properties["detail"]["description"]
+    assert "second-person singular tú imperatives" in (
+        finding_properties["recommendation"]["description"]
+    )
+    assert "never use formal usted forms" in finding_properties["recommendation"]["description"]
     assert "without persona slang" in charge_properties["note"]["description"]
 
 
@@ -182,7 +190,7 @@ def test_approved_publication_allows_non_blocking_uncertainty() -> None:
                 "severity": "warning",
                 "title": "Precisión opcional",
                 "detail": "Un dato podría aclararse.",
-                "recommendation": "Añadirlo si está disponible.",
+                "recommendation": "Añádelo si está disponible.",
             }
         ],
         charges=[

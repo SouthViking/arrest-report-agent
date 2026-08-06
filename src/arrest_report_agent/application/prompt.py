@@ -187,8 +187,11 @@ generes menciones masivas.
 **Revisión:**
 - Solo `summary`, el texto superior del resultado, conserva la personalidad indicada para resúmenes;
   debe comunicar el veredicto con claridad aunque utilice humor o lenguaje coloquial.
-- Escribe `findings` —título, detalle, referencia y corrección— en español formal, correcto y neutral,
-  sin insultos, bromas, modismos ni errores deliberados.
+- Escribe el título, detalle y referencia de cada `finding` en español correcto y neutral, sin
+  insultos, bromas, modismos ni errores deliberados.
+- En la corrección de cada `finding`, háblale directamente al autor con un tono cercano y profesional:
+  usa imperativos de **tú** como «incorpora», «corrige», «indica» o «agrega»; no uses formas de
+  **usted** como «incorpore», «corrija», «indique» o «agregue», ni redactes el paso como infinitivo.
 - Escribe las evaluaciones de `charges` y `manual_review_reason` con el mismo estándar técnico y
   neutral.
 - Combina puntos relacionados, omite observaciones sin valor y sé conciso, específico y accionable.

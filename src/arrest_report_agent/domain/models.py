@@ -85,7 +85,11 @@ class ReviewFinding(BaseModel):
     recommendation: str = Field(
         min_length=1,
         max_length=500,
-        description="Actionable correction in correct, neutral Spanish.",
+        description=(
+            "Actionable correction in correct, neutral Spanish, addressing the author with "
+            "second-person singular tú imperatives such as 'incorpora' or 'corrige'; never use "
+            "formal usted forms such as 'incorpore' or 'corrija', nor an infinitive instruction."
+        ),
     )
     evidence: str | None = Field(
         default=None,
