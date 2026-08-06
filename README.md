@@ -100,8 +100,10 @@ Los perfiles
 [`walter_vigil.json`](src/arrest_report_agent/config/personas/walter_vigil.json) y
 [`roy_velazco.json`](src/arrest_report_agent/config/personas/roy_velazco.json) definen nombre,
 organización, tratamiento, tono, presencia, biografía, referencia al avatar y un mapa versionado de
-mensajes deterministas. Este último personaliza ayuda, restricciones, redirecciones y fallas seguras
-sin invocar al modelo; las etiquetas funcionales y el contenido oficial permanecen neutrales. Todo se
+mensajes deterministas. Este último personaliza ayuda, restricciones, redirecciones, fallas seguras,
+descripciones de comandos, selectores, modales, navegación, resultados y estados vacíos sin invocar
+al modelo. Los nombres y descripciones que provienen del código penal o de la guía, junto con los
+hallazgos técnicos de una revisión, permanecen neutrales. Todo se
 valida y carga una sola vez antes de conectar con Discord. Un ID ausente, desconocido o inseguro
 detiene el arranque en vez de aplicar una identidad parcial. Para usar a Roy se configura
 `BOT_PERSONA=roy_velazco`. La sincronización modifica el usuario bot; el nombre e icono de la
@@ -175,6 +177,10 @@ consumen OpenAI. Los comandos personales consultan un máximo acotado del histor
 configurados, cuentan solo publicaciones raíz del usuario con adjuntos o estado asignado por el bot
 y leen exclusivamente las reacciones propias de esta instancia (`⏳`, `✅`, `❌`, `⚠️`). Los
 resultados representan el estado actual de Discord, no un historial de cambios.
+
+Aunque su lógica y sus datos son deterministas, todo el texto visual que rodea esas consultas se toma
+de `messages.interface` en la persona activa. Esto incluye opciones generales, placeholders, títulos,
+botones, enlaces, paginación y resúmenes.
 
 Consulta [Comandos de Discord](docs/COMMANDS.md) para conocer acceso, navegación, fuentes, límites y
 el contenido exacto del FAQ.

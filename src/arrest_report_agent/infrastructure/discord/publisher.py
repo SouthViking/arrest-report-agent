@@ -142,7 +142,7 @@ class DiscordReviewPublisher:
             color=discord.Color.orange(),
         )
         embed.add_field(
-            name="Siguiente paso",
+            name=self.persona.messages.interface.review.failure_next_step_title,
             value=self.persona.messages.failures.review_failure_next_step,
             inline=False,
         )
@@ -162,7 +162,11 @@ class DiscordReviewPublisher:
         if self.target.root.thread is not None:
             self._thread = self.target.root.thread
             return self._thread
-        subject = _safe_thread_name(self.target.root.content, self.target.root.id)
+        subject = _safe_thread_name(
+            self.target.root.content,
+            self.target.root.id,
+            self.persona.messages.interface.review.fallback_thread_title,
+        )
         try:
             self._thread = await self.target.root.create_thread(
                 name=subject,
@@ -197,7 +201,9 @@ class DiscordReviewPublisher:
             return None, discord.AllowedMentions.none()
         mentions = " ".join(role.mention for role in roles)
         return (
-            f"📣 Se requiere supervisión: {mentions}",
+            self.persona.messages.interface.review.escalation_notice.format(
+                roles=mentions
+            ),
             discord.AllowedMentions(
                 everyone=False,
                 users=False,
@@ -242,10 +248,11 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
         ReviewVerdict.CORRECTIONS_REQUIRED: discord.Color.red(),
         ReviewVerdict.INCONCLUSIVE: discord.Color.orange(),
     }
+    ui = persona.messages.interface.review
     titles = {
-        ReviewVerdict.APPROVED: "✅ Reporte aprobado",
-        ReviewVerdict.CORRECTIONS_REQUIRED: "❌ Correcciones requeridas",
-        ReviewVerdict.INCONCLUSIVE: "⚠️ Revisión inconclusa",
+        ReviewVerdict.APPROVED: ui.approved_title,
+        ReviewVerdict.CORRECTIONS_REQUIRED: ui.corrections_required_title,
+        ReviewVerdict.INCONCLUSIVE: ui.inconclusive_title,
     }
     primary = discord.Embed(
         title=f"{titles[publication.verdict]} · {persona.identity.display_name}",
@@ -254,7 +261,7 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
     )
     if publication.manual_review_reason:
         primary.add_field(
-            name="Derivación manual",
+            name=ui.manual_review_title,
             value=publication.manual_review_reason[:1024],
             inline=False,
         )
@@ -268,12 +275,21 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
         if index and index % 5 == 0:
             embeds.append(
                 discord.Embed(
-                    title=f"Continuación · {persona.identity.display_name}",
+                    title=ui.continuation_title.format(
+                        display_name=persona.identity.display_name
+                    ),
                     color=colors[publication.verdict],
                 )
             )
-        evidence = f"\n**Referencia:** {finding.evidence}" if finding.evidence else ""
-        value = (f"{finding.detail}{evidence}\n**Cómo corregirlo:** {finding.recommendation}")[:850]
+        evidence = (
+            "\n" + ui.evidence_reference.format(evidence=finding.evidence)
+            if finding.evidence
+            else ""
+        )
+        correction = ui.correction_instruction.format(
+            recommendation=finding.recommendation
+        )
+        value = (f"{finding.detail}{evidence}\n{correction}")[:850]
         embeds[-1].add_field(
             name=f"{severity_icons[finding.severity]} {finding.title}"[:256],
             value=value,
@@ -282,14 +298,18 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
 
     if publication.charges:
         alignment_labels = {
-            "supported": "✅ Sustentado",
-            "unsupported": "❌ No sustentado",
-            "uncertain": "⚠️ Requiere confirmación",
-            "not_found": "🔎 No encontrado en el catálogo",
+            "supported": ui.charge_supported,
+            "unsupported": ui.charge_unsupported,
+            "uncertain": ui.charge_uncertain,
+            "not_found": ui.charge_not_found,
         }
         for group_start in range(0, len(publication.charges), 5):
             charge_embed = discord.Embed(
-                title=("⚖️ Revisión de cargos" if group_start == 0 else "⚖️ Revisión de cargos · continuación"),
+                title=(
+                    ui.charge_review_title
+                    if group_start == 0
+                    else ui.charge_review_continuation_title
+                ),
                 color=colors[publication.verdict],
             )
             for charge in publication.charges[group_start : group_start + 5]:
@@ -302,11 +322,11 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
     return embeds[:10]
 
 
-def _safe_thread_name(content: str, message_id: int) -> str:
+def _safe_thread_name(content: str, message_id: int, fallback_template: str) -> str:
     first_line = next((line.strip() for line in content.splitlines() if line.strip()), "")
     without_mentions = re.sub(r"<@!?\d+>", "", first_line).strip()
     normalized = " ".join(without_mentions.split())
-    return normalized[:90] or f"Revisión {message_id}"
+    return normalized[:90] or fallback_template.format(message_id=message_id)
 
 
 def _chunk_text(content: str, limit: int) -> list[str]:

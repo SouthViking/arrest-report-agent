@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import discord
 import pytest
 
+from arrest_report_agent.config import PackagedPersonaProvider
 from arrest_report_agent.infrastructure.discord.cog import (
     PENAL_CODE_URL,
     PROCEDURES_MANUAL_URL,
@@ -170,6 +171,24 @@ def test_help_embed_describes_unrestricted_channel_scope(persona) -> None:
     )
 
     assert embed.fields[1].value == "• Todos los canales del servidor"
+
+
+@pytest.mark.asyncio
+async def test_help_and_command_descriptions_use_selected_persona(settings, persona) -> None:
+    roy = (await PackagedPersonaProvider().load("roy_velazco")).profile
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(bot, settings, UnexpectedReviewService(), roy)  # type: ignore[arg-type]
+    embed = build_help_embed(
+        persona=roy,
+        bot_mention="<@999>",
+        channel_ids=None,
+    )
+
+    assert embed.fields[0].name == "📋 las weas q reviso"
+    assert embed.fields[1].value == "• en todos los canales del server po"
+    assert cog.charge_search.description == roy.messages.interface.commands.charges_description
+
+    ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio

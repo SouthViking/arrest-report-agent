@@ -108,10 +108,13 @@ def build_help_embed(
     channels = (
         "\n".join(f"• <#{channel_id}>" for channel_id in sorted(channel_ids))
         if channel_ids is not None
-        else "• Todos los canales del servidor"
+        else copy.unrestricted_channels
     )
     embed = discord.Embed(
-        title=f"⭐ {identity.display_name} · {identity.role_title}",
+        title=copy.title.format(
+            display_name=identity.display_name,
+            role_title=identity.role_title,
+        ),
         description=copy.description.format(
             display_name=identity.display_name,
             role_title=identity.role_title,
@@ -119,54 +122,46 @@ def build_help_embed(
         color=discord.Color.gold(),
     )
     embed.add_field(
-        name="📋 Qué reviso",
+        name=copy.review_scope_title,
         value=copy.review_scope,
         inline=False,
     )
     embed.add_field(
-        name="📍 Dónde estoy de guardia",
+        name=copy.location_title,
         value=channels,
         inline=False,
     )
     embed.add_field(
-        name="📣 Cómo solicitar una revisión",
+        name=copy.request_review_title,
         value=copy.request_review.format(bot_mention=bot_mention),
         inline=False,
     )
     embed.add_field(
-        name="🧵 Qué haré con el expediente",
+        name=copy.thread_behavior_title,
         value=copy.thread_behavior,
         inline=False,
     )
     embed.add_field(
-        name="🗂️ Consultas privadas",
-        value=(
-            "• `/mis-reportes`: filtra tus publicaciones y abre rápidamente cada expediente.\n"
-            "• `/mi-resumen`: consulta tus cifras del mes actual."
-        ),
+        name=copy.personal_commands_title,
+        value=copy.personal_commands,
         inline=False,
     )
     embed.add_field(
-        name="📚 Consultas generales",
-        value=(
-            "• `/guia`: consulta las reglas de redacción y revisión por sección.\n"
-            "• `/cargos`: busca delitos y sanciones en el catálogo local.\n"
-            "• `/faq`: resuelve dudas frecuentes del procedimiento."
-        ),
+        name=copy.general_commands_title,
+        value=copy.general_commands,
         inline=False,
     )
     embed.add_field(
-        name="🛡️ Supervisión",
-        value=(
-            "• `/pendientes`: localiza expedientes sin estado terminal.\n"
-            "• `/ranking`: compara actividad y resultados por miembro.\n"
-            "Requieren un rol de supervisión autorizado."
-        ),
+        name=copy.supervision_commands_title,
+        value=copy.supervision_commands,
         inline=False,
     )
     embed.add_field(
-        name="📚 Documentación oficial",
-        value=(f"• [Código Penal]({PENAL_CODE_URL})\n• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"),
+        name=copy.official_docs_title,
+        value=copy.official_docs.format(
+            penal_code_url=PENAL_CODE_URL,
+            procedures_manual_url=PROCEDURES_MANUAL_URL,
+        ),
         inline=False,
     )
     embed.set_footer(
@@ -240,6 +235,15 @@ class ReviewCog(commands.Cog):
         self.settings = settings
         self.service = service
         self.persona = persona
+        command_copy = persona.messages.interface.commands
+        self.review_help.description = command_copy.help_description
+        self.report_guide.description = command_copy.guide_description
+        self.charge_search.description = command_copy.charges_description
+        self.report_faq.description = command_copy.faq_description
+        self.supervisor_pending.description = command_copy.pending_description
+        self.supervisor_ranking.description = command_copy.ranking_description
+        self.personal_reports.description = command_copy.personal_reports_description
+        self.personal_summary.description = command_copy.personal_summary_description
         self.profile_synchronizer = profile_synchronizer
         self.access_policy = DiscordAccessPolicy.from_settings(settings)
         self.supervisor_policy = SupervisorRolePolicy.from_settings(settings)
@@ -580,6 +584,7 @@ class ReviewCog(commands.Cog):
             guide=self.service.guide,
             display_name=self.persona.identity.display_name,
             messages=self.persona.messages.access,
+            ui=self.persona.messages.interface.knowledge,
         )
         await ctx.respond(
             embed=view.current_embed,
@@ -604,6 +609,8 @@ class ReviewCog(commands.Cog):
                 display_name=self.persona.identity.display_name,
                 access_messages=self.persona.messages.access,
                 failure_messages=self.persona.messages.failures,
+                ui=self.persona.messages.interface.knowledge,
+                navigation=self.persona.messages.interface.navigation,
             )
         )
 
@@ -613,6 +620,7 @@ class ReviewCog(commands.Cog):
             requester_id=ctx.author.id,
             display_name=self.persona.identity.display_name,
             messages=self.persona.messages.access,
+            ui=self.persona.messages.interface.knowledge,
         )
         await ctx.respond(
             embed=view.current_embed,
@@ -652,6 +660,8 @@ class ReviewCog(commands.Cog):
                 display_name=self.persona.identity.display_name,
                 access_messages=self.persona.messages.access,
                 failure_messages=self.persona.messages.failures,
+                ui=self.persona.messages.interface.supervision,
+                navigation=self.persona.messages.interface.navigation,
             )
         )
 
@@ -679,6 +689,8 @@ class ReviewCog(commands.Cog):
                 display_name=self.persona.identity.display_name,
                 access_messages=self.persona.messages.access,
                 failure_messages=self.persona.messages.failures,
+                ui=self.persona.messages.interface.supervision,
+                navigation=self.persona.messages.interface.navigation,
             )
         )
 
@@ -705,6 +717,8 @@ class ReviewCog(commands.Cog):
                 display_name=self.persona.identity.display_name,
                 access_messages=self.persona.messages.access,
                 failure_messages=self.persona.messages.failures,
+                ui=self.persona.messages.interface.personal_reports,
+                navigation=self.persona.messages.interface.navigation,
             )
         )
 
@@ -728,6 +742,7 @@ class ReviewCog(commands.Cog):
                 embed=build_personal_summary_embed(
                     result,
                     display_name=self.persona.identity.display_name,
+                    ui=self.persona.messages.interface.personal_reports,
                 ),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),

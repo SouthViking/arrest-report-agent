@@ -110,12 +110,15 @@ formales y neutrales. Cada registro incluye few-shots tipados, validados y limit
 voz sin cargar una conversación completa. El renderer muestra el resumen y los campos técnicos en
 secciones distintas.
 
-Cada perfil también declara `messages.access`, `messages.failures` y `messages.help`. Estos registros
-alimentan el texto local que debe conservar la voz del personaje: redirecciones, autorizaciones,
-rechazos de alcance, fallas operativas seguras, ayuda y ownership de interfaces privadas. Los campos
-con interpolación usan un conjunto exacto de placeholders validado al arrancar; no se permite acceder
-a atributos ni aplicar formatos dinámicos. Etiquetas de navegación, datos del código y reglas de la
-guía permanecen en la capa funcional para no contaminar información objetiva con la personalidad.
+Cada perfil también declara `messages.access`, `messages.failures`, `messages.help` y
+`messages.interface`. Estos registros alimentan el texto local que debe conservar la voz del
+personaje: redirecciones, autorizaciones, rechazos de alcance, fallas operativas seguras, ayuda,
+descripciones de comandos, selectores, modales, botones, navegación, estados vacíos, embeds y
+ownership de interfaces privadas. Los campos con interpolación usan un conjunto exacto de
+placeholders validado al arrancar; no se permite acceder a atributos ni aplicar formatos dinámicos.
+Los datos y nombres que provienen del catálogo o la guía, además de los hallazgos técnicos de una
+revisión, permanecen en la capa funcional para no contaminar información objetiva con la
+personalidad.
 
 En `on_ready`, `DiscordProfileSynchronizer` aplica username y avatar desde la persona, el banner
 verde musgo global de LSSD y la biografía por guild. Los campos globales se envían por separado para

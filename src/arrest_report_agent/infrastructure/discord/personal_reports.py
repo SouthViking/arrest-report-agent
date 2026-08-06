@@ -22,6 +22,8 @@ from arrest_report_agent.config import (
     AppSettings,
     PersonaAccessMessages,
     PersonaFailureMessages,
+    PersonaNavigationMessages,
+    PersonaPersonalReportMessages,
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
 
@@ -43,26 +45,6 @@ MONTH_NAMES = (
     "noviembre",
     "diciembre",
 )
-PERIOD_LABELS = {
-    PersonalReportPeriod.CURRENT_MONTH: "Mes actual",
-    PersonalReportPeriod.LAST_7_DAYS: "Últimos 7 días",
-    PersonalReportPeriod.LAST_30_DAYS: "Últimos 30 días",
-    PersonalReportPeriod.LAST_90_DAYS: "Últimos 90 días",
-}
-STATUS_FILTER_LABELS = {
-    PersonalReportStatusFilter.ALL: "Todos los estados",
-    PersonalReportStatusFilter.PENDING: "Pendientes",
-    PersonalReportStatusFilter.APPROVED: "Aprobados",
-    PersonalReportStatusFilter.CORRECTIONS_REQUIRED: "Con correcciones",
-    PersonalReportStatusFilter.INCONCLUSIVE: "Requieren supervisión",
-}
-STATUS_PRESENTATION = {
-    PersonalReportStatus.PENDING: ("⏳", "Pendiente"),
-    PersonalReportStatus.IN_REVIEW: ("🔎", "En revisión"),
-    PersonalReportStatus.APPROVED: ("✅", "Aprobado"),
-    PersonalReportStatus.CORRECTIONS_REQUIRED: ("❌", "Con correcciones"),
-    PersonalReportStatus.INCONCLUSIVE: ("⚠️", "Requiere supervisión"),
-}
 BOT_STATUS_REACTIONS = {
     "⏳": PersonalReportStatus.IN_REVIEW,
     "✅": PersonalReportStatus.APPROVED,
@@ -203,6 +185,8 @@ class PersonalReportsModal(discord.ui.DesignerModal):
         display_name: str,
         access_messages: PersonaAccessMessages,
         failure_messages: PersonaFailureMessages,
+        ui: PersonaPersonalReportMessages,
+        navigation: PersonaNavigationMessages,
     ) -> None:
         self.finder = finder
         self.guild = guild
@@ -210,6 +194,10 @@ class PersonalReportsModal(discord.ui.DesignerModal):
         self.display_name = display_name
         self.access_messages = access_messages
         self.failure_messages = failure_messages
+        self.ui = ui
+        self.navigation = navigation
+        period_labels = build_period_labels(navigation)
+        status_labels = build_status_filter_labels(navigation)
         self.period_select = discord.ui.StringSelect(
             custom_id="personal_reports_period",
             options=[
@@ -218,7 +206,7 @@ class PersonalReportsModal(discord.ui.DesignerModal):
                     value=period.value,
                     default=period is PersonalReportPeriod.CURRENT_MONTH,
                 )
-                for period, label in PERIOD_LABELS.items()
+                for period, label in period_labels.items()
             ],
         )
         self.status_select = discord.ui.StringSelect(
@@ -229,11 +217,15 @@ class PersonalReportsModal(discord.ui.DesignerModal):
                     value=status.value,
                     default=status is PersonalReportStatusFilter.ALL,
                 )
-                for status, label in STATUS_FILTER_LABELS.items()
+                for status, label in status_labels.items()
             ],
         )
         channel_options = [
-            discord.SelectOption(label="Todas las estaciones", value="all", default=True)
+            discord.SelectOption(
+                label=navigation.all_stations,
+                value="all",
+                default=True,
+            )
         ]
         channel_options.extend(
             discord.SelectOption(
@@ -248,13 +240,13 @@ class PersonalReportsModal(discord.ui.DesignerModal):
         )
         super().__init__(
             discord.ui.Label(
-                "Periodo",
+                ui.period_label,
                 self.period_select,
-                description="Acota la búsqueda para evitar recorridos innecesarios.",
+                description=ui.period_description,
             ),
-            discord.ui.Label("Estado actual", self.status_select),
-            discord.ui.Label("Estación", self.channel_select),
-            title="Consultar mis reportes",
+            discord.ui.Label(ui.status_label, self.status_select),
+            discord.ui.Label(ui.station_label, self.channel_select),
+            title=ui.modal_title,
             custom_id=f"personal_reports:{member.id}",
             timeout=180,
         )
@@ -284,6 +276,8 @@ class PersonalReportsModal(discord.ui.DesignerModal):
                 query=query,
                 display_name=self.display_name,
                 messages=self.access_messages,
+                ui=self.ui,
+                navigation=self.navigation,
             )
             await send_personal_report_result(interaction, view)
             log_event(
@@ -327,6 +321,8 @@ class PersonalReportPaginationView(discord.ui.View):
         query: PersonalReportQuery,
         display_name: str,
         messages: PersonaAccessMessages,
+        ui: PersonaPersonalReportMessages,
+        navigation: PersonaNavigationMessages,
     ) -> None:
         super().__init__(timeout=180, disable_on_timeout=True)
         self.requester_id = requester_id
@@ -334,7 +330,11 @@ class PersonalReportPaginationView(discord.ui.View):
         self.query = query
         self.display_name = display_name
         self.messages = messages
+        self.ui = ui
+        self.navigation = navigation
         self.page = 0
+        self.previous_page.label = navigation.previous_button
+        self.next_page.label = navigation.next_button
         self._synchronize_buttons()
 
     @property
@@ -348,6 +348,8 @@ class PersonalReportPaginationView(discord.ui.View):
             self.query,
             display_name=self.display_name,
             page=self.page,
+            ui=self.ui,
+            navigation=self.navigation,
         )
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -406,6 +408,8 @@ def build_personal_reports_embed(
     *,
     display_name: str,
     page: int = 0,
+    ui: PersonaPersonalReportMessages,
+    navigation: PersonaNavigationMessages,
 ) -> discord.Embed:
     """Render a page of direct Discord references for one member."""
 
@@ -413,27 +417,30 @@ def build_personal_reports_embed(
     safe_page = min(max(page, 0), page_count - 1)
     start = safe_page * REPORTS_PER_PAGE
     page_reports = result.reports[start : start + REPORTS_PER_PAGE]
-    channel_scope = "Todas las estaciones" if query.channel_id is None else f"<#{query.channel_id}>"
+    period_labels = build_period_labels(navigation)
+    status_filter_labels = build_status_filter_labels(navigation)
+    status_presentation = build_status_presentation(navigation)
+    channel_scope = navigation.all_stations if query.channel_id is None else f"<#{query.channel_id}>"
     embed = discord.Embed(
-        title="📁 Mis reportes",
-        description=(
-            f"**Periodo:** {PERIOD_LABELS[query.period]}\n"
-            f"**Estado:** {STATUS_FILTER_LABELS[query.status]}\n"
-            f"**Estación:** {channel_scope}"
+        title=ui.reports_title,
+        description=ui.reports_description.format(
+            period=period_labels[query.period],
+            status=status_filter_labels[query.status],
+            station=channel_scope,
         ),
         color=discord.Color.gold(),
     )
     if not page_reports:
         embed.add_field(
-            name="Sin resultados",
-            value="No encontré publicaciones propias que coincidan con estos filtros.",
+            name=ui.empty_title,
+            value=ui.empty_body,
             inline=False,
         )
     for report in page_reports:
-        icon, status_label = STATUS_PRESENTATION[report.status]
-        links = f"[Abrir publicación]({report.post_url})"
+        icon, status_label = status_presentation[report.status]
+        links = f"[{navigation.open_post}]({report.post_url})"
         if report.thread_url:
-            links += f" · [Abrir hilo]({report.thread_url})"
+            links += f" · [{navigation.open_thread}]({report.thread_url})"
         embed.add_field(
             name=f"{icon} {report.title}"[:256],
             value=(
@@ -442,9 +449,14 @@ def build_personal_reports_embed(
             ),
             inline=False,
         )
-    footer = f"Página {safe_page + 1}/{page_count} · {len(result.reports)} resultado(s) · {display_name}"
+    footer = ui.reports_footer.format(
+        page=safe_page + 1,
+        page_count=page_count,
+        count=len(result.reports),
+        display_name=display_name,
+    )
     if result.truncated:
-        footer += " · Búsqueda limitada; acote los filtros"
+        footer += f" · {ui.reports_footer_truncated}"
     embed.set_footer(text=footer)
     return embed
 
@@ -454,6 +466,7 @@ def build_personal_summary_embed(
     *,
     display_name: str,
     now: datetime | None = None,
+    ui: PersonaPersonalReportMessages,
 ) -> discord.Embed:
     """Render a private current-month snapshot for `/mi-resumen`."""
 
@@ -461,27 +474,67 @@ def build_personal_summary_embed(
     summary = PersonalReportSummary.from_reports(result.reports)
     period = f"{MONTH_NAMES[reference_time.month - 1].capitalize()} {reference_time.year}"
     embed = discord.Embed(
-        title=f"⭐ Mi resumen · {period}",
-        description=(
-            f"📂 **Presentados:** {summary.total}\n"
-            f"✅ **Aprobados:** {summary.approved}\n"
-            f"❌ **Con correcciones:** {summary.corrections_required}\n"
-            f"⏳ **Pendientes:** {summary.pending}\n"
-            f"⚠️ **Requieren supervisión:** {summary.inconclusive}\n\n"
-            f"**Aprobación actual:** {summary.approval_rate:.1f}%"
+        title=ui.summary_title.format(period=period),
+        description=ui.summary_description.format(
+            total=summary.total,
+            approved=summary.approved,
+            corrections_required=summary.corrections_required,
+            pending=summary.pending,
+            inconclusive=summary.inconclusive,
+            approval_rate=f"{summary.approval_rate:.1f}",
         ),
         color=discord.Color.gold(),
     )
     embed.add_field(
-        name="Navegación rápida",
-        value="Use `/mis-reportes` para filtrar y abrir cada publicación o hilo.",
+        name=ui.summary_navigation_title,
+        value=ui.summary_navigation_body,
         inline=False,
     )
-    footer = f"Estado actual según las reacciones de {display_name}"
+    footer = ui.summary_footer.format(display_name=display_name)
     if result.truncated:
-        footer += " · Consulta limitada por volumen"
+        footer += f" · {ui.summary_footer_truncated}"
     embed.set_footer(text=footer)
     return embed
+
+
+def build_period_labels(
+    messages: PersonaNavigationMessages,
+) -> dict[PersonalReportPeriod, str]:
+    return {
+        PersonalReportPeriod.CURRENT_MONTH: messages.period_current_month,
+        PersonalReportPeriod.LAST_7_DAYS: messages.period_last_7_days,
+        PersonalReportPeriod.LAST_30_DAYS: messages.period_last_30_days,
+        PersonalReportPeriod.LAST_90_DAYS: messages.period_last_90_days,
+    }
+
+
+def build_status_filter_labels(
+    messages: PersonaNavigationMessages,
+) -> dict[PersonalReportStatusFilter, str]:
+    return {
+        PersonalReportStatusFilter.ALL: messages.status_filter_all,
+        PersonalReportStatusFilter.PENDING: messages.status_filter_pending,
+        PersonalReportStatusFilter.APPROVED: messages.status_filter_approved,
+        PersonalReportStatusFilter.CORRECTIONS_REQUIRED: (
+            messages.status_filter_corrections_required
+        ),
+        PersonalReportStatusFilter.INCONCLUSIVE: messages.status_filter_inconclusive,
+    }
+
+
+def build_status_presentation(
+    messages: PersonaNavigationMessages,
+) -> dict[PersonalReportStatus, tuple[str, str]]:
+    return {
+        PersonalReportStatus.PENDING: ("⏳", messages.status_pending),
+        PersonalReportStatus.IN_REVIEW: ("🔎", messages.status_in_review),
+        PersonalReportStatus.APPROVED: ("✅", messages.status_approved),
+        PersonalReportStatus.CORRECTIONS_REQUIRED: (
+            "❌",
+            messages.status_corrections_required,
+        ),
+        PersonalReportStatus.INCONCLUSIVE: ("⚠️", messages.status_inconclusive),
+    }
 
 
 def _can_read_history(channel: discord.TextChannel, member: discord.Member) -> bool:

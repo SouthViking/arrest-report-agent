@@ -21,14 +21,16 @@ from arrest_report_agent.config import (
     AppSettings,
     PersonaAccessMessages,
     PersonaFailureMessages,
+    PersonaNavigationMessages,
+    PersonaSupervisionMessages,
     SnowflakeAllowlist,
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
 
 from .personal_reports import (
-    PERIOD_LABELS,
-    STATUS_PRESENTATION,
     DiscordPersonalReportFinder,
+    build_period_labels,
+    build_status_presentation,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -36,14 +38,6 @@ LOGGER = logging.getLogger(__name__)
 SUPERVISION_VIEW_TIMEOUT_SECONDS = 180
 PENDING_REPORTS_PER_PAGE = 5
 RANKING_ENTRIES_PER_PAGE = 10
-RANKING_METRIC_LABELS = {
-    SupervisorRankingMetric.SUBMITTED: "Reportes presentados",
-    SupervisorRankingMetric.APPROVED: "Reportes aprobados",
-    SupervisorRankingMetric.CORRECTIONS_REQUIRED: "Reportes con correcciones",
-    SupervisorRankingMetric.APPROVAL_RATE: "Porcentaje de aprobación",
-}
-
-
 @dataclass(frozen=True, slots=True)
 class SupervisorRolePolicy:
     """Central role policy that can later be backed by persisted configuration."""
@@ -96,6 +90,8 @@ class PendingReportsModal(discord.ui.DesignerModal):
         display_name: str,
         access_messages: PersonaAccessMessages,
         failure_messages: PersonaFailureMessages,
+        ui: PersonaSupervisionMessages,
+        navigation: PersonaNavigationMessages,
     ) -> None:
         self.finder = finder
         self.policy = policy
@@ -104,12 +100,18 @@ class PendingReportsModal(discord.ui.DesignerModal):
         self.display_name = display_name
         self.access_messages = access_messages
         self.failure_messages = failure_messages
-        self.period_select = _period_select("supervision_pending_period")
-        self.channel_select = _channel_select("supervision_pending_channel", channels)
+        self.ui = ui
+        self.navigation = navigation
+        self.period_select = _period_select("supervision_pending_period", navigation)
+        self.channel_select = _channel_select(
+            "supervision_pending_channel",
+            channels,
+            navigation,
+        )
         super().__init__(
-            discord.ui.Label("Periodo", self.period_select),
-            discord.ui.Label("Estación", self.channel_select),
-            title="Consultar reportes pendientes",
+            discord.ui.Label(ui.period_label, self.period_select),
+            discord.ui.Label(ui.station_label, self.channel_select),
+            title=ui.pending_modal_title,
             custom_id=f"supervision_pending:{member.id}",
             timeout=SUPERVISION_VIEW_TIMEOUT_SECONDS,
         )
@@ -138,6 +140,8 @@ class PendingReportsModal(discord.ui.DesignerModal):
                 query=query,
                 display_name=self.display_name,
                 messages=self.access_messages,
+                ui=self.ui,
+                navigation=self.navigation,
             )
             await _send_optional_view(interaction, embed=view.current_embed, view=view)
             log_event(
@@ -146,7 +150,6 @@ class PendingReportsModal(discord.ui.DesignerModal):
                 "supervisor_pending_query_completed",
                 guild_id=self.guild.id,
                 user_id=self.member.id,
-                messages=self.failure_messages,
                 period=period.value,
                 channel_id=query.channel_id or "all",
                 result_count=len(result.reports),
@@ -159,6 +162,7 @@ class PendingReportsModal(discord.ui.DesignerModal):
                 event="supervisor_pending_query_failed",
                 guild_id=self.guild.id,
                 user_id=self.member.id,
+                messages=self.failure_messages,
             )
 
 
@@ -174,6 +178,8 @@ class RankingModal(discord.ui.DesignerModal):
         display_name: str,
         access_messages: PersonaAccessMessages,
         failure_messages: PersonaFailureMessages,
+        ui: PersonaSupervisionMessages,
+        navigation: PersonaNavigationMessages,
     ) -> None:
         self.finder = finder
         self.policy = policy
@@ -182,7 +188,10 @@ class RankingModal(discord.ui.DesignerModal):
         self.display_name = display_name
         self.access_messages = access_messages
         self.failure_messages = failure_messages
-        self.period_select = _period_select("supervision_ranking_period")
+        self.ui = ui
+        self.navigation = navigation
+        self.period_select = _period_select("supervision_ranking_period", navigation)
+        metric_labels = build_ranking_metric_labels(ui)
         self.metric_select = discord.ui.StringSelect(
             custom_id="supervision_ranking_metric",
             options=[
@@ -191,15 +200,19 @@ class RankingModal(discord.ui.DesignerModal):
                     value=metric.value,
                     default=metric is SupervisorRankingMetric.APPROVED,
                 )
-                for metric, label in RANKING_METRIC_LABELS.items()
+                for metric, label in metric_labels.items()
             ],
         )
-        self.channel_select = _channel_select("supervision_ranking_channel", channels)
+        self.channel_select = _channel_select(
+            "supervision_ranking_channel",
+            channels,
+            navigation,
+        )
         super().__init__(
-            discord.ui.Label("Periodo", self.period_select),
-            discord.ui.Label("Ordenar por", self.metric_select),
-            discord.ui.Label("Estación", self.channel_select),
-            title="Ranking de reportes",
+            discord.ui.Label(ui.period_label, self.period_select),
+            discord.ui.Label(ui.ranking_order_label, self.metric_select),
+            discord.ui.Label(ui.station_label, self.channel_select),
+            title=ui.ranking_modal_title,
             custom_id=f"supervision_ranking:{member.id}",
             timeout=SUPERVISION_VIEW_TIMEOUT_SECONDS,
         )
@@ -232,6 +245,8 @@ class RankingModal(discord.ui.DesignerModal):
                 truncated=result.truncated,
                 display_name=self.display_name,
                 messages=self.access_messages,
+                ui=self.ui,
+                navigation=self.navigation,
             )
             await _send_optional_view(interaction, embed=view.current_embed, view=view)
             log_event(
@@ -240,7 +255,6 @@ class RankingModal(discord.ui.DesignerModal):
                 "supervisor_ranking_query_completed",
                 guild_id=self.guild.id,
                 user_id=self.member.id,
-                messages=self.failure_messages,
                 period=period.value,
                 metric=metric.value,
                 channel_id=query.channel_id or "all",
@@ -255,6 +269,7 @@ class RankingModal(discord.ui.DesignerModal):
                 event="supervisor_ranking_query_failed",
                 guild_id=self.guild.id,
                 user_id=self.member.id,
+                messages=self.failure_messages,
             )
 
 
@@ -267,12 +282,18 @@ class PendingReportsPaginationView(SupervisorRequesterView):
         query: PersonalReportQuery,
         display_name: str,
         messages: PersonaAccessMessages,
+        ui: PersonaSupervisionMessages,
+        navigation: PersonaNavigationMessages,
     ) -> None:
         super().__init__(requester_id, messages)
         self.result = result
         self.query = query
         self.display_name = display_name
+        self.ui = ui
+        self.navigation = navigation
         self.page = 0
+        self.previous_page.label = navigation.previous_button
+        self.next_page.label = navigation.next_button
         self._synchronize_buttons()
 
     @property
@@ -286,6 +307,8 @@ class PendingReportsPaginationView(SupervisorRequesterView):
             self.query,
             display_name=self.display_name,
             page=self.page,
+            ui=self.ui,
+            navigation=self.navigation,
         )
 
     @discord.ui.button(label="Anterior", emoji="◀️", style=discord.ButtonStyle.secondary)
@@ -324,6 +347,8 @@ class RankingPaginationView(SupervisorRequesterView):
         truncated: bool,
         display_name: str,
         messages: PersonaAccessMessages,
+        ui: PersonaSupervisionMessages,
+        navigation: PersonaNavigationMessages,
     ) -> None:
         super().__init__(requester_id, messages)
         self.ranking = ranking
@@ -331,7 +356,11 @@ class RankingPaginationView(SupervisorRequesterView):
         self.query = query
         self.truncated = truncated
         self.display_name = display_name
+        self.ui = ui
+        self.navigation = navigation
         self.page = 0
+        self.previous_page.label = navigation.previous_button
+        self.next_page.label = navigation.next_button
         self._synchronize_buttons()
 
     @property
@@ -347,6 +376,8 @@ class RankingPaginationView(SupervisorRequesterView):
             truncated=self.truncated,
             display_name=self.display_name,
             page=self.page,
+            ui=self.ui,
+            navigation=self.navigation,
         )
 
     @discord.ui.button(label="Anterior", emoji="◀️", style=discord.ButtonStyle.secondary)
@@ -380,33 +411,40 @@ def build_pending_reports_embed(
     *,
     display_name: str,
     page: int = 0,
+    ui: PersonaSupervisionMessages,
+    navigation: PersonaNavigationMessages,
 ) -> discord.Embed:
     page_count = max(1, ceil(len(result.reports) / PENDING_REPORTS_PER_PAGE))
     safe_page = min(max(page, 0), page_count - 1)
     start = safe_page * PENDING_REPORTS_PER_PAGE
     reports = result.reports[start : start + PENDING_REPORTS_PER_PAGE]
-    channel_scope = "Todas las estaciones" if query.channel_id is None else f"<#{query.channel_id}>"
+    period_labels = build_period_labels(navigation)
+    status_presentation = build_status_presentation(navigation)
+    channel_scope = navigation.all_stations if query.channel_id is None else f"<#{query.channel_id}>"
     embed = discord.Embed(
-        title="⏳ Reportes pendientes",
-        description=(
-            f"**Periodo:** {PERIOD_LABELS[query.period]}\n"
-            f"**Estación:** {channel_scope}\n"
-            "Incluye expedientes sin estado terminal y revisiones actualmente en curso."
+        title=ui.pending_title,
+        description=ui.pending_description.format(
+            period=period_labels[query.period],
+            station=channel_scope,
         ),
         color=discord.Color.gold(),
     )
     if not reports:
         embed.add_field(
-            name="Guardia al día",
-            value="No encontré reportes pendientes con estos filtros.",
+            name=ui.pending_empty_title,
+            value=ui.pending_empty_body,
             inline=False,
         )
     for report in reports:
-        icon, status_label = STATUS_PRESENTATION[report.status]
-        author = f"<@{report.author_id}>" if report.author_id is not None else "Autor desconocido"
-        links = f"[Abrir publicación]({report.post_url})"
+        icon, status_label = status_presentation[report.status]
+        author = (
+            f"<@{report.author_id}>"
+            if report.author_id is not None
+            else navigation.unknown_author
+        )
+        links = f"[{navigation.open_post}]({report.post_url})"
         if report.thread_url:
-            links += f" · [Abrir hilo]({report.thread_url})"
+            links += f" · [{navigation.open_thread}]({report.thread_url})"
         embed.add_field(
             name=f"{icon} {report.title}"[:256],
             value=(
@@ -415,12 +453,14 @@ def build_pending_reports_embed(
             ),
             inline=False,
         )
-    footer = (
-        f"Página {safe_page + 1}/{page_count} · {len(result.reports)} resultado(s) · "
-        f"{display_name}"
+    footer = ui.pending_footer.format(
+        page=safe_page + 1,
+        page_count=page_count,
+        count=len(result.reports),
+        display_name=display_name,
     )
     if result.truncated:
-        footer += " · Búsqueda limitada"
+        footer += f" · {ui.pending_footer_truncated}"
     embed.set_footer(text=footer)
     return embed
 
@@ -433,34 +473,43 @@ def build_ranking_embed(
     truncated: bool,
     display_name: str,
     page: int = 0,
+    ui: PersonaSupervisionMessages,
+    navigation: PersonaNavigationMessages,
 ) -> discord.Embed:
     page_count = max(1, ceil(len(ranking) / RANKING_ENTRIES_PER_PAGE))
     safe_page = min(max(page, 0), page_count - 1)
     start = safe_page * RANKING_ENTRIES_PER_PAGE
     entries = ranking[start : start + RANKING_ENTRIES_PER_PAGE]
-    channel_scope = "Todas las estaciones" if query.channel_id is None else f"<#{query.channel_id}>"
+    period_labels = build_period_labels(navigation)
+    metric_labels = build_ranking_metric_labels(ui)
+    channel_scope = navigation.all_stations if query.channel_id is None else f"<#{query.channel_id}>"
     lines = []
     for offset, entry in enumerate(entries):
         position = start + offset + 1
         medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(position, f"**{position}.**")
         lines.append(
-            f"{medal} <@{entry.author_id}> — **{_ranking_value(entry, metric)}**\n"
+            f"{medal} <@{entry.author_id}> — **{_ranking_value(entry, metric, ui)}**\n"
             f"↳ 📂 {entry.total} · ✅ {entry.approved} · ❌ {entry.corrections_required} · "
             f"⏳ {entry.pending} · ⚠️ {entry.inconclusive} · {entry.approval_rate:.1f}%"
         )
     embed = discord.Embed(
-        title="🏅 Ranking de reportes",
-        description=(
-            f"**Orden:** {RANKING_METRIC_LABELS[metric]}\n"
-            f"**Periodo:** {PERIOD_LABELS[query.period]}\n"
-            f"**Estación:** {channel_scope}\n\n"
-            + ("\n".join(lines) if lines else "No encontré reportes para construir el ranking.")
+        title=ui.ranking_title,
+        description=ui.ranking_description.format(
+            metric=metric_labels[metric],
+            period=period_labels[query.period],
+            station=channel_scope,
+            entries="\n".join(lines) if lines else ui.ranking_empty_body,
         ),
         color=discord.Color.gold(),
     )
-    footer = f"Página {safe_page + 1}/{page_count} · {len(ranking)} miembro(s) · {display_name}"
+    footer = ui.ranking_footer.format(
+        page=safe_page + 1,
+        page_count=page_count,
+        count=len(ranking),
+        display_name=display_name,
+    )
     if truncated:
-        footer += " · Snapshot limitado"
+        footer += f" · {ui.ranking_footer_truncated}"
     embed.set_footer(text=footer)
     return embed
 
@@ -486,7 +535,11 @@ async def _authorize_modal_interaction(
     return False
 
 
-def _period_select(custom_id: str) -> discord.ui.Select:
+def _period_select(
+    custom_id: str,
+    navigation: PersonaNavigationMessages,
+) -> discord.ui.Select:
+    period_labels = build_period_labels(navigation)
     return discord.ui.StringSelect(
         custom_id=custom_id,
         options=[
@@ -495,7 +548,7 @@ def _period_select(custom_id: str) -> discord.ui.Select:
                 value=period.value,
                 default=period is PersonalReportPeriod.CURRENT_MONTH,
             )
-            for period, label in PERIOD_LABELS.items()
+            for period, label in period_labels.items()
         ],
     )
 
@@ -503,11 +556,16 @@ def _period_select(custom_id: str) -> discord.ui.Select:
 def _channel_select(
     custom_id: str,
     channels: tuple[discord.TextChannel, ...],
+    navigation: PersonaNavigationMessages,
 ) -> discord.ui.Select:
     return discord.ui.StringSelect(
         custom_id=custom_id,
         options=[
-            discord.SelectOption(label="Todas las estaciones", value="all", default=True),
+            discord.SelectOption(
+                label=navigation.all_stations,
+                value="all",
+                default=True,
+            ),
             *[
                 discord.SelectOption(label=f"#{channel.name}"[:100], value=str(channel.id))
                 for channel in channels[:24]
@@ -561,11 +619,27 @@ async def _publish_supervision_failure(
 def _ranking_value(
     entry: SupervisorRankingEntry,
     metric: SupervisorRankingMetric,
+    ui: PersonaSupervisionMessages,
 ) -> str:
     if metric is SupervisorRankingMetric.APPROVED:
-        return f"{entry.approved} aprobado(s)"
+        return ui.ranking_value_approved.format(count=entry.approved)
     if metric is SupervisorRankingMetric.CORRECTIONS_REQUIRED:
-        return f"{entry.corrections_required} con correcciones"
+        return ui.ranking_value_corrections_required.format(
+            count=entry.corrections_required
+        )
     if metric is SupervisorRankingMetric.APPROVAL_RATE:
-        return f"{entry.approval_rate:.1f}% de aprobación"
-    return f"{entry.total} presentado(s)"
+        return ui.ranking_value_approval_rate.format(rate=f"{entry.approval_rate:.1f}")
+    return ui.ranking_value_submitted.format(count=entry.total)
+
+
+def build_ranking_metric_labels(
+    messages: PersonaSupervisionMessages,
+) -> dict[SupervisorRankingMetric, str]:
+    return {
+        SupervisorRankingMetric.SUBMITTED: messages.metric_submitted,
+        SupervisorRankingMetric.APPROVED: messages.metric_approved,
+        SupervisorRankingMetric.CORRECTIONS_REQUIRED: (
+            messages.metric_corrections_required
+        ),
+        SupervisorRankingMetric.APPROVAL_RATE: messages.metric_approval_rate,
+    }

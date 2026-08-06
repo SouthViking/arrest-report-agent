@@ -211,12 +211,14 @@ def sample_reports(count: int = 1) -> tuple[PersonalReport, ...]:
     )
 
 
-def test_personal_report_embed_exposes_direct_post_and_thread_references() -> None:
+def test_personal_report_embed_exposes_direct_post_and_thread_references(persona) -> None:
     result = PersonalReportSearchResult(reports=sample_reports())
     embed = build_personal_reports_embed(
         result,
         PersonalReportQuery(),
         display_name="Sgt. Rivera",
+        ui=persona.messages.interface.personal_reports,
+        navigation=persona.messages.interface.navigation,
     )
 
     assert embed.title == "📁 Mis reportes"
@@ -226,13 +228,14 @@ def test_personal_report_embed_exposes_direct_post_and_thread_references() -> No
     assert "Sgt. Rivera" in embed.footer.text
 
 
-def test_personal_summary_uses_current_reaction_snapshot() -> None:
+def test_personal_summary_uses_current_reaction_snapshot(persona) -> None:
     reports = sample_reports(5)
     summary = PersonalReportSummary.from_reports(reports)
     embed = build_personal_summary_embed(
         PersonalReportSearchResult(reports=reports),
         display_name="Sgt. Rivera",
         now=datetime(2026, 8, 20, tzinfo=UTC),
+        ui=persona.messages.interface.personal_reports,
     )
 
     assert summary.total == 5
@@ -256,6 +259,8 @@ async def test_personal_report_pagination_and_modal_expose_compact_filters(
         query=PersonalReportQuery(),
         display_name="Sgt. Rivera",
         messages=persona.messages.access,
+        ui=persona.messages.interface.personal_reports,
+        navigation=persona.messages.interface.navigation,
     )
     channels = [
         FakeHistoryChannel(1462992794569281617, "gnt-arrestos", []),
@@ -269,6 +274,8 @@ async def test_personal_report_pagination_and_modal_expose_compact_filters(
         display_name="Sgt. Rivera",
         access_messages=persona.messages.access,
         failure_messages=persona.messages.failures,
+        ui=persona.messages.interface.personal_reports,
+        navigation=persona.messages.interface.navigation,
     )
 
     assert view.page_count == 2
@@ -296,6 +303,8 @@ async def test_single_page_ephemeral_result_omits_null_view(persona) -> None:
         query=PersonalReportQuery(),
         display_name="Sgt. Rivera",
         messages=persona.messages.access,
+        ui=persona.messages.interface.personal_reports,
+        navigation=persona.messages.interface.navigation,
     )
 
     await send_personal_report_result(interaction, view)  # type: ignore[arg-type]
@@ -318,6 +327,8 @@ async def test_multi_page_ephemeral_result_includes_pagination_view(persona) -> 
         query=PersonalReportQuery(),
         display_name="Sgt. Rivera",
         messages=persona.messages.access,
+        ui=persona.messages.interface.personal_reports,
+        navigation=persona.messages.interface.navigation,
     )
 
     await send_personal_report_result(interaction, view)  # type: ignore[arg-type]

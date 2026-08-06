@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 4
-    assert profile.revision == 4
+    assert profile.schema_version == 5
+    assert profile.revision == 5
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -34,8 +34,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 4
-    assert profile.revision == 8
+    assert profile.schema_version == 5
+    assert profile.revision == 9
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -138,6 +138,12 @@ async def test_provider_rejects_unknown_persona(tmp_path: Path) -> None:
         (
             lambda data: data["messages"]["help"].update(
                 {"footer": "Texto con {form_of_address.__class__}."}
+            ),
+            "invalid persona",
+        ),
+        (
+            lambda data: data["messages"]["interface"]["knowledge"].update(
+                {"charge_footer": "Página {page} sin los demás campos."}
             ),
             "invalid persona",
         ),

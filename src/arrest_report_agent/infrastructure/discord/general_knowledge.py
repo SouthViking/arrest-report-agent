@@ -10,7 +10,12 @@ from typing import cast
 
 import discord
 
-from arrest_report_agent.config import PersonaAccessMessages, PersonaFailureMessages
+from arrest_report_agent.config import (
+    PersonaAccessMessages,
+    PersonaFailureMessages,
+    PersonaKnowledgeMessages,
+    PersonaNavigationMessages,
+)
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
@@ -194,7 +199,7 @@ class RequesterBoundView(discord.ui.View):
 
 
 class GuideSectionSelect(discord.ui.Select):
-    def __init__(self, sections: tuple[str, ...]) -> None:
+    def __init__(self, sections: tuple[str, ...], ui: PersonaKnowledgeMessages) -> None:
         options = [
             discord.SelectOption(
                 label=GUIDE_SECTION_TITLES.get(section, section.replace("_", " ").title()),
@@ -205,7 +210,7 @@ class GuideSectionSelect(discord.ui.Select):
             for section in sections
         ]
         super().__init__(
-            placeholder="Seleccione una sección del manual",
+            placeholder=ui.guide_selector_placeholder,
             options=options[:25],
             custom_id="general_guide_section",
         )
@@ -224,15 +229,17 @@ class GuideNavigationView(RequesterBoundView):
         guide: ReportGuide,
         display_name: str,
         messages: PersonaAccessMessages,
+        ui: PersonaKnowledgeMessages,
     ) -> None:
         super().__init__(requester_id, messages)
         self.guide = guide
         self.display_name = display_name
+        self.ui = ui
         available = tuple(
             section for section in GUIDE_SECTION_TITLES if section in guide.sections
         )
         self.section = available[0] if available else next(iter(guide.sections))
-        self.add_item(GuideSectionSelect(available))
+        self.add_item(GuideSectionSelect(available, ui))
 
     @property
     def current_embed(self) -> discord.Embed:
@@ -240,11 +247,12 @@ class GuideNavigationView(RequesterBoundView):
             self.guide,
             section=self.section,
             display_name=self.display_name,
+            ui=self.ui,
         )
 
 
 class FaqQuestionSelect(discord.ui.Select):
-    def __init__(self) -> None:
+    def __init__(self, ui: PersonaKnowledgeMessages) -> None:
         options = [
             discord.SelectOption(
                 label=entry.question[:100],
@@ -255,7 +263,7 @@ class FaqQuestionSelect(discord.ui.Select):
             for entry in FAQ_ENTRIES
         ]
         super().__init__(
-            placeholder="Seleccione una pregunta frecuente",
+            placeholder=ui.faq_selector_placeholder,
             options=options,
             custom_id="general_faq_question",
         )
@@ -273,15 +281,17 @@ class FaqNavigationView(RequesterBoundView):
         requester_id: int,
         display_name: str,
         messages: PersonaAccessMessages,
+        ui: PersonaKnowledgeMessages,
     ) -> None:
         super().__init__(requester_id, messages)
         self.display_name = display_name
+        self.ui = ui
         self.entry: FaqEntry | None = None
-        self.add_item(FaqQuestionSelect())
+        self.add_item(FaqQuestionSelect(ui))
 
     @property
     def current_embed(self) -> discord.Embed:
-        return build_faq_embed(self.entry, display_name=self.display_name)
+        return build_faq_embed(self.entry, display_name=self.display_name, ui=self.ui)
 
 
 class ChargeSearchModal(discord.ui.DesignerModal):
@@ -295,15 +305,19 @@ class ChargeSearchModal(discord.ui.DesignerModal):
         display_name: str,
         access_messages: PersonaAccessMessages,
         failure_messages: PersonaFailureMessages,
+        ui: PersonaKnowledgeMessages,
+        navigation: PersonaNavigationMessages,
     ) -> None:
         self.catalog = catalog
         self.requester_id = requester_id
         self.display_name = display_name
         self.access_messages = access_messages
         self.failure_messages = failure_messages
+        self.ui = ui
+        self.navigation = navigation
         self.query_input = discord.ui.InputText(
             custom_id="charge_search_query",
-            placeholder="Ej.: 459, evasión, arma sin licencia",
+            placeholder=ui.charge_query_placeholder,
             min_length=2,
             max_length=100,
             required=True,
@@ -311,12 +325,18 @@ class ChargeSearchModal(discord.ui.DesignerModal):
         self.category_select = discord.ui.StringSelect(
             custom_id="charge_search_category",
             options=[
-                discord.SelectOption(label="Todas las categorías", value="all", default=True),
+                discord.SelectOption(
+                    label=ui.charge_all_categories,
+                    value="all",
+                    default=True,
+                ),
                 *[
                     discord.SelectOption(
                         label=category.title[:100],
                         value=str(category.id),
-                        description=f"{len(category.charges)} cargo(s)",
+                        description=ui.charge_category_count.format(
+                            count=len(category.charges)
+                        ),
                     )
                     for category in catalog.categories
                     if category.charges
@@ -325,12 +345,12 @@ class ChargeSearchModal(discord.ui.DesignerModal):
         )
         super().__init__(
             discord.ui.Label(
-                "Búsqueda",
+                ui.charge_query_label,
                 self.query_input,
-                description="Código, título o términos relacionados.",
+                description=ui.charge_query_description,
             ),
-            discord.ui.Label("Categoría", self.category_select),
-            title="Consultar el código penal",
+            discord.ui.Label(ui.charge_category_label, self.category_select),
+            title=ui.charge_modal_title,
             custom_id=f"charge_search:{requester_id}",
             timeout=KNOWLEDGE_VIEW_TIMEOUT_SECONDS,
         )
@@ -358,6 +378,8 @@ class ChargeSearchModal(discord.ui.DesignerModal):
                 query=query,
                 display_name=self.display_name,
                 messages=self.access_messages,
+                ui=self.ui,
+                navigation=self.navigation,
             )
             await send_charge_search_result(interaction, view)
             log_event(
@@ -397,12 +419,18 @@ class ChargeSearchPaginationView(RequesterBoundView):
         query: str,
         display_name: str,
         messages: PersonaAccessMessages,
+        ui: PersonaKnowledgeMessages,
+        navigation: PersonaNavigationMessages,
     ) -> None:
         super().__init__(requester_id, messages)
         self.entries = entries
         self.query = query
         self.display_name = display_name
+        self.ui = ui
+        self.navigation = navigation
         self.page = 0
+        self.previous_page.label = navigation.previous_button
+        self.next_page.label = navigation.next_button
         self._synchronize_buttons()
 
     @property
@@ -416,6 +444,7 @@ class ChargeSearchPaginationView(RequesterBoundView):
             query=self.query,
             display_name=self.display_name,
             page=self.page,
+            ui=self.ui,
         )
 
     @discord.ui.button(label="Anterior", emoji="◀️", style=discord.ButtonStyle.secondary)
@@ -518,16 +547,16 @@ def build_guide_embed(
     *,
     section: str,
     display_name: str,
+    ui: PersonaKnowledgeMessages,
 ) -> discord.Embed:
     payload = guide.get([section])
     sections = cast(dict[str, dict[str, object]], payload["sections"])
     content = sections.get(section, {})
     title = GUIDE_SECTION_TITLES.get(section, section.replace("_", " ").title())
     embed = discord.Embed(
-        title=f"📘 Guía de reportes · {title}",
-        description=(
-            "Referencia rápida de la guía local. Consulte el "
-            f"[manual oficial]({PROCEDURES_MANUAL_URL}) para el texto completo."
+        title=ui.guide_title.format(section=title),
+        description=ui.guide_description.format(
+            procedures_manual_url=PROCEDURES_MANUAL_URL,
         ),
         color=discord.Color.gold(),
     )
@@ -537,7 +566,9 @@ def build_guide_embed(
             value=_truncate(_render_guide_value(value), 1024),
             inline=False,
         )
-    embed.set_footer(text=f"Guía {guide.version} · {display_name}")
+    embed.set_footer(
+        text=ui.guide_footer.format(version=guide.version, display_name=display_name)
+    )
     return embed
 
 
@@ -545,18 +576,16 @@ def build_faq_embed(
     entry: FaqEntry | None,
     *,
     display_name: str,
+    ui: PersonaKnowledgeMessages,
 ) -> discord.Embed:
     if entry is None:
         categories = tuple(dict.fromkeys(item.category for item in FAQ_ENTRIES))
         embed = discord.Embed(
-            title="❓ Preguntas frecuentes",
-            description=(
-                "Seleccione una pregunta para consultar una respuesta breve basada en la guía.\n\n"
-                f"**Temas disponibles:** {' · '.join(categories)}"
-            ),
+            title=ui.faq_title,
+            description=ui.faq_description.format(topics=" · ".join(categories)),
             color=discord.Color.gold(),
         )
-        embed.set_footer(text=f"Referencia determinista · {display_name}")
+        embed.set_footer(text=ui.faq_footer.format(display_name=display_name))
         return embed
 
     section_title = GUIDE_SECTION_TITLES.get(entry.guide_section, entry.guide_section)
@@ -566,11 +595,14 @@ def build_faq_embed(
         color=discord.Color.gold(),
     )
     embed.add_field(
-        name="Referencia",
-        value=f"Sección **{section_title}** · [Manual oficial]({PROCEDURES_MANUAL_URL})",
+        name=ui.faq_reference_title,
+        value=ui.faq_reference.format(
+            section=section_title,
+            procedures_manual_url=PROCEDURES_MANUAL_URL,
+        ),
         inline=False,
     )
-    embed.set_footer(text=f"FAQ operativo · {display_name}")
+    embed.set_footer(text=ui.faq_footer.format(display_name=display_name))
     return embed
 
 
@@ -580,23 +612,24 @@ def build_charge_search_embed(
     query: str,
     display_name: str,
     page: int = 0,
+    ui: PersonaKnowledgeMessages,
 ) -> discord.Embed:
     page_count = max(1, ceil(len(entries) / CHARGES_PER_PAGE))
     safe_page = min(max(page, 0), page_count - 1)
     start = safe_page * CHARGES_PER_PAGE
     page_entries = entries[start : start + CHARGES_PER_PAGE]
     embed = discord.Embed(
-        title="⚖️ Consulta de cargos",
-        description=(
-            f"**Búsqueda:** {discord.utils.escape_markdown(query)}\n"
-            f"Catálogo local · [Abrir PCU oficial]({PENAL_CODE_URL})"
+        title=ui.charge_result_title,
+        description=ui.charge_result_description.format(
+            query=discord.utils.escape_markdown(query),
+            penal_code_url=PENAL_CODE_URL,
         ),
         color=discord.Color.gold(),
     )
     if not page_entries:
         embed.add_field(
-            name="Sin coincidencias",
-            value="No encontré cargos que coincidan. Pruebe con el código o menos términos.",
+            name=ui.charge_empty_title,
+            value=ui.charge_empty_body,
             inline=False,
         )
     for entry in page_entries:
@@ -609,9 +642,9 @@ def build_charge_search_embed(
                 f"{discord.utils.escape_markdown(entry.title)}"
             )[:256],
             value=_truncate(
-                f"**Categoría:** {category}\n"
-                f"**Tipo:** {charge_type}\n"
-                f"{_format_penalties(entry)}\n"
+                f"**{ui.charge_result_category_label}:** {category}\n"
+                f"**{ui.charge_result_type_label}:** {charge_type}\n"
+                f"{_format_penalties(entry, ui)}\n"
                 f"{description}",
                 1024,
             ),
@@ -619,8 +652,12 @@ def build_charge_search_embed(
         )
     embed.set_footer(
         text=(
-            f"Página {safe_page + 1}/{page_count} · {len(entries)} resultado(s) · "
-            f"{display_name}"
+            ui.charge_footer.format(
+                page=safe_page + 1,
+                page_count=page_count,
+                count=len(entries),
+                display_name=display_name,
+            )
         )
     )
     return embed
@@ -638,17 +675,19 @@ def _render_guide_value(value: object) -> str:
     return str(value)
 
 
-def _format_penalties(entry: ChargeSearchEntry) -> str:
+def _format_penalties(entry: ChargeSearchEntry, ui: PersonaKnowledgeMessages) -> str:
     values = []
     if entry.sentence_hours is not None:
-        values.append(f"**Condena:** {_format_number(entry.sentence_hours)} h")
+        values.append(
+            f"**{ui.charge_sentence_label}:** {_format_number(entry.sentence_hours)} h"
+        )
     if entry.parole is not None:
-        values.append(f"**Libertad condicional:** {_format_number(entry.parole)}")
+        values.append(f"**{ui.charge_parole_label}:** {_format_number(entry.parole)}")
     if entry.fine is not None:
-        values.append(f"**Multa:** ${_format_number(entry.fine)}")
+        values.append(f"**{ui.charge_fine_label}:** ${_format_number(entry.fine)}")
     if entry.points is not None:
-        values.append(f"**Puntos:** {_format_number(entry.points)}")
-    return " · ".join(values) if values else "**Sanción:** sin detalle en el catálogo"
+        values.append(f"**{ui.charge_points_label}:** {_format_number(entry.points)}")
+    return " · ".join(values) if values else f"**{ui.charge_penalty_missing}**"
 
 
 def _optional_number(value: object) -> int | float | None:

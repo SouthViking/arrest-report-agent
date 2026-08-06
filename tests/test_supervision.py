@@ -76,7 +76,7 @@ def test_ranking_aggregates_current_status_and_sorts_by_requested_metric() -> No
     assert corrections[0].corrections_required == corrections[1].corrections_required == 1
 
 
-def test_supervision_embeds_expose_navigation_and_current_snapshot() -> None:
+def test_supervision_embeds_expose_navigation_and_current_snapshot(persona) -> None:
     reports = (
         report(1, 100, PersonalReportStatus.PENDING),
         report(2, 200, PersonalReportStatus.APPROVED),
@@ -85,6 +85,8 @@ def test_supervision_embeds_expose_navigation_and_current_snapshot() -> None:
         PersonalReportSearchResult(reports=(reports[0],)),
         PersonalReportQuery(),
         display_name="Sgt. Rivera",
+        ui=persona.messages.interface.supervision,
+        navigation=persona.messages.interface.navigation,
     )
     ranking_entries = build_supervisor_ranking(
         reports,
@@ -96,6 +98,8 @@ def test_supervision_embeds_expose_navigation_and_current_snapshot() -> None:
         query=PersonalReportQuery(),
         truncated=False,
         display_name="Sgt. Rivera",
+        ui=persona.messages.interface.supervision,
+        navigation=persona.messages.interface.navigation,
     )
     assert pending.title == "⏳ Reportes pendientes"
     assert "<@100>" in pending.fields[0].value

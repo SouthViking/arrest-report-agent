@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 4
+PERSONA_SCHEMA_VERSION = 5
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -199,13 +199,32 @@ class PersonaHelpMessages(FrozenPersonaModel):
     """Personality-bearing copy surrounding the functional help fields."""
 
     description: str = Field(min_length=1, max_length=700)
+    title: str = Field(min_length=1, max_length=256)
+    review_scope_title: str = Field(min_length=1, max_length=256)
     review_scope: str = Field(min_length=1, max_length=900)
+    location_title: str = Field(min_length=1, max_length=256)
+    unrestricted_channels: str = Field(min_length=1, max_length=300)
+    request_review_title: str = Field(min_length=1, max_length=256)
     request_review: str = Field(min_length=1, max_length=900)
+    thread_behavior_title: str = Field(min_length=1, max_length=256)
     thread_behavior: str = Field(min_length=1, max_length=900)
+    personal_commands_title: str = Field(min_length=1, max_length=256)
+    personal_commands: str = Field(min_length=1, max_length=900)
+    general_commands_title: str = Field(min_length=1, max_length=256)
+    general_commands: str = Field(min_length=1, max_length=900)
+    supervision_commands_title: str = Field(min_length=1, max_length=256)
+    supervision_commands: str = Field(min_length=1, max_length=900)
+    official_docs_title: str = Field(min_length=1, max_length=256)
+    official_docs: str = Field(min_length=1, max_length=900)
     footer: str = Field(min_length=1, max_length=500)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaHelpMessages:
+        _require_template_fields(
+            self.title,
+            {"display_name", "role_title"},
+            "help.title",
+        )
         _require_template_fields(
             self.description,
             {"display_name", "role_title"},
@@ -217,11 +236,309 @@ class PersonaHelpMessages(FrozenPersonaModel):
             "help.request_review",
         )
         _require_template_fields(
+            self.official_docs,
+            {"penal_code_url", "procedures_manual_url"},
+            "help.official_docs",
+        )
+        _require_template_fields(
             self.footer,
             {"form_of_address"},
             "help.footer",
         )
         return self
+
+
+class PersonaNavigationMessages(FrozenPersonaModel):
+    """Shared labels for deterministic selectors, links and pagination."""
+
+    previous_button: str = Field(min_length=1, max_length=80)
+    next_button: str = Field(min_length=1, max_length=80)
+    all_stations: str = Field(min_length=1, max_length=100)
+    period_current_month: str = Field(min_length=1, max_length=100)
+    period_last_7_days: str = Field(min_length=1, max_length=100)
+    period_last_30_days: str = Field(min_length=1, max_length=100)
+    period_last_90_days: str = Field(min_length=1, max_length=100)
+    status_filter_all: str = Field(min_length=1, max_length=100)
+    status_filter_pending: str = Field(min_length=1, max_length=100)
+    status_filter_approved: str = Field(min_length=1, max_length=100)
+    status_filter_corrections_required: str = Field(min_length=1, max_length=100)
+    status_filter_inconclusive: str = Field(min_length=1, max_length=100)
+    status_pending: str = Field(min_length=1, max_length=100)
+    status_in_review: str = Field(min_length=1, max_length=100)
+    status_approved: str = Field(min_length=1, max_length=100)
+    status_corrections_required: str = Field(min_length=1, max_length=100)
+    status_inconclusive: str = Field(min_length=1, max_length=100)
+    open_post: str = Field(min_length=1, max_length=100)
+    open_thread: str = Field(min_length=1, max_length=100)
+    unknown_author: str = Field(min_length=1, max_length=100)
+
+
+class PersonaKnowledgeMessages(FrozenPersonaModel):
+    """Personality-aware UI copy for guide, FAQ and charge lookup commands."""
+
+    guide_selector_placeholder: str = Field(min_length=1, max_length=150)
+    guide_title: str = Field(min_length=1, max_length=256)
+    guide_description: str = Field(min_length=1, max_length=600)
+    guide_footer: str = Field(min_length=1, max_length=300)
+    faq_selector_placeholder: str = Field(min_length=1, max_length=150)
+    faq_title: str = Field(min_length=1, max_length=256)
+    faq_description: str = Field(min_length=1, max_length=700)
+    faq_footer: str = Field(min_length=1, max_length=300)
+    faq_reference_title: str = Field(min_length=1, max_length=256)
+    faq_reference: str = Field(min_length=1, max_length=500)
+    charge_query_placeholder: str = Field(min_length=1, max_length=150)
+    charge_all_categories: str = Field(min_length=1, max_length=100)
+    charge_category_count: str = Field(min_length=1, max_length=100)
+    charge_query_label: str = Field(min_length=1, max_length=100)
+    charge_query_description: str = Field(min_length=1, max_length=200)
+    charge_category_label: str = Field(min_length=1, max_length=100)
+    charge_modal_title: str = Field(min_length=1, max_length=100)
+    charge_result_title: str = Field(min_length=1, max_length=256)
+    charge_result_description: str = Field(min_length=1, max_length=700)
+    charge_empty_title: str = Field(min_length=1, max_length=256)
+    charge_empty_body: str = Field(min_length=1, max_length=600)
+    charge_result_category_label: str = Field(min_length=1, max_length=100)
+    charge_result_type_label: str = Field(min_length=1, max_length=100)
+    charge_sentence_label: str = Field(min_length=1, max_length=100)
+    charge_parole_label: str = Field(min_length=1, max_length=100)
+    charge_fine_label: str = Field(min_length=1, max_length=100)
+    charge_points_label: str = Field(min_length=1, max_length=100)
+    charge_penalty_missing: str = Field(min_length=1, max_length=200)
+    charge_footer: str = Field(min_length=1, max_length=300)
+
+    @model_validator(mode="after")
+    def validate_templates(self) -> PersonaKnowledgeMessages:
+        templates = (
+            (self.guide_title, {"section"}, "interface.knowledge.guide_title"),
+            (
+                self.guide_description,
+                {"procedures_manual_url"},
+                "interface.knowledge.guide_description",
+            ),
+            (
+                self.guide_footer,
+                {"version", "display_name"},
+                "interface.knowledge.guide_footer",
+            ),
+            (self.faq_description, {"topics"}, "interface.knowledge.faq_description"),
+            (self.faq_footer, {"display_name"}, "interface.knowledge.faq_footer"),
+            (
+                self.faq_reference,
+                {"section", "procedures_manual_url"},
+                "interface.knowledge.faq_reference",
+            ),
+            (
+                self.charge_category_count,
+                {"count"},
+                "interface.knowledge.charge_category_count",
+            ),
+            (
+                self.charge_result_description,
+                {"query", "penal_code_url"},
+                "interface.knowledge.charge_result_description",
+            ),
+            (
+                self.charge_footer,
+                {"page", "page_count", "count", "display_name"},
+                "interface.knowledge.charge_footer",
+            ),
+        )
+        for template, fields, label in templates:
+            _require_template_fields(template, fields, label)
+        return self
+
+
+class PersonaPersonalReportMessages(FrozenPersonaModel):
+    """Personality-aware UI copy for personal report commands."""
+
+    period_label: str = Field(min_length=1, max_length=100)
+    period_description: str = Field(min_length=1, max_length=200)
+    status_label: str = Field(min_length=1, max_length=100)
+    station_label: str = Field(min_length=1, max_length=100)
+    modal_title: str = Field(min_length=1, max_length=100)
+    reports_title: str = Field(min_length=1, max_length=256)
+    reports_description: str = Field(min_length=1, max_length=600)
+    empty_title: str = Field(min_length=1, max_length=256)
+    empty_body: str = Field(min_length=1, max_length=500)
+    reports_footer: str = Field(min_length=1, max_length=300)
+    reports_footer_truncated: str = Field(min_length=1, max_length=200)
+    summary_title: str = Field(min_length=1, max_length=256)
+    summary_description: str = Field(min_length=1, max_length=900)
+    summary_navigation_title: str = Field(min_length=1, max_length=256)
+    summary_navigation_body: str = Field(min_length=1, max_length=500)
+    summary_footer: str = Field(min_length=1, max_length=300)
+    summary_footer_truncated: str = Field(min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_templates(self) -> PersonaPersonalReportMessages:
+        templates = (
+            (
+                self.reports_description,
+                {"period", "status", "station"},
+                "interface.personal_reports.reports_description",
+            ),
+            (
+                self.reports_footer,
+                {"page", "page_count", "count", "display_name"},
+                "interface.personal_reports.reports_footer",
+            ),
+            (self.summary_title, {"period"}, "interface.personal_reports.summary_title"),
+            (
+                self.summary_description,
+                {
+                    "total",
+                    "approved",
+                    "corrections_required",
+                    "pending",
+                    "inconclusive",
+                    "approval_rate",
+                },
+                "interface.personal_reports.summary_description",
+            ),
+            (
+                self.summary_footer,
+                {"display_name"},
+                "interface.personal_reports.summary_footer",
+            ),
+        )
+        for template, fields, label in templates:
+            _require_template_fields(template, fields, label)
+        return self
+
+
+class PersonaSupervisionMessages(FrozenPersonaModel):
+    """Personality-aware UI copy for supervisor-only commands."""
+
+    period_label: str = Field(min_length=1, max_length=100)
+    station_label: str = Field(min_length=1, max_length=100)
+    ranking_order_label: str = Field(min_length=1, max_length=100)
+    pending_modal_title: str = Field(min_length=1, max_length=100)
+    ranking_modal_title: str = Field(min_length=1, max_length=100)
+    metric_submitted: str = Field(min_length=1, max_length=100)
+    metric_approved: str = Field(min_length=1, max_length=100)
+    metric_corrections_required: str = Field(min_length=1, max_length=100)
+    metric_approval_rate: str = Field(min_length=1, max_length=100)
+    pending_title: str = Field(min_length=1, max_length=256)
+    pending_description: str = Field(min_length=1, max_length=700)
+    pending_empty_title: str = Field(min_length=1, max_length=256)
+    pending_empty_body: str = Field(min_length=1, max_length=500)
+    pending_footer: str = Field(min_length=1, max_length=300)
+    pending_footer_truncated: str = Field(min_length=1, max_length=200)
+    ranking_title: str = Field(min_length=1, max_length=256)
+    ranking_description: str = Field(min_length=1, max_length=900)
+    ranking_empty_body: str = Field(min_length=1, max_length=500)
+    ranking_footer: str = Field(min_length=1, max_length=300)
+    ranking_footer_truncated: str = Field(min_length=1, max_length=200)
+    ranking_value_approved: str = Field(min_length=1, max_length=150)
+    ranking_value_corrections_required: str = Field(min_length=1, max_length=150)
+    ranking_value_approval_rate: str = Field(min_length=1, max_length=150)
+    ranking_value_submitted: str = Field(min_length=1, max_length=150)
+
+    @model_validator(mode="after")
+    def validate_templates(self) -> PersonaSupervisionMessages:
+        templates = (
+            (
+                self.pending_description,
+                {"period", "station"},
+                "interface.supervision.pending_description",
+            ),
+            (
+                self.pending_footer,
+                {"page", "page_count", "count", "display_name"},
+                "interface.supervision.pending_footer",
+            ),
+            (
+                self.ranking_description,
+                {"metric", "period", "station", "entries"},
+                "interface.supervision.ranking_description",
+            ),
+            (
+                self.ranking_footer,
+                {"page", "page_count", "count", "display_name"},
+                "interface.supervision.ranking_footer",
+            ),
+            (self.ranking_value_approved, {"count"}, "interface.supervision.ranking_value_approved"),
+            (
+                self.ranking_value_corrections_required,
+                {"count"},
+                "interface.supervision.ranking_value_corrections_required",
+            ),
+            (
+                self.ranking_value_approval_rate,
+                {"rate"},
+                "interface.supervision.ranking_value_approval_rate",
+            ),
+            (
+                self.ranking_value_submitted,
+                {"count"},
+                "interface.supervision.ranking_value_submitted",
+            ),
+        )
+        for template, fields, label in templates:
+            _require_template_fields(template, fields, label)
+        return self
+
+
+class PersonaReviewMessages(FrozenPersonaModel):
+    """Personality-aware framing around formal structured review data."""
+
+    failure_next_step_title: str = Field(min_length=1, max_length=256)
+    escalation_notice: str = Field(min_length=1, max_length=500)
+    approved_title: str = Field(min_length=1, max_length=256)
+    corrections_required_title: str = Field(min_length=1, max_length=256)
+    inconclusive_title: str = Field(min_length=1, max_length=256)
+    manual_review_title: str = Field(min_length=1, max_length=256)
+    continuation_title: str = Field(min_length=1, max_length=256)
+    evidence_reference: str = Field(min_length=1, max_length=300)
+    correction_instruction: str = Field(min_length=1, max_length=500)
+    charge_supported: str = Field(min_length=1, max_length=150)
+    charge_unsupported: str = Field(min_length=1, max_length=150)
+    charge_uncertain: str = Field(min_length=1, max_length=150)
+    charge_not_found: str = Field(min_length=1, max_length=150)
+    charge_review_title: str = Field(min_length=1, max_length=256)
+    charge_review_continuation_title: str = Field(min_length=1, max_length=256)
+    fallback_thread_title: str = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def validate_templates(self) -> PersonaReviewMessages:
+        templates = (
+            (self.escalation_notice, {"roles"}, "interface.review.escalation_notice"),
+            (self.continuation_title, {"display_name"}, "interface.review.continuation_title"),
+            (self.evidence_reference, {"evidence"}, "interface.review.evidence_reference"),
+            (
+                self.correction_instruction,
+                {"recommendation"},
+                "interface.review.correction_instruction",
+            ),
+            (self.fallback_thread_title, {"message_id"}, "interface.review.fallback_thread_title"),
+        )
+        for template, fields, label in templates:
+            _require_template_fields(template, fields, label)
+        return self
+
+
+class PersonaCommandMessages(FrozenPersonaModel):
+    """Runtime descriptions shown by Discord for root slash commands."""
+
+    help_description: str = Field(min_length=1, max_length=100)
+    guide_description: str = Field(min_length=1, max_length=100)
+    charges_description: str = Field(min_length=1, max_length=100)
+    faq_description: str = Field(min_length=1, max_length=100)
+    pending_description: str = Field(min_length=1, max_length=100)
+    ranking_description: str = Field(min_length=1, max_length=100)
+    personal_reports_description: str = Field(min_length=1, max_length=100)
+    personal_summary_description: str = Field(min_length=1, max_length=100)
+
+
+class PersonaInterfaceMessages(FrozenPersonaModel):
+    """Complete deterministic Discord interface copy for one persona."""
+
+    navigation: PersonaNavigationMessages
+    knowledge: PersonaKnowledgeMessages
+    personal_reports: PersonaPersonalReportMessages
+    supervision: PersonaSupervisionMessages
+    review: PersonaReviewMessages
+    commands: PersonaCommandMessages
 
 
 class PersonaMessages(FrozenPersonaModel):
@@ -230,6 +547,7 @@ class PersonaMessages(FrozenPersonaModel):
     access: PersonaAccessMessages
     failures: PersonaFailureMessages
     help: PersonaHelpMessages
+    interface: PersonaInterfaceMessages
 
 
 class BotPersona(FrozenPersonaModel):

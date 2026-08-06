@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from arrest_report_agent.config import PackagedPersonaProvider
+from arrest_report_agent.infrastructure.discord.general_knowledge import ChargeSearchModal
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
 
@@ -101,3 +103,36 @@ def test_review_calibration_uses_semantic_coverage_and_material_threshold() -> N
     assert "agrupar errores lingüísticos" in calibration["blocking_threshold"][2]
     assert "versión más reciente" in calibration["iteration"][0]
     assert "fuente oficial" in calibration["iteration"][2]
+
+
+@pytest.mark.asyncio
+async def test_charge_selector_copy_comes_from_selected_persona(persona) -> None:
+    roy = (await PackagedPersonaProvider().load("roy_velazco")).profile
+    catalog = ChargeCatalog.load_default()
+    walter_modal = ChargeSearchModal(
+        catalog=catalog,
+        requester_id=1,
+        display_name=persona.identity.display_name,
+        access_messages=persona.messages.access,
+        failure_messages=persona.messages.failures,
+        ui=persona.messages.interface.knowledge,
+        navigation=persona.messages.interface.navigation,
+    )
+    roy_modal = ChargeSearchModal(
+        catalog=catalog,
+        requester_id=1,
+        display_name=roy.identity.display_name,
+        access_messages=roy.messages.access,
+        failure_messages=roy.messages.failures,
+        ui=roy.messages.interface.knowledge,
+        navigation=roy.messages.interface.navigation,
+    )
+
+    assert walter_modal.query_input.placeholder != roy_modal.query_input.placeholder
+    assert walter_modal.category_select.options[0].label == "Todas las categorías"
+    assert roy_modal.category_select.options[0].label == "Todas las categorías, obvio"
+    assert [child.label for child in roy_modal.children] == [
+        "Qué estai buscando",
+        "Dónde querís buscar",
+    ]
+    assert roy_modal.title == "Buscar en el código"
