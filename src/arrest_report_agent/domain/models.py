@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .enums import ContextState, FindingSeverity, InteractionMode, ReviewVerdict
 
+DiscordRoleName = Annotated[str, Field(min_length=1, max_length=80)]
+
 
 class DiscordAttachment(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -37,6 +39,7 @@ class ConversationMessage(BaseModel):
     author_display: str
     author_is_bot: bool
     author_is_assistant: bool = False
+    author_role_names: list[DiscordRoleName] = Field(default_factory=list, max_length=8)
     content: str
     created_at: datetime
     edited: bool = False
@@ -57,9 +60,7 @@ class ReviewCase(BaseModel):
     trigger_message_id: int
     requester_user_id: int
     requester_display_name: str | None = Field(default=None, max_length=100)
-    requester_role_names: list[
-        Annotated[str, Field(min_length=1, max_length=80)]
-    ] = Field(default_factory=list, max_length=8)
+    requester_role_names: list[DiscordRoleName] = Field(default_factory=list, max_length=8)
     interaction_mode: InteractionMode
     response_route: Literal["inline_reply", "thread"] = "thread"
     case_subject: str | None = None
@@ -71,28 +72,55 @@ class ReviewCase(BaseModel):
 
 class ReviewFinding(BaseModel):
     severity: FindingSeverity
-    title: str = Field(min_length=1, max_length=120)
-    detail: str = Field(min_length=1, max_length=700)
-    recommendation: str = Field(min_length=1, max_length=500)
-    evidence: str | None = Field(default=None, max_length=300)
+    title: str = Field(
+        min_length=1,
+        max_length=120,
+        description="Neutral, professional Spanish title without jokes, insults or slang.",
+    )
+    detail: str = Field(
+        min_length=1,
+        max_length=700,
+        description="Clear technical explanation in correct, neutral Spanish.",
+    )
+    recommendation: str = Field(
+        min_length=1,
+        max_length=500,
+        description="Actionable correction in correct, neutral Spanish.",
+    )
+    evidence: str | None = Field(
+        default=None,
+        max_length=300,
+        description="Brief neutral reference to the relevant material.",
+    )
 
 
 class ChargeAssessment(BaseModel):
     charge_id: int | None = None
     declared_charge: str = Field(min_length=1, max_length=160)
     alignment: Literal["supported", "unsupported", "uncertain", "not_found"]
-    note: str = Field(min_length=1, max_length=500)
+    note: str = Field(
+        min_length=1,
+        max_length=500,
+        description="Technical assessment in correct, neutral Spanish without persona slang.",
+    )
 
 
 class ReviewPublication(BaseModel):
     """Terminal output accepted by the Discord publication tool."""
 
     verdict: ReviewVerdict
-    summary: str = Field(min_length=1, max_length=500)
+    summary: str = Field(
+        min_length=1,
+        max_length=500,
+        description="Clear opening verdict using the persona's review-summary voice.",
+    )
     findings: list[ReviewFinding] = Field(default_factory=list, max_length=12)
     charges: list[ChargeAssessment] = Field(default_factory=list, max_length=10)
-    next_step: str = Field(min_length=1, max_length=500)
-    manual_review_reason: str | None = Field(default=None, max_length=500)
+    manual_review_reason: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Formal and neutral reason for human escalation when required.",
+    )
 
     @model_validator(mode="after")
     def validate_verdict_consistency(self) -> ReviewPublication:

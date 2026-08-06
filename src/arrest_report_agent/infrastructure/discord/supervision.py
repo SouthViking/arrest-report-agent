@@ -17,7 +17,12 @@ from arrest_report_agent.application import (
     SupervisorRankingMetric,
     build_supervisor_ranking,
 )
-from arrest_report_agent.config import AppSettings, SnowflakeAllowlist
+from arrest_report_agent.config import (
+    AppSettings,
+    PersonaAccessMessages,
+    PersonaFailureMessages,
+    SnowflakeAllowlist,
+)
 from arrest_report_agent.config.logging import exception_fields, log_event
 
 from .personal_reports import (
@@ -59,23 +64,21 @@ class SupervisorRolePolicy:
         return any(self.roles.allows(role.id) for role in member.roles)
 
 
-def build_supervisor_unauthorized_message() -> str:
-    return (
-        "🔒 **Archivo de supervisión restringido.** "
-        "Su rol no figura entre los autorizados para esta consulta."
-    )
+def build_supervisor_unauthorized_message(messages: PersonaAccessMessages) -> str:
+    return messages.supervisor_unauthorized
 
 
 class SupervisorRequesterView(discord.ui.View):
-    def __init__(self, requester_id: int) -> None:
+    def __init__(self, requester_id: int, messages: PersonaAccessMessages) -> None:
         super().__init__(timeout=SUPERVISION_VIEW_TIMEOUT_SECONDS, disable_on_timeout=True)
         self.requester_id = requester_id
+        self.messages = messages
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self.requester_id:
             return True
         await interaction.response.send_message(
-            "Esta consulta pertenece a otro supervisor.",
+            self.messages.other_supervisor_query,
             ephemeral=True,
         )
         return False
@@ -91,12 +94,16 @@ class PendingReportsModal(discord.ui.DesignerModal):
         member: discord.Member,
         channels: tuple[discord.TextChannel, ...],
         display_name: str,
+        access_messages: PersonaAccessMessages,
+        failure_messages: PersonaFailureMessages,
     ) -> None:
         self.finder = finder
         self.policy = policy
         self.guild = guild
         self.member = member
         self.display_name = display_name
+        self.access_messages = access_messages
+        self.failure_messages = failure_messages
         self.period_select = _period_select("supervision_pending_period")
         self.channel_select = _channel_select("supervision_pending_channel", channels)
         super().__init__(
@@ -112,6 +119,7 @@ class PendingReportsModal(discord.ui.DesignerModal):
             interaction,
             requester_id=self.member.id,
             policy=self.policy,
+            messages=self.access_messages,
         ):
             return
         period = PersonalReportPeriod(self.period_select.values[0])
@@ -129,6 +137,7 @@ class PendingReportsModal(discord.ui.DesignerModal):
                 result=result,
                 query=query,
                 display_name=self.display_name,
+                messages=self.access_messages,
             )
             await _send_optional_view(interaction, embed=view.current_embed, view=view)
             log_event(
@@ -137,6 +146,7 @@ class PendingReportsModal(discord.ui.DesignerModal):
                 "supervisor_pending_query_completed",
                 guild_id=self.guild.id,
                 user_id=self.member.id,
+                messages=self.failure_messages,
                 period=period.value,
                 channel_id=query.channel_id or "all",
                 result_count=len(result.reports),
@@ -162,12 +172,16 @@ class RankingModal(discord.ui.DesignerModal):
         member: discord.Member,
         channels: tuple[discord.TextChannel, ...],
         display_name: str,
+        access_messages: PersonaAccessMessages,
+        failure_messages: PersonaFailureMessages,
     ) -> None:
         self.finder = finder
         self.policy = policy
         self.guild = guild
         self.member = member
         self.display_name = display_name
+        self.access_messages = access_messages
+        self.failure_messages = failure_messages
         self.period_select = _period_select("supervision_ranking_period")
         self.metric_select = discord.ui.StringSelect(
             custom_id="supervision_ranking_metric",
@@ -195,6 +209,7 @@ class RankingModal(discord.ui.DesignerModal):
             interaction,
             requester_id=self.member.id,
             policy=self.policy,
+            messages=self.access_messages,
         ):
             return
         period = PersonalReportPeriod(self.period_select.values[0])
@@ -216,6 +231,7 @@ class RankingModal(discord.ui.DesignerModal):
                 query=query,
                 truncated=result.truncated,
                 display_name=self.display_name,
+                messages=self.access_messages,
             )
             await _send_optional_view(interaction, embed=view.current_embed, view=view)
             log_event(
@@ -224,6 +240,7 @@ class RankingModal(discord.ui.DesignerModal):
                 "supervisor_ranking_query_completed",
                 guild_id=self.guild.id,
                 user_id=self.member.id,
+                messages=self.failure_messages,
                 period=period.value,
                 metric=metric.value,
                 channel_id=query.channel_id or "all",
@@ -249,8 +266,9 @@ class PendingReportsPaginationView(SupervisorRequesterView):
         result: PersonalReportSearchResult,
         query: PersonalReportQuery,
         display_name: str,
+        messages: PersonaAccessMessages,
     ) -> None:
-        super().__init__(requester_id)
+        super().__init__(requester_id, messages)
         self.result = result
         self.query = query
         self.display_name = display_name
@@ -305,8 +323,9 @@ class RankingPaginationView(SupervisorRequesterView):
         query: PersonalReportQuery,
         truncated: bool,
         display_name: str,
+        messages: PersonaAccessMessages,
     ) -> None:
-        super().__init__(requester_id)
+        super().__init__(requester_id, messages)
         self.ranking = ranking
         self.metric = metric
         self.query = query
@@ -451,6 +470,7 @@ async def _authorize_modal_interaction(
     *,
     requester_id: int,
     policy: SupervisorRolePolicy,
+    messages: PersonaAccessMessages,
 ) -> bool:
     if (
         interaction.user.id == requester_id
@@ -459,7 +479,7 @@ async def _authorize_modal_interaction(
     ):
         return True
     await interaction.response.send_message(
-        build_supervisor_unauthorized_message(),
+        build_supervisor_unauthorized_message(messages),
         ephemeral=True,
         allowed_mentions=discord.AllowedMentions.none(),
     )
@@ -519,6 +539,7 @@ async def _publish_supervision_failure(
     event: str,
     guild_id: int,
     user_id: int,
+    messages: PersonaFailureMessages,
 ) -> None:
     log_event(
         LOGGER,
@@ -531,7 +552,7 @@ async def _publish_supervision_failure(
         **exception_fields(error),
     )
     await interaction.followup.send(
-        "📁 No pude consultar el archivo de supervisión en este momento. Inténtelo nuevamente.",
+        messages.supervision_query_failure,
         ephemeral=True,
         allowed_mentions=discord.AllowedMentions.none(),
     )

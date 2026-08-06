@@ -28,8 +28,9 @@ flowchart LR
     X --> F["Invocación en hilo: mismo hilo"]
 ```
 
-`SnowflakeAllowlist` centraliza el parseo de `DISCORD_GUILD_IDS`, `REVIEW_CHANNEL_IDS` y
+`SnowflakeAllowlist` centraliza el parseo de `DISCORD_GUILD_IDS`, `ALLOWED_CHANNEL_IDS` y
 `AUTHORIZED_USER_IDS`: ausente, vacío o `*` abre el scope; cualquier CSV lo restringe.
+`REVIEW_CHANNEL_IDS` se conserva únicamente como alias de migración para despliegues existentes.
 `DiscordAccessPolicy` es el único preprocesador del listener y se ejecuta antes de descargar contexto
 o llamar a OpenAI. Valida guild, autor humano, activación por mención o respuesta directa al bot,
 usuario y canal padre, en ese orden. Si Discord no incluyó el mensaje referenciado, resuelve solo esa
@@ -102,6 +103,20 @@ entorno ni los archivos.
 el mismo `BotPersona` y assets desde una base de datos sin cambiar los consumidores. En el MVP
 existen `walter_vigil` y `roy_velazco`; cambiar la selección requiere reiniciar el proceso.
 
+La personalidad separa la voz de conversación natural de la voz breve del resumen superior de una
+revisión. El prompt y el esquema de `publish_review` reservan esos registros para sus contextos; los
+hallazgos, cargos, recomendaciones y motivo de derivación permanecen técnicos,
+formales y neutrales. Cada registro incluye few-shots tipados, validados y limitados para orientar la
+voz sin cargar una conversación completa. El renderer muestra el resumen y los campos técnicos en
+secciones distintas.
+
+Cada perfil también declara `messages.access`, `messages.failures` y `messages.help`. Estos registros
+alimentan el texto local que debe conservar la voz del personaje: redirecciones, autorizaciones,
+rechazos de alcance, fallas operativas seguras, ayuda y ownership de interfaces privadas. Los campos
+con interpolación usan un conjunto exacto de placeholders validado al arrancar; no se permite acceder
+a atributos ni aplicar formatos dinámicos. Etiquetas de navegación, datos del código y reglas de la
+guía permanecen en la capa funcional para no contaminar información objetiva con la personalidad.
+
 En `on_ready`, `DiscordProfileSynchronizer` aplica username y avatar desde la persona, el banner
 verde musgo global de LSSD y la biografía por guild. Los campos globales se envían por separado para
 que el cooldown de uno no bloquee los demás. Un lock evita duplicados durante reconexiones; un error
@@ -170,8 +185,8 @@ No se usan sesiones ni persistencia del SDK. Cada mención reconstruye un input 
 - referencias de respuesta y extractos acotados;
 - indicador de mensaje editado;
 - solicitud actual;
-- nombre visible del solicitante y hasta ocho nombres de roles no administrados, ordenados por
-  jerarquía y presentados en una sola línea, sin IDs de roles;
+- nombre visible del solicitante y hasta ocho nombres de roles no administrados por participante,
+  ordenados por jerarquía y presentados en líneas compactas, sin IDs de roles;
 - imágenes y documentos del mensaje actual;
 - adjuntos del reporte raíz y una cantidad acotada de imágenes y archivos históricos recientes.
 

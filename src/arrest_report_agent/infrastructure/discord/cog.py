@@ -22,7 +22,7 @@ from arrest_report_agent.application import (
     ReviewService,
 )
 from arrest_report_agent.application.errors import public_error_message
-from arrest_report_agent.config import AppSettings, BotPersona
+from arrest_report_agent.config import AppSettings, BotPersona, PersonaAccessMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError
@@ -54,21 +54,9 @@ from .trigger import DiscordAccessPolicy, TriggerDecision
 LOGGER = logging.getLogger(__name__)
 
 DETERMINISTIC_REPLY_COOLDOWN_SECONDS = 30.0
-WRONG_CHANNEL_INTROS = (
-    "En este canal no estoy de guardia.",
-    "Este canal queda fuera de mi ronda asignada.",
-    "Aquí no tengo habilitada la atención.",
-    "Me encontró, pero en la oficina equivocada.",
-)
-UNAUTHORIZED_USER_INTROS = (
-    "Su placa no figura en el libro de guardia.",
-    "No tengo su nombre entre el personal habilitado para esta mesa.",
-    "La orden del turno no me permite atender solicitudes asociadas a su placa.",
-    "El listado de servicio no reconoce su autorización para esta oficina.",
-)
 
 
-class ReviewChannelAvailability(StrEnum):
+class AllowedChannelAvailability(StrEnum):
     AVAILABLE = "available"
     HIDDEN = "hidden"
     UNAVAILABLE = "unavailable"
@@ -76,9 +64,9 @@ class ReviewChannelAvailability(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
-class ReviewChannelResolution:
+class AllowedChannelResolution:
     visible_ids: tuple[int, ...]
-    availability: ReviewChannelAvailability
+    availability: AllowedChannelAvailability
 
 
 @asynccontextmanager
@@ -116,6 +104,7 @@ def build_help_embed(
     """Introduce the reviewer and explain its workflow in character."""
 
     identity = persona.identity
+    copy = persona.messages.help
     channels = (
         "\n".join(f"• <#{channel_id}>" for channel_id in sorted(channel_ids))
         if channel_ids is not None
@@ -123,20 +112,15 @@ def build_help_embed(
     )
     embed = discord.Embed(
         title=f"⭐ {identity.display_name} · {identity.role_title}",
-        description=(
-            f"Soy **{identity.display_name}**, el **{identity.role_title}** asignado a este turno. "
-            "Mi trabajo es revisar expedientes de arresto antes de que acumulen polvo… "
-            "o correcciones del mando."
+        description=copy.description.format(
+            display_name=identity.display_name,
+            role_title=identity.role_title,
         ),
         color=discord.Color.gold(),
     )
     embed.add_field(
         name="📋 Qué reviso",
-        value=(
-            "• Narrativa, cronología y coherencia del procedimiento.\n"
-            "• Fotografías, evidencias y consistencia visual del expediente.\n"
-            "• Cargos declarados frente al catálogo y la guía oficial."
-        ),
+        value=copy.review_scope,
         inline=False,
     )
     embed.add_field(
@@ -146,20 +130,12 @@ def build_help_embed(
     )
     embed.add_field(
         name="📣 Cómo solicitar una revisión",
-        value=(
-            f"Publica el reporte con sus adjuntos e incluye a {bot_mention} en cualquier parte "
-            "del mensaje: abriré un hilo para mantener despejado el canal. Si respondes "
-            "directamente a uno de mis mensajes en el canal, contestaré allí mismo."
-        ),
+        value=copy.request_review.format(bot_mention=bot_mention),
         inline=False,
     )
     embed.add_field(
         name="🧵 Qué haré con el expediente",
-        value=(
-            "Dentro de un hilo, las menciones y respuestas seguirán en ese mismo lugar y leeré "
-            "el historial reciente. Al revisar, marcaré ⏳; si está correcto dejaré ✅ y, si "
-            "requiere ajustes, ❌ con observaciones claras."
-        ),
+        value=copy.thread_behavior,
         inline=False,
     )
     embed.add_field(
@@ -194,10 +170,7 @@ def build_help_embed(
         inline=False,
     )
     embed.set_footer(
-        text=(
-            "Intervengo con una mención o una respuesta directa. El papeleo no se aprueba solo, "
-            f"{identity.default_form_of_address}."
-        )
+        text=copy.footer.format(form_of_address=identity.default_form_of_address)
     )
     if avatar_url:
         embed.set_thumbnail(url=avatar_url)
@@ -206,15 +179,21 @@ def build_help_embed(
 
 def build_wrong_channel_message(
     *,
+    messages: PersonaAccessMessages,
     form_of_address: str,
     channel_ids: tuple[int, ...],
     message_id: int,
-    availability: ReviewChannelAvailability = ReviewChannelAvailability.UNAVAILABLE,
+    availability: AllowedChannelAvailability = AllowedChannelAvailability.UNAVAILABLE,
 ) -> str:
     """Build a concise rich-text redirect without using AI."""
 
-    intro = WRONG_CHANNEL_INTROS[message_id % len(WRONG_CHANNEL_INTROS)]
-    heading = f"📍 **Fuera de mi zona de guardia, {form_of_address}.** {intro}\n"
+    intro = messages.wrong_channel_intros[
+        message_id % len(messages.wrong_channel_intros)
+    ]
+    heading = messages.wrong_channel_heading.format(
+        form_of_address=form_of_address,
+        intro=intro,
+    )
     if channel_ids:
         channel_mentions = [f"<#{channel_id}>" for channel_id in sorted(channel_ids)]
         channels = (
@@ -222,32 +201,29 @@ def build_wrong_channel_message(
             if len(channel_mentions) == 1
             else f"{', '.join(channel_mentions[:-1])} o {channel_mentions[-1]}"
         )
-        return heading + f"Puede encontrarme en {channels}; mencióneme allí para continuar."
-    if availability is ReviewChannelAvailability.HIDDEN:
-        return (
-            heading
-            + "No tiene acceso visible a mis canales asignados. Consulte con un mando para continuar."
-        )
-    if availability is ReviewChannelAvailability.UNCERTAIN:
-        return (
-            heading
-            + "No pude confirmar ningún canal de guardia disponible. Avise a un administrador "
-            "para revisar la configuración."
-        )
-    return (
-        heading
-        + "Mis canales asignados ya no están disponibles. Avise a un administrador para revisar "
-        "la configuración."
-    )
+        detail = messages.wrong_channel_destinations.format(channels=channels)
+        return f"{heading}\n{detail}"
+    if availability is AllowedChannelAvailability.HIDDEN:
+        return f"{heading}\n{messages.wrong_channel_hidden}"
+    if availability is AllowedChannelAvailability.UNCERTAIN:
+        return f"{heading}\n{messages.wrong_channel_uncertain}"
+    return f"{heading}\n{messages.wrong_channel_unavailable}"
 
 
-def build_unauthorized_user_message(*, message_id: int, form_of_address: str) -> str:
+def build_unauthorized_user_message(
+    *,
+    messages: PersonaAccessMessages,
+    message_id: int,
+    form_of_address: str,
+) -> str:
     """Build a concise in-character access notice without invoking AI."""
 
-    intro = UNAUTHORIZED_USER_INTROS[message_id % len(UNAUTHORIZED_USER_INTROS)]
-    return (
-        f"🔒 **Un momento, {form_of_address}.** {intro}\n"
-        "Consulte con un mando para que revise su habilitación antes de continuar."
+    intro = messages.unauthorized_user_intros[
+        message_id % len(messages.unauthorized_user_intros)
+    ]
+    return messages.unauthorized_user.format(
+        form_of_address=form_of_address,
+        intro=intro,
     )
 
 
@@ -280,7 +256,7 @@ class ReviewCog(commands.Cog):
         self._locks: dict[int, asyncio.Lock] = {}
         self._attempts: defaultdict[int, int] = defaultdict(int)
         self._deterministic_reply_cooldowns: dict[tuple[int, int, int], float] = {}
-        self._missing_review_channel_ids: set[int] = set()
+        self._missing_allowed_channel_ids: set[int] = set()
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
@@ -389,7 +365,10 @@ class ReviewCog(commands.Cog):
                     )
                     try:
                         await publisher.publish_failure(
-                            public_message=public_error_message(ErrorKind.CONTEXT_UNAVAILABLE),
+                            public_message=public_error_message(
+                                ErrorKind.CONTEXT_UNAVAILABLE,
+                                self.persona.messages.failures,
+                            ),
                         )
                     except Exception as publication_error:
                         log_event(
@@ -421,10 +400,11 @@ class ReviewCog(commands.Cog):
         channel_ids = self.access_policy.channels.ids
         if channel_ids is None:
             return
-        resolution = await self._resolve_review_channels(message, channel_ids)
+        resolution = await self._resolve_allowed_channels(message, channel_ids)
         await self._reply_deterministic_notice(
             message,
             content=build_wrong_channel_message(
+                messages=self.persona.messages.access,
                 form_of_address=self.persona.identity.default_form_of_address,
                 channel_ids=resolution.visible_ids,
                 message_id=message.id,
@@ -433,33 +413,33 @@ class ReviewCog(commands.Cog):
             event_prefix="wrong_channel_redirect",
         )
 
-    async def _resolve_review_channels(
+    async def _resolve_allowed_channels(
         self,
         message: discord.Message,
         channel_ids: frozenset[int],
-    ) -> ReviewChannelResolution:
+    ) -> AllowedChannelResolution:
         """Resolve configured destinations without exposing stale or inaccessible references."""
 
         guild = message.guild
         if guild is None:
-            return ReviewChannelResolution((), ReviewChannelAvailability.UNAVAILABLE)
+            return AllowedChannelResolution((), AllowedChannelAvailability.UNAVAILABLE)
 
         visible_ids: list[int] = []
         hidden_from_requester = False
         lookup_uncertain = False
         for channel_id in sorted(channel_ids):
-            if channel_id in self._missing_review_channel_ids:
+            if channel_id in self._missing_allowed_channel_ids:
                 continue
             channel = guild.get_channel(channel_id)
             if channel is None:
                 try:
                     channel = await guild.fetch_channel(channel_id)
                 except discord.NotFound as error:
-                    self._missing_review_channel_ids.add(channel_id)
+                    self._missing_allowed_channel_ids.add(channel_id)
                     log_event(
                         LOGGER,
                         "warning",
-                        "configured_review_channel_missing",
+                        "configured_allowed_channel_missing",
                         exc_info=error,
                         guild_id=guild.id,
                         channel_id=channel_id,
@@ -471,7 +451,7 @@ class ReviewCog(commands.Cog):
                     log_event(
                         LOGGER,
                         "warning",
-                        "configured_review_channel_lookup_failed",
+                        "configured_allowed_channel_lookup_failed",
                         exc_info=error,
                         guild_id=guild.id,
                         channel_id=channel_id,
@@ -483,7 +463,7 @@ class ReviewCog(commands.Cog):
                 log_event(
                     LOGGER,
                     "warning",
-                    "configured_review_channel_unsupported",
+                    "configured_allowed_channel_unsupported",
                     guild_id=guild.id,
                     channel_id=channel_id,
                     channel_type=type(channel).__name__,
@@ -496,7 +476,7 @@ class ReviewCog(commands.Cog):
                 log_event(
                     LOGGER,
                     "warning",
-                    "configured_review_channel_inaccessible",
+                    "configured_allowed_channel_inaccessible",
                     guild_id=guild.id,
                     channel_id=channel_id,
                 )
@@ -507,19 +487,20 @@ class ReviewCog(commands.Cog):
             visible_ids.append(channel_id)
 
         if visible_ids:
-            availability = ReviewChannelAvailability.AVAILABLE
+            availability = AllowedChannelAvailability.AVAILABLE
         elif hidden_from_requester:
-            availability = ReviewChannelAvailability.HIDDEN
+            availability = AllowedChannelAvailability.HIDDEN
         elif lookup_uncertain:
-            availability = ReviewChannelAvailability.UNCERTAIN
+            availability = AllowedChannelAvailability.UNCERTAIN
         else:
-            availability = ReviewChannelAvailability.UNAVAILABLE
-        return ReviewChannelResolution(tuple(visible_ids), availability)
+            availability = AllowedChannelAvailability.UNAVAILABLE
+        return AllowedChannelResolution(tuple(visible_ids), availability)
 
     async def _redirect_unauthorized_user(self, message: discord.Message) -> None:
         await self._reply_deterministic_notice(
             message,
             content=build_unauthorized_user_message(
+                messages=self.persona.messages.access,
                 message_id=message.id,
                 form_of_address=self.persona.identity.default_form_of_address,
             ),
@@ -598,6 +579,7 @@ class ReviewCog(commands.Cog):
             requester_id=ctx.author.id,
             guide=self.service.guide,
             display_name=self.persona.identity.display_name,
+            messages=self.persona.messages.access,
         )
         await ctx.respond(
             embed=view.current_embed,
@@ -620,6 +602,8 @@ class ReviewCog(commands.Cog):
                 catalog=self.service.catalog,
                 requester_id=ctx.author.id,
                 display_name=self.persona.identity.display_name,
+                access_messages=self.persona.messages.access,
+                failure_messages=self.persona.messages.failures,
             )
         )
 
@@ -628,6 +612,7 @@ class ReviewCog(commands.Cog):
         view = FaqNavigationView(
             requester_id=ctx.author.id,
             display_name=self.persona.identity.display_name,
+            messages=self.persona.messages.access,
         )
         await ctx.respond(
             embed=view.current_embed,
@@ -652,7 +637,7 @@ class ReviewCog(commands.Cog):
         channels = self.personal_report_finder.visible_channels(guild, member)
         if not channels:
             await ctx.respond(
-                "📁 No tengo estaciones visibles disponibles para esta consulta.",
+                self.persona.messages.access.no_supervisor_channels,
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -665,6 +650,8 @@ class ReviewCog(commands.Cog):
                 member=member,
                 channels=channels,
                 display_name=self.persona.identity.display_name,
+                access_messages=self.persona.messages.access,
+                failure_messages=self.persona.messages.failures,
             )
         )
 
@@ -677,7 +664,7 @@ class ReviewCog(commands.Cog):
         channels = self.personal_report_finder.visible_channels(guild, member)
         if not channels:
             await ctx.respond(
-                "📁 No tengo estaciones visibles disponibles para esta consulta.",
+                self.persona.messages.access.no_supervisor_channels,
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -690,6 +677,8 @@ class ReviewCog(commands.Cog):
                 member=member,
                 channels=channels,
                 display_name=self.persona.identity.display_name,
+                access_messages=self.persona.messages.access,
+                failure_messages=self.persona.messages.failures,
             )
         )
 
@@ -702,7 +691,7 @@ class ReviewCog(commands.Cog):
         channels = self.personal_report_finder.visible_channels(guild, member)
         if not channels:
             await ctx.respond(
-                "📁 No tengo canales de reportes visibles disponibles para esta consulta.",
+                self.persona.messages.access.no_personal_channels,
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -714,6 +703,8 @@ class ReviewCog(commands.Cog):
                 member=member,
                 channels=channels,
                 display_name=self.persona.identity.display_name,
+                access_messages=self.persona.messages.access,
+                failure_messages=self.persona.messages.failures,
             )
         )
 
@@ -762,7 +753,7 @@ class ReviewCog(commands.Cog):
                 **exception_fields(error),
             )
             await ctx.send_followup(
-                "📁 No pude preparar su resumen en este momento. Inténtelo nuevamente.",
+                self.persona.messages.failures.personal_summary_failure,
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -777,21 +768,25 @@ class ReviewCog(commands.Cog):
         member = ctx.author
         if guild is None or not self.access_policy.guilds.allows(guild.id):
             await ctx.respond(
-                "📍 Este archivo personal solo está disponible en un servidor asignado.",
+                self.persona.messages.access.personal_wrong_guild,
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return None
         if not isinstance(member, discord.Member):
             await ctx.respond(
-                "📁 No pude identificar su ficha dentro del servidor.",
+                self.persona.messages.access.personal_member_unavailable,
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return None
         if not self.access_policy.users.allows(member.id):
             await ctx.respond(
-                build_unauthorized_user_message(message_id=ctx.interaction.id),
+                build_unauthorized_user_message(
+                    messages=self.persona.messages.access,
+                    message_id=ctx.interaction.id,
+                    form_of_address=self.persona.identity.default_form_of_address,
+                ),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -816,21 +811,21 @@ class ReviewCog(commands.Cog):
         member = ctx.author
         if guild is None or not self.access_policy.guilds.allows(guild.id):
             await ctx.respond(
-                "📍 El archivo de supervisión solo está disponible en un servidor asignado.",
+                self.persona.messages.access.supervisor_wrong_guild,
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return None
         if not isinstance(member, discord.Member):
             await ctx.respond(
-                "📁 No pude identificar sus roles dentro del servidor.",
+                self.persona.messages.access.supervisor_member_unavailable,
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return None
         if not self.supervisor_policy.allows(member):
             await ctx.respond(
-                build_supervisor_unauthorized_message(),
+                build_supervisor_unauthorized_message(self.persona.messages.access),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )

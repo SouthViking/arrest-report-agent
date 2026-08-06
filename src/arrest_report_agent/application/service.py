@@ -140,7 +140,10 @@ class ReviewService:
             )
             try:
                 await run_context.publisher.send_message(
-                    scope_refusal_message(self.persona.identity.default_form_of_address)
+                    scope_refusal_message(
+                        self.persona.messages.access,
+                        self.persona.identity.default_form_of_address,
+                    )
                 )
                 run_context.message_sent = True
                 run_context.messages_sent_count += 1
@@ -176,7 +179,7 @@ class ReviewService:
                 return
             try:
                 await run_context.publisher.publish_failure(
-                    public_error_message(classified.kind),
+                    public_error_message(classified.kind, self.persona.messages.failures),
                 )
             except Exception as publication_error:
                 log_event(

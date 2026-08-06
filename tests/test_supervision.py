@@ -16,6 +16,7 @@ from arrest_report_agent.infrastructure.discord.supervision import (
     SupervisorRolePolicy,
     build_pending_reports_embed,
     build_ranking_embed,
+    build_supervisor_unauthorized_message,
 )
 
 
@@ -46,6 +47,12 @@ def test_supervisor_role_policy_supports_open_and_restricted_modes() -> None:
         is True
     )
     assert SupervisorRolePolicy(SnowflakeAllowlist(frozenset({30}))).allows(member) is False
+
+
+def test_supervisor_unauthorized_message_comes_from_persona(persona) -> None:
+    assert build_supervisor_unauthorized_message(persona.messages.access) == (
+        persona.messages.access.supervisor_unauthorized
+    )
 
 
 def test_ranking_aggregates_current_status_and_sorts_by_requested_metric() -> None:

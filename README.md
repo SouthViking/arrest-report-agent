@@ -61,7 +61,7 @@ Completa al menos `DISCORD_TOKEN` y `OPENAI_API_KEY` en `.env`. Los valores por 
 
 ```dotenv
 DISCORD_GUILD_IDS=1234674521416663070
-REVIEW_CHANNEL_IDS=1462992794569281617,1462992859761217745
+ALLOWED_CHANNEL_IDS=1462992794569281617,1462992859761217745
 AUTHORIZED_USER_IDS=*
 BOT_PERSONA=walter_vigil
 OPENAI_MODEL=gpt-5.6-terra
@@ -70,8 +70,9 @@ OPENAI_REASONING_EFFORT=medium
 
 Las tres allowlists comparten una sola regla: variable ausente, vacía o con `*` permite cualquier ID
 del scope; una lista CSV como `123,456` restringe el acceso a esos IDs. Esto aplica a servidores
-(`DISCORD_GUILD_IDS`), canales (`REVIEW_CHANNEL_IDS`) y usuarios (`AUTHORIZED_USER_IDS`). El nombre
-anterior `DISCORD_GUILD_ID` sigue siendo compatible para no romper entornos existentes.
+(`DISCORD_GUILD_IDS`), canales (`ALLOWED_CHANNEL_IDS`) y usuarios (`AUTHORIZED_USER_IDS`). Los
+nombres anteriores `DISCORD_GUILD_ID` y `REVIEW_CHANNEL_IDS` siguen siendo compatibles para no
+romper entornos existentes.
 
 Una política previa única evalúa las tres antes de leer contexto o iniciar el Runner. Los servidores
 no habilitados se ignoran; un canal o usuario no habilitado recibe una respuesta local breve, sin
@@ -98,11 +99,19 @@ BOT_PERSONA=walter_vigil
 Los perfiles
 [`walter_vigil.json`](src/arrest_report_agent/config/personas/walter_vigil.json) y
 [`roy_velazco.json`](src/arrest_report_agent/config/personas/roy_velazco.json) definen nombre,
-organización, tratamiento, tono, presencia, biografía y referencia al avatar empaquetado. Se validan y
-cargan una sola vez antes de conectar con Discord. Un ID ausente, desconocido o inseguro detiene el
-arranque en vez de aplicar una identidad parcial. Para usar a Roy se configura
+organización, tratamiento, tono, presencia, biografía, referencia al avatar y un mapa versionado de
+mensajes deterministas. Este último personaliza ayuda, restricciones, redirecciones y fallas seguras
+sin invocar al modelo; las etiquetas funcionales y el contenido oficial permanecen neutrales. Todo se
+valida y carga una sola vez antes de conectar con Discord. Un ID ausente, desconocido o inseguro
+detiene el arranque en vez de aplicar una identidad parcial. Para usar a Roy se configura
 `BOT_PERSONA=roy_velazco`. La sincronización modifica el usuario bot; el nombre e icono de la
 aplicación mostrados en Developer Portal siguen siendo configuración de Discord.
+
+Cada personalidad distingue la voz de conversación de la voz breve usada en el resumen superior
+de una revisión. Los hallazgos, cargos, correcciones y motivos de derivación se redactan en español
+formal y neutral, sin trasladar insultos, bromas o modismos de la personalidad al contenido técnico.
+Ambos registros incluyen pocos ejemplos tipados y acotados que se inyectan como referencias de voz,
+no como respuestas fijas.
 
 El banner no pertenece a una personalidad: todas comparten el asset global verde musgo
 `config/assets/lssd-profile-banner.png`.
@@ -175,7 +184,7 @@ el contenido exacto del FAQ.
 | Variable | Predeterminado | Función |
 |---|---:|---|
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
-| `REVIEW_CHANNEL_IDS` | `*` | Canales padre permitidos; acepta CSV y cubre sus hilos. |
+| `ALLOWED_CHANNEL_IDS` | `*` | Canales padre permitidos para conversación y revisión; acepta CSV y cubre sus hilos. `REVIEW_CHANNEL_IDS` queda como alias compatible. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
 | `SUPERVISOR_ROLE_IDS` | `*` | Roles autorizados para los comandos de supervisión; `*`/vacío permite a todos. |
 | `REVIEW_ESCALATION_ROLE_IDS` | vacío | Roles existentes que reciben una mención ante resultados inconclusos o fallas; acepta CSV. |

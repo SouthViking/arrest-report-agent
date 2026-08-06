@@ -10,6 +10,7 @@ from typing import cast
 
 import discord
 
+from arrest_report_agent.config import PersonaAccessMessages, PersonaFailureMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
@@ -177,15 +178,16 @@ class ChargeSearchEntry:
 class RequesterBoundView(discord.ui.View):
     """Keep private knowledge navigation scoped to its original requester."""
 
-    def __init__(self, requester_id: int) -> None:
+    def __init__(self, requester_id: int, messages: PersonaAccessMessages) -> None:
         super().__init__(timeout=KNOWLEDGE_VIEW_TIMEOUT_SECONDS, disable_on_timeout=True)
         self.requester_id = requester_id
+        self.messages = messages
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self.requester_id:
             return True
         await interaction.response.send_message(
-            "Esta consulta pertenece a otro miembro.",
+            self.messages.other_member_query,
             ephemeral=True,
         )
         return False
@@ -221,8 +223,9 @@ class GuideNavigationView(RequesterBoundView):
         requester_id: int,
         guide: ReportGuide,
         display_name: str,
+        messages: PersonaAccessMessages,
     ) -> None:
-        super().__init__(requester_id)
+        super().__init__(requester_id, messages)
         self.guide = guide
         self.display_name = display_name
         available = tuple(
@@ -264,8 +267,14 @@ class FaqQuestionSelect(discord.ui.Select):
 
 
 class FaqNavigationView(RequesterBoundView):
-    def __init__(self, *, requester_id: int, display_name: str) -> None:
-        super().__init__(requester_id)
+    def __init__(
+        self,
+        *,
+        requester_id: int,
+        display_name: str,
+        messages: PersonaAccessMessages,
+    ) -> None:
+        super().__init__(requester_id, messages)
         self.display_name = display_name
         self.entry: FaqEntry | None = None
         self.add_item(FaqQuestionSelect())
@@ -284,10 +293,14 @@ class ChargeSearchModal(discord.ui.DesignerModal):
         catalog: ChargeCatalog,
         requester_id: int,
         display_name: str,
+        access_messages: PersonaAccessMessages,
+        failure_messages: PersonaFailureMessages,
     ) -> None:
         self.catalog = catalog
         self.requester_id = requester_id
         self.display_name = display_name
+        self.access_messages = access_messages
+        self.failure_messages = failure_messages
         self.query_input = discord.ui.InputText(
             custom_id="charge_search_query",
             placeholder="Ej.: 459, evasión, arma sin licencia",
@@ -325,7 +338,7 @@ class ChargeSearchModal(discord.ui.DesignerModal):
     async def callback(self, interaction: discord.Interaction) -> None:
         if interaction.user.id != self.requester_id:
             await interaction.response.send_message(
-                "Esta consulta pertenece a otro miembro.",
+                self.access_messages.other_member_query,
                 ephemeral=True,
             )
             return
@@ -344,6 +357,7 @@ class ChargeSearchModal(discord.ui.DesignerModal):
                 entries=entries,
                 query=query,
                 display_name=self.display_name,
+                messages=self.access_messages,
             )
             await send_charge_search_result(interaction, view)
             log_event(
@@ -368,7 +382,7 @@ class ChargeSearchModal(discord.ui.DesignerModal):
                 **exception_fields(error),
             )
             await interaction.followup.send(
-                "⚖️ No pude consultar el código en este momento. Inténtelo nuevamente.",
+                self.failure_messages.charge_query_failure,
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -382,8 +396,9 @@ class ChargeSearchPaginationView(RequesterBoundView):
         entries: tuple[ChargeSearchEntry, ...],
         query: str,
         display_name: str,
+        messages: PersonaAccessMessages,
     ) -> None:
-        super().__init__(requester_id)
+        super().__init__(requester_id, messages)
         self.entries = entries
         self.query = query
         self.display_name = display_name

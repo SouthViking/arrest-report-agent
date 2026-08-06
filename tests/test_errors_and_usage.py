@@ -29,7 +29,7 @@ def test_error_classifier_distinguishes_quota_and_rate_limit(persona) -> None:
 
     assert classify_error(quota).kind is ErrorKind.QUOTA_EXCEEDED
     assert classify_error(limited).kind is ErrorKind.RATE_LIMITED
-    message = public_error_message(ErrorKind.QUOTA_EXCEEDED)
+    message = public_error_message(ErrorKind.QUOTA_EXCEEDED, persona.messages.failures)
     assert "capacidad operativa" in message
     assert "criterio apresurado" in message
     assert "revisión manual" in message
@@ -40,6 +40,13 @@ def test_error_classifier_distinguishes_quota_and_rate_limit(persona) -> None:
     assert "servicio" not in message.casefold()
     assert persona.identity.display_name not in message
     assert "informa" not in message
+
+    customized = persona.messages.failures.model_copy(
+        update={"quota_exceeded": "Mensaje operacional personalizado."}
+    )
+    assert public_error_message(ErrorKind.QUOTA_EXCEEDED, customized) == (
+        "Mensaje operacional personalizado."
+    )
 
 
 def test_error_classifier_handles_timeout_auth_and_provider() -> None:

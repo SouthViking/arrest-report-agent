@@ -245,13 +245,17 @@ def test_personal_summary_uses_current_reaction_snapshot() -> None:
 
 
 @pytest.mark.asyncio
-async def test_personal_report_pagination_and_modal_expose_compact_filters(settings) -> None:
+async def test_personal_report_pagination_and_modal_expose_compact_filters(
+    settings,
+    persona,
+) -> None:
     result = PersonalReportSearchResult(reports=sample_reports(6))
     view = PersonalReportPaginationView(
         requester_id=123,
         result=result,
         query=PersonalReportQuery(),
         display_name="Sgt. Rivera",
+        messages=persona.messages.access,
     )
     channels = [
         FakeHistoryChannel(1462992794569281617, "gnt-arrestos", []),
@@ -263,6 +267,8 @@ async def test_personal_report_pagination_and_modal_expose_compact_filters(setti
         member=SimpleNamespace(id=123),  # type: ignore[arg-type]
         channels=channels,  # type: ignore[arg-type]
         display_name="Sgt. Rivera",
+        access_messages=persona.messages.access,
+        failure_messages=persona.messages.failures,
     )
 
     assert view.page_count == 2
@@ -277,7 +283,7 @@ async def test_personal_report_pagination_and_modal_expose_compact_filters(setti
 
 
 @pytest.mark.asyncio
-async def test_single_page_ephemeral_result_omits_null_view() -> None:
+async def test_single_page_ephemeral_result_omits_null_view(persona) -> None:
     sent: list[dict[str, object]] = []
 
     async def send(**kwargs) -> None:
@@ -289,6 +295,7 @@ async def test_single_page_ephemeral_result_omits_null_view() -> None:
         result=PersonalReportSearchResult(reports=sample_reports()),
         query=PersonalReportQuery(),
         display_name="Sgt. Rivera",
+        messages=persona.messages.access,
     )
 
     await send_personal_report_result(interaction, view)  # type: ignore[arg-type]
@@ -298,7 +305,7 @@ async def test_single_page_ephemeral_result_omits_null_view() -> None:
 
 
 @pytest.mark.asyncio
-async def test_multi_page_ephemeral_result_includes_pagination_view() -> None:
+async def test_multi_page_ephemeral_result_includes_pagination_view(persona) -> None:
     sent: list[dict[str, object]] = []
 
     async def send(**kwargs) -> None:
@@ -310,6 +317,7 @@ async def test_multi_page_ephemeral_result_includes_pagination_view() -> None:
         result=PersonalReportSearchResult(reports=sample_reports(6)),
         query=PersonalReportQuery(),
         display_name="Sgt. Rivera",
+        messages=persona.messages.access,
     )
 
     await send_personal_report_result(interaction, view)  # type: ignore[arg-type]

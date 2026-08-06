@@ -9,9 +9,9 @@ roles en esta etapa. El resultado clasifica alcance e intención para decidir si
 determinísticamente una revisión antes de invocar al agente principal.
 
 Si la solicitud está dentro de alcance o es ambigua, el agente principal recibe el texto acotado del
-reporte/hilo, las imágenes y documentos seleccionados, el nombre visible del solicitante y hasta
-ocho nombres de roles relevantes. No envía IDs de roles. Los datos se usan para responder dentro del
-ámbito o emitir el veredicto solicitado mediante mención explícita.
+reporte/hilo, las imágenes y documentos seleccionados, los nombres visibles de sus participantes y
+hasta ocho nombres de roles relevantes por persona. No envía IDs de roles. Los datos se usan para
+responder dentro del ámbito o emitir el veredicto solicitado mediante mención explícita.
 
 Los IDs de `REVIEW_ESCALATION_ROLE_IDS` tampoco se entregan al modelo. Discord los resuelve y limita
 de forma determinista únicamente cuando corresponde publicar una derivación.
@@ -91,3 +91,7 @@ un mensaje contextualizado y el siguiente paso. La clasificación, referencia t�
 datos del proveedor quedan en los logs. Si `REVIEW_ESCALATION_ROLE_IDS` contiene roles válidos de la
 guild, los menciona una sola vez por ejecución mediante una allowlist exacta de Discord. Los IDs
 eliminados se omiten con un warning y `MANUAL_REVIEW_ROLE_ID` permanece como alias legado.
+
+La redacción pública de errores, restricciones y redirecciones se obtiene del mapa validado de la
+persona activa. La clasificación y las decisiones de acceso siguen siendo deterministas y no se
+delegan al modelo; cambiar la voz no altera permisos, reintentos ni datos expuestos.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from arrest_report_agent.config import BotPersona
 
-PROMPT_VERSION = "2026-08-05.3"
+PROMPT_VERSION = "2026-08-05.6"
 
 
 def build_agent_instructions(persona: BotPersona) -> str:
@@ -13,7 +13,21 @@ def build_agent_instructions(persona: BotPersona) -> str:
     identity = persona.identity
     personality = persona.personality
     traits = "\n".join(f"- {item}" for item in personality.traits)
-    communication = "\n".join(f"- {item}" for item in personality.communication)
+    conversation = "\n".join(
+        f"- {item}" for item in personality.communication.conversation
+    )
+    review_summary = "\n".join(
+        f"- {item}" for item in personality.communication.review_summary
+    )
+    conversation_examples = "\n".join(
+        f'- **{example.situation}:** Usuario: "{example.user}" → Respuesta: '
+        f'"{example.assistant}"'
+        for example in personality.examples.conversation
+    )
+    review_summary_examples = "\n".join(
+        f'- **{example.verdict} · {example.situation}:** "{example.summary}"'
+        for example in personality.examples.review_summary
+    )
     boundaries = "\n".join(f"- {item}" for item in personality.boundaries)
 
     return f"""<identity>
@@ -28,8 +42,19 @@ def build_agent_instructions(persona: BotPersona) -> str:
 **Carácter:**
 {traits}
 
-**Comunicación:**
-{communication}
+**Conversación natural:**
+{conversation}
+
+**Resumen de revisión:**
+{review_summary}
+
+**Ejemplos de conversación:**
+{conversation_examples}
+
+**Ejemplos de resumen de revisión:**
+{review_summary_examples}
+
+Usa los ejemplos como referencia de voz y variedad, no como respuestas fijas para copiar.
 
 **Límites de interpretación:**
 {boundaries}
@@ -37,7 +62,8 @@ def build_agent_instructions(persona: BotPersona) -> str:
 
 <interaction_style>
 La entrada incluye el nombre visible del solicitante y, cuando estén disponibles, sus roles de
-Discord.
+Discord. El historial también puede incluir una línea compacta con los nombres y roles de otros
+participantes.
 
 **Tratamiento:**
 - Si un rol representa inequívocamente un rango institucional, úsalo de forma natural.
@@ -151,12 +177,19 @@ en la comprensión del expediente, la evidencia, el procedimiento o el fundament
 </review_policy>
 
 <output>
-**Conversación:** Responde a la intención sin forzar un dictamen. Elige libremente la extensión,
-estructura y tono que mejor ayuden al usuario.
+**Conversación:** En saludos, preguntas y mensajes que no terminan en una revisión, responde con la
+voz conversacional completa de la persona. Elige libremente la extensión y estructura que mejor
+ayuden al usuario.
 
 **Discord:** Usa Markdown, enlaces y emojis moderados cuando aporten claridad; no simules embeds ni
 generes menciones masivas.
 
-**Revisión:** Entrega un resumen, hallazgos priorizados, evaluación de cargos y siguiente paso.
-Combina puntos relacionados, omite observaciones sin valor y sé conciso, específico y accionable.
+**Revisión:**
+- Solo `summary`, el texto superior del resultado, conserva la personalidad indicada para resúmenes;
+  debe comunicar el veredicto con claridad aunque utilice humor o lenguaje coloquial.
+- Escribe `findings` —título, detalle, referencia y corrección— en español formal, correcto y neutral,
+  sin insultos, bromas, modismos ni errores deliberados.
+- Escribe las evaluaciones de `charges` y `manual_review_reason` con el mismo estándar técnico y
+  neutral.
+- Combina puntos relacionados, omite observaciones sin valor y sé conciso, específico y accionable.
 </output>"""

@@ -137,13 +137,13 @@ class DiscordReviewPublisher:
         with contextlib.suppress(discord.Forbidden, discord.HTTPException):
             await self.target.root.add_reaction("⚠️")
         embed = discord.Embed(
-            title="⚠️ Incidencia de revisión",
+            title=self.persona.messages.failures.review_failure_title,
             description=public_message,
             color=discord.Color.orange(),
         )
         embed.add_field(
             name="Siguiente paso",
-            value="Reintentar cuando corresponda o derivar el expediente a un supervisor.",
+            value=self.persona.messages.failures.review_failure_next_step,
             inline=False,
         )
         mention, allowed_mentions = self._escalation_notice()
@@ -252,6 +252,12 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
         description=publication.summary,
         color=colors[publication.verdict],
     )
+    if publication.manual_review_reason:
+        primary.add_field(
+            name="Derivación manual",
+            value=publication.manual_review_reason[:1024],
+            inline=False,
+        )
     severity_icons = {
         FindingSeverity.REQUIRED: "🔴",
         FindingSeverity.WARNING: "🟠",
@@ -293,19 +299,6 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
                     inline=False,
                 )
             embeds.append(charge_embed)
-    conclusion = discord.Embed(
-        title="Cierre de la revisión",
-        color=colors[publication.verdict],
-    )
-    conclusion.add_field(name="Siguiente paso", value=publication.next_step[:1024], inline=False)
-    if publication.manual_review_reason:
-        conclusion.add_field(
-            name="Derivación manual",
-            value=publication.manual_review_reason[:1024],
-            inline=False,
-        )
-    conclusion.set_footer(text=persona.identity.role_title)
-    embeds.append(conclusion)
     return embeds[:10]
 
 

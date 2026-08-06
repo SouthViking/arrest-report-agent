@@ -19,7 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 1
+    assert profile.schema_version == 4
+    assert profile.revision == 4
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -33,14 +34,54 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 1
-    assert profile.revision == 2
+    assert profile.schema_version == 4
+    assert profile.revision == 8
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
     assert profile.discord.avatar == "assets/roy-velazco-skin-avatar.png"
     assert "que el juez haga el resto" in profile.discord.bio
+    assert any(
+        "chilenismos" in instruction
+        for instruction in profile.personality.communication.conversation
+    )
+    assert any(
+        "veredicto" in instruction
+        for instruction in profile.personality.communication.review_summary
+    )
+    assert any(
+        "hallazgos técnicos" in instruction
+        for instruction in profile.personality.boundaries
+    )
+    assert len(profile.personality.examples.conversation) == 6
+    assert any(
+        "saco wea" in example.assistant
+        for example in profile.personality.examples.conversation
+    )
+    assert any(
+        "q no entendiste" in example.assistant
+        for example in profile.personality.examples.conversation
+    )
+    assert {
+        example.verdict for example in profile.personality.examples.review_summary
+    } == {"approved", "corrections_required", "inconclusive"}
     assert loaded.avatar_bytes.startswith(b"\x89PNG")
+
+
+@pytest.mark.asyncio
+async def test_personas_define_distinct_deterministic_copy(loaded_persona) -> None:
+    walter = loaded_persona.profile
+    roy = (await PackagedPersonaProvider().load("roy_velazco")).profile
+
+    assert walter.messages.access.supervisor_unauthorized != (
+        roy.messages.access.supervisor_unauthorized
+    )
+    assert "Su rol" in walter.messages.access.supervisor_unauthorized
+    assert "bonito intento" in roy.messages.access.supervisor_unauthorized
+    assert walter.messages.failures.review_failure_title == "⚠️ Incidencia de revisión"
+    assert roy.messages.failures.review_failure_title == "⚠️ Se trabó el papeleo"
+    assert "{display_name}" in walter.messages.help.description
+    assert "{display_name}" in roy.messages.help.description
 
 
 @pytest.mark.asyncio
@@ -87,6 +128,18 @@ async def test_provider_rejects_unknown_persona(tmp_path: Path) -> None:
         (
             lambda data: data["discord"].update({"avatar": "assets/avatar.txt"}),
             "must be a PNG, JPEG or GIF",
+        ),
+        (
+            lambda data: data["messages"]["access"].update(
+                {"scope_refusal": "Texto con {placeholder_incorrecto}."}
+            ),
+            "invalid persona",
+        ),
+        (
+            lambda data: data["messages"]["help"].update(
+                {"footer": "Texto con {form_of_address.__class__}."}
+            ),
+            "invalid persona",
         ),
     ],
 )

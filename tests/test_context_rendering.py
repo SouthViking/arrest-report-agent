@@ -85,6 +85,81 @@ def test_render_includes_every_selected_character_and_report_image() -> None:
     assert "Revisa el estado actual" not in text
 
 
+def test_render_includes_roles_of_other_human_participants_once() -> None:
+    now = datetime.now(UTC)
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=3,
+        thread_id=3,
+        root_message_id=10,
+        trigger_message_id=14,
+        requester_user_id=20,
+        requester_display_name="Deputy Torres",
+        requester_role_names=["Deputy Sheriff"],
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[
+            ConversationMessage(
+                id=10,
+                author_id=30,
+                author_display="Sargento Gómez",
+                author_is_bot=False,
+                author_role_names=["Sergeant", "GNT"],
+                content="Revise la cronología.",
+                created_at=now,
+            ),
+            ConversationMessage(
+                id=11,
+                author_id=30,
+                author_display="Sargento Gómez",
+                author_is_bot=False,
+                author_role_names=["Sergeant", "GNT"],
+                content="También falta una referencia.",
+                created_at=now,
+            ),
+            ConversationMessage(
+                id=12,
+                author_id=40,
+                author_display="Teniente Rivera",
+                author_is_bot=False,
+                author_role_names=["Lieutenant", "DLM"],
+                content="Estoy de acuerdo con la observación.",
+                created_at=now,
+            ),
+            ConversationMessage(
+                id=13,
+                author_id=50,
+                author_display="Bot externo",
+                author_is_bot=True,
+                author_role_names=["Integración"],
+                content="Mensaje automático.",
+                created_at=now,
+            ),
+            ConversationMessage(
+                id=14,
+                author_id=20,
+                author_display="Deputy Torres",
+                author_is_bot=False,
+                author_role_names=["Deputy Sheriff"],
+                content="¿Cómo lo corrijo?",
+                created_at=now,
+                is_trigger=True,
+            ),
+        ],
+        attachments=[],
+    )
+
+    rendered = render_agent_input(case, "original")
+    trigger_text = rendered[-1]["content"][0]["text"]
+
+    assert (
+        "Otros participantes y roles: Sargento Gómez: Sergeant, GNT | "
+        "Teniente Rivera: Lieutenant, DLM"
+    ) in trigger_text
+    assert trigger_text.count("Sargento Gómez: Sergeant, GNT") == 1
+    assert "Bot externo: Integración" not in trigger_text
+
+
 def test_render_sends_supported_documents_as_file_url_inputs() -> None:
     attachments = [
         DiscordAttachment(
@@ -728,6 +803,7 @@ async def test_context_includes_only_brief_relevant_requester_role_names(setting
         "Rol 4",
         "Rol 3",
     ]
+    assert case.messages[0].author_role_names == case.requester_role_names
     rendered = render_agent_input(case, "original")[0]["content"][0]["text"]
     assert (
         "Roles del solicitante: Rol 10, Rol 9, Rol 8, Rol 7, Rol 6, Rol 5, Rol 4, Rol 3"

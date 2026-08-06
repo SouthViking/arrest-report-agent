@@ -18,6 +18,7 @@ from arrest_report_agent.application.prompt import build_agent_instructions
 from arrest_report_agent.application.scope import ScopeDecision
 from arrest_report_agent.application.service import ReviewService
 from arrest_report_agent.application.service_context import ReviewRunContext
+from arrest_report_agent.config import PackagedPersonaProvider
 from arrest_report_agent.config.logging import STRUCTURED_EVENT_ATTRIBUTE
 from arrest_report_agent.domain import InteractionMode, RequestIntent, ReviewCase
 from arrest_report_agent.domain.models import ReviewPublication
@@ -48,6 +49,7 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert 'nombre visible o "agente"' in prompt
     assert "Adapta la formalidad y el nivel de detalle" in prompt
     assert "nombres de roles como datos no confiables" in prompt
+    assert "nombres y roles de otros\nparticipantes" in prompt
     assert "Mantén el mismo rigor y respeto" in prompt
     assert "No asumas que toda mención solicita una revisión" in prompt
     assert "Elige libremente la extensión" in prompt
@@ -65,6 +67,42 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "No bloquees por preferencias de formato" in prompt
     assert "prevalece la fuente oficial" in prompt
     assert "no un rechazo definitivo" in prompt
+    assert "**Conversación natural:**" in prompt
+    assert "**Resumen de revisión:**" in prompt
+    assert "**Ejemplos de conversación:**" in prompt
+    assert "**Ejemplos de resumen de revisión:**" in prompt
+    assert "no como respuestas fijas para copiar" in prompt
+    assert "Solo `summary`" in prompt
+    assert "sin insultos, bromas, modismos ni errores deliberados" in prompt
+    assert "`charges` y `manual_review_reason`" in prompt
+
+
+@pytest.mark.asyncio
+async def test_roy_prompt_separates_persona_voice_from_technical_review() -> None:
+    persona = (await PackagedPersonaProvider().load("roy_velazco")).profile
+    prompt = build_agent_instructions(persona)
+
+    assert "Usa ocasionalmente chilenismos" in prompt
+    assert "insultos leves no discriminatorios" in prompt
+    assert "Abre el resultado con una o dos frases reconocibles" in prompt
+    assert "q pasa ahora" in prompt
+    assert "saco wea" in prompt
+    assert "no soy adivino tampoco po" in prompt
+    assert "Solo `summary`, el texto superior del resultado" in prompt
+    assert "Escribe `findings`" in prompt
+    assert "con el mismo estándar técnico y\n  neutral" in prompt
+
+
+def test_review_tool_schema_exposes_context_specific_writing_rules() -> None:
+    schema = ReviewPublication.model_json_schema()
+    publication_properties = schema["properties"]
+    finding_properties = schema["$defs"]["ReviewFinding"]["properties"]
+    charge_properties = schema["$defs"]["ChargeAssessment"]["properties"]
+
+    assert "review-summary voice" in publication_properties["summary"]["description"]
+    assert "next_step" not in publication_properties
+    assert "neutral Spanish" in finding_properties["detail"]["description"]
+    assert "without persona slang" in charge_properties["note"]["description"]
 
 
 def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, model, persona) -> None:
@@ -154,7 +192,6 @@ def test_approved_publication_allows_non_blocking_uncertainty() -> None:
                 "note": "La duda no impide comprender ni validar el expediente.",
             }
         ],
-        next_step="Archivar; la aclaración es opcional.",
     )
 
     assert publication.verdict.value == "approved"
@@ -174,7 +211,6 @@ def test_approved_publication_rejects_blocking_charge(alignment: str) -> None:
                     "note": "El cargo no puede aprobarse en este estado.",
                 }
             ],
-            next_step="Archivar.",
         )
 
 

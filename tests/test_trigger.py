@@ -21,7 +21,7 @@ def make_message(
     channel_id=None,
 ):
     configured_guilds = settings.discord_guild_ids
-    configured_channels = settings.review_channel_ids
+    configured_channels = settings.allowed_channel_ids
     return SimpleNamespace(
         guild=SimpleNamespace(id=min(configured_guilds) if configured_guilds else 1),
         author=SimpleNamespace(id=user_id, bot=bot),
@@ -43,7 +43,7 @@ def test_central_policy_receives_all_configured_scopes(settings) -> None:
     policy = DiscordAccessPolicy.from_settings(settings)
 
     assert policy.guilds.ids == settings.discord_guild_ids
-    assert policy.channels.ids == settings.review_channel_ids
+    assert policy.channels.ids == settings.allowed_channel_ids
     assert policy.users.ids == settings.authorized_user_ids
 
 
@@ -152,7 +152,7 @@ def test_configured_child_thread_triggers(settings, monkeypatch) -> None:
 
     monkeypatch.setattr(trigger.discord, "Thread", FakeThread)
     message = make_message(settings, mentions=[999])
-    message.channel = FakeThread(min(settings.review_channel_ids or ()))
+    message.channel = FakeThread(min(settings.allowed_channel_ids or ()))
 
     assert classify_message(message, 999, settings) is TriggerDecision.REVIEW
 
@@ -202,7 +202,7 @@ def test_open_guild_and_channel_scopes_allow_any_ids(settings) -> None:
     open_scopes = settings.model_copy(
         update={
             "discord_guild_ids_csv": "*",
-            "review_channel_ids_csv": "",
+            "allowed_channel_ids_csv": "",
         }
     )
     message = make_message(open_scopes, mentions=[999], channel_id=555)

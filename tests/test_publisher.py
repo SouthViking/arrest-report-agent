@@ -81,7 +81,6 @@ def publication(verdict: str) -> ReviewPublication:
             else []
         ),
         charges=[],
-        next_step="Aplicar las correcciones y solicitar una nueva revisión.",
     )
 
 
@@ -108,13 +107,13 @@ def test_long_review_is_split_without_dropping_findings(persona) -> None:
         summary="Se requieren varias correcciones.",
         findings=findings,
         charges=[],
-        next_step="Corregir y solicitar una nueva revisión.",
     )
 
     embeds = build_review_embeds(review, persona)
     rendered_names = [field.name for embed in embeds for field in embed.fields]
 
-    assert len(embeds) == 4
+    assert len(embeds) == 3
+    assert not any(embed.title == "Cierre de la revisión" for embed in embeds)
     assert all(any(f"Corrección {index}" in name for name in rendered_names) for index in range(12))
     assert all(len(embed) <= 6000 for embed in embeds)
 
@@ -133,14 +132,13 @@ def test_long_charge_review_stays_within_discord_embed_limits(persona) -> None:
             }
             for index in range(10)
         ],
-        next_step="Revisar los cargos y corregir el expediente.",
     )
 
     embeds = build_review_embeds(review, persona)
 
     charge_embeds = [embed for embed in embeds if embed.title.startswith("⚖️")]
 
-    assert len(embeds) == 4
+    assert len(embeds) == 3
     assert len(charge_embeds) == 2
     assert all(len(embed.fields) == 5 for embed in charge_embeds)
     assert all(field.inline is False for embed in charge_embeds for field in embed.fields)
@@ -163,7 +161,6 @@ def test_charge_alignments_are_rendered_as_user_facing_spanish_labels(persona) -
             }
             for alignment in ("supported", "unsupported", "uncertain", "not_found")
         ],
-        next_step="Confirmar la información pendiente.",
     )
 
     embeds = build_review_embeds(review, persona)
@@ -190,6 +187,23 @@ def test_charge_alignments_are_rendered_as_user_facing_spanish_labels(persona) -
             "not_found",
         )
     )
+
+
+def test_manual_review_reason_is_kept_in_primary_embed_without_conclusion(persona) -> None:
+    review = ReviewPublication(
+        verdict="inconclusive",
+        summary="La revisión necesita intervención humana.",
+        findings=[],
+        charges=[],
+        manual_review_reason="La fuente oficial disponible no permite resolver la discrepancia.",
+    )
+
+    embeds = build_review_embeds(review, persona)
+
+    assert len(embeds) == 1
+    assert embeds[0].fields[0].name == "Derivación manual"
+    assert "fuente oficial" in embeds[0].fields[0].value
+    assert not any(embed.title == "Cierre de la revisión" for embed in embeds)
 
 
 @pytest.mark.asyncio

@@ -10,7 +10,7 @@ from arrest_report_agent.config import AppSettings
 
 def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings) -> None:
     assert settings.discord_guild_ids == frozenset({1234674521416663070})
-    assert settings.review_channel_ids == frozenset(
+    assert settings.allowed_channel_ids == frozenset(
         {1462992794569281617, 1462992859761217745}
     )
     assert settings.bot_persona == "walter_vigil"
@@ -32,7 +32,7 @@ def test_empty_escalation_roles_disable_mentions_and_legacy_name_is_supported() 
         DISCORD_TOKEN="discord",
         OPENAI_API_KEY="openai",
         DISCORD_GUILD_ID="1",
-        REVIEW_CHANNEL_IDS="2",
+        ALLOWED_CHANNEL_IDS="2",
         MANUAL_REVIEW_ROLE_ID="",
     )
     assert settings.review_escalation_role_ids == ()
@@ -70,7 +70,7 @@ def test_json_log_indentation_can_be_disabled() -> None:
         DISCORD_TOKEN="discord",
         OPENAI_API_KEY="openai",
         DISCORD_GUILD_ID="1",
-        REVIEW_CHANNEL_IDS="2",
+        ALLOWED_CHANNEL_IDS="2",
         LOG_JSON_INDENTED="false",
     )
 
@@ -81,7 +81,7 @@ def test_json_log_indentation_can_be_disabled() -> None:
     ("variable_name", "allowlist_attribute"),
     [
         ("DISCORD_GUILD_IDS", "guild_allowlist"),
-        ("REVIEW_CHANNEL_IDS", "channel_allowlist"),
+        ("ALLOWED_CHANNEL_IDS", "channel_allowlist"),
         ("AUTHORIZED_USER_IDS", "user_allowlist"),
         ("SUPERVISOR_ROLE_IDS", "supervisor_role_allowlist"),
     ],
@@ -112,7 +112,7 @@ def test_all_allowlists_default_to_unrestricted(
     ("variable_name", "allowlist_attribute"),
     [
         ("DISCORD_GUILD_IDS", "guild_allowlist"),
-        ("REVIEW_CHANNEL_IDS", "channel_allowlist"),
+        ("ALLOWED_CHANNEL_IDS", "channel_allowlist"),
         ("AUTHORIZED_USER_IDS", "user_allowlist"),
         ("SUPERVISOR_ROLE_IDS", "supervisor_role_allowlist"),
     ],
@@ -140,7 +140,7 @@ def test_all_allowlists_parse_csv_and_restrict_access(
     "variable_name",
     [
         "DISCORD_GUILD_IDS",
-        "REVIEW_CHANNEL_IDS",
+        "ALLOWED_CHANNEL_IDS",
         "AUTHORIZED_USER_IDS",
         "SUPERVISOR_ROLE_IDS",
     ],
@@ -170,6 +170,29 @@ def test_legacy_singular_guild_variable_remains_supported() -> None:
     assert settings.discord_guild_ids == frozenset({123})
 
 
+def test_legacy_review_channel_variable_remains_supported() -> None:
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        REVIEW_CHANNEL_IDS="123,456",
+    )
+
+    assert settings.allowed_channel_ids == frozenset({123, 456})
+
+
+def test_allowed_channel_variable_takes_precedence_over_legacy_alias() -> None:
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        ALLOWED_CHANNEL_IDS="123",
+        REVIEW_CHANNEL_IDS="456",
+    )
+
+    assert settings.allowed_channel_ids == frozenset({123})
+
+
 def test_missing_persona_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("BOT_PERSONA", raising=False)
     with pytest.raises(ValidationError):
@@ -186,7 +209,7 @@ def test_empty_secret_is_rejected() -> None:
             DISCORD_TOKEN="",
             OPENAI_API_KEY="openai",
             DISCORD_GUILD_ID="1",
-            REVIEW_CHANNEL_IDS="2",
+            ALLOWED_CHANNEL_IDS="2",
         )
 
 
@@ -205,6 +228,6 @@ def test_default_env_template_values_are_parseable(tmp_path) -> None:
     assert settings.discord_guild_ids == frozenset({1234674521416663070})
     assert settings.authorized_user_ids is None
     assert settings.supervisor_role_ids is None
-    assert settings.review_channel_ids == frozenset(
+    assert settings.allowed_channel_ids == frozenset(
         {1462992794569281617, 1462992859761217745}
     )

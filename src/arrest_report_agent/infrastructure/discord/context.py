@@ -21,9 +21,9 @@ from arrest_report_agent.domain.errors import ContextUnavailableError
 from .attachments import AttachmentInputKind, classify_attachment
 from .trigger import TriggerActivation
 
-REQUESTER_ROLE_LIMIT = 8
-REQUESTER_ROLE_NAME_MAX_CHARS = 80
-REQUESTER_ROLES_TOTAL_MAX_CHARS = 320
+AUTHOR_ROLE_LIMIT = 8
+AUTHOR_ROLE_NAME_MAX_CHARS = 80
+AUTHOR_ROLES_TOTAL_MAX_CHARS = 320
 
 
 class DiscordResponseRoute(StrEnum):
@@ -130,7 +130,7 @@ class DiscordContextBuilder:
             trigger_message_id=target.trigger.id,
             requester_user_id=requester.id,
             requester_display_name=getattr(requester, "display_name", requester.name),
-            requester_role_names=_requester_role_names(requester),
+            requester_role_names=_role_names(requester),
             interaction_mode=(
                 InteractionMode.THREAD_FOLLOW_UP
                 if isinstance(target.trigger.channel, discord.Thread)
@@ -165,6 +165,9 @@ class DiscordContextBuilder:
                     author_display=getattr(message.author, "display_name", message.author.name),
                     author_is_bot=message.author.bot,
                     author_is_assistant=_is_own_bot(message.author, self.bot),
+                    author_role_names=(
+                        [] if message.author.bot else _role_names(message.author)
+                    ),
                     content=content,
                     created_at=message.created_at,
                     edited=message.edited_at is not None,
@@ -380,6 +383,9 @@ def _render_operational_context(case: ReviewCase) -> str:
         lines.append(f"Solicitante: {case.requester_display_name}")
     if case.requester_role_names:
         lines.append("Roles del solicitante: " + ", ".join(case.requester_role_names))
+    participant_roles = _other_participant_roles(case)
+    if participant_roles:
+        lines.append("Otros participantes y roles: " + " | ".join(participant_roles))
     if case.context_notice:
         lines.append(f"Aviso de contexto: {case.context_notice}")
     return "\n".join(lines)
@@ -545,7 +551,7 @@ def _message_context_text(message: discord.Message) -> str:
     return "\n\n".join(parts)
 
 
-def _requester_role_names(author: discord.abc.User) -> list[str]:
+def _role_names(author: discord.abc.User) -> list[str]:
     """Return a small hierarchy-ordered role summary without exposing role IDs."""
 
     candidates: list[tuple[int, int, str]] = []
@@ -563,7 +569,7 @@ def _requester_role_names(author: discord.abc.User) -> list[str]:
             (
                 int(getattr(role, "position", 0)),
                 int(getattr(role, "id", 0)),
-                name[:REQUESTER_ROLE_NAME_MAX_CHARS],
+                name[:AUTHOR_ROLE_NAME_MAX_CHARS],
             )
         )
 
@@ -575,14 +581,34 @@ def _requester_role_names(author: discord.abc.User) -> list[str]:
         if normalized in seen:
             continue
         separator_chars = 2 if names else 0
-        if total_chars + separator_chars + len(name) > REQUESTER_ROLES_TOTAL_MAX_CHARS:
+        if total_chars + separator_chars + len(name) > AUTHOR_ROLES_TOTAL_MAX_CHARS:
             break
         seen.add(normalized)
         names.append(name)
         total_chars += separator_chars + len(name)
-        if len(names) == REQUESTER_ROLE_LIMIT:
+        if len(names) == AUTHOR_ROLE_LIMIT:
             break
     return names
+
+
+def _other_participant_roles(case: ReviewCase) -> list[str]:
+    """Render each historical human participant once, excluding the active requester."""
+
+    participants: list[str] = []
+    seen_author_ids: set[int] = set()
+    for message in case.messages:
+        if (
+            message.author_id == case.requester_user_id
+            or message.author_id in seen_author_ids
+            or message.author_is_bot
+            or not message.author_role_names
+        ):
+            continue
+        seen_author_ids.add(message.author_id)
+        participants.append(
+            f"{message.author_display}: {', '.join(message.author_role_names)}"
+        )
+    return participants
 
 
 def _is_own_bot(author: discord.abc.User, bot: discord.Client | None) -> bool:

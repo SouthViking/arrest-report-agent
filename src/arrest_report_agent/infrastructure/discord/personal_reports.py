@@ -18,7 +18,11 @@ from arrest_report_agent.application import (
     PersonalReportStatusFilter,
     PersonalReportSummary,
 )
-from arrest_report_agent.config import AppSettings
+from arrest_report_agent.config import (
+    AppSettings,
+    PersonaAccessMessages,
+    PersonaFailureMessages,
+)
 from arrest_report_agent.config.logging import exception_fields, log_event
 
 LOGGER = logging.getLogger(__name__)
@@ -197,11 +201,15 @@ class PersonalReportsModal(discord.ui.DesignerModal):
         member: discord.Member,
         channels: tuple[discord.TextChannel, ...],
         display_name: str,
+        access_messages: PersonaAccessMessages,
+        failure_messages: PersonaFailureMessages,
     ) -> None:
         self.finder = finder
         self.guild = guild
         self.member = member
         self.display_name = display_name
+        self.access_messages = access_messages
+        self.failure_messages = failure_messages
         self.period_select = discord.ui.StringSelect(
             custom_id="personal_reports_period",
             options=[
@@ -254,7 +262,7 @@ class PersonalReportsModal(discord.ui.DesignerModal):
     async def callback(self, interaction: discord.Interaction) -> None:
         if interaction.user.id != self.member.id:
             await interaction.response.send_message(
-                "Esta consulta pertenece a otro miembro.",
+                self.access_messages.other_member_query,
                 ephemeral=True,
             )
             return
@@ -275,6 +283,7 @@ class PersonalReportsModal(discord.ui.DesignerModal):
                 result=result,
                 query=query,
                 display_name=self.display_name,
+                messages=self.access_messages,
             )
             await send_personal_report_result(interaction, view)
             log_event(
@@ -301,7 +310,7 @@ class PersonalReportsModal(discord.ui.DesignerModal):
                 **exception_fields(error),
             )
             await interaction.followup.send(
-                "📁 No pude consultar el archivo de reportes en este momento. Inténtelo nuevamente.",
+                self.failure_messages.personal_report_query_failure,
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -317,12 +326,14 @@ class PersonalReportPaginationView(discord.ui.View):
         result: PersonalReportSearchResult,
         query: PersonalReportQuery,
         display_name: str,
+        messages: PersonaAccessMessages,
     ) -> None:
         super().__init__(timeout=180, disable_on_timeout=True)
         self.requester_id = requester_id
         self.result = result
         self.query = query
         self.display_name = display_name
+        self.messages = messages
         self.page = 0
         self._synchronize_buttons()
 
@@ -343,7 +354,7 @@ class PersonalReportPaginationView(discord.ui.View):
         if interaction.user.id == self.requester_id:
             return True
         await interaction.response.send_message(
-            "Esta consulta pertenece a otro miembro.",
+            self.messages.other_member_query,
             ephemeral=True,
         )
         return False

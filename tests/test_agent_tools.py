@@ -65,7 +65,6 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
                 "summary": "El expediente es coherente.",
                 "findings": [],
                 "charges": [],
-                "next_step": "Archivar el reporte.",
             }
         }
     )

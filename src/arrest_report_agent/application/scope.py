@@ -18,7 +18,7 @@ from agents.retry import ModelRetrySettings
 from openai.types.shared.reasoning import Reasoning
 from pydantic import BaseModel, Field
 
-from arrest_report_agent.config import AppSettings, ResolvedModel
+from arrest_report_agent.config import AppSettings, PersonaAccessMessages, ResolvedModel
 from arrest_report_agent.domain import RequestIntent, ReviewCase
 
 from .service_context import ReviewRunContext
@@ -123,13 +123,13 @@ def has_revisable_material(case: ReviewCase) -> bool:
     )
 
 
-def scope_refusal_message(form_of_address: str) -> str:
+def scope_refusal_message(
+    messages: PersonaAccessMessages,
+    form_of_address: str,
+) -> str:
     """Return role-aware public copy without exposing implementation details."""
 
-    return (
-        f"Eso queda fuera de mi guardia, {form_of_address}. Puedo ayudar con reportes de arresto, "
-        "correcciones, evidencia, cargos y el manual de procedimientos."
-    )
+    return messages.scope_refusal.format(form_of_address=form_of_address)
 
 
 def _scope_instructions() -> str:

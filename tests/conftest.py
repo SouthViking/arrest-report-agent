@@ -48,7 +48,7 @@ def settings() -> AppSettings:
         DISCORD_TOKEN="discord-test-token",
         OPENAI_API_KEY="openai-test-key",
         DISCORD_GUILD_IDS="1234674521416663070",
-        REVIEW_CHANNEL_IDS="1462992794569281617,1462992859761217745",
+        ALLOWED_CHANNEL_IDS="1462992794569281617,1462992859761217745",
         AUTHORIZED_USER_IDS="*",
         BOT_PERSONA="walter_vigil",
         OPENAI_MODEL="gpt-5.6-terra",

@@ -9,6 +9,7 @@ import discord
 import openai
 from agents.exceptions import AgentsException, MaxTurnsExceeded, ModelBehaviorError
 
+from arrest_report_agent.config import PersonaFailureMessages
 from arrest_report_agent.domain import ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError, PublicationError
 
@@ -44,45 +45,18 @@ def classify_error(error: BaseException) -> ClassifiedError:
     return ClassifiedError(ErrorKind.UNKNOWN, False)
 
 
-def public_error_message(kind: ErrorKind) -> str:
+def public_error_message(kind: ErrorKind, messages: PersonaFailureMessages) -> str:
     """Return a contextual message without leaking provider or report data."""
 
-    messages = {
-        ErrorKind.QUOTA_EXCEEDED: (
-            "La mesa de revisión alcanzó su capacidad operativa para este turno. Para no emitir "
-            "un criterio apresurado, el expediente queda derivado a revisión manual."
-        ),
-        ErrorKind.RATE_LIMITED: (
-            "La central está recibiendo demasiadas solicitudes. Intenta mencionarme nuevamente "
-            "en unos minutos o solicita revisión manual."
-        ),
-        ErrorKind.TIMEOUT: (
-            "La revisión excedió el tiempo operativo permitido. No emitiré un veredicto incompleto; "
-            "queda pendiente de un supervisor o de un nuevo intento."
-        ),
-        ErrorKind.PROVIDER_INTERNAL: (
-            "La central de análisis presentó una falla temporal. No pude completar una revisión "
-            "confiable y el caso queda derivado."
-        ),
-        ErrorKind.AUTH_CONFIGURATION: (
-            "La conexión con la central no está correctamente acreditada. Un administrador debe "
-            "revisar la configuración del servicio."
-        ),
-        ErrorKind.AGENT_EXECUTION: (
-            "No pude cerrar la revisión con garantías suficientes. El reporte queda marcado para "
-            "revisión manual."
-        ),
-        ErrorKind.DISCORD_FAILURE: (
-            "Discord impidió completar una acción necesaria. Revisa los permisos del bot en este "
-            "canal y su hilo."
-        ),
-        ErrorKind.CONTEXT_UNAVAILABLE: (
-            "No pude reconstruir el reporte raíz o el historial necesario. Comprueba que el mensaje "
-            "siga disponible y que tenga acceso al historial."
-        ),
-        ErrorKind.UNKNOWN: (
-            "Se produjo una incidencia no identificada y detuve la revisión para no entregar un "
-            "veredicto inseguro."
-        ),
+    by_kind = {
+        ErrorKind.QUOTA_EXCEEDED: messages.quota_exceeded,
+        ErrorKind.RATE_LIMITED: messages.rate_limited,
+        ErrorKind.TIMEOUT: messages.timeout,
+        ErrorKind.PROVIDER_INTERNAL: messages.provider_internal,
+        ErrorKind.AUTH_CONFIGURATION: messages.auth_configuration,
+        ErrorKind.AGENT_EXECUTION: messages.agent_execution,
+        ErrorKind.DISCORD_FAILURE: messages.discord_failure,
+        ErrorKind.CONTEXT_UNAVAILABLE: messages.context_unavailable,
+        ErrorKind.UNKNOWN: messages.unknown,
     }
-    return messages[kind]
+    return by_kind[kind]
