@@ -9,11 +9,10 @@ flowchart LR
     Q --> R
     Q --> Y["Perfil y presencia de Discord"]
     M["Mensaje de Discord"] --> T["DiscordAccessPolicy"]
-    A["SnowflakeAllowlist x3"] --> T
-    T -->|"guild, usuario y canal habilitados"| C["Contexto acotado de Discord"]
+    A["Allowlists de guild y usuario"] --> T
+    T -->|"guild y usuario habilitados"| C["Contexto acotado de Discord"]
     T -->|"guild no habilitada"| I["Ignorar"]
     T -->|"usuario no habilitado"| U["Respuesta local de acceso"]
-    T -->|"canal no habilitado"| W["Respuesta local con canales"]
     C --> S["Guardrail textual de alcance e intención"]
     S -->|"claramente ajeno"| O["Respuesta breve sin imágenes"]
     S -->|"permitido o ambiguo"| R["Agente principal multimodal"]
@@ -28,20 +27,21 @@ flowchart LR
     X --> F["Invocación en hilo: mismo hilo"]
 ```
 
-`SnowflakeAllowlist` centraliza el parseo de `DISCORD_GUILD_IDS`, `ALLOWED_CHANNEL_IDS` y
-`AUTHORIZED_USER_IDS`: ausente, vacío o `*` abre el scope; cualquier CSV lo restringe.
-`REVIEW_CHANNEL_IDS` se conserva únicamente como alias de migración para despliegues existentes.
-`DiscordAccessPolicy` es el único preprocesador del listener y se ejecuta antes de descargar contexto
-o llamar a OpenAI. Valida guild, autor humano, activación por mención o respuesta directa al bot,
-usuario y canal padre, en ese orden. Si Discord no incluyó el mensaje referenciado, resuelve solo esa
-referencia antes de decidir; una respuesta a cualquier otra persona se ignora. Los rechazos de
-usuario o canal usan respuestas locales con cooldown y nunca alcanzan el Runner.
+`SnowflakeAllowlist` centraliza el parseo de `DISCORD_GUILD_IDS`, `REPORT_CHANNEL_IDS` y
+`AUTHORIZED_USER_IDS`: ausente, vacío o `*` abre la colección; cualquier CSV la restringe.
+`ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` se conservan como aliases de migración para
+`REPORT_CHANNEL_IDS`.
 
-En una redirección por canal, el adaptador resuelve cada ID configurado primero desde la caché de la
-guild y confirma los ausentes mediante REST. Solo muestra canales de texto visibles para el bot y el
-solicitante. `NotFound` marca el ID como obsoleto durante la vida del proceso; `Forbidden` y errores
-temporales producen una orientación sin referencias y un warning estructurado. Esta comprobación es
-local a Discord y no consume una ejecución del agente.
+`DiscordAccessPolicy` es el único preprocesador del listener y se ejecuta antes de descargar contexto
+o llamar a OpenAI. Valida guild, autor humano, activación por mención o respuesta directa al bot y
+usuario, en ese orden. No limita canales: dentro de una guild autorizada, una mención puede iniciar
+una conversación desde cualquier canal visible. Si Discord no incluyó el mensaje referenciado,
+resuelve solo esa referencia antes de decidir; una respuesta a cualquier otra persona se ignora.
+
+La colección `REPORT_CHANNEL_IDS` queda separada del acceso conversacional. El adaptador la usa para
+consultas deterministas de reportes y para `/ayuda`; al presentarla, resuelve cada ID en la guild
+actual y solo muestra canales de texto visibles para el bot y el solicitante. Los IDs de otras guilds,
+eliminados o inaccesibles se omiten y se registran sin bloquear la conversación.
 
 Una vez superada la política local, `request_scope` clasifica alcance e intención usando solo el
 texto de la solicitud actual y señales compactas de contexto. Es bloqueante

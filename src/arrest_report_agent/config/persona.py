@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 5
+PERSONA_SCHEMA_VERSION = 6
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -124,12 +124,6 @@ class PersonaPresence(FrozenPersonaModel):
 class PersonaAccessMessages(FrozenPersonaModel):
     """Deterministic access and command notices written in the persona's voice."""
 
-    wrong_channel_intros: tuple[str, ...] = Field(min_length=1, max_length=8)
-    wrong_channel_heading: str = Field(min_length=1, max_length=300)
-    wrong_channel_destinations: str = Field(min_length=1, max_length=300)
-    wrong_channel_hidden: str = Field(min_length=1, max_length=300)
-    wrong_channel_uncertain: str = Field(min_length=1, max_length=300)
-    wrong_channel_unavailable: str = Field(min_length=1, max_length=300)
     unauthorized_user_intros: tuple[str, ...] = Field(min_length=1, max_length=8)
     unauthorized_user: str = Field(min_length=1, max_length=400)
     scope_refusal: str = Field(min_length=1, max_length=400)
@@ -143,7 +137,7 @@ class PersonaAccessMessages(FrozenPersonaModel):
     no_supervisor_channels: str = Field(min_length=1, max_length=300)
     no_personal_channels: str = Field(min_length=1, max_length=300)
 
-    @field_validator("wrong_channel_intros", "unauthorized_user_intros")
+    @field_validator("unauthorized_user_intros")
     @classmethod
     def reject_empty_pool_items(cls, values: tuple[str, ...]) -> tuple[str, ...]:
         if any(not value.strip() for value in values):
@@ -152,16 +146,6 @@ class PersonaAccessMessages(FrozenPersonaModel):
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaAccessMessages:
-        _require_template_fields(
-            self.wrong_channel_heading,
-            {"form_of_address", "intro"},
-            "wrong_channel_heading",
-        )
-        _require_template_fields(
-            self.wrong_channel_destinations,
-            {"channels"},
-            "wrong_channel_destinations",
-        )
         _require_template_fields(
             self.unauthorized_user,
             {"form_of_address", "intro"},

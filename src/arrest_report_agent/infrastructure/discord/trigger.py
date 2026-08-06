@@ -18,7 +18,6 @@ class TriggerDecision(StrEnum):
     """Deterministic outcome for an incoming Discord message."""
 
     REVIEW = "review"
-    REDIRECT_WRONG_CHANNEL = "redirect_wrong_channel"
     REDIRECT_UNAUTHORIZED_USER = "redirect_unauthorized_user"
     IGNORE_NOT_ADDRESSED = "ignore_not_addressed"
     IGNORE_BOT_OR_WEBHOOK = "ignore_bot_or_webhook"
@@ -38,26 +37,17 @@ class TriggerEvaluation:
     activation: TriggerActivation | None = None
 
 
-def configured_parent_channel_id(message: discord.Message) -> int | None:
-    channel = message.channel
-    if isinstance(channel, discord.Thread):
-        return channel.parent_id
-    return getattr(channel, "id", None)
-
-
 @dataclass(frozen=True, slots=True)
 class DiscordAccessPolicy:
     """Central pre-processing policy for every bot-addressed interaction."""
 
     guilds: SnowflakeAllowlist
-    channels: SnowflakeAllowlist
     users: SnowflakeAllowlist
 
     @classmethod
     def from_settings(cls, settings: AppSettings) -> DiscordAccessPolicy:
         return cls(
             guilds=settings.guild_allowlist,
-            channels=settings.channel_allowlist,
             users=settings.user_allowlist,
         )
 
@@ -80,9 +70,6 @@ class DiscordAccessPolicy:
             return TriggerDecision.IGNORE_NOT_ADDRESSED
         if not self.users.allows(message.author.id):
             return TriggerDecision.REDIRECT_UNAUTHORIZED_USER
-        channel_id = configured_parent_channel_id(message)
-        if channel_id is None or not self.channels.allows(channel_id):
-            return TriggerDecision.REDIRECT_WRONG_CHANNEL
         return TriggerDecision.REVIEW
 
     async def classify_event(

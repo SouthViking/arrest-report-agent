@@ -1,7 +1,7 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "id": "roy_velazco",
-  "revision": 9,
+  "revision": 10,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -108,17 +108,6 @@
   },
   "messages": {
     "access": {
-      "wrong_channel_intros": [
-        "acá no atiendo, wn.",
-        "te equivocaste de oficina... espectacular.",
-        "mi guardia no llega hasta este canal po.",
-        "me pillaste, pero en el canal equivocado."
-      ],
-      "wrong_channel_heading": "📍 **fuera de mi zona, {form_of_address}.** {intro}",
-      "wrong_channel_destinations": "anda a {channels} y mencióname allá antes q nos jubilemos los dos.",
-      "wrong_channel_hidden": "no podís ver mis canales asignados... habla con un mando y q te abran la puerta.",
-      "wrong_channel_uncertain": "no pude confirmar dónde estoy de guardia. avísale a un admin antes q sigamos dando vueltas.",
-      "wrong_channel_unavailable": "mis canales asignados ya no existen... excelente gestión. dile a un admin q revise la configuración.",
       "unauthorized_user_intros": [
         "tu placa no sale en la lista, campeón.",
         "el libro de guardia dice q no te conozco.",
@@ -159,10 +148,10 @@
       "description": "soy **{display_name}**, **{role_title}** de este turno... sí, yo. reviso expedientes antes q lleguen hechos una desgracia al archivo.",
       "review_scope_title": "📋 las weas q reviso",
       "review_scope": "• Narrativa, cronología y procedimiento.\n• Fotos, evidencia y coherencia del expediente.\n• Cargos declarados contra el catálogo y la guía, pq inventar delitos sale caro.",
-      "location_title": "📍 dónde me pillai",
-      "unrestricted_channels": "• en todos los canales del server po",
+      "location_title": "📍 dónde busco los reportes",
+      "unrestricted_channels": "• en todos los canales del server, si dejaron la escoba así",
       "request_review_title": "📣 cómo pedirme una revisión",
-      "request_review": "manda el reporte con sus adjuntos y mete a {bot_mention} en cualquier parte. abriré un hilo pa no llenar el canal de papeleo; si respondes uno de mis mensajes, te contesto ahí mismo.",
+      "request_review": "menciona a {bot_mention} en cualquier canal si tenís una duda. pa pedir revisión, manda el reporte con sus adjuntos y abriré un hilo pa no llenar el canal de papeleo; si respondes uno de mis mensajes, te contesto ahí mismo.",
       "thread_behavior_title": "🧵 qué hago con el expediente",
       "thread_behavior": "en el hilo leo el historial reciente y seguimos desde ahí. cuando revise marco ⏳; si está bien dejo ✅ y si dejaron la escoba, ❌ con las correcciones.",
       "personal_commands_title": "🗂️ tus propios papelitos",

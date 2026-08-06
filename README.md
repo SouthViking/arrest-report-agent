@@ -4,12 +4,12 @@ Bot agente de Discord para revisar reportes de arresto de roleplay en español. 
 **Walter Vigil**, pero el repositorio, el paquete y la lógica mantienen un nombre neutral: identidad,
 personalidad, presencia y perfil de Discord se cargan desde la persona elegida con `BOT_PERSONA`.
 
-El MVP está preparado para los canales privados `gnt-arrestos` y `dlm-arrestos` del servidor LSSD.
-Solo actúa cuando un usuario habilitado menciona explícitamente al bot, en cualquier parte del
-mensaje, o responde directamente a uno de sus mensajes. Las publicaciones que no se dirigen al bot,
-los bots, los webhooks y otros servidores se ignoran sin llamar a OpenAI. Las invocaciones fuera de
-los canales configurados o realizadas por usuarios no habilitados reciben una orientación
-determinista, también sin ejecutar el agente.
+El MVP usa `gnt-arrestos` y `dlm-arrestos` como archivo de reportes del servidor LSSD, pero puede
+conversar desde cualquier canal de una guild habilitada. Solo actúa cuando un usuario autorizado
+menciona explícitamente al bot, en cualquier parte del mensaje, o responde directamente a uno de sus
+mensajes. Las publicaciones que no se dirigen al bot, los bots, los webhooks y otros servidores se
+ignoran sin llamar a OpenAI. Los usuarios no habilitados reciben una orientación determinista,
+también sin ejecutar el agente.
 
 ## Qué hace
 
@@ -61,29 +61,28 @@ Completa al menos `DISCORD_TOKEN` y `OPENAI_API_KEY` en `.env`. Los valores por 
 
 ```dotenv
 DISCORD_GUILD_IDS=1234674521416663070
-ALLOWED_CHANNEL_IDS=1462992794569281617,1462992859761217745
+REPORT_CHANNEL_IDS=1462992794569281617,1462992859761217745
 AUTHORIZED_USER_IDS=*
 BOT_PERSONA=walter_vigil
 OPENAI_MODEL=gpt-5.6-terra
 OPENAI_REASONING_EFFORT=medium
 ```
 
-Las tres allowlists comparten una sola regla: variable ausente, vacía o con `*` permite cualquier ID
-del scope; una lista CSV como `123,456` restringe el acceso a esos IDs. Esto aplica a servidores
-(`DISCORD_GUILD_IDS`), canales (`ALLOWED_CHANNEL_IDS`) y usuarios (`AUTHORIZED_USER_IDS`). Los
-nombres anteriores `DISCORD_GUILD_ID` y `REVIEW_CHANNEL_IDS` siguen siendo compatibles para no
-romper entornos existentes.
+Las allowlists de acceso comparten una sola regla: variable ausente, vacía o con `*` permite
+cualquier ID del scope; una lista CSV como `123,456` lo restringe. Esto aplica a servidores
+(`DISCORD_GUILD_IDS`) y usuarios (`AUTHORIZED_USER_IDS`). Dentro de una guild autorizada, cualquier
+usuario habilitado puede activar al bot mediante una mención o una respuesta directa desde cualquier
+canal visible para el bot.
 
-Una política previa única evalúa las tres antes de leer contexto o iniciar el Runner. Los servidores
-no habilitados se ignoran; un canal o usuario no habilitado recibe una respuesta local breve, sin
-consumo de OpenAI. Las tools posteriores no reciben IDs de destino libres: operan exclusivamente
-sobre el mensaje y el hilo ya autorizados.
+`REPORT_CHANNEL_IDS` no restringe conversaciones. Define los canales que `/mis-reportes`,
+`/mi-resumen`, `/pendientes` y `/ranking` utilizan como archivo de reportes y los que `/ayuda`
+presenta como destinos habituales. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` siguen siendo aliases
+de migración. Al mostrarlos, el bot conserva únicamente los que pertenecen a la guild actual y son
+visibles para él y para el solicitante, evitando referencias `#desconocido` entre servidores.
 
-Antes de recomendar los canales permitidos, el bot los resuelve con Discord y comprueba que tanto él
-como el solicitante puedan verlos. Los IDs eliminados, inaccesibles o de tipos no soportados se
-omiten; si no queda un destino visible, entrega una orientación administrativa sin mostrar
-referencias `#desconocido`. Los canales confirmados como eliminados se recuerdan hasta reiniciar el
-proceso para evitar consultas REST repetidas.
+La política previa valida guild, autor y usuario antes de leer contexto o iniciar el Runner. Las
+tools posteriores no reciben IDs de destino libres: operan exclusivamente sobre el mensaje y el hilo
+ya autorizados.
 
 El modelo y el nivel de razonamiento son la única selección de modelo requerida en el entorno. El
 detalle de imagen, verbosity, límite de salida, service tier, capacidades admitidas y precios se
@@ -190,7 +189,7 @@ el contenido exacto del FAQ.
 | Variable | Predeterminado | Función |
 |---|---:|---|
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
-| `ALLOWED_CHANNEL_IDS` | `*` | Canales padre permitidos para conversación y revisión; acepta CSV y cubre sus hilos. `REVIEW_CHANNEL_IDS` queda como alias compatible. |
+| `REPORT_CHANNEL_IDS` | `*` | Canales usados por búsquedas, resúmenes, supervisión y ayuda; no restringe menciones. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` quedan como aliases compatibles. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
 | `SUPERVISOR_ROLE_IDS` | `*` | Roles autorizados para los comandos de supervisión; `*`/vacío permite a todos. |
 | `REVIEW_ESCALATION_ROLE_IDS` | vacío | Roles existentes que reciben una mención ante resultados inconclusos o fallas; acepta CSV. |

@@ -32,7 +32,7 @@ async def run() -> None:
         raise
     health_server = await serve_health(settings.health_host, settings.health_port, runtime.health)
     guilds = settings.guild_allowlist
-    channels = settings.channel_allowlist
+    report_channels = settings.report_channel_allowlist
     users = settings.user_allowlist
     supervisor_roles = settings.supervisor_role_allowlist
     log_event(
@@ -50,8 +50,8 @@ async def run() -> None:
         persona_revision=runtime.persona.profile.revision,
         guild_access_mode="restricted" if guilds.is_restricted else "open",
         configured_guilds=guilds.configured_count,
-        channel_access_mode="restricted" if channels.is_restricted else "open",
-        configured_channels=channels.configured_count,
+        report_channel_mode="restricted" if report_channels.is_restricted else "open",
+        configured_report_channels=report_channels.configured_count,
         user_access_mode="restricted" if users.is_restricted else "open",
         configured_users=users.configured_count,
         supervisor_access_mode=(

@@ -1,7 +1,7 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "id": "walter_vigil",
-  "revision": 5,
+  "revision": 6,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -88,17 +88,6 @@
   },
   "messages": {
     "access": {
-      "wrong_channel_intros": [
-        "En este canal no estoy de guardia.",
-        "Este canal queda fuera de mi ronda asignada.",
-        "Aquí no tengo habilitada la atención.",
-        "Me encontró, pero en la oficina equivocada."
-      ],
-      "wrong_channel_heading": "📍 **Fuera de mi zona de guardia, {form_of_address}.** {intro}",
-      "wrong_channel_destinations": "Puede encontrarme en {channels}; mencióneme allí para continuar.",
-      "wrong_channel_hidden": "No tiene acceso visible a mis canales asignados. Consulte con un mando para continuar.",
-      "wrong_channel_uncertain": "No pude confirmar ningún canal de guardia disponible. Avise a un administrador para revisar la configuración.",
-      "wrong_channel_unavailable": "Mis canales asignados ya no están disponibles. Avise a un administrador para revisar la configuración.",
       "unauthorized_user_intros": [
         "Su placa no figura en el libro de guardia.",
         "No tengo su nombre entre el personal habilitado para esta mesa.",
@@ -139,10 +128,10 @@
       "description": "Soy **{display_name}**, el **{role_title}** asignado a este turno. Mi trabajo es revisar expedientes de arresto antes de que acumulen polvo… o correcciones del mando.",
       "review_scope_title": "📋 Qué reviso",
       "review_scope": "• Narrativa, cronología y coherencia del procedimiento.\n• Fotografías, evidencias y consistencia visual del expediente.\n• Cargos declarados frente al catálogo y la guía oficial.",
-      "location_title": "📍 Dónde estoy de guardia",
-      "unrestricted_channels": "• Todos los canales del servidor",
+      "location_title": "📍 Canales de reportes",
+      "unrestricted_channels": "• Todos los canales del servidor se consideran canales de reportes",
       "request_review_title": "📣 Cómo solicitar una revisión",
-      "request_review": "Publique el reporte con sus adjuntos e incluya a {bot_mention} en cualquier parte del mensaje: abriré un hilo para mantener despejado el canal. Si responde directamente a uno de mis mensajes en el canal, contestaré allí mismo.",
+      "request_review": "Puede mencionar a {bot_mention} en cualquier canal del servidor para hacer una consulta. Para solicitar una revisión, publique el reporte con sus adjuntos: abriré un hilo para mantener despejado el canal. Si responde directamente a uno de mis mensajes, contestaré allí mismo.",
       "thread_behavior_title": "🧵 Qué haré con el expediente",
       "thread_behavior": "Dentro de un hilo, las menciones y respuestas seguirán en ese mismo lugar y leeré el historial reciente. Al revisar, marcaré ⏳; si está correcto dejaré ✅ y, si requiere ajustes, ❌ con observaciones claras.",
       "personal_commands_title": "🗂️ Consultas privadas",

@@ -7,8 +7,6 @@ import logging
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
-from dataclasses import dataclass
-from enum import StrEnum
 from time import monotonic
 
 import discord
@@ -56,19 +54,6 @@ LOGGER = logging.getLogger(__name__)
 DETERMINISTIC_REPLY_COOLDOWN_SECONDS = 30.0
 
 
-class AllowedChannelAvailability(StrEnum):
-    AVAILABLE = "available"
-    HIDDEN = "hidden"
-    UNAVAILABLE = "unavailable"
-    UNCERTAIN = "uncertain"
-
-
-@dataclass(frozen=True, slots=True)
-class AllowedChannelResolution:
-    visible_ids: tuple[int, ...]
-    availability: AllowedChannelAvailability
-
-
 @asynccontextmanager
 async def maintain_typing_indicator(
     channel: discord.TextChannel | discord.Thread,
@@ -98,7 +83,7 @@ def build_help_embed(
     *,
     persona: BotPersona,
     bot_mention: str,
-    channel_ids: frozenset[int] | None,
+    report_channel_ids: frozenset[int] | None,
     avatar_url: str | None = None,
 ) -> discord.Embed:
     """Introduce the reviewer and explain its workflow in character."""
@@ -106,8 +91,8 @@ def build_help_embed(
     identity = persona.identity
     copy = persona.messages.help
     channels = (
-        "\n".join(f"• <#{channel_id}>" for channel_id in sorted(channel_ids))
-        if channel_ids is not None
+        "\n".join(f"• <#{channel_id}>" for channel_id in sorted(report_channel_ids))
+        if report_channel_ids is not None
         else copy.unrestricted_channels
     )
     embed = discord.Embed(
@@ -172,39 +157,6 @@ def build_help_embed(
     return embed
 
 
-def build_wrong_channel_message(
-    *,
-    messages: PersonaAccessMessages,
-    form_of_address: str,
-    channel_ids: tuple[int, ...],
-    message_id: int,
-    availability: AllowedChannelAvailability = AllowedChannelAvailability.UNAVAILABLE,
-) -> str:
-    """Build a concise rich-text redirect without using AI."""
-
-    intro = messages.wrong_channel_intros[
-        message_id % len(messages.wrong_channel_intros)
-    ]
-    heading = messages.wrong_channel_heading.format(
-        form_of_address=form_of_address,
-        intro=intro,
-    )
-    if channel_ids:
-        channel_mentions = [f"<#{channel_id}>" for channel_id in sorted(channel_ids)]
-        channels = (
-            channel_mentions[0]
-            if len(channel_mentions) == 1
-            else f"{', '.join(channel_mentions[:-1])} o {channel_mentions[-1]}"
-        )
-        detail = messages.wrong_channel_destinations.format(channels=channels)
-        return f"{heading}\n{detail}"
-    if availability is AllowedChannelAvailability.HIDDEN:
-        return f"{heading}\n{messages.wrong_channel_hidden}"
-    if availability is AllowedChannelAvailability.UNCERTAIN:
-        return f"{heading}\n{messages.wrong_channel_uncertain}"
-    return f"{heading}\n{messages.wrong_channel_unavailable}"
-
-
 def build_unauthorized_user_message(
     *,
     messages: PersonaAccessMessages,
@@ -260,7 +212,7 @@ class ReviewCog(commands.Cog):
         self._locks: dict[int, asyncio.Lock] = {}
         self._attempts: defaultdict[int, int] = defaultdict(int)
         self._deterministic_reply_cooldowns: dict[tuple[int, int, int], float] = {}
-        self._missing_allowed_channel_ids: set[int] = set()
+        self._unavailable_report_channel_keys: set[tuple[int, int]] = set()
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
@@ -274,8 +226,10 @@ class ReviewCog(commands.Cog):
             bot_user_id=self.bot.user.id if self.bot.user else "unknown",
             guild_access_mode=("restricted" if self.access_policy.guilds.is_restricted else "open"),
             configured_guilds=self.access_policy.guilds.configured_count,
-            channel_access_mode=("restricted" if self.access_policy.channels.is_restricted else "open"),
-            configured_channels=self.access_policy.channels.configured_count,
+            report_channel_mode=(
+                "restricted" if self.settings.report_channel_allowlist.is_restricted else "open"
+            ),
+            configured_report_channels=self.settings.report_channel_allowlist.configured_count,
             user_access_mode=("restricted" if self.access_policy.users.is_restricted else "open"),
             configured_users=self.access_policy.users.configured_count,
             supervisor_access_mode=(
@@ -295,9 +249,6 @@ class ReviewCog(commands.Cog):
         decision = evaluation.decision
         if decision is TriggerDecision.REDIRECT_UNAUTHORIZED_USER:
             await self._redirect_unauthorized_user(message)
-            return
-        if decision is TriggerDecision.REDIRECT_WRONG_CHANNEL:
-            await self._redirect_wrong_channel(message)
             return
         if decision is not TriggerDecision.REVIEW:
             return
@@ -400,62 +351,55 @@ class ReviewCog(commands.Cog):
             if not lock.locked():
                 self._locks.pop(root_id, None)
 
-    async def _redirect_wrong_channel(self, message: discord.Message) -> None:
-        channel_ids = self.access_policy.channels.ids
-        if channel_ids is None:
-            return
-        resolution = await self._resolve_allowed_channels(message, channel_ids)
-        await self._reply_deterministic_notice(
-            message,
-            content=build_wrong_channel_message(
-                messages=self.persona.messages.access,
-                form_of_address=self.persona.identity.default_form_of_address,
-                channel_ids=resolution.visible_ids,
-                message_id=message.id,
-                availability=resolution.availability,
-            ),
-            event_prefix="wrong_channel_redirect",
-        )
-
-    async def _resolve_allowed_channels(
+    async def _resolve_report_channels(
         self,
-        message: discord.Message,
+        *,
+        guild: discord.Guild | None,
+        requester: discord.Member | discord.User,
         channel_ids: frozenset[int],
-    ) -> AllowedChannelResolution:
-        """Resolve configured destinations without exposing stale or inaccessible references."""
+    ) -> tuple[int, ...]:
+        """Resolve report channels visible in the requester's current guild."""
 
-        guild = message.guild
         if guild is None:
-            return AllowedChannelResolution((), AllowedChannelAvailability.UNAVAILABLE)
+            return ()
 
         visible_ids: list[int] = []
-        hidden_from_requester = False
-        lookup_uncertain = False
         for channel_id in sorted(channel_ids):
-            if channel_id in self._missing_allowed_channel_ids:
+            cache_key = (guild.id, channel_id)
+            if cache_key in self._unavailable_report_channel_keys:
                 continue
             channel = guild.get_channel(channel_id)
             if channel is None:
                 try:
                     channel = await guild.fetch_channel(channel_id)
                 except discord.NotFound as error:
-                    self._missing_allowed_channel_ids.add(channel_id)
+                    self._unavailable_report_channel_keys.add(cache_key)
                     log_event(
                         LOGGER,
                         "warning",
-                        "configured_allowed_channel_missing",
+                        "configured_report_channel_missing",
                         exc_info=error,
                         guild_id=guild.id,
                         channel_id=channel_id,
                         **exception_fields(error),
                     )
                     continue
+                except discord.InvalidData:
+                    # A flat list may contain a valid channel from another configured guild.
+                    self._unavailable_report_channel_keys.add(cache_key)
+                    log_event(
+                        LOGGER,
+                        "info",
+                        "configured_report_channel_belongs_to_another_guild",
+                        guild_id=guild.id,
+                        channel_id=channel_id,
+                    )
+                    continue
                 except (discord.Forbidden, discord.HTTPException) as error:
-                    lookup_uncertain = True
                     log_event(
                         LOGGER,
                         "warning",
-                        "configured_allowed_channel_lookup_failed",
+                        "configured_report_channel_lookup_failed",
                         exc_info=error,
                         guild_id=guild.id,
                         channel_id=channel_id,
@@ -467,7 +411,7 @@ class ReviewCog(commands.Cog):
                 log_event(
                     LOGGER,
                     "warning",
-                    "configured_allowed_channel_unsupported",
+                    "configured_report_channel_unsupported",
                     guild_id=guild.id,
                     channel_id=channel_id,
                     channel_type=type(channel).__name__,
@@ -476,29 +420,19 @@ class ReviewCog(commands.Cog):
 
             bot_member = guild.me
             if bot_member is None or not channel.permissions_for(bot_member).view_channel:
-                lookup_uncertain = True
                 log_event(
                     LOGGER,
                     "warning",
-                    "configured_allowed_channel_inaccessible",
+                    "configured_report_channel_inaccessible",
                     guild_id=guild.id,
                     channel_id=channel_id,
                 )
                 continue
-            if not channel.permissions_for(message.author).view_channel:
-                hidden_from_requester = True
+            if not channel.permissions_for(requester).view_channel:
                 continue
             visible_ids.append(channel_id)
 
-        if visible_ids:
-            availability = AllowedChannelAvailability.AVAILABLE
-        elif hidden_from_requester:
-            availability = AllowedChannelAvailability.HIDDEN
-        elif lookup_uncertain:
-            availability = AllowedChannelAvailability.UNCERTAIN
-        else:
-            availability = AllowedChannelAvailability.UNAVAILABLE
-        return AllowedChannelResolution(tuple(visible_ids), availability)
+        return tuple(visible_ids)
 
     async def _redirect_unauthorized_user(self, message: discord.Message) -> None:
         await self._reply_deterministic_notice(
@@ -569,10 +503,19 @@ class ReviewCog(commands.Cog):
     @discord.slash_command(name="ayuda", description="Explica cómo solicitar una revisión")
     async def review_help(self, ctx: discord.ApplicationContext) -> None:
         bot_user = self.bot.user
+        report_channel_ids = self.settings.report_channel_allowlist.ids
+        if report_channel_ids is not None:
+            report_channel_ids = frozenset(
+                await self._resolve_report_channels(
+                    guild=ctx.guild,
+                    requester=ctx.author,
+                    channel_ids=report_channel_ids,
+                )
+            )
         embed = build_help_embed(
             persona=self.persona,
             bot_mention=bot_user.mention if bot_user else self.persona.identity.display_name,
-            channel_ids=self.access_policy.channels.ids,
+            report_channel_ids=report_channel_ids,
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
         )
         await ctx.respond(embed=embed, ephemeral=False)

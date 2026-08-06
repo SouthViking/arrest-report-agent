@@ -89,9 +89,13 @@ class AppSettings(BaseSettings):
         default="*",
         validation_alias=AliasChoices("DISCORD_GUILD_IDS", "DISCORD_GUILD_ID"),
     )
-    allowed_channel_ids_csv: str = Field(
+    report_channel_ids_csv: str = Field(
         default="*",
-        validation_alias=AliasChoices("ALLOWED_CHANNEL_IDS", "REVIEW_CHANNEL_IDS"),
+        validation_alias=AliasChoices(
+            "REPORT_CHANNEL_IDS",
+            "ALLOWED_CHANNEL_IDS",
+            "REVIEW_CHANNEL_IDS",
+        ),
     )
     authorized_user_ids_csv: str = Field(default="*", alias="AUTHORIZED_USER_IDS")
     supervisor_role_ids_csv: str = Field(default="*", alias="SUPERVISOR_ROLE_IDS")
@@ -181,7 +185,7 @@ class AppSettings(BaseSettings):
             raise ValueError("OPENAI_API_KEY must not be empty")
         _ = (
             self.guild_allowlist,
-            self.channel_allowlist,
+            self.report_channel_allowlist,
             self.user_allowlist,
             self.supervisor_role_allowlist,
             self.review_escalation_role_ids,
@@ -196,10 +200,10 @@ class AppSettings(BaseSettings):
         )
 
     @property
-    def channel_allowlist(self) -> SnowflakeAllowlist:
+    def report_channel_allowlist(self) -> SnowflakeAllowlist:
         return SnowflakeAllowlist.parse(
-            self.allowed_channel_ids_csv,
-            variable_name="ALLOWED_CHANNEL_IDS",
+            self.report_channel_ids_csv,
+            variable_name="REPORT_CHANNEL_IDS",
         )
 
     @property
@@ -228,8 +232,8 @@ class AppSettings(BaseSettings):
         return self.guild_allowlist.ids
 
     @property
-    def allowed_channel_ids(self) -> frozenset[int] | None:
-        return self.channel_allowlist.ids
+    def report_channel_ids(self) -> frozenset[int] | None:
+        return self.report_channel_allowlist.ids
 
     @property
     def authorized_user_ids(self) -> frozenset[int] | None:

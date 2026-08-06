@@ -9,11 +9,9 @@ from arrest_report_agent.config import PackagedPersonaProvider
 from arrest_report_agent.infrastructure.discord.cog import (
     PENAL_CODE_URL,
     PROCEDURES_MANUAL_URL,
-    AllowedChannelAvailability,
     ReviewCog,
     build_help_embed,
     build_unauthorized_user_message,
-    build_wrong_channel_message,
     maintain_typing_indicator,
 )
 
@@ -44,7 +42,7 @@ class FakeTypingChannel:
 
 class UnexpectedReviewService:
     async def review(self, *_args, **_kwargs) -> None:
-        raise AssertionError("The agent runner must not execute for a wrong-channel redirect")
+        raise AssertionError("The agent runner must not execute in this test")
 
 
 class UnexpectedContextBuilder:
@@ -82,11 +80,13 @@ class FakeGuild:
         bot_member,
         channels: list[FakeAllowedChannel] | None = None,
         missing: bool = False,
+        foreign_channel_ids: set[int] | None = None,
     ) -> None:
         self.id = guild_id
         self.me = bot_member
         self.channels = {channel.id: channel for channel in channels or []}
         self.missing = missing
+        self.foreign_channel_ids = foreign_channel_ids or set()
         self.fetches: list[int] = []
 
     def get_channel(self, channel_id: int):
@@ -94,6 +94,8 @@ class FakeGuild:
 
     async def fetch_channel(self, channel_id: int):
         self.fetches.append(channel_id)
+        if channel_id in self.foreign_channel_ids:
+            raise discord.InvalidData("Guild ID resolved to a different guild")
         if self.missing:
             response = SimpleNamespace(status=404, reason="Not Found")
             raise discord.NotFound(response, "Unknown Channel")
@@ -130,7 +132,7 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention(persona) -> N
     embed = build_help_embed(
         persona=persona,
         bot_mention="<@999>",
-        channel_ids=frozenset({222, 111}),
+        report_channel_ids=frozenset({222, 111}),
         avatar_url="https://cdn.discordapp.com/avatar.png",
     )
 
@@ -138,7 +140,7 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention(persona) -> N
     assert persona.identity.display_name in embed.description
     assert [field.name for field in embed.fields] == [
         "📋 Qué reviso",
-        "📍 Dónde estoy de guardia",
+        "📍 Canales de reportes",
         "📣 Cómo solicitar una revisión",
         "🧵 Qué haré con el expediente",
         "🗂️ Consultas privadas",
@@ -167,10 +169,10 @@ def test_help_embed_describes_unrestricted_channel_scope(persona) -> None:
     embed = build_help_embed(
         persona=persona,
         bot_mention="<@999>",
-        channel_ids=None,
+        report_channel_ids=None,
     )
 
-    assert embed.fields[1].value == "• Todos los canales del servidor"
+    assert embed.fields[1].value == persona.messages.help.unrestricted_channels
 
 
 @pytest.mark.asyncio
@@ -181,11 +183,11 @@ async def test_help_and_command_descriptions_use_selected_persona(settings, pers
     embed = build_help_embed(
         persona=roy,
         bot_mention="<@999>",
-        channel_ids=None,
+        report_channel_ids=None,
     )
 
     assert embed.fields[0].name == "📋 las weas q reviso"
-    assert embed.fields[1].value == "• en todos los canales del server po"
+    assert embed.fields[1].value == roy.messages.help.unrestricted_channels
     assert cog.charge_search.description == roy.messages.interface.commands.charges_description
 
     ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
@@ -215,53 +217,6 @@ async def test_ready_synchronizes_profile_before_presence(settings, persona) -> 
     assert events == ["profile", "presence"]
 
 
-def test_wrong_channel_message_varies_copy_but_keeps_stable_format(persona) -> None:
-    messages = [
-        build_wrong_channel_message(
-            messages=persona.messages.access,
-            form_of_address=persona.identity.default_form_of_address,
-            channel_ids=(222, 111),
-            message_id=message_id,
-        )
-        for message_id in range(len(persona.messages.access.wrong_channel_intros))
-    ]
-
-    for intro, message in zip(
-        persona.messages.access.wrong_channel_intros,
-        messages,
-        strict=True,
-    ):
-        assert message == (
-            f"📍 **Fuera de mi zona de guardia, deputy.** {intro}\n"
-            "Puede encontrarme en <#111> o <#222>; mencióneme allí para continuar."
-        )
-
-
-@pytest.mark.parametrize(
-    ("availability", "expected"),
-    [
-        (AllowedChannelAvailability.HIDDEN, "No tiene acceso visible"),
-        (AllowedChannelAvailability.UNAVAILABLE, "ya no están disponibles"),
-        (AllowedChannelAvailability.UNCERTAIN, "No pude confirmar"),
-    ],
-)
-def test_wrong_channel_message_omits_references_when_no_destination_is_visible(
-    availability: AllowedChannelAvailability,
-    expected: str,
-    persona,
-) -> None:
-    message = build_wrong_channel_message(
-        messages=persona.messages.access,
-        form_of_address=persona.identity.default_form_of_address,
-        channel_ids=(),
-        message_id=1,
-        availability=availability,
-    )
-
-    assert expected in message
-    assert "<#" not in message
-
-
 def test_unauthorized_user_message_varies_copy_but_keeps_stable_format(persona) -> None:
     messages = [
         build_unauthorized_user_message(
@@ -284,72 +239,11 @@ def test_unauthorized_user_message_varies_copy_but_keeps_stable_format(persona) 
 
 
 @pytest.mark.asyncio
-async def test_wrong_channel_reply_to_bot_replies_once_without_running_agent(
+async def test_deleted_report_channels_are_omitted_and_cached(
     settings,
     persona,
     monkeypatch,
 ) -> None:
-    replies: list[dict[str, object]] = []
-
-    async def reply(**kwargs) -> None:
-        replies.append(kwargs)
-
-    bot = SimpleNamespace(
-        user=SimpleNamespace(
-            id=999,
-            display_avatar=SimpleNamespace(url="https://cdn.discordapp.com/bot.png"),
-        )
-    )
-    channels = [FakeAllowedChannel(channel_id) for channel_id in settings.allowed_channel_ids or ()]
-    guild = FakeGuild(
-        min(settings.discord_guild_ids or ()),
-        bot_member=bot.user,
-        channels=channels,
-    )
-    monkeypatch.setattr(
-        "arrest_report_agent.infrastructure.discord.cog.discord.TextChannel",
-        FakeAllowedChannel,
-    )
-    cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
-    message = SimpleNamespace(
-        id=42,
-        guild=guild,
-        author=SimpleNamespace(id=123, bot=False),
-        webhook_id=None,
-        channel=SimpleNamespace(id=555),
-        raw_mentions=[],
-        reference=SimpleNamespace(
-            type=discord.MessageReferenceType.default,
-            resolved=SimpleNamespace(author=SimpleNamespace(id=999)),
-            cached_message=None,
-        ),
-        reply=reply,
-    )
-
-    await cog.on_message(message)  # type: ignore[arg-type]
-    await cog.on_message(message)  # type: ignore[arg-type]
-
-    assert len(replies) == 1
-    assert replies[0]["mention_author"] is False
-    assert isinstance(replies[0]["allowed_mentions"], discord.AllowedMentions)
-    content = replies[0]["content"]
-    assert isinstance(content, str)
-    assert content.startswith("📍 **Fuera de mi zona de guardia, deputy.**")
-    for channel_id in settings.allowed_channel_ids or ():
-        assert f"<#{channel_id}>" in content
-
-
-@pytest.mark.asyncio
-async def test_deleted_allowed_channels_are_omitted_and_cached(
-    settings,
-    persona,
-    monkeypatch,
-) -> None:
-    replies: list[dict[str, object]] = []
-
-    async def reply(**kwargs) -> None:
-        replies.append(kwargs)
-
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     guild = FakeGuild(
         min(settings.discord_guild_ids or ()),
@@ -361,43 +255,141 @@ async def test_deleted_allowed_channels_are_omitted_and_cached(
         FakeAllowedChannel,
     )
     cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
-    message = SimpleNamespace(
-        id=43,
+    requester = SimpleNamespace(id=123)
+
+    first = await cog._resolve_report_channels(  # noqa: SLF001
         guild=guild,
-        author=SimpleNamespace(id=123, bot=False),
-        webhook_id=None,
-        channel=SimpleNamespace(id=555),
-        raw_mentions=[999],
-        reference=None,
-        reply=reply,
+        requester=requester,
+        channel_ids=settings.report_channel_ids or frozenset(),
+    )
+    second = await cog._resolve_report_channels(  # noqa: SLF001
+        guild=guild,
+        requester=requester,
+        channel_ids=settings.report_channel_ids or frozenset(),
     )
 
-    await cog.on_message(message)  # type: ignore[arg-type]
-    await cog.on_message(message)  # type: ignore[arg-type]
-
-    assert len(guild.fetches) == len(settings.allowed_channel_ids or ())
-    assert len(replies) == 1
-    content = replies[0]["content"]
-    assert isinstance(content, str)
-    assert "ya no están disponibles" in content
-    assert "<#" not in content
+    assert len(guild.fetches) == len(settings.report_channel_ids or ())
+    assert first == ()
+    assert second == ()
 
 
 @pytest.mark.asyncio
-async def test_hidden_allowed_channels_are_not_disclosed(
+async def test_report_channels_from_other_configured_guilds_are_ignored_and_cached(
     settings,
     persona,
     monkeypatch,
 ) -> None:
-    replies: list[dict[str, object]] = []
+    local_guild_id = 111
+    local_channel_id = 333
+    other_channel_id = 444
+    multi_guild_settings = settings.model_copy(
+        update={
+            "discord_guild_ids_csv": f"{local_guild_id},222",
+            "report_channel_ids_csv": f"{local_channel_id},{other_channel_id}",
+        }
+    )
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    guild = FakeGuild(
+        local_guild_id,
+        bot_member=bot.user,
+        channels=[FakeAllowedChannel(local_channel_id)],
+        foreign_channel_ids={other_channel_id},
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.cog.discord.TextChannel",
+        FakeAllowedChannel,
+    )
+    cog = ReviewCog(
+        bot,
+        multi_guild_settings,
+        UnexpectedReviewService(),
+        persona,
+    )  # type: ignore[arg-type]
+    requester = SimpleNamespace(id=123)
 
-    async def reply(**kwargs) -> None:
-        replies.append(kwargs)
+    first = await cog._resolve_report_channels(  # noqa: SLF001
+        guild=guild,
+        requester=requester,
+        channel_ids=multi_guild_settings.report_channel_ids or frozenset(),
+    )
+    second = await cog._resolve_report_channels(  # noqa: SLF001
+        guild=guild,
+        requester=requester,
+        channel_ids=multi_guild_settings.report_channel_ids or frozenset(),
+    )
 
+    assert guild.fetches == [other_channel_id]
+    assert first == (local_channel_id,)
+    assert second == (local_channel_id,)
+
+
+@pytest.mark.asyncio
+async def test_help_only_lists_report_channels_from_the_current_guild(
+    settings,
+    persona,
+    monkeypatch,
+) -> None:
+    responses: list[dict[str, object]] = []
+
+    async def respond(**kwargs) -> None:
+        responses.append(kwargs)
+
+    local_guild_id = 111
+    local_channel_id = 333
+    other_channel_id = 444
+    multi_guild_settings = settings.model_copy(
+        update={
+            "discord_guild_ids_csv": f"{local_guild_id},222",
+            "report_channel_ids_csv": f"{local_channel_id},{other_channel_id}",
+        }
+    )
+    bot_user = SimpleNamespace(
+        id=999,
+        mention="<@999>",
+        display_avatar=SimpleNamespace(url="https://cdn.discordapp.com/bot.png"),
+    )
+    bot = SimpleNamespace(user=bot_user)
+    guild = FakeGuild(
+        local_guild_id,
+        bot_member=bot_user,
+        channels=[FakeAllowedChannel(local_channel_id)],
+        foreign_channel_ids={other_channel_id},
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.cog.discord.TextChannel",
+        FakeAllowedChannel,
+    )
+    cog = ReviewCog(
+        bot,
+        multi_guild_settings,
+        UnexpectedReviewService(),
+        persona,
+    )  # type: ignore[arg-type]
+    ctx = SimpleNamespace(
+        guild=guild,
+        author=SimpleNamespace(id=123),
+        respond=respond,
+    )
+
+    await cog.review_help.callback(cog, ctx)  # type: ignore[arg-type]
+
+    assert len(responses) == 1
+    embed = responses[0]["embed"]
+    assert isinstance(embed, discord.Embed)
+    assert f"<#{local_channel_id}>" in embed.fields[1].value
+    assert f"<#{other_channel_id}>" not in embed.fields[1].value
+
+
+@pytest.mark.asyncio
+async def test_hidden_report_channels_are_not_disclosed(
+    settings,
+    persona,
+    monkeypatch,
+) -> None:
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     channels = [
         FakeAllowedChannel(channel_id, hidden_user_ids={123})
-        for channel_id in settings.allowed_channel_ids or ()
+        for channel_id in settings.report_channel_ids or ()
     ]
     guild = FakeGuild(
         min(settings.discord_guild_ids or ()),
@@ -409,23 +401,14 @@ async def test_hidden_allowed_channels_are_not_disclosed(
         FakeAllowedChannel,
     )
     cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
-    message = SimpleNamespace(
-        id=44,
+
+    visible_ids = await cog._resolve_report_channels(  # noqa: SLF001
         guild=guild,
-        author=SimpleNamespace(id=123, bot=False),
-        webhook_id=None,
-        channel=SimpleNamespace(id=555),
-        raw_mentions=[999],
-        reference=None,
-        reply=reply,
+        requester=SimpleNamespace(id=123),
+        channel_ids=settings.report_channel_ids or frozenset(),
     )
 
-    await cog.on_message(message)  # type: ignore[arg-type]
-
-    content = replies[0]["content"]
-    assert isinstance(content, str)
-    assert "No tiene acceso visible" in content
-    assert "<#" not in content
+    assert visible_ids == ()
 
 
 @pytest.mark.asyncio
@@ -444,7 +427,7 @@ async def test_unauthorized_mention_replies_once_without_context_or_agent(settin
         guild=SimpleNamespace(id=min(restricted.discord_guild_ids or ())),
         author=SimpleNamespace(id=123, bot=False),
         webhook_id=None,
-        channel=SimpleNamespace(id=min(restricted.allowed_channel_ids or ())),
+        channel=SimpleNamespace(id=555),
         raw_mentions=[999],
         reply=reply,
     )

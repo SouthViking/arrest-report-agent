@@ -65,7 +65,7 @@ class DiscordPersonalReportFinder:
         guild: discord.Guild,
         member: discord.Member,
     ) -> tuple[discord.TextChannel, ...]:
-        configured_ids = self.settings.channel_allowlist.ids
+        configured_ids = self.settings.report_channel_allowlist.ids
         if configured_ids is None:
             candidates = tuple(guild.text_channels)
         else:
