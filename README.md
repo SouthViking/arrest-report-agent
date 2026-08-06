@@ -166,6 +166,10 @@ son `assistant`; miembros, webhooks y otros bots permanecen como `user`. Cada ad
 turno de Discord donde fue publicado.
 Solo activa el estado y el dictamen de revisión cuando la intención y el material disponible lo
 justifican; si faltan antecedentes, los solicita mediante una respuesta normal.
+También puede consultar de forma explícita metadata pública acotada de miembros visibles en el
+servidor actual, sin enumerar la guild ni acceder a otros servidores.
+Cuando necesita ampliar contexto, puede leer ventanas acotadas de mensajes en canales visibles para
+el solicitante, usando un mensaje ancla, dirección, filtros y proyección seleccionados por el agente.
 
 Comandos disponibles:
 

@@ -13,7 +13,12 @@ from arrest_report_agent.domain import (
     ReviewPublication,
 )
 
-from .ports import ActivityTracker, ReviewPublisher
+from .ports import (
+    ActivityTracker,
+    GuildMemberDirectory,
+    GuildMessageDirectory,
+    ReviewPublisher,
+)
 
 
 @dataclass
@@ -22,6 +27,8 @@ class ReviewRunContext:
     publisher: ReviewPublisher
     attempt: int
     activity: ActivityTracker | None = None
+    member_directory: GuildMemberDirectory | None = None
+    message_directory: GuildMessageDirectory | None = None
     request_intent: RequestIntent | None = None
     has_revisable_material: bool = False
     agent_started: bool = False

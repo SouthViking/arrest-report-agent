@@ -21,11 +21,10 @@ from arrest_report_agent.domain import (
 from arrest_report_agent.domain.errors import ContextUnavailableError
 
 from .attachments import AttachmentInputKind, classify_attachment
+from .member_directory import compact_role_names
 from .trigger import TriggerActivation
 
-AUTHOR_ROLE_LIMIT = 8
-AUTHOR_ROLE_NAME_MAX_CHARS = 80
-AUTHOR_ROLES_TOTAL_MAX_CHARS = 320
+PARTICIPANT_REGISTRY_LIMIT = 10
 LOGGER = logging.getLogger(__name__)
 
 
@@ -188,7 +187,7 @@ class DiscordContextBuilder:
             trigger_message_id=target.trigger.id,
             requester_user_id=requester.id,
             requester_display_name=getattr(requester, "display_name", requester.name),
-            requester_role_names=_role_names(requester),
+            requester_role_names=compact_role_names(requester),
             interaction_mode=(
                 InteractionMode.THREAD_FOLLOW_UP
                 if isinstance(target.trigger.channel, discord.Thread)
@@ -228,7 +227,7 @@ class DiscordContextBuilder:
                     author_is_bot=message.author.bot,
                     author_is_assistant=_is_own_bot(message.author, self.bot),
                     author_role_names=(
-                        [] if message.author.bot else _role_names(message.author)
+                        [] if message.author.bot else compact_role_names(message.author)
                     ),
                     content=content,
                     created_at=message.created_at,
@@ -454,12 +453,19 @@ def _render_operational_context(case: ReviewCase) -> str:
         "Atiende la solicitud actual dentro de tu ámbito usando el contexto disponible.",
         f"Modo: {case.interaction_mode.value}",
         _discord_environment(case),
+        (
+            f"Canales consultables: actual={case.channel_id}; padre={case.parent_channel_id}; "
+            f"hilo={case.thread_id if case.thread_id is not None else 'none'}"
+        ),
         f"Estado del contexto: {case.context_state.value}",
     ]
     if case.requester_display_name:
         lines.append(f"Solicitante: {case.requester_display_name}")
     if case.requester_role_names:
         lines.append("Roles del solicitante: " + ", ".join(case.requester_role_names))
+    participant_registry = _participant_registry(case)
+    if participant_registry:
+        lines.append("Participantes consultables (user_id=nombre): " + participant_registry)
     participant_roles = _other_participant_roles(case)
     if participant_roles:
         lines.append("Otros participantes y roles: " + " | ".join(participant_roles))
@@ -687,44 +693,26 @@ def _message_context_text(message: discord.Message) -> str:
     return "\n\n".join(parts)
 
 
-def _role_names(author: discord.abc.User) -> list[str]:
-    """Return a small hierarchy-ordered role summary without exposing role IDs."""
+def _participant_registry(case: ReviewCase) -> str:
+    """Expose each visible participant ID once so member tools can resolve it."""
 
-    candidates: list[tuple[int, int, str]] = []
-    for role in getattr(author, "roles", ()):
-        name = " ".join(str(getattr(role, "name", "")).split())
-        is_default = getattr(role, "is_default", None)
-        if (
-            not name
-            or name == "@everyone"
-            or bool(getattr(role, "managed", False))
-            or (callable(is_default) and is_default())
-        ):
-            continue
-        candidates.append(
-            (
-                int(getattr(role, "position", 0)),
-                int(getattr(role, "id", 0)),
-                name[:AUTHOR_ROLE_NAME_MAX_CHARS],
-            )
-        )
+    participants: list[str] = []
+    seen_ids: set[int] = set()
 
-    names: list[str] = []
-    seen: set[str] = set()
-    total_chars = 0
-    for _, _, name in sorted(candidates, reverse=True):
-        normalized = name.casefold()
-        if normalized in seen:
+    def add(user_id: int, display_name: str | None) -> None:
+        if user_id in seen_ids or not display_name or len(participants) >= PARTICIPANT_REGISTRY_LIMIT:
+            return
+        seen_ids.add(user_id)
+        compact_name = " ".join(display_name.split())[:100]
+        if compact_name:
+            participants.append(f"{user_id}={compact_name}")
+
+    add(case.requester_user_id, case.requester_display_name)
+    for message in reversed(case.messages):
+        if message.author_is_assistant:
             continue
-        separator_chars = 2 if names else 0
-        if total_chars + separator_chars + len(name) > AUTHOR_ROLES_TOTAL_MAX_CHARS:
-            break
-        seen.add(normalized)
-        names.append(name)
-        total_chars += separator_chars + len(name)
-        if len(names) == AUTHOR_ROLE_LIMIT:
-            break
-    return names
+        add(message.author_id, message.author_display)
+    return " | ".join(participants)
 
 
 def _other_participant_roles(case: ReviewCase) -> list[str]:

@@ -10,8 +10,17 @@ determinísticamente una revisión antes de invocar al agente principal.
 
 Si la solicitud está dentro de alcance o es ambigua, el agente principal recibe el texto acotado del
 reporte/hilo, las imágenes y documentos seleccionados, los nombres visibles de sus participantes y
-hasta ocho nombres de roles relevantes por persona. No envía IDs de roles. Los datos se usan para
-responder dentro del ámbito o emitir el veredicto solicitado mediante mención explícita.
+hasta ocho nombres de roles relevantes por persona. También recibe un registro acotado con los IDs
+de hasta diez participantes visibles para poder consultar su metadata mediante `get_guild_members`.
+No envía IDs de roles. La tool queda fijada a la guild de la conversación, admite como máximo diez
+IDs y devuelve solo la proyección solicitada; no permite enumerar miembros ni seleccionar otra
+guild. Los datos se usan para responder dentro del ámbito o emitir el veredicto solicitado mediante
+mención explícita.
+
+`get_messages` puede leer una ventana máxima de veinte mensajes en otro canal de la misma guild solo
+si el solicitante también posee `view_channel` y `read_message_history`. El agente puede seleccionar
+canal, ancla, dirección, filtros y proyección, pero no la guild. Los adjuntos recuperados exponen
+metadata sin URL ni contenido, y los hilos privados ajenos al contexto actual se rechazan.
 
 Los IDs de `REVIEW_ESCALATION_ROLE_IDS` tampoco se entregan al modelo. Discord los resuelve y limita
 de forma determinista únicamente cuando corresponde publicar una derivación.

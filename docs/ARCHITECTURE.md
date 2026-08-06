@@ -136,6 +136,13 @@ El nickname es opcional y `null` significa que no se administra por guild.
   resultados compactos. Permite exigir todos/cualquiera de los términos y tolerar typos de forma
   explícita; no acepta expresiones regulares.
 - `get_charge_details(charge_ids)`: devuelve hasta diez delitos por ID único.
+- `get_guild_members(user_ids, fields)`: consulta uno a diez miembros exclusivamente dentro de la
+  guild de la conversación. Proyecta los campos solicitados y usa nombre visible y roles por
+  defecto; no admite un `guild_id` ni permite enumerar miembros.
+- `get_messages(channel_id, message_id, direction, limit, author_ids, author_type, has_attachments,
+  fields)`: lee hasta veinte mensajes de un canal o hilo elegido dentro de la guild actual. Admite
+  lectura exacta, anterior, posterior, alrededor de un ancla o de los mensajes más recientes, con
+  filtros y proyección; verifica que el solicitante pueda ver el historial antes de leerlo.
 - `send_message(content, response_route)`: mensaje intermedio reutilizable con Markdown de Discord,
   enlaces y emojis moderados; ejecuta el envío de inmediato, pero permite que el agente continúe.
 - `finish_interaction(content, response_route)`: envía la respuesta conversacional final y termina
@@ -211,6 +218,8 @@ No se usan sesiones ni persistencia del SDK. Cada mención reconstruye un input 
 - solicitud actual;
 - nombre visible del solicitante y hasta ocho nombres de roles no administrados por participante,
   ordenados por jerarquía y presentados en líneas compactas, sin IDs de roles;
+- un registro acotado `user_id=nombre` de participantes visibles para alimentar consultas explícitas
+  de metadata sin repetir IDs en cada mensaje;
 - imágenes y documentos del mensaje actual;
 - adjuntos del reporte raíz y una cantidad acotada de imágenes y archivos históricos recientes.
 
@@ -228,6 +237,16 @@ del mismo canal. `CHANNEL_CONTEXT_MAX_MESSAGES` permite ajustar el límite o des
 Estos turnos se etiquetan como contexto ambiental para resolver referencias conversacionales, no se
 consideran parte del expediente actual y sus adjuntos no se envían al runner. El modelo recibe solo
 una descripción compacta con cantidad, tipo y nombres de archivo, sin contenido ni URLs.
+
+`get_guild_members` recibe hasta diez IDs y proyecta únicamente los campos solicitados. El adaptador
+usa siempre `ReviewCase.guild_id`, consulta primero la caché de Pycord y recurre a `fetch_member`
+solo ante misses; el modelo no puede seleccionar otra guild ni enumerar el directorio completo.
+
+`get_messages` también queda fijada a `ReviewCase.guild_id`, pero permite al agente escoger un canal
+o hilo, mensaje ancla y ventana. El adaptador verifica pertenencia a la guild, permisos de
+`view_channel` y `read_message_history` del solicitante, y no permite saltar desde otro canal hacia
+un hilo privado. Los adjuntos se describen sin URL ni contenido y el texto total de la respuesta se
+acota antes de volver al modelo.
 
 Los límites de mensajes, caracteres, imágenes, archivos y tamaño combinado se aplican antes del
 runner. El reporte raíz y la solicitud actual se protegen al recortar; el resto conserva los

@@ -81,6 +81,8 @@ def test_render_includes_every_selected_character_and_report_image() -> None:
     assert {image["image_url"] for image in images} == {attachment.url for attachment in attachments}
     assert "Solicitante: Teniente Charles Harrington" in text
     assert "Roles del solicitante: Teniente, GNT" in text
+    assert "Participantes consultables (user_id=nombre): 20=Teniente Charles Harrington" in text
+    assert "Canales consultables: actual=2; padre=2; hilo=none" in text
     assert "Atiende la solicitud actual" in text
     assert "una revisión se publicará en hilo" in text
     assert "elige reply o hilo" in text
@@ -158,6 +160,9 @@ def test_render_includes_roles_of_other_human_participants_once() -> None:
         "Otros participantes y roles: Sargento Gómez: Sergeant, GNT | "
         "Teniente Rivera: Lieutenant, DLM"
     ) in trigger_text
+    assert "20=Deputy Torres" in trigger_text
+    assert "30=Sargento Gómez" in trigger_text
+    assert "40=Teniente Rivera" in trigger_text
     assert trigger_text.count("Sargento Gómez: Sergeant, GNT") == 1
     assert "Bot externo: Integración" not in trigger_text
 

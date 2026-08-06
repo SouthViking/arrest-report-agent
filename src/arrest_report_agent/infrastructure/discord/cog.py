@@ -33,6 +33,8 @@ from .general_knowledge import (
     FaqNavigationView,
     GuideNavigationView,
 )
+from .member_directory import DiscordGuildMemberDirectory
+from .message_directory import DiscordGuildMessageDirectory
 from .personal_reports import (
     DiscordPersonalReportFinder,
     PersonalReportsModal,
@@ -200,6 +202,8 @@ class ReviewCog(commands.Cog):
         self.access_policy = DiscordAccessPolicy.from_settings(settings)
         self.supervisor_policy = SupervisorRolePolicy.from_settings(settings)
         self.context_builder = DiscordContextBuilder(settings, persona, bot)
+        self.member_directory = DiscordGuildMemberDirectory(bot)
+        self.message_directory = DiscordGuildMessageDirectory(bot)
         self.personal_report_finder = DiscordPersonalReportFinder(bot, settings)
         self.presence = ReviewPresence(
             bot,
@@ -341,6 +345,8 @@ class ReviewCog(commands.Cog):
                     publisher=publisher,
                     attempt=attempt,
                     activity=activity,
+                    member_directory=self.member_directory,
+                    message_directory=self.message_directory,
                 )
                 agent_input = render_agent_input(
                     case,
