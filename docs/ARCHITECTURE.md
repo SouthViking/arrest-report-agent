@@ -156,6 +156,12 @@ El contrato de `ReviewPublication` trata la comparación de cargos como diagnós
 inmutable. `corrections_required` exige al menos un hallazgo `required` sobre una deficiencia
 corregible del reporte y nunca puede justificarse únicamente por el cargo.
 
+Antes de esa comparación, el prompt y la guía tratan `Búsqueda de arrestos` como un historial del
+personaje. El agente valida el nombre del título y selecciona solo filas de la fecha narrada o de una
+fecha inmediatamente próxima compatible con la tramitación; diferencias de horas y cruces de
+medianoche no son contradicciones por sí solos. Las filas antiguas se excluyen antes de evaluar los
+cargos.
+
 ## Lifecycle del agente
 
 `ReviewLifecycleHooks` recibe `on_agent_start` después del guardrail bloqueante. Si el preflight

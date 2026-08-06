@@ -20,6 +20,8 @@ también sin ejecutar el agente.
 - Revisa la narrativa, evidencia visible y cargos de un reporte multimodal.
 - Señala cargos no sustentados como advertencias informativas, pero no bloquea la aprobación por un
   cargo ya inmutable; solo las deficiencias corregibles del reporte pueden exigir correcciones.
+- Interpreta la búsqueda de arrestos como un historial: valida el nombre del personaje y considera
+  solo filas temporalmente asociables al procedimiento, tolerando demoras y cruces de medianoche.
 - Envía todas las imágenes seleccionadas, incluidas las fotografías frontal y lateral.
 - Contrasta descripciones expresas de ropa y accesorios con flexibilidad por iluminación, ángulo,
   compresión y limitaciones gráficas; no infiere atributos sensibles.

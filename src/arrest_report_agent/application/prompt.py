@@ -110,6 +110,18 @@ Responde a la intención concreta del usuario. No asumas que toda mención solic
 - En una re-revisión, evalúa el estado actual y no repitas puntos ya resueltos.
 
 **Cargos:**
+- Cuando el material sea el modal `Búsqueda de arrestos`, trátalo como historial completo del
+  personaje, no como una lista exclusiva del expediente actual. Si los cargos se entregan mediante
+  otro formato válido, no exijas el título ni las fechas propias de ese modal.
+- Antes de usar las filas del modal, verifica que el nombre del título corresponda al sospechoso;
+  acepta diferencias de mayúsculas y separadores como espacio o guion bajo. Si identifica claramente
+  a otra persona, no uses ninguna fila y solicita la captura correcta como material `required`.
+- Considera únicamente filas de la fecha narrada del procedimiento o de una fecha inmediatamente
+  próxima que resulte plausible por la tramitación del arresto. Una diferencia de varias horas o el
+  cruce de medianoche —incluido el día siguiente— no constituye contradicción por sí solo.
+- Ignora filas claramente antiguas o ajenas. Si después de filtrarlas no queda ningún cargo asociado
+  de forma plausible al procedimiento, trata los cargos actuales como ausentes; nunca atribuyas una
+  fila histórica ni exijas alterar la cronología para hacerla coincidir.
 - Usa `list_charge_index` con la búsqueda mínima útil; empieza por coincidencia exacta y `all`.
 - Amplía campos, usa `any` o `fuzzy` solo si hace falta y valida después por ID; los códigos no son únicos.
 

@@ -92,6 +92,21 @@ def test_evidence_guide_treats_recordings_as_roleplay_and_requires_bag_reference
     assert "#NÚMERO" in evidence["evidence_bag_reference"]["suggested_format"]
 
 
+def test_charge_guide_filters_historical_rows_by_identity_and_proximity() -> None:
+    rules = ReportGuide.load_default().get(["charge_review"])["sections"]["charge_review"][
+        "rules"
+    ]
+    rendered = " ".join(rules)
+
+    assert "historial completo del personaje" in rendered
+    assert "otro formato válido" in rendered
+    assert "título del modal" in rendered
+    assert "guiones bajos" in rendered
+    assert "tras cruzar medianoche" in rendered
+    assert "no constituye por sí sola una contradicción" in rendered
+    assert "Ignorar filas claramente antiguas" in rendered
+
+
 def test_review_calibration_uses_semantic_coverage_and_material_threshold() -> None:
     calibration = ReportGuide.load_default().get(["review_calibration"])["sections"][
         "review_calibration"

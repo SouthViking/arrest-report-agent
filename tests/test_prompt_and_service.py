@@ -67,6 +67,13 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "Evalúa cobertura semántica, no cantidad de archivos" in prompt
     assert "narrativa vigente" in prompt
     assert "cargos\n  declarados" in prompt
+    assert "historial completo del\n  personaje" in prompt
+    assert "otro formato válido" in prompt
+    assert "no exijas el título ni las fechas" in prompt
+    assert "espacio o guion bajo" in prompt
+    assert "cruce de medianoche" in prompt
+    assert "no constituye contradicción por sí solo" in prompt
+    assert "Ignora filas claramente antiguas o ajenas" in prompt
     assert "Toda falta verificable de ortografía" in prompt
     assert "agrupa errores del mismo tipo" in prompt
     assert "No bloquees por preferencias de formato" in prompt

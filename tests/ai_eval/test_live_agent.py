@@ -262,6 +262,126 @@ Revisa la coherencia del cargo con los hechos narrados.""",
     assert any(charge.alignment == "unsupported" for charge in publication.charges)
 
 
+async def test_accepts_adjacent_booking_date_without_false_chronology_error(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            """Solicito la revisión de este expediente transcrito. Las fotografías reglamentarias
+están presentes y son legibles.
+
+Yo, ayudante Elena Torres, bajo la asignación 241W, respondí a un almacén de Jefferson el
+03/08/2026, aproximadamente a las 12:00. En el interior observé a Maikel Santana preparando y
+separando una sustancia controlada en varios envoltorios. Tras identificarme, Santana se entregó
+sin resistencia. Incauté los envoltorios, utensilios y dinero asociado; todo quedó registrado en la
+bolsa de evidencia #4829100. Arresté a Maikel Santana y lo trasladé a la estación de Ganton.
+
+Búsqueda de arrestos: Maikel_Santana
+2026-08-04 01:49:18 — Posesión de una sustancia controlada distinta de la marihuana
+2026-08-04 01:49:18 — Posesión de una sustancia controlada con intención de venderla
+2026-08-04 01:49:18 — Fabricación de una sustancia controlada
+
+Revisa la narrativa y los cargos.""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+
+    assert publication.verdict is ReviewVerdict.APPROVED
+    assert not any(
+        finding.severity.value == "required"
+        and any(
+            term in f"{finding.title} {finding.detail}".lower()
+            for term in ("cronolog", "fecha", "hora")
+        )
+        for finding in publication.findings
+    )
+
+
+async def test_requires_correct_charge_history_when_modal_names_another_character(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            """Solicito la revisión de este expediente transcrito. Las fotografías reglamentarias
+están presentes y son legibles.
+
+Yo, ayudante Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las 20:10
+cuando observé un Sultan negro circulando sin luces. Le ordené detenerse mediante luces y sirena.
+El conductor se detuvo en Forum Drive, pero volvió a encender el vehículo y huyó cuando me acerqué.
+Inicié una persecución que duró ocho minutos y terminó en Idlewood, donde el vehículo quedó
+inmovilizado contra una barrera. Identifiqué al conductor como Maikel Santana, lo arresté sin
+lesiones y lo trasladé a la estación de Ganton. No se recolectó evidencia física.
+
+Búsqueda de arrestos: Daniel_Vega
+2026-08-05 21:02:00 — Evadir a un oficial de la paz
+
+Revisa la narrativa y los cargos.""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+
+    assert publication.verdict is ReviewVerdict.CORRECTIONS_REQUIRED
+    assert any(
+        finding.severity.value == "required"
+        and any(
+            term
+            in (
+                f"{finding.title} {finding.detail} {finding.recommendation} "
+                f"{finding.evidence or ''}"
+            ).lower()
+            for term in (
+                "nombre",
+                "personaje",
+                "sospechoso",
+                "captura",
+                "modal",
+                "listado",
+                "daniel",
+                "maikel",
+            )
+        )
+        for finding in publication.findings
+    )
+
+
+async def test_ignores_old_rows_from_the_character_charge_history(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            """Solicito la revisión de este expediente transcrito. Las fotografías reglamentarias
+están presentes y son legibles.
+
+Yo, ayudante Elena Torres, bajo la asignación 241W y acompañada por el ayudante Marco Ruiz,
+patrullaba Jefferson el 05/08/2026 a las 22:15. Observamos un Sultan negro circulando sin luces y le
+ordenamos detenerse mediante luces y sirena. El conductor se detuvo en Forum Drive, pero volvió a
+encender el vehículo y huyó cuando me acerqué. Iniciamos una persecución que duró ocho minutos y
+terminó en Idlewood, donde el vehículo quedó inmovilizado contra una barrera. Identificamos al
+conductor como Daniel Vega, lo arrestamos sin lesiones y lo trasladamos a la estación de Ganton. No
+se recolectó evidencia física.
+
+Búsqueda de arrestos: Daniel_Vega
+2026-08-05 22:30:00 — Evadir a un oficial de la paz
+2026-06-10 18:20:00 — Fabricación de una sustancia controlada
+
+Revisa la narrativa y los cargos del procedimiento actual.""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+
+    assert publication.verdict is ReviewVerdict.APPROVED
+    assert not any("fabricación" in charge.declared_charge.lower() for charge in publication.charges)
+
+
 async def test_answers_manual_question_without_publishing_a_review(
     ai_eval_settings: AppSettings,
 ) -> None:
