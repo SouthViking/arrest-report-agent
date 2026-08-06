@@ -4,12 +4,14 @@ import json
 from datetime import UTC, datetime
 
 import pytest
+from agents import ToolOutputFileContent, ToolOutputImage, ToolOutputText
 from agents.tool_context import ToolContext
 
 from arrest_report_agent.application.ports import (
     GuildMemberLookupResult,
     GuildMemberProfile,
     GuildMessageProfile,
+    MessageAttachmentLookupResult,
     MessageAttachmentProfile,
     MessageLookupQuery,
     MessageLookupResult,
@@ -20,6 +22,7 @@ from arrest_report_agent.application.tools import build_agent_tools
 from arrest_report_agent.domain import (
     AgentActivity,
     ConversationResponseRoute,
+    DiscordAttachment,
     InteractionMode,
     ReviewCase,
     ReviewVerdict,
@@ -76,9 +79,17 @@ class FakeMemberDirectory:
 
 
 class FakeMessageDirectory:
-    def __init__(self, result: MessageLookupResult) -> None:
+    def __init__(
+        self,
+        result: MessageLookupResult,
+        attachment_result: MessageAttachmentLookupResult | None = None,
+    ) -> None:
         self.result = result
+        self.attachment_result = attachment_result or MessageAttachmentLookupResult(
+            attachments=()
+        )
         self.calls: list[tuple[int, int, int, MessageLookupQuery]] = []
+        self.attachment_calls: list[tuple[int, int, int, int, int, tuple[int, ...]]] = []
 
     async def lookup_messages(
         self,
@@ -89,6 +100,27 @@ class FakeMessageDirectory:
     ) -> MessageLookupResult:
         self.calls.append((guild_id, requester_user_id, current_channel_id, query))
         return self.result
+
+    async def lookup_message_attachments(
+        self,
+        guild_id: int,
+        requester_user_id: int,
+        current_channel_id: int,
+        channel_id: int,
+        message_id: int,
+        attachment_ids: tuple[int, ...],
+    ) -> MessageAttachmentLookupResult:
+        self.attachment_calls.append(
+            (
+                guild_id,
+                requester_user_id,
+                current_channel_id,
+                channel_id,
+                message_id,
+                attachment_ids,
+            )
+        )
+        return self.attachment_result
 
 
 def test_conversation_tools_only_expose_safe_response_routes() -> None:
@@ -282,6 +314,273 @@ def test_message_tool_exposes_selection_filters_without_guild_argument() -> None
     assert properties["limit"]["maximum"] == 20
 
 
+def test_attachment_tool_exposes_only_message_scoped_selection() -> None:
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+        )
+    }
+    schema = tools["get_message_attachments"].params_json_schema
+    properties = schema["properties"]
+
+    assert set(properties) == {"message_id", "channel_id", "attachment_ids"}
+    assert "guild_id" not in properties
+    assert "url" not in properties
+    attachment_list = properties["attachment_ids"]["anyOf"][0]
+    assert attachment_list["minItems"] == 1
+    assert attachment_list["maxItems"] == 10
+
+
+@pytest.mark.asyncio
+async def test_attachment_tool_loads_omitted_native_inputs_with_run_scope() -> None:
+    guild_id = 98765432109876543
+    current_channel_id = 11111111111111111
+    selected_channel_id = 22222222222222222
+    requester_id = 33333333333333333
+    message_id = 44444444444444444
+    loaded_image_id = 55555555555555555
+    omitted_image_id = 66666666666666666
+    omitted_file_id = 77777777777777777
+    available = (
+        MessageAttachmentProfile(
+            id=loaded_image_id,
+            filename="frontal.png",
+            url="https://cdn.discord.test/frontal.png",
+            content_type="image/png",
+            size=1000,
+            width=800,
+            height=600,
+            input_kind="image",
+        ),
+        MessageAttachmentProfile(
+            id=omitted_image_id,
+            filename="cargos.png",
+            url="https://cdn.discord.test/cargos.png",
+            content_type="image/png",
+            size=2000,
+            width=1200,
+            height=700,
+            input_kind="image",
+        ),
+        MessageAttachmentProfile(
+            id=omitted_file_id,
+            filename="narrativa.txt",
+            url="https://cdn.discord.test/narrativa.txt",
+            content_type="text/plain",
+            size=3000,
+            width=None,
+            height=None,
+            input_kind="file",
+        ),
+    )
+    directory = FakeMessageDirectory(
+        MessageLookupResult(messages=()),
+        MessageAttachmentLookupResult(attachments=available),
+    )
+    case = ReviewCase(
+        guild_id=guild_id,
+        parent_channel_id=current_channel_id,
+        channel_id=current_channel_id,
+        root_message_id=message_id,
+        trigger_message_id=message_id,
+        requester_user_id=requester_id,
+        interaction_mode=InteractionMode.INITIAL_REVIEW,
+        messages=[],
+        attachments=[
+            DiscordAttachment(
+                id=loaded_image_id,
+                message_id=message_id,
+                filename="frontal.png",
+                url="https://cdn.discord.test/frontal.png",
+                content_type="image/png",
+                size=1000,
+                width=800,
+                height=600,
+                input_kind="image",
+            )
+        ],
+    )
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=FakePublisher(),
+        attempt=1,
+        message_directory=directory,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+            image_detail="original",
+        )
+    }
+    arguments = json.dumps(
+        {
+            "message_id": str(message_id),
+            "channel_id": str(selected_channel_id),
+            "attachment_ids": [
+                str(loaded_image_id),
+                str(omitted_image_id),
+                str(omitted_file_id),
+            ],
+        }
+    )
+
+    result = await tools["get_message_attachments"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="get_message_attachments",
+            tool_call_id="call-attachments",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert directory.attachment_calls == [
+        (
+            guild_id,
+            requester_id,
+            current_channel_id,
+            selected_channel_id,
+            message_id,
+            (loaded_image_id, omitted_image_id, omitted_file_id),
+        )
+    ]
+    assert isinstance(result, list)
+    assert [type(output) for output in result] == [
+        ToolOutputText,
+        ToolOutputImage,
+        ToolOutputFileContent,
+    ]
+    metadata = json.loads(result[0].text)
+    assert metadata["loaded"] == [
+        {
+            "attachment_id": str(omitted_image_id),
+            "filename": "cargos.png",
+            "kind": "image",
+            "size": 2000,
+        },
+        {
+            "attachment_id": str(omitted_file_id),
+            "filename": "narrativa.txt",
+            "kind": "file",
+            "size": 3000,
+        },
+    ]
+    assert metadata["skipped"] == [
+        {
+            "attachment_id": str(loaded_image_id),
+            "filename": "frontal.png",
+            "kind": "image",
+            "size": 1000,
+            "reason": "already_loaded",
+        }
+    ]
+    assert result[1].image_url == "https://cdn.discord.test/cargos.png"
+    assert result[1].detail == "auto"
+    assert result[2].file_url == "https://cdn.discord.test/narrativa.txt"
+    assert result[2].filename == "narrativa.txt"
+    assert run_context.loaded_attachment_ids == {
+        loaded_image_id,
+        omitted_image_id,
+        omitted_file_id,
+    }
+    assert run_context.loaded_image_count == 2
+    assert run_context.loaded_file_count == 1
+    assert run_context.loaded_file_bytes == 3000
+
+
+@pytest.mark.asyncio
+async def test_attachment_tool_enforces_limits_and_reports_missing_ids() -> None:
+    message_id = 44444444444444444
+    image_id = 55555555555555555
+    file_id = 66666666666666666
+    missing_id = 77777777777777777
+    directory = FakeMessageDirectory(
+        MessageLookupResult(messages=()),
+        MessageAttachmentLookupResult(
+            attachments=(
+                MessageAttachmentProfile(
+                    id=image_id,
+                    filename="oversized.png",
+                    url="https://cdn.discord.test/oversized.png",
+                    content_type="image/png",
+                    size=2001,
+                    width=800,
+                    height=600,
+                    input_kind="image",
+                ),
+                MessageAttachmentProfile(
+                    id=file_id,
+                    filename="unsupported.zip",
+                    url="https://cdn.discord.test/unsupported.zip",
+                    content_type="application/zip",
+                    size=100,
+                    width=None,
+                    height=None,
+                    input_kind=None,
+                ),
+            ),
+            missing_ids=(missing_id,),
+        ),
+    )
+    case = ReviewCase(
+        guild_id=98765432109876543,
+        parent_channel_id=11111111111111111,
+        channel_id=11111111111111111,
+        root_message_id=message_id,
+        trigger_message_id=message_id,
+        requester_user_id=33333333333333333,
+        interaction_mode=InteractionMode.INITIAL_REVIEW,
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=FakePublisher(),
+        attempt=1,
+        message_directory=directory,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+            max_image_bytes=2000,
+        )
+    }
+    arguments = json.dumps(
+        {
+            "message_id": str(message_id),
+            "channel_id": None,
+            "attachment_ids": [str(image_id), str(file_id), str(missing_id)],
+        }
+    )
+
+    result = await tools["get_message_attachments"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="get_message_attachments",
+            tool_call_id="call-attachments-limited",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert isinstance(result[0], ToolOutputText)
+    metadata = json.loads(result[0].text)
+    assert metadata["loaded"] == []
+    assert [item["reason"] for item in metadata["skipped"]] == [
+        "image_too_large",
+        "unsupported_type",
+        "not_found_in_message",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_message_tool_uses_run_scope_and_projects_results() -> None:
     guild_id = 98765432109876543
@@ -307,10 +606,12 @@ async def test_message_tool_uses_run_scope_and_projects_results() -> None:
             MessageAttachmentProfile(
                 id=77777777777777777,
                 filename="evidencia.png",
+                url="https://cdn.discord.test/evidencia.png",
                 content_type="image/png",
                 size=1234,
                 width=800,
                 height=600,
+                input_kind="image",
             ),
         ),
         reactions=(

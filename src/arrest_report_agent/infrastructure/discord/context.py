@@ -409,10 +409,14 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
             )
             orphan_rendered = True
 
-        text = _render_discord_message(message, case)
+        message_attachments = attachments_by_message.get(message.id, [])
+        text = _render_discord_message(
+            message,
+            case,
+            loaded_attachment_count=len(message_attachments),
+        )
         if message.is_trigger:
             text = _render_operational_context(case) + "\n\n" + text
-        message_attachments = attachments_by_message.get(message.id, [])
         if message.author_is_assistant:
             content: list[dict[str, Any]] = [
                 {"type": "output_text", "text": text, "annotations": []}
@@ -479,7 +483,12 @@ def _render_operational_context(case: ReviewCase) -> str:
     return "\n".join(lines)
 
 
-def _render_discord_message(message: ConversationMessage, case: ReviewCase) -> str:
+def _render_discord_message(
+    message: ConversationMessage,
+    case: ReviewCase,
+    *,
+    loaded_attachment_count: int,
+) -> str:
     flags: list[str] = []
     if message.id == case.root_message_id:
         flags.append("REPORTE_RAIZ")
@@ -505,7 +514,15 @@ def _render_discord_message(message: ConversationMessage, case: ReviewCase) -> s
         lines.append(reply)
     lines.append(message.content or "[sin texto]")
     if message.attachment_ids:
-        lines.append(f"Adjuntos recibidos: {len(message.attachment_ids)}")
+        total_attachments = len(message.attachment_ids)
+        lines.append(
+            f"Adjuntos cargados en contexto: {loaded_attachment_count}/{total_attachments}"
+        )
+        if loaded_attachment_count < total_attachments:
+            lines.append(
+                "Hay adjuntos omitidos: recupéralos con get_message_attachments usando este "
+                "message_id antes de concluir que falta material."
+            )
     if message.ambient_attachment_summary:
         lines.append(
             "Adjuntos del contexto ambiental (contenido y URL omitidos): "

@@ -8,6 +8,7 @@ import discord
 
 from arrest_report_agent.application.ports import (
     GuildMessageProfile,
+    MessageAttachmentLookupResult,
     MessageAttachmentProfile,
     MessageLookupQuery,
     MessageLookupResult,
@@ -15,6 +16,7 @@ from arrest_report_agent.application.ports import (
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
 
+from .attachments import classify_attachment
 from .member_directory import compact_role_names
 
 MAX_HISTORY_SCAN = 50
@@ -93,6 +95,57 @@ class DiscordGuildMessageDirectory:
         return MessageLookupResult(
             messages=profiles,
             truncated=any(profile.truncated for profile in profiles),
+        )
+
+    async def lookup_message_attachments(
+        self,
+        guild_id: int,
+        requester_user_id: int,
+        current_channel_id: int,
+        channel_id: int,
+        message_id: int,
+        attachment_ids: tuple[int, ...],
+    ) -> MessageAttachmentLookupResult:
+        """Fetch fresh attachment URLs through the same permission boundary as message reads."""
+
+        lookup = await self.lookup_messages(
+            guild_id=guild_id,
+            requester_user_id=requester_user_id,
+            current_channel_id=current_channel_id,
+            query=MessageLookupQuery(
+                channel_id=channel_id,
+                message_id=message_id,
+                direction="exact",
+                limit=1,
+                author_ids=(),
+                author_type="any",
+                has_attachments=None,
+            ),
+        )
+        if lookup.error is not None:
+            return MessageAttachmentLookupResult(
+                attachments=(),
+                error=lookup.error,
+            )
+        if not lookup.messages:
+            return MessageAttachmentLookupResult(
+                attachments=(),
+                error="message_not_found",
+            )
+
+        available = {attachment.id: attachment for attachment in lookup.messages[0].attachments}
+        selected_ids = attachment_ids or tuple(available)
+        return MessageAttachmentLookupResult(
+            attachments=tuple(
+                available[attachment_id]
+                for attachment_id in selected_ids
+                if attachment_id in available
+            ),
+            missing_ids=tuple(
+                attachment_id
+                for attachment_id in selected_ids
+                if attachment_id not in available
+            ),
         )
 
     async def _read_window(
@@ -196,14 +249,7 @@ def _chronological(messages: list[discord.Message]) -> list[discord.Message]:
 def _message_profile(message: discord.Message) -> GuildMessageProfile:
     embeds = tuple(_compact_embed(embed) for embed in message.embeds[:MAX_EMBEDS_PER_MESSAGE])
     attachments = tuple(
-        MessageAttachmentProfile(
-            id=attachment.id,
-            filename=attachment.filename,
-            content_type=attachment.content_type,
-            size=attachment.size,
-            width=attachment.width,
-            height=attachment.height,
-        )
+        _attachment_profile(attachment)
         for attachment in message.attachments[:MAX_ATTACHMENTS_PER_MESSAGE]
     )
     reactions = tuple(
@@ -236,6 +282,23 @@ def _message_profile(message: discord.Message) -> GuildMessageProfile:
             or len(message.reactions) > MAX_REACTIONS_PER_MESSAGE
             or any(len(text) >= MAX_EMBED_TEXT_CHARS for text in embeds)
         ),
+    )
+
+
+def _attachment_profile(attachment: discord.Attachment) -> MessageAttachmentProfile:
+    input_kind, content_type = classify_attachment(
+        attachment.filename,
+        attachment.content_type,
+    )
+    return MessageAttachmentProfile(
+        id=attachment.id,
+        filename=attachment.filename,
+        url=attachment.url,
+        content_type=content_type,
+        size=attachment.size,
+        width=attachment.width,
+        height=attachment.height,
+        input_kind=input_kind.value if input_kind is not None else None,
     )
 
 

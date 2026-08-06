@@ -25,6 +25,7 @@ def _attachment(attachment_id: int) -> SimpleNamespace:
     return SimpleNamespace(
         id=attachment_id,
         filename=f"file-{attachment_id}.png",
+        url=f"https://cdn.discord.test/file-{attachment_id}.png",
         content_type="image/png",
         size=100,
         width=800,
@@ -267,3 +268,41 @@ async def test_message_directory_never_reads_a_channel_from_another_guild(monkey
 
     assert result.error == "channel_outside_guild"
     assert channel.history_calls == []
+
+
+@pytest.mark.asyncio
+async def test_message_directory_resolves_selected_attachments_from_readable_message(
+    monkeypatch,
+) -> None:
+    guild_placeholder = SimpleNamespace(id=77)
+    channel = FakeTextChannel(88, guild_placeholder)
+    guild = FakeGuild(77, channel)
+    channel.guild = guild
+    message = _message(4, channel, attachments=True)
+    message.attachments.append(_attachment(999))
+    channel.messages = [message]
+    bot = SimpleNamespace(get_guild=lambda guild_id: guild if guild_id == 77 else None)
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.message_directory.discord.TextChannel",
+        FakeTextChannel,
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.message_directory.discord.Thread",
+        FakeThread,
+    )
+    directory = DiscordGuildMessageDirectory(bot)
+
+    result = await directory.lookup_message_attachments(
+        guild_id=77,
+        requester_user_id=999,
+        current_channel_id=88,
+        channel_id=88,
+        message_id=4,
+        attachment_ids=(999, 123),
+    )
+
+    assert result.error is None
+    assert [attachment.id for attachment in result.attachments] == [999]
+    assert result.attachments[0].url == "https://cdn.discord.test/file-999.png"
+    assert result.attachments[0].input_kind == "image"
+    assert result.missing_ids == (123,)

@@ -50,7 +50,16 @@ class ReviewService:
         self.guide = guide
         self.model = model
         self.persona = persona
-        tools = build_agent_tools(catalog, guide)
+        tools = build_agent_tools(
+            catalog,
+            guide,
+            max_images_per_review=settings.max_images_per_review,
+            max_image_bytes=settings.max_image_bytes,
+            max_files_per_review=settings.max_files_per_review,
+            max_file_bytes=settings.max_file_bytes,
+            max_total_file_bytes=settings.max_total_file_bytes,
+            image_detail=model.runtime_defaults.image_detail,
+        )
         scope_guardrail = build_scope_guardrail(settings, model)
         self.hooks = ReviewLifecycleHooks()
         self.agent: Agent[ReviewRunContext] = Agent(

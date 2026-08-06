@@ -22,6 +22,13 @@ si el solicitante también posee `view_channel` y `read_message_history`. El age
 canal, ancla, dirección, filtros y proyección, pero no la guild. Los adjuntos recuperados exponen
 metadata sin URL ni contenido, y los hilos privados ajenos al contexto actual se rechazan.
 
+`get_message_attachments` puede cargar el contenido de hasta diez adjuntos seleccionados desde un
+único mensaje ya sujeto a esa misma validación. No recibe URLs ni una guild elegida por el modelo;
+resuelve URLs vigentes internamente y las entrega como imágenes o archivos nativos al Runner. Omite
+contenido incompatible, repetido o por encima de los límites acumulados de cantidad y tamaño. Estos
+outputs pueden aparecer en traces únicamente si se habilita explícitamente la inclusión de datos
+sensibles; permanece desactivada por defecto.
+
 Los IDs de `REVIEW_ESCALATION_ROLE_IDS` tampoco se entregan al modelo. Discord los resuelve y limita
 de forma determinista únicamente cuando corresponde publicar una derivación.
 

@@ -143,6 +143,9 @@ El nickname es opcional y `null` significa que no se administra por guild.
   fields)`: lee hasta veinte mensajes de un canal o hilo elegido dentro de la guild actual. Admite
   lectura exacta, anterior, posterior, alrededor de un ancla o de los mensajes más recientes, con
   filtros y proyección; verifica que el solicitante pueda ver el historial antes de leerlo.
+- `get_message_attachments(message_id, channel_id, attachment_ids)`: recupera imágenes o documentos
+  de un mensaje legible como outputs multimodales nativos. No acepta guilds ni URLs, omite adjuntos
+  ya cargados y aplica los límites acumulados de cantidad y tamaño de la ejecución.
 - `send_message(content, response_route)`: mensaje intermedio reutilizable con Markdown de Discord,
   enlaces y emojis moderados; ejecuta el envío de inmediato, pero permite que el agente continúe.
 - `finish_interaction(content, response_route)`: envía la respuesta conversacional final y termina
@@ -227,6 +230,9 @@ Cada mensaje se reconstruye como un turno nativo. Solo los mensajes producidos p
 autenticada del bot usan el rol `assistant`; miembros, webhooks y otros bots permanecen como `user`.
 Los adjuntos conservan el turno donde se publicaron y una versión documental incluida en la
 solicitud actual prevalece sobre versiones anteriores del mismo material.
+Cada turno indica cuántos adjuntos del mensaje fueron cargados inicialmente. Si el límite histórico
+dejó alguno fuera, el prompt exige usar `get_message_attachments` cuando ese material pueda cambiar
+la respuesta; una omisión por presupuesto de contexto no puede interpretarse como evidencia ausente.
 
 En un hilo, primero se intenta recuperar el mensaje que lo originó. Si fue eliminado o el hilo no
 nació desde un mensaje, se usa el mensaje visible más antiguo; si tampoco existe, la propia mención
@@ -247,6 +253,13 @@ o hilo, mensaje ancla y ventana. El adaptador verifica pertenencia a la guild, p
 `view_channel` y `read_message_history` del solicitante, y no permite saltar desde otro canal hacia
 un hilo privado. Los adjuntos se describen sin URL ni contenido y el texto total de la respuesta se
 acota antes de volver al modelo.
+
+`get_message_attachments` reutiliza exactamente esa frontera de permisos, vuelve a obtener el
+mensaje para usar URLs vigentes de Discord y entrega el contenido al SDK como `ToolOutputImage` o
+`ToolOutputFileContent`. El modelo solo selecciona un mensaje, canal y hasta diez IDs de adjunto;
+no puede suministrar una URL, cambiar de guild ni exceder los límites globales de la revisión. El
+contexto de ejecución contabiliza lo que ya venía en el input para evitar cargarlo o cobrarlo dos
+veces durante el mismo run.
 
 Los límites de mensajes, caracteres, imágenes, archivos y tamaño combinado se aplican antes del
 runner. El reporte raíz y la solicitud actual se protegen al recortar; el resto conserva los

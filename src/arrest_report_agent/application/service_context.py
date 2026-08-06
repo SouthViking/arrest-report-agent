@@ -41,3 +41,25 @@ class ReviewRunContext:
     interaction_completed: bool = False
     publication: ReviewPublication | None = None
     guardrail_usage: Usage = field(default_factory=Usage)
+    loaded_attachment_ids: set[int] = field(default_factory=set)
+    loaded_image_count: int = 0
+    loaded_file_count: int = 0
+    loaded_file_bytes: int = 0
+
+    def __post_init__(self) -> None:
+        """Seed multimodal budgets with attachments already present in the runner input."""
+
+        if self.loaded_attachment_ids:
+            return
+        self.loaded_attachment_ids = {attachment.id for attachment in self.case.attachments}
+        self.loaded_image_count = sum(
+            1 for attachment in self.case.attachments if attachment.is_image
+        )
+        self.loaded_file_count = sum(
+            1 for attachment in self.case.attachments if not attachment.is_image
+        )
+        self.loaded_file_bytes = sum(
+            attachment.size
+            for attachment in self.case.attachments
+            if not attachment.is_image
+        )

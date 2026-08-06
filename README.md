@@ -45,6 +45,8 @@ también sin ejecutar el agente.
 - Aprueba con `✅`, las correcciones usan `❌` y los casos inconclusos o técnicos usan `⚠️` con
   derivación manual opcional; el contenido se publica siempre en el destino ya autorizado.
 - Reconstruye hasta 20 mensajes de un hilo, incluyendo respuestas, ediciones y correcciones recientes.
+- Si el límite inicial omite adjuntos históricos, puede recuperar bajo demanda imágenes o documentos
+  de un mensaje visible antes de emitir el veredicto, sin aceptar URLs ni servidores arbitrarios.
 - Incluye el nombre visible y hasta ocho títulos de rol relevantes del solicitante para adaptar el
   tratamiento; no envía IDs de roles y nunca altera el rigor de la revisión por jerarquía.
 - Conserva metadata útil en traces sin incluir contenidos sensibles por defecto.
@@ -88,9 +90,10 @@ de migración. Al mostrarlos, el bot conserva únicamente los que pertenecen a l
 visibles para él y para el solicitante, evitando referencias `#desconocido` entre servidores.
 
 La política previa valida guild, autor y usuario antes de leer contexto o iniciar el Runner. Las
-tools posteriores no reciben IDs de destino libres: operan exclusivamente sobre el mensaje y el hilo
-ya autorizados. El agente solo puede escoger `reply` o `thread` para una mención nueva; una revisión
-estructurada se publica en hilo y la primera respuesta fija la ruta de toda esa ejecución.
+tools de escritura no reciben IDs de destino libres: operan exclusivamente sobre el mensaje y el
+hilo ya autorizados. Las consultas de mensajes o adjuntos quedan fijadas a la guild y a los permisos
+de lectura del solicitante. El agente solo puede escoger `reply` o `thread` para una mención nueva;
+una revisión estructurada se publica en hilo y la primera respuesta fija la ruta de toda esa ejecución.
 
 El modelo y el nivel de razonamiento son la única selección de modelo requerida en el entorno. El
 detalle de imagen, verbosity, límite de salida, service tier, capacidades admitidas y precios se
@@ -170,6 +173,8 @@ También puede consultar de forma explícita metadata pública acotada de miembr
 servidor actual, sin enumerar la guild ni acceder a otros servidores.
 Cuando necesita ampliar contexto, puede leer ventanas acotadas de mensajes en canales visibles para
 el solicitante, usando un mensaje ancla, dirección, filtros y proyección seleccionados por el agente.
+La lectura devuelve metadata compacta de los adjuntos; cuando necesita ver su contenido, una segunda
+tool puede cargar selectivamente los adjuntos del mensaje como inputs nativos de imagen o archivo.
 
 Comandos disponibles:
 
@@ -214,11 +219,13 @@ el contenido exacto del FAQ.
 | `REVIEW_TIMEOUT_SECONDS` | `180` | Tiempo total máximo de una revisión. |
 | `MAX_CONCURRENT_REVIEWS` | `2` | Límite global en memoria. |
 | `MAX_IMAGES_PER_REVIEW` | `10` | Máximo multimodal por ejecución. |
+| `MAX_IMAGE_BYTES` | `10485760` | Tamaño máximo de cada imagen enviada al runner. |
 | `MAX_FILES_PER_REVIEW` | `5` | Máximo de documentos compatibles por ejecución. |
 | `MAX_FILE_BYTES` | `10485760` | Tamaño máximo de cada archivo enviado al runner. |
 | `MAX_TOTAL_FILE_BYTES` | `52428800` | Máximo combinado para archivos en una ejecución. |
 | `CHANNEL_CONTEXT_MAX_MESSAGES` | `5` | Mensajes de texto anteriores del canal usados como contexto ambiental; `0` lo desactiva. |
 | `THREAD_CONTEXT_MAX_MESSAGES` | `20` | Historial reciente reconstruido. |
+| `THREAD_CONTEXT_MAX_HISTORICAL_IMAGES` | `2` | Imágenes previas incluidas inicialmente; las omitidas pueden recuperarse bajo demanda. |
 | `THREAD_CONTEXT_MAX_HISTORICAL_FILES` | `2` | Archivos previos reutilizados como contexto. |
 | `OPENAI_TRACING_ENABLED` | `true` | Habilita traces del Agents SDK. |
 | `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA` | `false` | Excluye mensajes, imágenes, archivos y tool payloads del trace. |

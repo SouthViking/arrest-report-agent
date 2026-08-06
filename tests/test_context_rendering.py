@@ -86,7 +86,65 @@ def test_render_includes_every_selected_character_and_report_image() -> None:
     assert "Atiende la solicitud actual" in text
     assert "una revisión se publicará en hilo" in text
     assert "elige reply o hilo" in text
+    assert "Adjuntos cargados en contexto: 4/4" in text
     assert "Revisa el estado actual" not in text
+
+
+def test_render_identifies_omitted_attachments_and_recovery_tool() -> None:
+    message_id = 10
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=3,
+        thread_id=3,
+        root_message_id=message_id,
+        trigger_message_id=11,
+        requester_user_id=20,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[
+            ConversationMessage(
+                id=message_id,
+                author_id=30,
+                author_display="Eric",
+                author_is_bot=False,
+                content="Material del expediente.",
+                created_at=datetime.now(UTC),
+                attachment_ids=[101, 102, 103, 104],
+            ),
+            ConversationMessage(
+                id=11,
+                author_id=20,
+                author_display="Deputy",
+                author_is_bot=False,
+                content="Revisa también lo que adjuntó Eric.",
+                created_at=datetime.now(UTC),
+                is_trigger=True,
+            ),
+        ],
+        attachments=[
+            DiscordAttachment(
+                id=attachment_id,
+                message_id=message_id,
+                filename=f"imagen-{attachment_id}.png",
+                url=f"https://cdn.discord.test/imagen-{attachment_id}.png",
+                content_type="image/png",
+                size=1000,
+                width=800,
+                height=600,
+                input_kind="image",
+            )
+            for attachment_id in (101, 102)
+        ],
+        context_state=ContextState.TRUNCATED,
+        context_notice="Se limitaron las imágenes históricas del hilo.",
+    )
+
+    rendered = render_agent_input(case, "original")
+    historical_text = rendered[0]["content"][0]["text"]
+
+    assert "Adjuntos cargados en contexto: 2/4" in historical_text
+    assert "get_message_attachments" in historical_text
+    assert f"mensaje={message_id}" in historical_text
 
 
 def test_render_includes_roles_of_other_human_participants_once() -> None:

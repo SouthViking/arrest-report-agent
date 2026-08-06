@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Literal, Protocol
 
 from arrest_report_agent.domain import (
     AgentActivity,
@@ -53,10 +53,21 @@ class GuildMemberDirectory(Protocol):
 class MessageAttachmentProfile:
     id: int
     filename: str
+    url: str
     content_type: str | None
     size: int
     width: int | None
     height: int | None
+    input_kind: Literal["image", "file"] | None
+
+
+@dataclass(frozen=True)
+class MessageAttachmentLookupResult:
+    """Attachments selected from one permission-checked Discord message."""
+
+    attachments: tuple[MessageAttachmentProfile, ...]
+    missing_ids: tuple[int, ...] = ()
+    error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -112,6 +123,17 @@ class GuildMessageDirectory(Protocol):
         query: MessageLookupQuery,
     ) -> MessageLookupResult:
         """Read a bounded message window visible to the requester in the current guild."""
+
+    async def lookup_message_attachments(
+        self,
+        guild_id: int,
+        requester_user_id: int,
+        current_channel_id: int,
+        channel_id: int,
+        message_id: int,
+        attachment_ids: tuple[int, ...],
+    ) -> MessageAttachmentLookupResult:
+        """Resolve selected attachments from one readable message in the current guild."""
 
 
 class ReviewPublisher(Protocol):
