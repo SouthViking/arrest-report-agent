@@ -11,6 +11,13 @@ class ReviewVerdict(StrEnum):
     INCONCLUSIVE = "inconclusive"
 
 
+class ReviewScope(StrEnum):
+    FULL = "full"
+    NARRATIVE = "narrative"
+    CHARGES = "charges"
+    TARGETED = "targeted"
+
+
 class FindingSeverity(StrEnum):
     REQUIRED = "required"
     WARNING = "warning"

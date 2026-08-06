@@ -60,13 +60,20 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "Elige libremente la extensión" in prompt
     assert "Revisa solo ante una petición expresa" in prompt
     assert "solicítalo con `finish_interaction`" in prompt
+    assert "selecciona el `review_scope` mínimo" in prompt
+    assert "`narrative` para solo la narrativa" in prompt
+    assert "`charges` para solo cargos" in prompt
+    assert "No amplíes una revisión parcial" in prompt
+    assert "En `narrative`, no exijas ni evalúes cargos" in prompt
+    assert "En `charges`, evalúa solo los cargos" in prompt
+    assert "En `targeted`, evalúa solo" in prompt
     assert "Usa `send_message` únicamente para avances útiles" in prompt
     assert "son entorno narrativo" in prompt
     assert "no exijas sus archivos" in prompt
     assert "#NÚMERO" in prompt
     assert "Evalúa cobertura semántica, no cantidad de archivos" in prompt
     assert "narrativa vigente" in prompt
-    assert "cargos\n  declarados" in prompt
+    assert "narrativa vigente y los cargos declarados" in prompt
     assert "historial completo del\n  personaje" in prompt
     assert "otro formato válido" in prompt
     assert "no exijas el título ni las fechas" in prompt
@@ -119,6 +126,9 @@ def test_review_tool_schema_exposes_context_specific_writing_rules() -> None:
     charge_properties = schema["$defs"]["ChargeAssessment"]["properties"]
 
     assert "review-summary voice" in publication_properties["summary"]["description"]
+    assert publication_properties["review_scope"]["$ref"].endswith("/$defs/ReviewScope")
+    assert "partial approval" in publication_properties["verdict"]["description"]
+    assert "targeted" in publication_properties["focus"]["description"]
     assert "next_step" not in publication_properties
     assert "neutral Spanish" in finding_properties["detail"]["description"]
     assert "second-person singular tú imperatives" in (
@@ -251,6 +261,39 @@ def test_charge_mismatch_alone_cannot_require_report_corrections() -> None:
                     "note": "La narrativa contradice sus elementos.",
                 }
             ],
+        )
+
+
+def test_narrative_scope_rejects_charge_assessments() -> None:
+    with pytest.raises(ValidationError, match="narrative-only"):
+        ReviewPublication(
+            review_scope="narrative",
+            verdict="approved",
+            summary="La narrativa está correcta.",
+            findings=[],
+            charges=[
+                {
+                    "declared_charge": "Evadir",
+                    "alignment": "supported",
+                    "note": "No corresponde a este alcance.",
+                }
+            ],
+        )
+
+
+def test_targeted_scope_requires_focus_and_other_scopes_reject_it() -> None:
+    with pytest.raises(ValidationError, match="must identify its focus"):
+        ReviewPublication(
+            review_scope="targeted",
+            verdict="approved",
+            summary="Punto revisado.",
+        )
+    with pytest.raises(ValidationError, match="Only a targeted review"):
+        ReviewPublication(
+            review_scope="full",
+            focus="Ortografía",
+            verdict="approved",
+            summary="Reporte revisado.",
         )
 
 

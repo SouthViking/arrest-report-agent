@@ -8,6 +8,7 @@ from .enums import (
     FindingSeverity,
     InteractionMode,
     RequestIntent,
+    ReviewScope,
     ReviewVerdict,
 )
 from .models import (
@@ -32,6 +33,7 @@ __all__ = [
     "ReviewCase",
     "ReviewFinding",
     "ReviewPublication",
+    "ReviewScope",
     "RequestIntent",
     "ReviewVerdict",
 ]

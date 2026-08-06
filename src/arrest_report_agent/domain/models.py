@@ -7,7 +7,13 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .enums import ContextState, FindingSeverity, InteractionMode, ReviewVerdict
+from .enums import (
+    ContextState,
+    FindingSeverity,
+    InteractionMode,
+    ReviewScope,
+    ReviewVerdict,
+)
 
 DiscordRoleName = Annotated[str, Field(min_length=1, max_length=80)]
 
@@ -112,7 +118,24 @@ class ChargeAssessment(BaseModel):
 class ReviewPublication(BaseModel):
     """Terminal output accepted by the Discord publication tool."""
 
-    verdict: ReviewVerdict
+    review_scope: ReviewScope = Field(
+        default=ReviewScope.FULL,
+        description=(
+            "Exact scope requested by the user: full report, narrative only, charges only, or a "
+            "targeted point. Approved applies only within this scope."
+        ),
+    )
+    focus: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+        description=(
+            "Specific user-requested point when review_scope is targeted; otherwise set null."
+        ),
+    )
+    verdict: ReviewVerdict = Field(
+        description="Verdict limited to review_scope; partial approval is not full-report approval."
+    )
     summary: str = Field(
         min_length=1,
         max_length=500,
@@ -128,6 +151,12 @@ class ReviewPublication(BaseModel):
 
     @model_validator(mode="after")
     def validate_verdict_consistency(self) -> ReviewPublication:
+        if self.review_scope is ReviewScope.TARGETED and self.focus is None:
+            raise ValueError("A targeted review must identify its focus")
+        if self.review_scope is not ReviewScope.TARGETED and self.focus is not None:
+            raise ValueError("Only a targeted review can define focus")
+        if self.review_scope is ReviewScope.NARRATIVE and self.charges:
+            raise ValueError("A narrative-only review cannot publish charge assessments")
         material_findings = [
             finding for finding in self.findings if finding.severity is FindingSeverity.REQUIRED
         ]

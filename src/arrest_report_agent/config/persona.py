@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 6
+PERSONA_SCHEMA_VERSION = 7
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -481,6 +481,14 @@ class PersonaReviewMessages(FrozenPersonaModel):
     charge_not_found: str = Field(min_length=1, max_length=150)
     charge_review_title: str = Field(min_length=1, max_length=256)
     charge_review_continuation_title: str = Field(min_length=1, max_length=256)
+    partial_scope_title: str = Field(min_length=1, max_length=256)
+    partial_approved_label: str = Field(min_length=1, max_length=150)
+    partial_corrections_required_label: str = Field(min_length=1, max_length=150)
+    partial_inconclusive_label: str = Field(min_length=1, max_length=150)
+    narrative_scope_label: str = Field(min_length=1, max_length=100)
+    charges_scope_label: str = Field(min_length=1, max_length=100)
+    targeted_scope_label: str = Field(min_length=1, max_length=100)
+    targeted_focus: str = Field(min_length=1, max_length=300)
     fallback_thread_title: str = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
@@ -489,6 +497,12 @@ class PersonaReviewMessages(FrozenPersonaModel):
             (self.escalation_notice, {"roles"}, "interface.review.escalation_notice"),
             (self.continuation_title, {"display_name"}, "interface.review.continuation_title"),
             (self.evidence_reference, {"evidence"}, "interface.review.evidence_reference"),
+            (
+                self.partial_scope_title,
+                {"verdict", "scope"},
+                "interface.review.partial_scope_title",
+            ),
+            (self.targeted_focus, {"focus"}, "interface.review.targeted_focus"),
             (
                 self.correction_instruction,
                 {"recommendation"},

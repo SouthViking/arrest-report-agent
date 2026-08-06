@@ -22,6 +22,8 @@ también sin ejecutar el agente.
   cargo ya inmutable; solo las deficiencias corregibles del reporte pueden exigir correcciones.
 - Interpreta la búsqueda de arrestos como un historial: valida el nombre del personaje y considera
   solo filas temporalmente asociables al procedimiento, tolerando demoras y cruces de medianoche.
+- Respeta revisiones completas, solo de narrativa, solo de cargos o enfocadas en puntos concretos.
+  Una aprobación parcial se identifica en el embed y no añade el ✅ terminal del expediente.
 - Envía todas las imágenes seleccionadas, incluidas las fotografías frontal y lateral.
 - Contrasta descripciones expresas de ropa y accesorios con flexibilidad por iluminación, ángulo,
   compresión y limitaciones gráficas; no infiere atributos sensibles.

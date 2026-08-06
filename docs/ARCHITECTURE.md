@@ -162,6 +162,12 @@ fecha inmediatamente próxima compatible con la tramitación; diferencias de hor
 medianoche no son contradicciones por sí solos. Las filas antiguas se excluyen antes de evaluar los
 cargos.
 
+`ReviewPublication.review_scope` distingue `full`, `narrative`, `charges` y `targeted`; este último
+requiere un `focus` explícito. El veredicto se interpreta únicamente dentro de ese alcance. Una
+publicación parcial muestra el scope en su título, retira solo la reacción transitoria `⏳` y no
+añade `✅`, `❌` o `⚠️`, no archiva el hilo y no altera el estado que consumen las analíticas. Solo
+una revisión `full` puede marcar el estado terminal del expediente.
+
 ## Lifecycle del agente
 
 `ReviewLifecycleHooks` recibe `on_agent_start` después del guardrail bloqueante. Si el preflight

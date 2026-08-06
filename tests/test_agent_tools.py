@@ -102,7 +102,7 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
         tool_call_id="call-publish",
         tool_arguments=publish_arguments,
     )
-    await tools["publish_review"].on_invoke_tool(
+    result = await tools["publish_review"].on_invoke_tool(
         publish_context,
         publish_arguments,
     )
@@ -110,6 +110,11 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
     assert publisher.publications[0].verdict is ReviewVerdict.APPROVED
     assert publisher.markers == 0
     assert run_context.published
+    assert result == {
+        "ok": True,
+        "review_scope": "full",
+        "verdict": "approved",
+    }
 
 
 @pytest.mark.asyncio

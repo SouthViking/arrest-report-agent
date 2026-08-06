@@ -1,7 +1,7 @@
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "id": "walter_vigil",
-  "revision": 6,
+  "revision": 7,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -259,6 +259,14 @@
         "charge_not_found": "🔎 No encontrado en el catálogo",
         "charge_review_title": "⚖️ Revisión de cargos",
         "charge_review_continuation_title": "⚖️ Revisión de cargos · continuación",
+        "partial_scope_title": "{verdict} · Revisión parcial: {scope}",
+        "partial_approved_label": "✅ Aprobado dentro del alcance",
+        "partial_corrections_required_label": "❌ Requiere correcciones",
+        "partial_inconclusive_label": "⚠️ Resultado inconcluso",
+        "narrative_scope_label": "solo narrativa",
+        "charges_scope_label": "solo cargos",
+        "targeted_scope_label": "punto solicitado",
+        "targeted_focus": "**Punto revisado:** {focus}",
         "fallback_thread_title": "Revisión {message_id}"
       },
       "commands": {

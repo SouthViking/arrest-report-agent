@@ -20,6 +20,7 @@ from arrest_report_agent.domain import (
     InteractionMode,
     ReviewCase,
     ReviewPublication,
+    ReviewScope,
     ReviewVerdict,
 )
 from arrest_report_agent.infrastructure.discord.context import render_agent_input
@@ -380,6 +381,92 @@ Revisa la narrativa y los cargos del procedimiento actual.""",
 
     assert publication.verdict is ReviewVerdict.APPROVED
     assert not any("fabricación" in charge.declared_charge.lower() for charge in publication.charges)
+
+
+async def test_narrative_only_review_does_not_require_or_assess_charges(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            """Revisa únicamente la narrativa; no evalúes los cargos.
+
+Yo, ayudante Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las 22:15
+cuando observé un Sultan negro circulando sin luces. Le ordené detenerse mediante luces y sirena.
+El conductor se detuvo en Forum Drive, pero volvió a encender el vehículo y huyó cuando me acerqué.
+Inicié una persecución que duró ocho minutos y terminó en Idlewood, donde el vehículo quedó
+inmovilizado contra una barrera. Identifiqué al conductor como Daniel Vega, lo arresté sin lesiones
+y lo trasladé a la estación de Ganton. No se recolectó evidencia física.""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+
+    assert publication.review_scope is ReviewScope.NARRATIVE
+    assert publication.verdict is ReviewVerdict.APPROVED
+    assert publication.charges == []
+
+
+async def test_charges_only_review_ignores_general_writing_errors(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            """Evalúa solamente los cargos y no revises la redacción general.
+
+Yo iva patrullando Jefferson el 05/08/2026 a las 22:15 cuando ordené detenerse a Daniel Vega. El
+conductor se detubo, pero volvió a encender el Sultan y huyó durante ocho minutos hasta Idlewood.
+
+Búsqueda de arrestos: Daniel_Vega
+2026-08-05 22:30:00 — Evadir a un oficial de la paz""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+
+    assert publication.review_scope is ReviewScope.CHARGES
+    assert publication.verdict is ReviewVerdict.APPROVED
+    assert publication.charges
+    assert not any(finding.severity.value == "required" for finding in publication.findings)
+
+
+async def test_targeted_re_review_does_not_reopen_findings_outside_focus(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            "El reporte no indicó dónde terminó la persecución y además tenía errores ortográficos.",
+        ),
+        (
+            "assistant",
+            "Debes agregar la ubicación final y corregir la ortografía antes de una revisión completa.",
+        ),
+        (
+            "user",
+            """Reevalúa únicamente si corregí la ubicación; no revises nuevamente la ortografía.
+
+Yo iva patrullando Jefferson cuando Daniel Vega huyó en un Sultan. La persecución terminó en
+Idlewood, junto a la estación de servicio, donde el vehículo quedó inmovilizado.""",
+        ),
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+
+    assert publication.review_scope is ReviewScope.TARGETED
+    assert publication.focus is not None
+    assert publication.verdict is ReviewVerdict.APPROVED
+    assert not any(
+        any(
+            term in f"{finding.title} {finding.detail}".lower()
+            for term in ("ortograf", "redacción", "iva")
+        )
+        for finding in publication.findings
+    )
 
 
 async def test_answers_manual_question_without_publishing_a_review(

@@ -104,7 +104,11 @@ def build_agent_tools(catalog: ChargeCatalog, guide: ReportGuide) -> list[object
         await run_context.publisher.publish(publication)
         run_context.published = True
         run_context.publication = publication
-        return {"ok": True, "verdict": publication.verdict.value}
+        return {
+            "ok": True,
+            "review_scope": publication.review_scope.value,
+            "verdict": publication.verdict.value,
+        }
 
     @function_tool(failure_error_function=None)
     async def send_message(

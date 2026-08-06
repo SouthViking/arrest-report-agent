@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 6
-    assert profile.revision == 6
+    assert profile.schema_version == 7
+    assert profile.revision == 7
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -34,8 +34,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 6
-    assert profile.revision == 10
+    assert profile.schema_version == 7
+    assert profile.revision == 11
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -80,6 +80,11 @@ async def test_personas_define_distinct_deterministic_copy(loaded_persona) -> No
     assert "bonito intento" in roy.messages.access.supervisor_unauthorized
     assert walter.messages.failures.review_failure_title == "⚠️ Incidencia de revisión"
     assert roy.messages.failures.review_failure_title == "⚠️ Se trabó el papeleo"
+    assert walter.messages.interface.review.narrative_scope_label == "solo narrativa"
+    assert roy.messages.interface.review.charges_scope_label == "los cargos"
+    assert "Revisión parcial" in walter.messages.interface.review.partial_scope_title
+    assert "bien dentro" in roy.messages.interface.review.partial_approved_label
+    assert "{focus}" in walter.messages.interface.review.targeted_focus
     assert "{display_name}" in walter.messages.help.description
     assert "{display_name}" in roy.messages.help.description
 

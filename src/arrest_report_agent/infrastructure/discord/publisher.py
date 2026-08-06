@@ -14,6 +14,7 @@ from arrest_report_agent.domain import (
     ConversationResponseRoute,
     FindingSeverity,
     ReviewPublication,
+    ReviewScope,
     ReviewVerdict,
 )
 from arrest_report_agent.domain.errors import PublicationError
@@ -46,6 +47,19 @@ class DiscordReviewPublisher:
             raise PublicationError("Unable to add review reaction") from error
 
     async def publish(self, publication: ReviewPublication) -> None:
+        if publication.review_scope is not ReviewScope.FULL:
+            await self._clear_bot_status_reactions(("⏳",))
+            mention = None
+            allowed_mentions = discord.AllowedMentions.none()
+            if publication.verdict is ReviewVerdict.INCONCLUSIVE:
+                mention, allowed_mentions = self._escalation_notice()
+            await self._send_routed_payload(
+                content=mention,
+                embeds=build_review_embeds(publication, self.persona),
+                allowed_mentions=allowed_mentions,
+            )
+            return
+
         await self._clear_bot_status_reactions()
         if publication.verdict is ReviewVerdict.APPROVED:
             await self.target.root.add_reaction("✅")
@@ -199,11 +213,14 @@ class DiscordReviewPublisher:
             raise PublicationError("Unable to create review thread") from error
         return self._thread
 
-    async def _clear_bot_status_reactions(self) -> None:
+    async def _clear_bot_status_reactions(
+        self,
+        emojis: tuple[str, ...] = STATUS_EMOJIS,
+    ) -> None:
         bot_user = self.bot.user
         if bot_user is None:
             return
-        for emoji in STATUS_EMOJIS:
+        for emoji in emojis:
             with contextlib.suppress(discord.NotFound, discord.Forbidden, discord.HTTPException):
                 await self.target.root.remove_reaction(emoji, bot_user)
 
@@ -277,9 +294,30 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
         ReviewVerdict.CORRECTIONS_REQUIRED: ui.corrections_required_title,
         ReviewVerdict.INCONCLUSIVE: ui.inconclusive_title,
     }
+    title = titles[publication.verdict]
+    scope_labels = {
+        ReviewScope.NARRATIVE: ui.narrative_scope_label,
+        ReviewScope.CHARGES: ui.charges_scope_label,
+        ReviewScope.TARGETED: ui.targeted_scope_label,
+    }
+    if publication.review_scope is not ReviewScope.FULL:
+        partial_verdict_labels = {
+            ReviewVerdict.APPROVED: ui.partial_approved_label,
+            ReviewVerdict.CORRECTIONS_REQUIRED: ui.partial_corrections_required_label,
+            ReviewVerdict.INCONCLUSIVE: ui.partial_inconclusive_label,
+        }
+        title = ui.partial_scope_title.format(
+            verdict=partial_verdict_labels[publication.verdict],
+            scope=scope_labels[publication.review_scope],
+        )
+    description = publication.summary
+    if publication.review_scope is ReviewScope.TARGETED and publication.focus is not None:
+        description = (
+            f"{ui.targeted_focus.format(focus=publication.focus)}\n\n{description}"
+        )
     primary = discord.Embed(
-        title=f"{titles[publication.verdict]} · {persona.identity.display_name}",
-        description=publication.summary,
+        title=f"{title} · {persona.identity.display_name}",
+        description=description,
         color=colors[publication.verdict],
     )
     if publication.manual_review_reason:

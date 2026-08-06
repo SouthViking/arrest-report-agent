@@ -121,6 +121,11 @@ class ReviewService:
                     if run_context.publication is not None
                     else "not_applicable"
                 ),
+                review_scope=(
+                    run_context.publication.review_scope.value
+                    if run_context.publication is not None
+                    else "not_applicable"
+                ),
                 latency_ms=round((time.monotonic() - started_at) * 1000),
                 model=self.model.id,
                 reasoning_effort=self.model.reasoning_effort,

@@ -1,7 +1,7 @@
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "id": "roy_velazco",
-  "revision": 10,
+  "revision": 11,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -279,6 +279,14 @@
         "charge_not_found": "🔎 No encontrado en el catálogo",
         "charge_review_title": "⚖️ revisión de cargos",
         "charge_review_continuation_title": "⚖️ más cargos, excelente",
+        "partial_scope_title": "{verdict} · revisión parcial: {scope}",
+        "partial_approved_label": "✅ bien dentro de este alcance",
+        "partial_corrections_required_label": "❌ falta corregir esto",
+        "partial_inconclusive_label": "⚠️ con esto no alcanza",
+        "narrative_scope_label": "la narrativa",
+        "charges_scope_label": "los cargos",
+        "targeted_scope_label": "el punto pedido",
+        "targeted_focus": "**Punto q me pediste revisar:** {focus}",
         "fallback_thread_title": "Papeleo {message_id}"
       },
       "commands": {
