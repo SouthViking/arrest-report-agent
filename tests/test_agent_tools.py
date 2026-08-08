@@ -136,6 +136,7 @@ def test_conversation_tools_only_expose_safe_response_routes() -> None:
         properties = tools[name].params_json_schema["properties"]
         assert properties["response_route"]["enum"] == ["reply", "thread"]
         assert set(properties) == {"content", "response_route"}
+        assert "<@USER_ID>" in properties["content"]["description"]
 
 
 def test_member_tool_exposes_bounded_projection_without_guild_argument() -> None:

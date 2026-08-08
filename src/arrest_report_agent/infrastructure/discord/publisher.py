@@ -94,7 +94,7 @@ class DiscordReviewPublisher:
             raise PublicationError("Unable to publish an empty agent response")
         allowed_mentions = discord.AllowedMentions(
             everyone=False,
-            users=False,
+            users=True,
             roles=False,
             replied_user=False,
         )

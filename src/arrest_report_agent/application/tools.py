@@ -471,9 +471,11 @@ def build_agent_tools(
 
         Args:
             content: Progress or partial information using Discord Markdown when useful: headings,
-                lists, quotes, emphasis, code, links and moderate emojis. Do not imitate embeds or
-                include mass mentions. This tool does not finish the interaction and may be called
-                more than once.
+                lists, quotes, emphasis, code, links and moderate emojis. You may mention a Discord
+                user with `<@USER_ID>` when useful; use an ID available in the conversation context
+                or obtained with `get_guild_members`. Do not imitate embeds or include mass
+                mentions. This tool does not finish the interaction and may be called more than
+                once.
             response_route: Use reply for a brief, visible exchange or thread for a longer exchange.
                 Existing replies and threads remain in their current route. The first message fixes
                 the route for the rest of this interaction.
@@ -510,7 +512,9 @@ def build_agent_tools(
         Args:
             content: Complete final Discord message. It may be an answer, a clarification request or
                 a handoff back to the user. Discord Markdown, links and moderate emojis are allowed;
-                do not imitate embeds or include mass mentions.
+                you may mention a Discord user with `<@USER_ID>` when useful, using an ID available
+                in the conversation context or obtained with `get_guild_members`. Do not imitate
+                embeds or include mass mentions.
             response_route: Use reply for a brief, visible answer or thread when the topic warrants
                 a longer exchange. Existing replies and threads remain in their current route. The
                 first message fixes the route for the rest of this interaction.

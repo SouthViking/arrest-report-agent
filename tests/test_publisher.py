@@ -409,6 +409,20 @@ async def test_natural_reply_is_simple_and_does_not_create_review_state(settings
 
 
 @pytest.mark.asyncio
+async def test_natural_reply_allows_explicit_user_mentions_only(settings, persona) -> None:
+    root = FakeRoot()
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(root=root, trigger=root, parent=SimpleNamespace(), thread=None)
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
+
+    await publisher.send_message("Que lo revise <@12345678901234567>, por favor.")
+
+    sent = root.replies[0]
+    assert sent["content"] == "Que lo revise <@12345678901234567>, por favor."
+    assert sent["allowed_mentions"].to_dict() == {"parse": ["users"]}
+
+
+@pytest.mark.asyncio
 async def test_initial_mention_can_choose_a_conversation_thread(settings, persona) -> None:
     root = FakeRoot()
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
