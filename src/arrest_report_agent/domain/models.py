@@ -82,7 +82,10 @@ class ReviewFinding(BaseModel):
     title: str = Field(
         min_length=1,
         max_length=120,
-        description="Neutral, professional Spanish title without jokes, insults or slang.",
+        description=(
+            "Neutral, professional Spanish title beginning with an uppercase letter and without "
+            "jokes, insults or slang."
+        ),
     )
     detail: str = Field(
         min_length=1,

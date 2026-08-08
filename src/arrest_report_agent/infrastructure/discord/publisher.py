@@ -352,7 +352,7 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
         )
         value = (f"{finding.detail}{evidence}\n{correction}")[:850]
         embeds[-1].add_field(
-            name=f"{severity_icons[finding.severity]} {finding.title}"[:256],
+            name=f"{severity_icons[finding.severity]} {_capitalize_heading(finding.title)}"[:256],
             value=value,
             inline=False,
         )
@@ -375,12 +375,21 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
             )
             for charge in publication.charges[group_start : group_start + 5]:
                 charge_embed.add_field(
-                    name=charge.declared_charge,
+                    name=_capitalize_heading(charge.declared_charge),
                     value=f"**{alignment_labels[charge.alignment]}**\n{charge.note}",
                     inline=False,
                 )
             embeds.append(charge_embed)
     return embeds[:10]
+
+
+def _capitalize_heading(value: str) -> str:
+    """Uppercase the first cased character without altering the remaining heading."""
+
+    for index, character in enumerate(value):
+        if character.lower() != character.upper():
+            return f"{value[:index]}{character.upper()}{value[index + 1:]}"
+    return value
 
 
 def _safe_thread_name(content: str, message_id: int, fallback_template: str) -> str:

@@ -35,7 +35,7 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
 
     assert profile.id == "roy_velazco"
     assert profile.schema_version == 9
-    assert profile.revision == 14
+    assert profile.revision == 15
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -69,7 +69,7 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
 
 
 @pytest.mark.asyncio
-async def test_personas_define_distinct_deterministic_copy(loaded_persona) -> None:
+async def test_personas_keep_titles_generic_and_body_copy_distinct(loaded_persona) -> None:
     walter = loaded_persona.profile
     roy = (await PackagedPersonaProvider().load("roy_velazco")).profile
 
@@ -82,21 +82,37 @@ async def test_personas_define_distinct_deterministic_copy(loaded_persona) -> No
         "pa q arregle tu caga de acceso antes de volver"
         in roy.messages.access.unauthorized_user
     )
-    assert walter.messages.failures.review_failure_title == "⚠️ Incidencia de revisión"
-    assert roy.messages.failures.review_failure_title == "⚠️ Se trabó el papeleo"
+    assert _title_values(walter.messages.model_dump()) == _title_values(
+        roy.messages.model_dump()
+    )
+    assert roy.messages.failures.review_failure_title == "⚠️ Incidencia de revisión"
     assert walter.messages.interface.review.narrative_scope_label == "solo narrativa"
-    assert roy.messages.interface.review.charges_scope_label == "los cargos"
+    assert roy.messages.interface.review.charges_scope_label == "solo cargos"
     assert "Revisión parcial" in walter.messages.interface.review.partial_scope_title
-    assert "bien dentro" in roy.messages.interface.review.partial_approved_label
+    assert "Aprobado dentro" in roy.messages.interface.review.partial_approved_label
     assert "{focus}" in walter.messages.interface.review.targeted_focus
     assert "{display_name}" in walter.messages.help.description
     assert "{display_name}" in roy.messages.help.description
     assert "Muro de expedientes" in walter.messages.interface.supervision.shame_title
-    assert "muro de la vergüenza" in roy.messages.interface.supervision.shame_title
+    assert "Muro de expedientes" in roy.messages.interface.supervision.shame_title
     assert "📭" in walter.messages.interface.supervision.shame_legend
     assert "sin revisión" in roy.messages.interface.supervision.shame_legend
     assert "/verguenza" in walter.messages.help.general_commands
     assert "/verguenza" in roy.messages.help.general_commands
+
+
+def _title_values(value: object, path: tuple[str, ...] = ()) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    titles: dict[str, str] = {}
+    for key, item in value.items():
+        item_path = (*path, key)
+        if isinstance(item, dict):
+            titles.update(_title_values(item, item_path))
+        elif key == "title" or key.endswith("_title"):
+            assert isinstance(item, str)
+            titles[".".join(item_path)] = item
+    return titles
 
 
 @pytest.mark.asyncio

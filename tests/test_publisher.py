@@ -194,6 +194,33 @@ def test_charge_alignments_are_rendered_as_user_facing_spanish_labels(persona) -
     )
 
 
+def test_generated_review_headings_start_with_uppercase(persona) -> None:
+    review = ReviewPublication(
+        verdict="corrections_required",
+        summary="El expediente requiere una corrección.",
+        findings=[
+            ReviewFinding(
+                severity="required",
+                title="cronología contradictoria",
+                detail="Las horas declaradas se contradicen.",
+                recommendation="Aclara la secuencia horaria.",
+            )
+        ],
+        charges=[
+            {
+                "declared_charge": "evasión de un oficial de la paz",
+                "alignment": "supported",
+                "note": "La narrativa contiene los elementos necesarios.",
+            }
+        ],
+    )
+
+    embeds = build_review_embeds(review, persona)
+
+    assert embeds[0].fields[0].name == "🔴 Cronología contradictoria"
+    assert embeds[1].fields[0].name == "Evasión de un oficial de la paz"
+
+
 def test_manual_review_reason_is_kept_in_primary_embed_without_conclusion(persona) -> None:
     review = ReviewPublication(
         verdict="inconclusive",
