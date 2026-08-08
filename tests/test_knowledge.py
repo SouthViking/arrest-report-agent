@@ -150,4 +150,4 @@ async def test_charge_selector_copy_comes_from_selected_persona(persona) -> None
         "Qué estai buscando",
         "Dónde querís buscar",
     ]
-    assert roy_modal.title == "Consultar el código penal"
+    assert roy_modal.title == "Buscar en el código"

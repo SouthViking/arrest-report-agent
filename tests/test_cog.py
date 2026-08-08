@@ -190,7 +190,7 @@ async def test_help_and_command_descriptions_use_selected_persona(settings, pers
         report_channel_ids=None,
     )
 
-    assert embed.fields[0].name == "📋 Qué reviso"
+    assert embed.fields[0].name == "📋 Las weas q reviso"
     assert embed.fields[1].value == roy.messages.help.unrestricted_channels
     assert cog.charge_search.description == roy.messages.interface.commands.charges_description
     assert cog.open_report_shame.description == (
