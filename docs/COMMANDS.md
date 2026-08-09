@@ -1,8 +1,8 @@
 # Comandos de Discord
 
 Los comandos se registran directamente en la raíz, sin depender del nombre o personalidad del bot.
-Salvo `/ayuda`, los resultados de `/verguenza` y `/honor`, y el expediente publicado por
-`/solicitar-roles`, sus respuestas son efímeras: solo las ve quien ejecutó el comando. Los selectores
+Salvo `/ayuda`, `/info-roles`, los resultados de `/verguenza` y `/honor`, y el expediente publicado
+por `/solicitar-roles`, sus respuestas son efímeras: solo las ve quien ejecutó el comando. Los selectores
 de consultas quedan ligados a ese usuario, expiran a los 180 segundos y editan el mensaje existente
 en vez de publicar respuestas adicionales. Los tres botones de una solicitud de roles son la
 excepción: son persistentes, sobreviven reinicios y autorizan al supervisor en cada clic.
@@ -24,7 +24,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/mis-reportes` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
 | `/mi-resumen` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
 | `/solicitar-roles` | Todos en guild y canal habilitados | Modal privado; solicitud pública en el canal | Mensaje versionado de Discord |
-| `/info-roles` | Todos en una guild habilitada | Efímera | Persona y configuración actuales |
+| `/info-roles` | Todos en una guild habilitada | Pública | Persona y configuración actuales |
 
 Los comandos generales no aplican `AUTHORIZED_USER_IDS`; están destinados a todos los miembros que
 puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists centrales antes de
@@ -177,6 +177,8 @@ aunque su canal padre figure en `ROLE_REQUEST_ALLOWED_CHANNEL_IDS`. El modal per
 hasta diez roles para agregar, diez para retirar y un motivo opcional. Antes de publicar, valida el
 estado actual del miembro, la jerarquía del bot y que no se incluyan `@everyone`, roles gestionados,
 roles revisores, roles administrativos o roles iguales o superiores al bot.
+Las validaciones esperables —como solicitar un rol ya asignado o retirar uno que no se posee— se
+presentan como alertas rojas y efímeras, con textos adaptados a la personalidad activa.
 
 La solicitud se publica en el mismo canal con botones persistentes. El mensaje es la única fuente de
 verdad: su ID identifica el expediente y un codec versionado reconstruye solicitante, roles y estado.
@@ -190,9 +192,8 @@ mensajes alterados o solicitudes ya resueltas no vuelven a ejecutar cambios.
 
 ## `/info-roles`
 
-Explica de forma efímera cómo presentar una solicitud, roles protegidos, regla de solicitud única,
-canales autorizados y diferencias entre aprobación completa, parcial y rechazo. Puede ejecutarse en
-cualquier canal o hilo de una guild habilitada.
+Explica públicamente y de forma breve cómo presentar una solicitud, dónde utilizar el comando y sus
+posibles resultados. Puede ejecutarse en cualquier canal o hilo de una guild habilitada.
 
 ## Errores y observabilidad
 

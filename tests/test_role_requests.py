@@ -241,7 +241,7 @@ class FakeResponse:
         self.deferred.append(ephemeral)
         self._done = True
 
-    async def send_message(self, content: str, **kwargs) -> None:
+    async def send_message(self, content: str | None = None, **kwargs) -> None:
         self.messages.append({"content": content, **kwargs})
         self._done = True
 
@@ -254,7 +254,7 @@ class FakeFollowup:
     def __init__(self) -> None:
         self.messages: list[dict[str, object]] = []
 
-    async def send(self, content: str, **kwargs) -> None:
+    async def send(self, content: str | None = None, **kwargs) -> None:
         self.messages.append({"content": content, **kwargs})
 
 
@@ -448,6 +448,53 @@ def test_submission_rejects_noops_overlap_and_protected_roles(role_request_env) 
         )
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("add_role_name", "remove_role_name", "message_template_name"),
+    (
+        ("removable", None, "already_owned_roles"),
+        (None, "add_one", "missing_roles"),
+    ),
+)
+async def test_submission_noops_return_personalized_ephemeral_alerts(
+    role_request_env,
+    add_role_name: str | None,
+    remove_role_name: str | None,
+    message_template_name: str,
+) -> None:
+    interaction = _interaction(role_request_env, SimpleNamespace(id=0))
+    add_roles = (
+        (getattr(role_request_env, add_role_name),) if add_role_name is not None else ()
+    )
+    remove_roles = (
+        (getattr(role_request_env, remove_role_name),)
+        if remove_role_name is not None
+        else ()
+    )
+
+    await role_request_env.service.create_request(
+        interaction,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+        add_roles=add_roles,
+        remove_roles=remove_roles,
+        reason=None,
+    )
+
+    response = interaction.followup.messages[-1]
+    embed = response["embed"]
+    selected_role = add_roles[0] if add_roles else remove_roles[0]
+    expected = getattr(role_request_env.service.ui, message_template_name).format(
+        roles=selected_role.mention
+    )
+    assert response["content"] is None
+    assert response["ephemeral"] is True
+    assert embed.title == role_request_env.service.ui.alert_title
+    assert embed.description == expected
+    assert embed.color == discord.Color.red()
+    assert not role_request_env.channel.send_calls
+
+
 def test_submission_allows_high_ranked_requester_for_lower_roles(role_request_env) -> None:
     role_request_env.requester.top_role.position = 100
 
@@ -529,7 +576,10 @@ async def test_full_approval_applies_roles_once_and_disables_buttons(role_reques
     second = _interaction(role_request_env, message)
     await role_request_env.service.approve_all(second)
     assert len(role_request_env.requester.edit_calls) == 1
-    assert role_request_env.service.ui.stale_request in second.followup.messages[-1]["content"]
+    assert (
+        role_request_env.service.ui.stale_request
+        in second.followup.messages[-1]["embed"].description
+    )
 
 
 @pytest.mark.asyncio
@@ -644,7 +694,7 @@ async def test_creation_publishes_in_origin_channel_and_blocks_second_pending_re
     )
 
     assert len(role_request_env.channel.send_calls) == 1
-    assert "http" in second.followup.messages[-1]["content"]
+    assert "http" in second.followup.messages[-1]["embed"].description
 
 
 @pytest.mark.asyncio
@@ -739,12 +789,13 @@ async def test_request_command_blocks_threads_but_info_remains_available(
     cog = RoleRequestCog(role_request_env.service)
 
     await cog.request_roles.callback(cog, ctx)
-    assert role_request_env.service.ui.thread_blocked in responses[-1]["content"]
+    assert role_request_env.service.ui.thread_blocked in responses[-1]["embed"].description
     assert not modals
 
     await cog.info_roles.callback(cog, ctx)
-    assert responses[-1]["ephemeral"] is True
+    assert responses[-1]["ephemeral"] is False
     assert responses[-1]["embed"].title == role_request_env.service.ui.info_title
+    assert responses[-1]["embed"].footer is None
 
 
 @pytest.mark.asyncio
@@ -759,12 +810,16 @@ async def test_concurrent_decisions_apply_at_most_once(role_request_env) -> None
     )
 
     assert len(role_request_env.requester.edit_calls) == 1
-    outcomes = [
-        followup.messages[-1]["content"]
-        for followup in (first.followup, second.followup)
-    ]
-    assert role_request_env.service.ui.status_approved in outcomes
-    assert role_request_env.service.ui.stale_request in outcomes
+    outcomes = [followup.messages[-1] for followup in (first.followup, second.followup)]
+    assert any(
+        outcome["content"] == role_request_env.service.ui.status_approved
+        for outcome in outcomes
+    )
+    assert any(
+        outcome.get("embed") is not None
+        and outcome["embed"].description == role_request_env.service.ui.stale_request
+        for outcome in outcomes
+    )
 
 
 @pytest.mark.asyncio
@@ -784,9 +839,9 @@ async def test_transient_discord_failure_leaves_request_pending(role_request_env
 
     assert all(not child.disabled for child in message.components[0].children)
     assert message.embeds[0].title == role_request_env.service.ui.pending_title
-    assert interaction.followup.messages[-1]["content"] == (
-        role_request_env.service.ui.operation_failed
-    )
+    response = interaction.followup.messages[-1]
+    assert response["content"] is None
+    assert response["embed"].description == role_request_env.service.ui.operation_failed
 
 
 @pytest.mark.asyncio

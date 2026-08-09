@@ -19,12 +19,14 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 11
-    assert profile.revision == 11
+    assert profile.schema_version == 12
+    assert profile.revision == 13
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
     assert "Sargento de guardia" in profile.discord.bio
+    role_info = profile.messages.interface.role_requests
+    assert len(role_info.info_rules.splitlines()) == 2
     assert loaded_persona.avatar_bytes.startswith(b"\x89PNG")
 
 
@@ -34,8 +36,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 11
-    assert profile.revision == 18
+    assert profile.schema_version == 12
+    assert profile.revision == 20
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -62,6 +64,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
         "q no entendiste" in example.assistant
         for example in profile.personality.examples.conversation
     )
+    role_info = profile.messages.interface.role_requests
+    assert len(role_info.info_rules.splitlines()) == 2
     assert {
         example.verdict for example in profile.personality.examples.review_summary
     } == {"approved", "corrections_required", "inconclusive"}

@@ -205,8 +205,7 @@ Comandos disponibles:
 - `/mi-resumen`: muestra de forma privada el estado personal del mes actual.
 - `/solicitar-roles`: abre un formulario privado para solicitar hasta diez altas y diez bajas;
   publica un expediente en el canal de origen para aprobación completa, parcial o rechazo.
-- `/info-roles`: explica de forma privada los canales, límites, roles protegidos y resultados del
-  sistema de solicitudes.
+- `/info-roles`: publica una explicación breve sobre el uso y los resultados de las solicitudes.
 
 Los comandos de guía, cargos, FAQ, vergüenza, honor, roles y consultas personales son deterministas:
 no ejecutan el runner ni consumen OpenAI. Los comandos personales consultan un máximo acotado del historial de los canales

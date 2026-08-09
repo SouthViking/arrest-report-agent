@@ -1,7 +1,7 @@
 {
-  "schema_version": 11,
+  "schema_version": 12,
   "id": "walter_vigil",
-  "revision": 11,
+  "revision": 13,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -261,6 +261,7 @@
         "honor_value": "{approved} aprobado(s) de {total} · {rate}%"
       },
       "role_requests": {
+        "alert_title": "⚠️ Solicitud no válida",
         "request_modal_title": "Solicitar cambios de roles",
         "add_roles_label": "Roles para agregar",
         "add_roles_description": "Seleccione hasta diez roles que todavía no posea.",
@@ -316,16 +317,15 @@
         "add_change_prefix": "Agregar",
         "remove_change_prefix": "Retirar",
         "info_title": "📋 Solicitudes de roles",
-        "info_description": "Este sistema permite solicitar altas y bajas de roles mediante una revisión determinista de supervisión.",
-        "info_usage_title": "Cómo utilizarlo",
-        "info_usage": "Ejecute `/solicitar-roles`, seleccione hasta diez roles para agregar y/o retirar y añada un motivo si aporta contexto. La solicitud quedará publicada en ese mismo canal.",
-        "info_rules_title": "Reglas principales",
-        "info_rules": "• Solo puede mantener una solicitud pendiente.\n• No admite roles administrativos, administrados, revisores ni superiores al bot.\n• No funciona dentro de hilos.\n• Los botones son visibles, pero únicamente los supervisores autorizados pueden operarlos.",
+        "info_description": "Solicita que agreguen o retiren roles de tu perfil.",
+        "info_usage_title": "Cómo usarlo",
+        "info_usage": "Ejecuta `/solicitar-roles`, selecciona los cambios y envía la solicitud. Puedes añadir un motivo breve.",
+        "info_rules_title": "Ten en cuenta",
+        "info_rules": "• Solo puedes tener una solicitud pendiente.\n• Debes usar el comando fuera de los hilos.",
         "info_channels_title": "Canales autorizados",
         "info_all_channels": "Cualquier canal de texto normal de este servidor.",
         "info_outcomes_title": "Resultados posibles",
-        "info_outcomes": "✅ **Aprobada:** se aceptan todos los cambios.\n🟡 **Aprobada parcialmente:** solo se aplican los roles seleccionados por supervisión.\n❌ **Rechazada:** no se modifica ningún rol.",
-        "info_footer": "Gestión determinista de roles · {display_name}"
+        "info_outcomes": "✅ Aprobada · 🟡 Parcial · ❌ Rechazada"
       },
       "review": {
         "failure_next_step_title": "Siguiente paso",

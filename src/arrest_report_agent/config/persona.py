@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 11
+PERSONA_SCHEMA_VERSION = 12
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -509,6 +509,7 @@ class PersonaSupervisionMessages(FrozenPersonaModel):
 class PersonaRoleRequestMessages(FrozenPersonaModel):
     """Personality-aware copy for the deterministic role-request subsystem."""
 
+    alert_title: str = Field(min_length=1, max_length=256)
     request_modal_title: str = Field(min_length=1, max_length=100)
     add_roles_label: str = Field(min_length=1, max_length=100)
     add_roles_description: str = Field(min_length=1, max_length=200)
@@ -573,7 +574,6 @@ class PersonaRoleRequestMessages(FrozenPersonaModel):
     info_all_channels: str = Field(min_length=1, max_length=300)
     info_outcomes_title: str = Field(min_length=1, max_length=256)
     info_outcomes: str = Field(min_length=1, max_length=700)
-    info_footer: str = Field(min_length=1, max_length=300)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaRoleRequestMessages:
@@ -622,11 +622,6 @@ class PersonaRoleRequestMessages(FrozenPersonaModel):
                 self.unknown_role_label,
                 {"role_id"},
                 "interface.role_requests.unknown_role_label",
-            ),
-            (
-                self.info_footer,
-                {"display_name"},
-                "interface.role_requests.info_footer",
             ),
         )
         for template, fields, label in templates:

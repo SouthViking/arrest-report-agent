@@ -1,7 +1,7 @@
 {
-  "schema_version": 11,
+  "schema_version": 12,
   "id": "roy_velazco",
-  "revision": 18,
+  "revision": 20,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -281,6 +281,7 @@
         "honor_value": "{approved} aprobado(s) de {total} · {rate}%"
       },
       "role_requests": {
+        "alert_title": "⚠️ Revisa la solicitud",
         "request_modal_title": "Solicitar cambios de roles",
         "add_roles_label": "Roles q querís agregar",
         "add_roles_description": "Elige hasta diez q todavía no tengai.",
@@ -336,16 +337,15 @@
         "add_change_prefix": "Agregar",
         "remove_change_prefix": "Retirar",
         "info_title": "📋 Solicitudes de roles",
-        "info_description": "Acá podís pedir q te agreguen o saquen roles sin perseguir a medio server por Discord.",
-        "info_usage_title": "Cómo se usa esta cuestión",
-        "info_usage": "Tira `/solicitar-roles`, elige hasta diez roles pa agregar y/o sacar y deja un motivo si sirve. La solicitud aparece en el mismo canal.",
-        "info_rules_title": "Las reglas, antes q dejís la escoba",
-        "info_rules": "• Solo podís tener una solicitud pendiente.\n• Nada de roles administrativos, de bots, revisores ni superiores al mío.\n• En hilos no funciona.\n• Todos ven los botones, pero solo los supervisores autorizados pueden usarlos.",
+        "info_description": "Acá podís pedir q te agreguen o saquen roles sin perseguir a medio server.",
+        "info_usage_title": "Cómo se usa",
+        "info_usage": "Tira `/solicitar-roles`, elige los cambios y manda la solicitud. Si hace falta, deja un motivo corto.",
+        "info_rules_title": "Ojo",
+        "info_rules": "• Solo podís tener una solicitud pendiente.\n• En hilos no funciona.",
         "info_channels_title": "Dónde podís usarlo",
         "info_all_channels": "En cualquier canal de texto normal de este server.",
         "info_outcomes_title": "Cómo puede terminar",
-        "info_outcomes": "✅ **Aprobada:** te aceptaron todo.\n🟡 **Aprobada parcialmente:** te dieron solo una parte.\n❌ **Rechazada:** no se mueve ni un rol.",
-        "info_footer": "Papeleo determinista de roles · {display_name}"
+        "info_outcomes": "✅ Aprobada · 🟡 Parcial · ❌ Rechazada"
       },
       "review": {
         "failure_next_step_title": "Y ahora qué",

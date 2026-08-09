@@ -58,6 +58,15 @@ class RoleRequestService:
         self._creation_locks: dict[tuple[int, int], asyncio.Lock] = {}
         self._creation_lock_users: dict[tuple[int, int], int] = {}
 
+    def build_alert_embed(self, message: str) -> discord.Embed:
+        """Render a consistent, personality-aware alert for expected failures."""
+
+        return discord.Embed(
+            title=self.ui.alert_title,
+            description=message,
+            color=discord.Color.red(),
+        )
+
     def is_reviewer(self, member: discord.Member) -> bool:
         return any(role.id in self.reviewer_role_ids for role in member.roles)
 
@@ -248,7 +257,7 @@ class RoleRequestService:
                 )
         except RoleRequestValidationError as error:
             await interaction.followup.send(
-                error.public_message,
+                embed=self.build_alert_embed(error.public_message),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -264,7 +273,7 @@ class RoleRequestService:
                 **exception_fields(error),
             )
             await interaction.followup.send(
-                self.ui.operation_failed,
+                embed=self.build_alert_embed(self.ui.operation_failed),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -343,7 +352,7 @@ class RoleRequestService:
         ):
             if not interaction.response.is_done():
                 await interaction.response.send_message(
-                    self.ui.reviewer_unauthorized,
+                    embed=self.build_alert_embed(self.ui.reviewer_unauthorized),
                     ephemeral=True,
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
@@ -496,7 +505,7 @@ class RoleRequestService:
                     raise RoleRequestCodecError("partial approval is not a request subset")
                 if not approved_add and not approved_remove:
                     await interaction.followup.send(
-                        self.ui.partial_empty,
+                        embed=self.build_alert_embed(self.ui.partial_empty),
                         ephemeral=True,
                         allowed_mentions=discord.AllowedMentions.none(),
                     )
@@ -642,7 +651,7 @@ class RoleRequestService:
                 comment=self.ui.member_unavailable,
             )
             await interaction.followup.send(
-                self.ui.member_unavailable,
+                embed=self.build_alert_embed(self.ui.member_unavailable),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -669,7 +678,7 @@ class RoleRequestService:
                 comment=self.ui.request_unavailable,
             )
             await interaction.followup.send(
-                self.ui.request_unavailable,
+                embed=self.build_alert_embed(self.ui.request_unavailable),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -720,7 +729,7 @@ class RoleRequestService:
             or not self.is_reviewer(member)
         ):
             await interaction.followup.send(
-                self.ui.reviewer_unauthorized,
+                embed=self.build_alert_embed(self.ui.reviewer_unauthorized),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -802,7 +811,7 @@ class RoleRequestService:
             **exception_fields(error),
         )
         await interaction.followup.send(
-            self.ui.stale_request,
+            embed=self.build_alert_embed(self.ui.stale_request),
             ephemeral=True,
             allowed_mentions=discord.AllowedMentions.none(),
         )
@@ -826,7 +835,7 @@ class RoleRequestService:
             **exception_fields(error),
         )
         await interaction.followup.send(
-            self.ui.operation_failed,
+            embed=self.build_alert_embed(self.ui.operation_failed),
             ephemeral=True,
             allowed_mentions=discord.AllowedMentions.none(),
         )
@@ -889,7 +898,7 @@ class RoleRequestDecisionView(discord.ui.View):
             request = self.service.decode_interaction_message(interaction)
         except RoleRequestCodecError:
             await interaction.response.send_message(
-                self.service.ui.stale_request,
+                embed=self.service.build_alert_embed(self.service.ui.stale_request),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -897,8 +906,9 @@ class RoleRequestDecisionView(discord.ui.View):
         guild = interaction.guild
         if guild is None:
             await interaction.response.send_message(
-                self.service.ui.request_unavailable,
+                embed=self.service.build_alert_embed(self.service.ui.request_unavailable),
                 ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
             )
             return
         await interaction.response.send_modal(
@@ -920,7 +930,7 @@ class RoleRequestDecisionView(discord.ui.View):
             request = self.service.decode_interaction_message(interaction)
         except RoleRequestCodecError:
             await interaction.response.send_message(
-                self.service.ui.stale_request,
+                embed=self.service.build_alert_embed(self.service.ui.stale_request),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -974,8 +984,9 @@ class CreateRoleRequestModal(discord.ui.DesignerModal):
         member = interaction.user
         if not isinstance(member, discord.Member) or member.id != self.member.id:
             await interaction.response.send_message(
-                self.service.ui.member_unavailable,
+                embed=self.service.build_alert_embed(self.service.ui.member_unavailable),
                 ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
             )
             return
         await self.service.create_request(
@@ -1098,24 +1109,41 @@ class RoleRequestCog(commands.Cog):
         channel = ctx.channel
         ui = self.service.ui
         if guild is None or not self.service.settings.guild_allowlist.allows(guild.id):
-            await ctx.respond(ui.wrong_guild, ephemeral=True)
+            await ctx.respond(
+                embed=self.service.build_alert_embed(ui.wrong_guild),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
             return
         if not isinstance(member, discord.Member):
-            await ctx.respond(ui.member_unavailable, ephemeral=True)
+            await ctx.respond(
+                embed=self.service.build_alert_embed(ui.member_unavailable),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
             return
         if isinstance(channel, discord.Thread):
-            await ctx.respond(ui.thread_blocked, ephemeral=True)
+            await ctx.respond(
+                embed=self.service.build_alert_embed(ui.thread_blocked),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
             return
         if not isinstance(channel, discord.TextChannel):
             await ctx.respond(
-                ui.wrong_channel.format(channels=ui.no_available_channels),
+                embed=self.service.build_alert_embed(
+                    ui.wrong_channel.format(channels=ui.no_available_channels)
+                ),
                 ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
             )
             return
         if not self.service.channel_is_allowed(channel):
             channels = await self.service.allowed_channel_summary(guild)
             await ctx.respond(
-                ui.wrong_channel.format(channels=channels),
+                embed=self.service.build_alert_embed(
+                    ui.wrong_channel.format(channels=channels)
+                ),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -1123,7 +1151,11 @@ class RoleRequestCog(commands.Cog):
         try:
             self.service.validate_channel_permissions(guild, channel)
         except RoleRequestValidationError as error:
-            await ctx.respond(error.public_message, ephemeral=True)
+            await ctx.respond(
+                embed=self.service.build_alert_embed(error.public_message),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
             return
         await ctx.send_modal(
             CreateRoleRequestModal(self.service, member=member, channel=channel)
@@ -1137,7 +1169,11 @@ class RoleRequestCog(commands.Cog):
         guild = ctx.guild
         ui = self.service.ui
         if guild is None or not self.service.settings.guild_allowlist.allows(guild.id):
-            await ctx.respond(ui.wrong_guild, ephemeral=True)
+            await ctx.respond(
+                embed=self.service.build_alert_embed(ui.wrong_guild),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
             return
         channels = await self.service.allowed_channel_summary(guild)
         embed = discord.Embed(
@@ -1149,17 +1185,12 @@ class RoleRequestCog(commands.Cog):
         embed.add_field(name=ui.info_rules_title, value=ui.info_rules, inline=False)
         embed.add_field(name=ui.info_channels_title, value=channels, inline=False)
         embed.add_field(name=ui.info_outcomes_title, value=ui.info_outcomes, inline=False)
-        embed.set_footer(
-            text=ui.info_footer.format(
-                display_name=self.service.persona.identity.display_name
-            )
-        )
         avatar = getattr(getattr(self.service.bot.user, "display_avatar", None), "url", None)
         if avatar:
             embed.set_thumbnail(url=str(avatar))
         await ctx.respond(
             embed=embed,
-            ephemeral=True,
+            ephemeral=False,
             allowed_mentions=discord.AllowedMentions.none(),
         )
 
