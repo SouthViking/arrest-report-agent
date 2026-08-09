@@ -6,6 +6,7 @@ import asyncio
 import logging
 from collections.abc import Iterable
 from contextlib import asynccontextmanager, suppress
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import discord
@@ -35,6 +36,30 @@ MODAL_TIMEOUT_SECONDS = 300
 MAX_REASON_LENGTH = 1000
 
 
+@dataclass(frozen=True, slots=True)
+class RoleRequestModalCopy:
+    """Neutral copy shared by every persona for role-request forms."""
+
+    request_title: str = "Solicitar cambios de roles"
+    add_roles_label: str = "Roles para agregar"
+    add_roles_placeholder: str = "Selecciona hasta diez roles que todavía no tengas."
+    remove_roles_label: str = "Roles para retirar"
+    remove_roles_placeholder: str = "Selecciona hasta diez roles que tengas actualmente."
+    request_reason_label: str = "Motivo (opcional)"
+    request_reason_placeholder: str = "Explica brevemente el cambio solicitado."
+    partial_title: str = "Aprobar parcialmente"
+    partial_add_label: str = "Roles que se agregarán"
+    partial_remove_label: str = "Roles que se retirarán"
+    partial_comment_label: str = "Comentario (opcional)"
+    partial_comment_placeholder: str = "Explica la decisión si es necesario."
+    reject_title: str = "Rechazar solicitud"
+    reject_reason_label: str = "Motivo del rechazo"
+    reject_reason_placeholder: str = "Explica por qué no se autorizan los cambios."
+
+
+ROLE_REQUEST_MODAL_COPY = RoleRequestModalCopy()
+
+
 class RoleRequestValidationError(ValueError):
     """Expected, user-facing rejection before a request is published."""
 
@@ -61,11 +86,22 @@ class RoleRequestService:
     def build_alert_embed(self, message: str) -> discord.Embed:
         """Render a consistent, personality-aware alert for expected failures."""
 
-        return discord.Embed(
+        return self.build_notice_embed(
             title=self.ui.alert_title,
             description=message,
             color=discord.Color.red(),
         )
+
+    @staticmethod
+    def build_notice_embed(
+        *,
+        title: str,
+        description: str | None = None,
+        color: discord.Color,
+    ) -> discord.Embed:
+        """Render user-facing role-request feedback without plain-text replies."""
+
+        return discord.Embed(title=title, description=description, color=color)
 
     def is_reviewer(self, member: discord.Member) -> bool:
         return any(role.id in self.reviewer_role_ids for role in member.roles)
@@ -239,7 +275,13 @@ class RoleRequestService:
             )
             try:
                 await interaction.followup.send(
-                    self.ui.created_confirmation.format(jump_url=message.jump_url),
+                    embed=self.build_notice_embed(
+                        title=self.ui.pending_title,
+                        description=self.ui.created_confirmation.format(
+                            jump_url=message.jump_url
+                        ),
+                        color=discord.Color.gold(),
+                    ),
                     ephemeral=True,
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
@@ -450,7 +492,10 @@ class RoleRequestService:
                     remove_role_count=len(request.remove_role_ids),
                 )
                 await interaction.followup.send(
-                    self.ui.status_rejected,
+                    embed=self.build_notice_embed(
+                        title=self.ui.status_rejected,
+                        color=discord.Color.red(),
+                    ),
                     ephemeral=True,
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
@@ -577,9 +622,18 @@ class RoleRequestService:
                     unapproved_remove_role_count=len(unapproved_remove),
                 )
                 await interaction.followup.send(
-                    self.ui.status_approved
-                    if status is RoleRequestStatus.APPROVED
-                    else self.ui.status_partial,
+                    embed=self.build_notice_embed(
+                        title=(
+                            self.ui.status_approved
+                            if status is RoleRequestStatus.APPROVED
+                            else self.ui.status_partial
+                        ),
+                        color=(
+                            discord.Color.green()
+                            if status is RoleRequestStatus.APPROVED
+                            else discord.Color.gold()
+                        ),
+                    ),
                     ephemeral=True,
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
@@ -949,17 +1003,17 @@ class CreateRoleRequestModal(discord.ui.DesignerModal):
         self.service = service
         self.member = member
         self.channel = channel
-        ui = service.ui
+        copy = ROLE_REQUEST_MODAL_COPY
         self.add_select = discord.ui.RoleSelect(
             custom_id="role-request:v1:create:add",
-            placeholder=ui.add_roles_description,
+            placeholder=copy.add_roles_placeholder,
             min_values=0,
             max_values=MAX_ROLES_PER_OPERATION,
             required=False,
         )
         self.remove_select = discord.ui.RoleSelect(
             custom_id="role-request:v1:create:remove",
-            placeholder=ui.remove_roles_description,
+            placeholder=copy.remove_roles_placeholder,
             min_values=0,
             max_values=MAX_ROLES_PER_OPERATION,
             required=False,
@@ -967,15 +1021,15 @@ class CreateRoleRequestModal(discord.ui.DesignerModal):
         self.reason_input = discord.ui.InputText(
             custom_id="role-request:v1:create:reason",
             style=discord.InputTextStyle.long,
-            placeholder=ui.reason_placeholder,
+            placeholder=copy.request_reason_placeholder,
             required=False,
             max_length=MAX_REASON_LENGTH,
         )
         super().__init__(
-            discord.ui.Label(ui.add_roles_label, self.add_select),
-            discord.ui.Label(ui.remove_roles_label, self.remove_select),
-            discord.ui.Label(ui.reason_label, self.reason_input),
-            title=ui.request_modal_title,
+            discord.ui.Label(copy.add_roles_label, self.add_select),
+            discord.ui.Label(copy.remove_roles_label, self.remove_select),
+            discord.ui.Label(copy.request_reason_label, self.reason_input),
+            title=copy.request_title,
             custom_id=f"role-request:v1:create:{member.id}",
             timeout=MODAL_TIMEOUT_SECONDS,
         )
@@ -1010,6 +1064,7 @@ class PartialApprovalModal(discord.ui.DesignerModal):
         self.service = service
         self.request = request
         ui = service.ui
+        copy = ROLE_REQUEST_MODAL_COPY
         children = []
         self.add_select: discord.ui.StringSelect | None = None
         self.remove_select: discord.ui.StringSelect | None = None
@@ -1020,7 +1075,7 @@ class PartialApprovalModal(discord.ui.DesignerModal):
                 custom_id="role-request:v1:partial:add",
                 unknown_role_label=ui.unknown_role_label,
             )
-            children.append(discord.ui.Label(ui.partial_add_label, self.add_select))
+            children.append(discord.ui.Label(copy.partial_add_label, self.add_select))
         if request.remove_role_ids:
             self.remove_select = _requested_role_select(
                 guild,
@@ -1028,18 +1083,18 @@ class PartialApprovalModal(discord.ui.DesignerModal):
                 custom_id="role-request:v1:partial:remove",
                 unknown_role_label=ui.unknown_role_label,
             )
-            children.append(discord.ui.Label(ui.partial_remove_label, self.remove_select))
+            children.append(discord.ui.Label(copy.partial_remove_label, self.remove_select))
         self.comment_input = discord.ui.InputText(
             custom_id="role-request:v1:partial:comment",
             style=discord.InputTextStyle.long,
-            placeholder=ui.decision_comment_placeholder,
+            placeholder=copy.partial_comment_placeholder,
             required=False,
             max_length=MAX_REASON_LENGTH,
         )
-        children.append(discord.ui.Label(ui.decision_comment_label, self.comment_input))
+        children.append(discord.ui.Label(copy.partial_comment_label, self.comment_input))
         super().__init__(
             *children,
-            title=ui.partial_modal_title,
+            title=copy.partial_title,
             custom_id=f"role-request:v1:partial:{request.message_id}",
             timeout=MODAL_TIMEOUT_SECONDS,
         )
@@ -1064,18 +1119,18 @@ class RejectRoleRequestModal(discord.ui.DesignerModal):
     def __init__(self, service: RoleRequestService, request: RoleRequest) -> None:
         self.service = service
         self.request = request
-        ui = service.ui
+        copy = ROLE_REQUEST_MODAL_COPY
         self.reason_input = discord.ui.InputText(
             custom_id="role-request:v1:reject:reason",
             style=discord.InputTextStyle.long,
-            placeholder=ui.reject_reason_placeholder,
+            placeholder=copy.reject_reason_placeholder,
             required=True,
             min_length=1,
             max_length=MAX_REASON_LENGTH,
         )
         super().__init__(
-            discord.ui.Label(ui.reject_reason_label, self.reason_input),
-            title=ui.reject_modal_title,
+            discord.ui.Label(copy.reject_reason_label, self.reason_input),
+            title=copy.reject_title,
             custom_id=f"role-request:v1:reject:{request.message_id}",
             timeout=MODAL_TIMEOUT_SECONDS,
         )

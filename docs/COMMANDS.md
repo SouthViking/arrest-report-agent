@@ -177,6 +177,7 @@ aunque su canal padre figure en `ROLE_REQUEST_ALLOWED_CHANNEL_IDS`. El modal per
 hasta diez roles para agregar, diez para retirar y un motivo opcional. Antes de publicar, valida el
 estado actual del miembro, la jerarquía del bot y que no se incluyan `@everyone`, roles gestionados,
 roles revisores, roles administrativos o roles iguales o superiores al bot.
+Sus títulos, etiquetas y ayudas son neutrales y comunes a todas las personalidades.
 Las validaciones esperables —como solicitar un rol ya asignado o retirar uno que no se posee— se
 presentan como alertas rojas y efímeras, con textos adaptados a la personalidad activa.
 
@@ -189,6 +190,8 @@ Un supervisor puede aprobar todo, abrir un segundo modal para seleccionar un sub
 rechazar con motivo. La resolución edita el mismo embed, registra supervisor y fecha, deshabilita los
 tres botones y modifica los roles en una sola operación cuando corresponde. Los clics repetidos,
 mensajes alterados o solicitudes ya resueltas no vuelven a ejecutar cambios.
+Las confirmaciones privadas de creación y resolución también se presentan como embeds con colores
+coherentes con su estado; el subsistema no utiliza respuestas planas.
 
 ## `/info-roles`
 

@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 12
+PERSONA_SCHEMA_VERSION = 13
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -510,13 +510,6 @@ class PersonaRoleRequestMessages(FrozenPersonaModel):
     """Personality-aware copy for the deterministic role-request subsystem."""
 
     alert_title: str = Field(min_length=1, max_length=256)
-    request_modal_title: str = Field(min_length=1, max_length=100)
-    add_roles_label: str = Field(min_length=1, max_length=100)
-    add_roles_description: str = Field(min_length=1, max_length=200)
-    remove_roles_label: str = Field(min_length=1, max_length=100)
-    remove_roles_description: str = Field(min_length=1, max_length=200)
-    reason_label: str = Field(min_length=1, max_length=100)
-    reason_placeholder: str = Field(min_length=1, max_length=150)
     pending_title: str = Field(min_length=1, max_length=256)
     pending_description: str = Field(min_length=1, max_length=500)
     add_field_title: str = Field(min_length=1, max_length=256)
@@ -534,14 +527,6 @@ class PersonaRoleRequestMessages(FrozenPersonaModel):
     approve_all_button: str = Field(min_length=1, max_length=80)
     approve_partial_button: str = Field(min_length=1, max_length=80)
     reject_button: str = Field(min_length=1, max_length=80)
-    partial_modal_title: str = Field(min_length=1, max_length=100)
-    partial_add_label: str = Field(min_length=1, max_length=100)
-    partial_remove_label: str = Field(min_length=1, max_length=100)
-    decision_comment_label: str = Field(min_length=1, max_length=100)
-    decision_comment_placeholder: str = Field(min_length=1, max_length=150)
-    reject_modal_title: str = Field(min_length=1, max_length=100)
-    reject_reason_label: str = Field(min_length=1, max_length=100)
-    reject_reason_placeholder: str = Field(min_length=1, max_length=150)
     reviewer_unauthorized: str = Field(min_length=1, max_length=300)
     wrong_guild: str = Field(min_length=1, max_length=300)
     thread_blocked: str = Field(min_length=1, max_length=300)

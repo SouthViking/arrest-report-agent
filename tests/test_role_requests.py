@@ -16,8 +16,10 @@ from arrest_report_agent.role_requests.codec import (
     decode_pending_message,
 )
 from arrest_report_agent.role_requests.discord import (
+    ROLE_REQUEST_MODAL_COPY,
     CreateRoleRequestModal,
     PartialApprovalModal,
+    RejectRoleRequestModal,
     RoleRequestCog,
     RoleRequestDecisionView,
     RoleRequestService,
@@ -531,13 +533,30 @@ async def test_modals_offer_role_selectors_and_only_requested_partial_options(
         request=request,
         guild=role_request_env.guild,
     )
+    rejection = RejectRoleRequestModal(role_request_env.service, request)
 
+    assert create.title == ROLE_REQUEST_MODAL_COPY.request_title
     assert create.add_select.max_values == 10
     assert create.remove_select.max_values == 10
     assert create.add_select.required is False
+    assert create.add_select.placeholder == ROLE_REQUEST_MODAL_COPY.add_roles_placeholder
+    assert create.remove_select.placeholder == (
+        ROLE_REQUEST_MODAL_COPY.remove_roles_placeholder
+    )
+    assert create.reason_input.placeholder == (
+        ROLE_REQUEST_MODAL_COPY.request_reason_placeholder
+    )
+    assert partial.title == ROLE_REQUEST_MODAL_COPY.partial_title
     assert [option.value for option in partial.add_select.options] == ["701", "702"]
     assert [option.value for option in partial.remove_select.options] == ["703"]
     assert partial.add_select.min_values == 0
+    assert partial.comment_input.placeholder == (
+        ROLE_REQUEST_MODAL_COPY.partial_comment_placeholder
+    )
+    assert rejection.title == ROLE_REQUEST_MODAL_COPY.reject_title
+    assert rejection.reason_input.placeholder == (
+        ROLE_REQUEST_MODAL_COPY.reject_reason_placeholder
+    )
 
 
 @pytest.mark.asyncio
@@ -571,7 +590,11 @@ async def test_full_approval_applies_roles_once_and_disables_buttons(role_reques
     assert 703 not in role_ids
     assert all(child.disabled for child in message.components[0].children)
     assert message.embeds[0].title == role_request_env.service.ui.status_approved
-    assert interaction.followup.messages[-1]["ephemeral"] is True
+    approval_notice = interaction.followup.messages[-1]
+    assert approval_notice["content"] is None
+    assert approval_notice["ephemeral"] is True
+    assert approval_notice["embed"].title == role_request_env.service.ui.status_approved
+    assert approval_notice["embed"].color == discord.Color.green()
 
     second = _interaction(role_request_env, message)
     await role_request_env.service.approve_all(second)
@@ -624,6 +647,10 @@ async def test_partial_approval_applies_subset_and_closes_omitted_changes(
     assert message.embeds[0].title == role_request_env.service.ui.status_partial
     assert "<@&702>" in message.embeds[0].fields[5].value
     assert "<@&703>" in message.embeds[0].fields[5].value
+    partial_notice = interaction.followup.messages[-1]
+    assert partial_notice["content"] is None
+    assert partial_notice["embed"].title == role_request_env.service.ui.status_partial
+    assert partial_notice["embed"].color == discord.Color.gold()
 
 
 @pytest.mark.asyncio
@@ -644,6 +671,10 @@ async def test_rejection_keeps_roles_and_records_terminal_result(role_request_en
     assert not role_request_env.requester.edit_calls
     assert message.embeds[0].title == role_request_env.service.ui.status_rejected
     assert all(child.disabled for child in message.components[0].children)
+    rejection_notice = interaction.followup.messages[-1]
+    assert rejection_notice["content"] is None
+    assert rejection_notice["embed"].title == role_request_env.service.ui.status_rejected
+    assert rejection_notice["embed"].color == discord.Color.red()
 
 
 @pytest.mark.asyncio
@@ -682,6 +713,11 @@ async def test_creation_publishes_in_origin_channel_and_blocks_second_pending_re
         f"Solicitud {request_message.id} · role-request:v1"
     )
     assert all(not child.disabled for child in request_message.components[0].children)
+    creation_notice = first.followup.messages[-1]
+    assert creation_notice["content"] is None
+    assert creation_notice["embed"].title == role_request_env.service.ui.pending_title
+    assert "http" in creation_notice["embed"].description
+    assert creation_notice["embed"].color == discord.Color.gold()
 
     second = _interaction(role_request_env, SimpleNamespace(id=0))
     await role_request_env.service.create_request(
@@ -812,7 +848,8 @@ async def test_concurrent_decisions_apply_at_most_once(role_request_env) -> None
     assert len(role_request_env.requester.edit_calls) == 1
     outcomes = [followup.messages[-1] for followup in (first.followup, second.followup)]
     assert any(
-        outcome["content"] == role_request_env.service.ui.status_approved
+        outcome.get("embed") is not None
+        and outcome["embed"].title == role_request_env.service.ui.status_approved
         for outcome in outcomes
     )
     assert any(
