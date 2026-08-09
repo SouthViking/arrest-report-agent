@@ -165,9 +165,10 @@ El repositorio incluye [`railway.json`](railway.json) para ejecutar una única r
 desde el `Dockerfile`, sin serverless, con reinicio automático, apagado gradual y healthcheck en
 `/health`. Railway inyecta `PORT`; para Docker local se mantiene `HEALTH_PORT=8080`.
 
-El servicio de producción debe vincularse al repositorio de GitHub y a la rama `main`. Los pushes a
-esa rama ejecutan primero el workflow de CI en GitHub Actions; habilita **Wait for CI** en Railway
-para que un commit con checks fallidos quede omitido y no reemplace el despliegue activo.
+El servicio de producción se vincula al repositorio de GitHub y a la rama `main`, por lo que cada
+push inicia automáticamente un nuevo despliegue. Esa rama también ejecuta el workflow de CI en
+GitHub Actions; habilita **Wait for CI** en Railway para que un commit con checks fallidos quede
+omitido y no reemplace el despliegue activo.
 
 Carga las variables desde el archivo local ignorado `.env.production` en la sección **Variables**
 del servicio. No subas ese archivo, `DISCORD_TOKEN` ni `OPENAI_API_KEY` al repositorio. El bot no
