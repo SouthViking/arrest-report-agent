@@ -44,6 +44,7 @@ from .presence import ReviewPresence
 from .profile import DiscordProfileSynchronizer
 from .publisher import DiscordReviewPublisher
 from .supervision import (
+    HonorRankingModal,
     PendingReportsModal,
     RankingModal,
     ShameRankingModal,
@@ -198,6 +199,7 @@ class ReviewCog(commands.Cog):
         self.supervisor_pending.description = command_copy.pending_description
         self.supervisor_ranking.description = command_copy.ranking_description
         self.open_report_shame.description = command_copy.shame_description
+        self.approved_report_honor.description = command_copy.honor_description
         self.personal_reports.description = command_copy.personal_reports_description
         self.personal_summary.description = command_copy.personal_summary_description
         self.profile_synchronizer = profile_synchronizer
@@ -664,6 +666,36 @@ class ReviewCog(commands.Cog):
 
         await ctx.send_modal(
             ShameRankingModal(
+                finder=self.personal_report_finder,
+                guild=guild,
+                member=member,
+                display_name=self.persona.identity.display_name,
+                access_messages=self.persona.messages.access,
+                failure_messages=self.persona.messages.failures,
+                ui=self.persona.messages.interface.supervision,
+                navigation=self.persona.messages.interface.navigation,
+            )
+        )
+
+    @discord.slash_command(
+        name="honor",
+        description="Destaca a quienes acumulan más reportes aprobados",
+    )
+    async def approved_report_honor(self, ctx: discord.ApplicationContext) -> None:
+        identity = await self._authorize_public_report_command(ctx)
+        if identity is None:
+            return
+        guild, member = identity
+        if not self.personal_report_finder.visible_channels(guild, member):
+            await ctx.respond(
+                self.persona.messages.access.no_personal_channels,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+
+        await ctx.send_modal(
+            HonorRankingModal(
                 finder=self.personal_report_finder,
                 guild=guild,
                 member=member,

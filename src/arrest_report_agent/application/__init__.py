@@ -14,6 +14,7 @@ from .service_context import ReviewRunContext
 from .supervision import (
     SupervisorRankingEntry,
     SupervisorRankingMetric,
+    build_approved_report_ranking,
     build_open_report_ranking,
     build_supervisor_ranking,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "ReviewService",
     "SupervisorRankingEntry",
     "SupervisorRankingMetric",
+    "build_approved_report_ranking",
     "build_open_report_ranking",
     "build_supervisor_ranking",
 ]

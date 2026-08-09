@@ -99,6 +99,14 @@ class AppSettings(BaseSettings):
     )
     authorized_user_ids_csv: str = Field(default="*", alias="AUTHORIZED_USER_IDS")
     supervisor_role_ids_csv: str = Field(default="*", alias="SUPERVISOR_ROLE_IDS")
+    role_request_allowed_channel_ids_csv: str = Field(
+        default="*",
+        alias="ROLE_REQUEST_ALLOWED_CHANNEL_IDS",
+    )
+    role_request_reviewer_role_ids_csv: str = Field(
+        default="",
+        alias="ROLE_REQUEST_REVIEWER_ROLE_IDS",
+    )
     review_escalation_role_ids_csv: str = Field(
         default="",
         validation_alias=AliasChoices("REVIEW_ESCALATION_ROLE_IDS", "MANUAL_REVIEW_ROLE_ID"),
@@ -191,6 +199,8 @@ class AppSettings(BaseSettings):
             self.report_channel_allowlist,
             self.user_allowlist,
             self.supervisor_role_allowlist,
+            self.role_request_allowed_channel_allowlist,
+            self.role_request_reviewer_role_ids,
             self.review_escalation_role_ids,
         )
         return self
@@ -224,6 +234,20 @@ class AppSettings(BaseSettings):
         )
 
     @property
+    def role_request_allowed_channel_allowlist(self) -> SnowflakeAllowlist:
+        return SnowflakeAllowlist.parse(
+            self.role_request_allowed_channel_ids_csv,
+            variable_name="ROLE_REQUEST_ALLOWED_CHANNEL_IDS",
+        )
+
+    @property
+    def role_request_reviewer_role_ids(self) -> tuple[int, ...]:
+        return parse_configured_snowflakes(
+            self.role_request_reviewer_role_ids_csv,
+            variable_name="ROLE_REQUEST_REVIEWER_ROLE_IDS",
+        )
+
+    @property
     def review_escalation_role_ids(self) -> tuple[int, ...]:
         return parse_configured_snowflakes(
             self.review_escalation_role_ids_csv,
@@ -245,6 +269,10 @@ class AppSettings(BaseSettings):
     @property
     def supervisor_role_ids(self) -> frozenset[int] | None:
         return self.supervisor_role_allowlist.ids
+
+    @property
+    def role_request_allowed_channel_ids(self) -> frozenset[int] | None:
+        return self.role_request_allowed_channel_allowlist.ids
 
 @lru_cache(maxsize=1)
 def load_settings() -> AppSettings:

@@ -14,7 +14,10 @@ from arrest_report_agent.infrastructure.discord.cog import (
     build_unauthorized_user_message,
     maintain_typing_indicator,
 )
-from arrest_report_agent.infrastructure.discord.supervision import ShameRankingModal
+from arrest_report_agent.infrastructure.discord.supervision import (
+    HonorRankingModal,
+    ShameRankingModal,
+)
 
 
 class FakeTypingContext:
@@ -112,6 +115,7 @@ def test_operational_commands_are_registered_at_the_root() -> None:
         ReviewCog.supervisor_pending,
         ReviewCog.supervisor_ranking,
         ReviewCog.open_report_shame,
+        ReviewCog.approved_report_honor,
         ReviewCog.personal_reports,
         ReviewCog.personal_summary,
     ]
@@ -124,6 +128,7 @@ def test_operational_commands_are_registered_at_the_root() -> None:
         "pendientes",
         "ranking",
         "verguenza",
+        "honor",
         "mis-reportes",
         "mi-resumen",
     ]
@@ -160,6 +165,9 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention(persona) -> N
     assert "/cargos" in embed.fields[5].value
     assert "/faq" in embed.fields[5].value
     assert "/verguenza" in embed.fields[5].value
+    assert "/honor" in embed.fields[5].value
+    assert "/solicitar-roles" in embed.fields[5].value
+    assert "/info-roles" in embed.fields[5].value
     assert "/pendientes" in embed.fields[6].value
     assert "/ranking" in embed.fields[6].value
     assert embed.fields[7].value == (
@@ -196,12 +204,15 @@ async def test_help_and_command_descriptions_use_selected_persona(settings, pers
     assert cog.open_report_shame.description == (
         roy.messages.interface.commands.shame_description
     )
+    assert cog.approved_report_honor.description == (
+        roy.messages.interface.commands.honor_description
+    )
 
     ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio
-async def test_shame_command_is_public_and_does_not_apply_user_allowlist(
+async def test_public_rankings_do_not_apply_user_allowlist(
     settings,
     persona,
     monkeypatch,
@@ -235,13 +246,16 @@ async def test_shame_command_is_public_and_does_not_apply_user_allowlist(
     )
 
     await cog.open_report_shame.callback(cog, ctx)  # type: ignore[arg-type]
+    await cog.approved_report_honor.callback(cog, ctx)  # type: ignore[arg-type]
 
-    assert len(modals) == 1
-    modal = modals[0]
-    assert isinstance(modal, ShameRankingModal)
-    assert modal.title == "Elegir periodo del ranking"
-    assert [child.label for child in modal.children] == ["Periodo"]
-    assert [option.value for option in modal.period_select.options] == [
+    assert len(modals) == 2
+    shame_modal, honor_modal = modals
+    assert isinstance(shame_modal, ShameRankingModal)
+    assert shame_modal.title == "Elegir periodo del ranking"
+    assert isinstance(honor_modal, HonorRankingModal)
+    assert honor_modal.title == "Elegir periodo del cuadro de honor"
+    assert [child.label for child in honor_modal.children] == ["Periodo"]
+    assert [option.value for option in honor_modal.period_select.options] == [
         "current_month",
         "last_7_days",
         "last_30_days",

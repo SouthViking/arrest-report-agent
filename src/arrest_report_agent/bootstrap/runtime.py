@@ -25,6 +25,11 @@ from arrest_report_agent.infrastructure.discord import (
     create_bot,
 )
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+from arrest_report_agent.role_requests import (
+    RoleRequestCog,
+    RoleRequestDecisionView,
+    RoleRequestService,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +41,7 @@ class Runtime:
     guide: ReportGuide
     model: ResolvedModel
     persona: LoadedPersona
+    role_requests_enabled: bool
 
     async def health(self) -> dict[str, object]:
         discord_ready = self.bot.is_ready()
@@ -47,6 +53,7 @@ class Runtime:
             "charges": self.catalog.charge_count,
             "persona": self.persona.profile.id,
             "persona_revision": self.persona.profile.revision,
+            "role_requests": self.role_requests_enabled,
         }
 
 
@@ -78,4 +85,30 @@ async def build_runtime(
         global_banner_bytes=load_global_profile_banner(),
     )
     bot.add_cog(ReviewCog(bot, settings, service, persona.profile, profile_synchronizer))
-    return Runtime(bot=bot, catalog=catalog, guide=guide, model=model, persona=persona)
+    role_requests_enabled = bool(settings.role_request_reviewer_role_ids)
+    if role_requests_enabled:
+        role_request_service = RoleRequestService(bot, settings, persona.profile)
+        bot.add_view(RoleRequestDecisionView(role_request_service))
+        bot.add_cog(RoleRequestCog(role_request_service))
+        log_event(
+            LOGGER,
+            "info",
+            "role_request_subsystem_registered",
+            reviewer_role_count=len(settings.role_request_reviewer_role_ids),
+            channel_access_mode=(
+                "restricted"
+                if settings.role_request_allowed_channel_allowlist.is_restricted
+                else "open"
+            ),
+            configured_channels=(
+                settings.role_request_allowed_channel_allowlist.configured_count
+            ),
+        )
+    return Runtime(
+        bot=bot,
+        catalog=catalog,
+        guide=guide,
+        model=model,
+        persona=persona,
+        role_requests_enabled=role_requests_enabled,
+    )

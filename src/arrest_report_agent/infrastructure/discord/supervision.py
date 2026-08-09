@@ -15,6 +15,7 @@ from arrest_report_agent.application import (
     PersonalReportStatusFilter,
     SupervisorRankingEntry,
     SupervisorRankingMetric,
+    build_approved_report_ranking,
     build_open_report_ranking,
     build_supervisor_ranking,
 )
@@ -39,11 +40,21 @@ SUPERVISION_VIEW_TIMEOUT_SECONDS = 180
 PENDING_REPORTS_PER_PAGE = 5
 RANKING_ENTRIES_PER_PAGE = 10
 SHAME_RANKING_LIMIT = 10
+HONOR_RANKING_LIMIT = 10
 
 
 @dataclass(frozen=True, slots=True)
 class ShameRankingSection:
     """Open-report ranking for one configured Discord report channel."""
+
+    channel_id: int
+    channel_name: str
+    ranking: tuple[SupervisorRankingEntry, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class HonorRankingSection:
+    """Approved-report ranking for one configured Discord report channel."""
 
     channel_id: int
     channel_name: str
@@ -377,6 +388,118 @@ class ShameRankingModal(discord.ui.DesignerModal):
             )
 
 
+class HonorRankingModal(discord.ui.DesignerModal):
+    """Public period selector for the approved-report honor ranking."""
+
+    def __init__(
+        self,
+        *,
+        finder: DiscordPersonalReportFinder,
+        guild: discord.Guild,
+        member: discord.Member,
+        display_name: str,
+        access_messages: PersonaAccessMessages,
+        failure_messages: PersonaFailureMessages,
+        ui: PersonaSupervisionMessages,
+        navigation: PersonaNavigationMessages,
+    ) -> None:
+        self.finder = finder
+        self.guild = guild
+        self.member = member
+        self.display_name = display_name
+        self.access_messages = access_messages
+        self.failure_messages = failure_messages
+        self.ui = ui
+        self.navigation = navigation
+        self.period_select = _period_select("honor_ranking_period", navigation)
+        super().__init__(
+            discord.ui.Label(ui.period_label, self.period_select),
+            title=ui.honor_modal_title,
+            custom_id=f"honor_ranking:{member.id}",
+            timeout=SUPERVISION_VIEW_TIMEOUT_SECONDS,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.member.id:
+            await interaction.response.send_message(
+                self.access_messages.other_member_query,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+
+        period = PersonalReportPeriod(self.period_select.values[0])
+        query = PersonalReportQuery(
+            period=period,
+            status=PersonalReportStatusFilter.ALL,
+        )
+        await interaction.response.defer(ephemeral=False)
+        try:
+            result = await self.finder.find_all(self.guild, self.member, query)
+            channels = self.finder.visible_channels(self.guild, self.member)
+            sections = tuple(
+                HonorRankingSection(
+                    channel_id=channel.id,
+                    channel_name=channel.name,
+                    ranking=build_approved_report_ranking(
+                        tuple(
+                            report
+                            for report in result.reports
+                            if report.channel_id == channel.id
+                        )
+                    ),
+                )
+                for channel in channels
+            )
+            await interaction.followup.send(
+                embed=build_honor_ranking_embed(
+                    sections,
+                    period=period,
+                    truncated=result.truncated,
+                    display_name=self.display_name,
+                    ui=self.ui,
+                    navigation=self.navigation,
+                ),
+                ephemeral=False,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "approved_report_honor_completed",
+                guild_id=self.guild.id,
+                user_id=self.member.id,
+                period=period.value,
+                report_count=len(result.reports),
+                channel_count=len(sections),
+                channel_ids=[section.channel_id for section in sections],
+                member_count=len(
+                    {
+                        entry.author_id
+                        for section in sections
+                        for entry in section.ranking
+                    }
+                ),
+                truncated=result.truncated,
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "approved_report_honor_failed",
+                exc_info=error,
+                guild_id=self.guild.id,
+                user_id=self.member.id,
+                interaction_id=interaction.id,
+                **exception_fields(error),
+            )
+            await interaction.followup.send(
+                self.failure_messages.honor_query_failure,
+                ephemeral=False,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+
+
 class PendingReportsPaginationView(SupervisorRequesterView):
     def __init__(
         self,
@@ -671,6 +794,57 @@ def build_shame_ranking_embed(
     )
     if truncated:
         footer += f" · {ui.shame_footer_truncated}"
+    embed.set_footer(text=footer)
+    return embed
+
+
+def build_honor_ranking_embed(
+    sections: tuple[HonorRankingSection, ...],
+    *,
+    period: PersonalReportPeriod,
+    truncated: bool,
+    display_name: str,
+    ui: PersonaSupervisionMessages,
+    navigation: PersonaNavigationMessages,
+) -> discord.Embed:
+    """Render the public top of authors with currently approved reports."""
+
+    visible_author_ids: set[int] = set()
+    all_author_ids: set[int] = set()
+    embed = discord.Embed(
+        title=ui.honor_title,
+        description=ui.honor_description.format(
+            period=build_period_labels(navigation)[period],
+        ),
+        color=discord.Color.gold(),
+    )
+
+    for section in sections:
+        entries = section.ranking[:HONOR_RANKING_LIMIT]
+        all_author_ids.update(entry.author_id for entry in section.ranking)
+        visible_author_ids.update(entry.author_id for entry in entries)
+        lines: list[str] = []
+        for position, entry in enumerate(entries, start=1):
+            medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(position, f"**{position}.**")
+            value = ui.honor_value.format(
+                approved=entry.approved,
+                total=entry.total,
+                rate=f"{entry.approval_rate:.1f}",
+            )
+            lines.append(f"{medal} <@{entry.author_id}> — **{value}**")
+        embed.add_field(
+            name=f"📍 #{section.channel_name}"[:256],
+            value="\n".join(lines) if lines else ui.honor_empty_body,
+            inline=False,
+        )
+
+    footer = ui.honor_footer.format(
+        shown=len(visible_author_ids),
+        count=len(all_author_ids),
+        display_name=display_name,
+    )
+    if truncated:
+        footer += f" · {ui.honor_footer_truncated}"
     embed.set_footer(text=footer)
     return embed
 

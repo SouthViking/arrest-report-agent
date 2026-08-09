@@ -18,6 +18,8 @@ def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings)
     assert settings.user_allowlist.allows(999) is True
     assert settings.supervisor_role_ids is None
     assert settings.supervisor_role_allowlist.allows(999) is True
+    assert settings.role_request_allowed_channel_ids is None
+    assert settings.role_request_reviewer_role_ids == ()
     assert settings.openai_model == "gpt-5.6-terra"
     assert settings.openai_reasoning_effort == "medium"
     assert settings.log_json_indented is True
@@ -85,6 +87,7 @@ def test_json_log_indentation_can_be_disabled() -> None:
         ("REPORT_CHANNEL_IDS", "report_channel_allowlist"),
         ("AUTHORIZED_USER_IDS", "user_allowlist"),
         ("SUPERVISOR_ROLE_IDS", "supervisor_role_allowlist"),
+        ("ROLE_REQUEST_ALLOWED_CHANNEL_IDS", "role_request_allowed_channel_allowlist"),
     ],
 )
 @pytest.mark.parametrize("configured", [None, "", "*"])
@@ -116,6 +119,7 @@ def test_all_allowlists_default_to_unrestricted(
         ("REPORT_CHANNEL_IDS", "report_channel_allowlist"),
         ("AUTHORIZED_USER_IDS", "user_allowlist"),
         ("SUPERVISOR_ROLE_IDS", "supervisor_role_allowlist"),
+        ("ROLE_REQUEST_ALLOWED_CHANNEL_IDS", "role_request_allowed_channel_allowlist"),
     ],
 )
 def test_all_allowlists_parse_csv_and_restrict_access(
@@ -144,6 +148,7 @@ def test_all_allowlists_parse_csv_and_restrict_access(
         "REPORT_CHANNEL_IDS",
         "AUTHORIZED_USER_IDS",
         "SUPERVISOR_ROLE_IDS",
+        "ROLE_REQUEST_ALLOWED_CHANNEL_IDS",
     ],
 )
 @pytest.mark.parametrize("configured", ["*,123", "0", "not-a-snowflake"])
@@ -169,6 +174,32 @@ def test_legacy_singular_guild_variable_remains_supported() -> None:
     )
 
     assert settings.discord_guild_ids == frozenset({123})
+
+
+def test_role_request_reviewer_roles_enable_subsystem_with_explicit_ids() -> None:
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        ROLE_REQUEST_ALLOWED_CHANNEL_IDS="123,456",
+        ROLE_REQUEST_REVIEWER_ROLE_IDS="700, 800,700",
+    )
+
+    assert settings.role_request_allowed_channel_ids == frozenset({123, 456})
+    assert settings.role_request_reviewer_role_ids == (700, 800)
+
+
+@pytest.mark.parametrize("configured", ["*", "123,*", "invalid", "0", "-1"])
+def test_role_request_reviewer_roles_reject_open_or_invalid_values(
+    configured: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        AppSettings(
+            _env_file=None,
+            DISCORD_TOKEN="discord",
+            OPENAI_API_KEY="openai",
+            ROLE_REQUEST_REVIEWER_ROLE_IDS=configured,
+        )
 
 
 def test_legacy_review_channel_variable_remains_supported() -> None:
@@ -244,3 +275,5 @@ def test_default_env_template_values_are_parseable(tmp_path) -> None:
     assert settings.report_channel_ids == frozenset(
         {1462992794569281617, 1462992859761217745}
     )
+    assert settings.role_request_allowed_channel_ids is None
+    assert settings.role_request_reviewer_role_ids == ()

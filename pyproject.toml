@@ -69,3 +69,7 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["arrest_report_agent.infrastructure.discord.*"]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["arrest_report_agent.role_requests.discord"]
+ignore_errors = true

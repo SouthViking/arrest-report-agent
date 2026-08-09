@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 9
+PERSONA_SCHEMA_VERSION = 11
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -178,6 +178,7 @@ class PersonaFailureMessages(FrozenPersonaModel):
     personal_summary_failure: str = Field(min_length=1, max_length=500)
     supervision_query_failure: str = Field(min_length=1, max_length=500)
     shame_query_failure: str = Field(min_length=1, max_length=500)
+    honor_query_failure: str = Field(min_length=1, max_length=500)
 
 
 class PersonaHelpMessages(FrozenPersonaModel):
@@ -426,6 +427,13 @@ class PersonaSupervisionMessages(FrozenPersonaModel):
     shame_footer: str = Field(min_length=1, max_length=300)
     shame_footer_truncated: str = Field(min_length=1, max_length=200)
     shame_value: str = Field(min_length=1, max_length=150)
+    honor_modal_title: str = Field(min_length=1, max_length=100)
+    honor_title: str = Field(min_length=1, max_length=256)
+    honor_description: str = Field(min_length=1, max_length=700)
+    honor_empty_body: str = Field(min_length=1, max_length=500)
+    honor_footer: str = Field(min_length=1, max_length=300)
+    honor_footer_truncated: str = Field(min_length=1, max_length=200)
+    honor_value: str = Field(min_length=1, max_length=200)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaSupervisionMessages:
@@ -477,6 +485,149 @@ class PersonaSupervisionMessages(FrozenPersonaModel):
                 "interface.supervision.shame_footer",
             ),
             (self.shame_value, {"count"}, "interface.supervision.shame_value"),
+            (
+                self.honor_description,
+                {"period"},
+                "interface.supervision.honor_description",
+            ),
+            (
+                self.honor_footer,
+                {"shown", "count", "display_name"},
+                "interface.supervision.honor_footer",
+            ),
+            (
+                self.honor_value,
+                {"approved", "total", "rate"},
+                "interface.supervision.honor_value",
+            ),
+        )
+        for template, fields, label in templates:
+            _require_template_fields(template, fields, label)
+        return self
+
+
+class PersonaRoleRequestMessages(FrozenPersonaModel):
+    """Personality-aware copy for the deterministic role-request subsystem."""
+
+    request_modal_title: str = Field(min_length=1, max_length=100)
+    add_roles_label: str = Field(min_length=1, max_length=100)
+    add_roles_description: str = Field(min_length=1, max_length=200)
+    remove_roles_label: str = Field(min_length=1, max_length=100)
+    remove_roles_description: str = Field(min_length=1, max_length=200)
+    reason_label: str = Field(min_length=1, max_length=100)
+    reason_placeholder: str = Field(min_length=1, max_length=150)
+    pending_title: str = Field(min_length=1, max_length=256)
+    pending_description: str = Field(min_length=1, max_length=500)
+    add_field_title: str = Field(min_length=1, max_length=256)
+    remove_field_title: str = Field(min_length=1, max_length=256)
+    reason_field_title: str = Field(min_length=1, max_length=256)
+    status_field_title: str = Field(min_length=1, max_length=256)
+    status_pending: str = Field(min_length=1, max_length=100)
+    status_approved: str = Field(min_length=1, max_length=100)
+    status_partial: str = Field(min_length=1, max_length=100)
+    status_rejected: str = Field(min_length=1, max_length=100)
+    status_failed: str = Field(min_length=1, max_length=100)
+    no_available_channels: str = Field(min_length=1, max_length=200)
+    unknown_role_label: str = Field(min_length=1, max_length=100)
+    created_confirmation: str = Field(min_length=1, max_length=400)
+    approve_all_button: str = Field(min_length=1, max_length=80)
+    approve_partial_button: str = Field(min_length=1, max_length=80)
+    reject_button: str = Field(min_length=1, max_length=80)
+    partial_modal_title: str = Field(min_length=1, max_length=100)
+    partial_add_label: str = Field(min_length=1, max_length=100)
+    partial_remove_label: str = Field(min_length=1, max_length=100)
+    decision_comment_label: str = Field(min_length=1, max_length=100)
+    decision_comment_placeholder: str = Field(min_length=1, max_length=150)
+    reject_modal_title: str = Field(min_length=1, max_length=100)
+    reject_reason_label: str = Field(min_length=1, max_length=100)
+    reject_reason_placeholder: str = Field(min_length=1, max_length=150)
+    reviewer_unauthorized: str = Field(min_length=1, max_length=300)
+    wrong_guild: str = Field(min_length=1, max_length=300)
+    thread_blocked: str = Field(min_length=1, max_length=300)
+    wrong_channel: str = Field(min_length=1, max_length=500)
+    member_unavailable: str = Field(min_length=1, max_length=300)
+    subsystem_unavailable: str = Field(min_length=1, max_length=300)
+    no_changes: str = Field(min_length=1, max_length=300)
+    overlapping_roles: str = Field(min_length=1, max_length=500)
+    already_owned_roles: str = Field(min_length=1, max_length=500)
+    missing_roles: str = Field(min_length=1, max_length=500)
+    protected_roles: str = Field(min_length=1, max_length=500)
+    pending_exists: str = Field(min_length=1, max_length=400)
+    partial_empty: str = Field(min_length=1, max_length=300)
+    stale_request: str = Field(min_length=1, max_length=300)
+    request_unavailable: str = Field(min_length=1, max_length=300)
+    operation_failed: str = Field(min_length=1, max_length=300)
+    approved_changes_title: str = Field(min_length=1, max_length=256)
+    unapproved_changes_title: str = Field(min_length=1, max_length=256)
+    reviewer_field_title: str = Field(min_length=1, max_length=256)
+    decision_comment_title: str = Field(min_length=1, max_length=256)
+    add_change_prefix: str = Field(min_length=1, max_length=100)
+    remove_change_prefix: str = Field(min_length=1, max_length=100)
+    info_title: str = Field(min_length=1, max_length=256)
+    info_description: str = Field(min_length=1, max_length=600)
+    info_usage_title: str = Field(min_length=1, max_length=256)
+    info_usage: str = Field(min_length=1, max_length=800)
+    info_rules_title: str = Field(min_length=1, max_length=256)
+    info_rules: str = Field(min_length=1, max_length=900)
+    info_channels_title: str = Field(min_length=1, max_length=256)
+    info_all_channels: str = Field(min_length=1, max_length=300)
+    info_outcomes_title: str = Field(min_length=1, max_length=256)
+    info_outcomes: str = Field(min_length=1, max_length=700)
+    info_footer: str = Field(min_length=1, max_length=300)
+
+    @model_validator(mode="after")
+    def validate_templates(self) -> PersonaRoleRequestMessages:
+        templates = (
+            (
+                self.pending_description,
+                {"display_name"},
+                "interface.role_requests.pending_description",
+            ),
+            (
+                self.created_confirmation,
+                {"jump_url"},
+                "interface.role_requests.created_confirmation",
+            ),
+            (
+                self.wrong_channel,
+                {"channels"},
+                "interface.role_requests.wrong_channel",
+            ),
+            (
+                self.overlapping_roles,
+                {"roles"},
+                "interface.role_requests.overlapping_roles",
+            ),
+            (
+                self.already_owned_roles,
+                {"roles"},
+                "interface.role_requests.already_owned_roles",
+            ),
+            (
+                self.missing_roles,
+                {"roles"},
+                "interface.role_requests.missing_roles",
+            ),
+            (
+                self.protected_roles,
+                {"roles"},
+                "interface.role_requests.protected_roles",
+            ),
+            (
+                self.pending_exists,
+                {"jump_url"},
+                "interface.role_requests.pending_exists",
+            ),
+            (
+                self.unknown_role_label,
+                {"role_id"},
+                "interface.role_requests.unknown_role_label",
+            ),
+            (
+                self.info_footer,
+                {"display_name"},
+                "interface.role_requests.info_footer",
+            ),
         )
         for template, fields, label in templates:
             _require_template_fields(template, fields, label)
@@ -545,8 +696,11 @@ class PersonaCommandMessages(FrozenPersonaModel):
     pending_description: str = Field(min_length=1, max_length=100)
     ranking_description: str = Field(min_length=1, max_length=100)
     shame_description: str = Field(min_length=1, max_length=100)
+    honor_description: str = Field(min_length=1, max_length=100)
     personal_reports_description: str = Field(min_length=1, max_length=100)
     personal_summary_description: str = Field(min_length=1, max_length=100)
+    request_roles_description: str = Field(min_length=1, max_length=100)
+    info_roles_description: str = Field(min_length=1, max_length=100)
 
 
 class PersonaInterfaceMessages(FrozenPersonaModel):
@@ -556,6 +710,7 @@ class PersonaInterfaceMessages(FrozenPersonaModel):
     knowledge: PersonaKnowledgeMessages
     personal_reports: PersonaPersonalReportMessages
     supervision: PersonaSupervisionMessages
+    role_requests: PersonaRoleRequestMessages
     review: PersonaReviewMessages
     commands: PersonaCommandMessages
 

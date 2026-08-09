@@ -1,9 +1,11 @@
 # Comandos de Discord
 
 Los comandos se registran directamente en la raíz, sin depender del nombre o personalidad del bot.
-Salvo `/ayuda` y el resultado de `/verguenza`, sus respuestas son efímeras: solo las ve quien ejecutó el comando. Los selectores y
-botones quedan ligados a ese usuario, expiran a los 180 segundos y editan el mensaje existente en
-vez de publicar respuestas adicionales.
+Salvo `/ayuda`, los resultados de `/verguenza` y `/honor`, y el expediente publicado por
+`/solicitar-roles`, sus respuestas son efímeras: solo las ve quien ejecutó el comando. Los selectores
+de consultas quedan ligados a ese usuario, expiran a los 180 segundos y editan el mensaje existente
+en vez de publicar respuestas adicionales. Los tres botones de una solicitud de roles son la
+excepción: son persistentes, sobreviven reinicios y autorizan al supervisor en cada clic.
 
 Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no consumen tokens.
 
@@ -16,10 +18,13 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/cargos` | Todos | Efímera | `delitos.json` |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
 | `/verguenza` | Todos | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
+| `/honor` | Todos | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/pendientes` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/ranking` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/mis-reportes` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
 | `/mi-resumen` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
+| `/solicitar-roles` | Todos en guild y canal habilitados | Modal privado; solicitud pública en el canal | Mensaje versionado de Discord |
+| `/info-roles` | Todos en una guild habilitada | Efímera | Persona y configuración actuales |
 
 Los comandos generales no aplican `AUTHORIZED_USER_IDS`; están destinados a todos los miembros que
 puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists centrales antes de
@@ -28,6 +33,12 @@ leer el historial de Discord.
 Los comandos de supervisión comparten `SUPERVISOR_ROLE_IDS`. Ausente, vacío o `*` permite a
 todos; una lista CSV exige que el miembro posea al menos uno de esos roles. La comprobación está
 centralizada y no depende de `AUTHORIZED_USER_IDS`.
+
+Los comandos de roles se registran únicamente cuando `ROLE_REQUEST_REVIEWER_ROLE_IDS` contiene al
+menos un ID explícito. No aplican `AUTHORIZED_USER_IDS`. Los botones de una solicitud son visibles,
+pero sus callbacks verifican siempre que quien decide posea uno de esos roles. Tanto los IDs de
+revisores como los de canales pueden mezclar distintas guilds; en cada interacción solo se resuelven
+los objetos pertenecientes a la guild actual.
 
 Las consultas deterministas también reconocen `⏳`, `✅`, `❌` y `⚠️` cuando la reacción pertenece
 al bot o a un miembro autorizado por esta misma política. Las reacciones de otros miembros no
@@ -120,6 +131,18 @@ El resultado es visible para todo el canal, pero usa menciones sin notificación
 de una guild habilitada puede ejecutarlo y el snapshot solo incluye canales configurados que ese
 miembro y el bot puedan leer. No aplica `AUTHORIZED_USER_IDS`, no ejecuta IA y no conserva historial.
 
+## `/honor`
+
+Abre un modal con los mismos periodos de `/verguenza` y publica una sección por cada canal de
+reportes configurado. Solo aparecen miembros con al menos un expediente cuyo estado actual sea ✅.
+Cada estación presenta hasta diez miembros, ordenados primero por cantidad de aprobaciones, después
+por porcentaje de aprobación y finalmente por volumen total de reportes.
+
+Cada fila muestra aprobaciones, reportes presentados y porcentaje. El total conserva los reportes
+que todavía estén pendientes o tengan otro resultado, de modo que el porcentaje represente el
+snapshot completo del periodo. Es público, no notifica las menciones mostradas, no aplica
+`AUTHORIZED_USER_IDS`, no ejecuta IA y no mantiene historial propio.
+
 ## `/ranking`
 
 Abre un modal con periodo, estación y criterio de orden. Puede ordenar por:
@@ -146,6 +169,30 @@ Calcula el resumen privado del mes actual a partir del mismo snapshot de Discord
 aprobados, con correcciones, pendientes, casos que requieren supervisión y porcentaje de aprobación.
 No representa un historial; publicaciones eliminadas o reacciones reemplazadas no pueden recuperarse
 sin una base de datos.
+
+## `/solicitar-roles`
+
+Solo puede ejecutarse en un canal de texto normal de una guild habilitada. Los hilos se rechazan
+aunque su canal padre figure en `ROLE_REQUEST_ALLOWED_CHANNEL_IDS`. El modal permite seleccionar
+hasta diez roles para agregar, diez para retirar y un motivo opcional. Antes de publicar, valida el
+estado actual del miembro, la jerarquía del bot y que no se incluyan `@everyone`, roles gestionados,
+roles revisores, roles administrativos o roles iguales o superiores al bot.
+
+La solicitud se publica en el mismo canal con botones persistentes. El mensaje es la única fuente de
+verdad: su ID identifica el expediente y un codec versionado reconstruye solicitante, roles y estado.
+Solo se admite una solicitud pendiente por miembro entre todos los canales autorizados y visibles de
+esa guild.
+
+Un supervisor puede aprobar todo, abrir un segundo modal para seleccionar un subconjunto exacto o
+rechazar con motivo. La resolución edita el mismo embed, registra supervisor y fecha, deshabilita los
+tres botones y modifica los roles en una sola operación cuando corresponde. Los clics repetidos,
+mensajes alterados o solicitudes ya resueltas no vuelven a ejecutar cambios.
+
+## `/info-roles`
+
+Explica de forma efímera cómo presentar una solicitud, roles protegidos, regla de solicitud única,
+canales autorizados y diferencias entre aprobación completa, parcial y rechazo. Puede ejecutarse en
+cualquier canal o hilo de una guild habilitada.
 
 ## Errores y observabilidad
 

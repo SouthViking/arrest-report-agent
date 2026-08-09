@@ -72,6 +72,8 @@ Completa al menos `DISCORD_TOKEN` y `OPENAI_API_KEY` en `.env`. Los valores por 
 DISCORD_GUILD_IDS=1234674521416663070
 REPORT_CHANNEL_IDS=1462992794569281617,1462992859761217745
 AUTHORIZED_USER_IDS=*
+ROLE_REQUEST_ALLOWED_CHANNEL_IDS=*
+ROLE_REQUEST_REVIEWER_ROLE_IDS=
 BOT_PERSONA=walter_vigil
 OPENAI_MODEL=gpt-5.6-terra
 OPENAI_REASONING_EFFORT=medium
@@ -84,10 +86,17 @@ usuario habilitado puede activar al bot mediante una mención o una respuesta di
 canal visible para el bot.
 
 `REPORT_CHANNEL_IDS` no restringe conversaciones. Define los canales que `/mis-reportes`,
-`/mi-resumen`, `/pendientes`, `/ranking` y `/verguenza` utilizan como archivo de reportes y los que `/ayuda`
+`/mi-resumen`, `/pendientes`, `/ranking`, `/verguenza` y `/honor` utilizan como archivo de reportes y los que `/ayuda`
 presenta como destinos habituales. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` siguen siendo aliases
 de migración. Al mostrarlos, el bot conserva únicamente los que pertenecen a la guild actual y son
 visibles para él y para el solicitante, evitando referencias `#desconocido` entre servidores.
+
+El subsistema de solicitudes de roles se habilita al configurar uno o más IDs explícitos en
+`ROLE_REQUEST_REVIEWER_ROLE_IDS`. `/solicitar-roles` publica la solicitud en el mismo canal de texto
+donde se ejecuta; `ROLE_REQUEST_ALLOWED_CHANNEL_IDS` puede abrir todos esos canales con `*` o
+restringirlos mediante CSV. No aplica `AUTHORIZED_USER_IDS`, no funciona dentro de hilos y no usa
+base de datos ni IA: el mensaje versionado de Discord conserva la solicitud y sus botones
+persistentes. `/info-roles` permanece disponible en cualquier canal o hilo de una guild habilitada.
 
 La política previa valida guild, autor y usuario antes de leer contexto o iniciar el Runner. Las
 tools de escritura no reciben IDs de destino libres: operan exclusivamente sobre el mensaje y el
@@ -187,14 +196,20 @@ Comandos disponibles:
   cada canal configurado un top 10 de quienes acumulan más expedientes que todavía no alcanzan el
   ✅; muestra una leyenda y separa los expedientes sin revisión (`📭`) de las revisiones activas
   (`⏳`), correcciones (`❌`) e inconclusos (`⚠️`).
+- `/honor`: abre el mismo selector de periodo y publica por estación un top 10 de miembros con al
+  menos un reporte aprobado, ordenado por cantidad de ✅, porcentaje de aprobación y volumen.
 - `/pendientes`: consulta de supervisión para expedientes sin estado terminal o en revisión.
 - `/ranking`: ranking de supervisión por volumen, aprobaciones, correcciones o tasa de aprobación.
 - `/mis-reportes`: abre un modal privado para filtrar por periodo, estado y estación; entrega
   referencias directas a cada publicación y a su hilo cuando existe.
 - `/mi-resumen`: muestra de forma privada el estado personal del mes actual.
+- `/solicitar-roles`: abre un formulario privado para solicitar hasta diez altas y diez bajas;
+  publica un expediente en el canal de origen para aprobación completa, parcial o rechazo.
+- `/info-roles`: explica de forma privada los canales, límites, roles protegidos y resultados del
+  sistema de solicitudes.
 
-Los comandos de guía, cargos, FAQ, vergüenza y consultas personales son deterministas: no ejecutan el runner ni
-consumen OpenAI. Los comandos personales consultan un máximo acotado del historial de los canales
+Los comandos de guía, cargos, FAQ, vergüenza, honor, roles y consultas personales son deterministas:
+no ejecutan el runner ni consumen OpenAI. Los comandos personales consultan un máximo acotado del historial de los canales
 configurados, cuentan solo publicaciones raíz del usuario con adjuntos o estado asignado y leen las
 reacciones (`⏳`, `✅`, `❌`, `⚠️`) puestas por esta instancia o por miembros que cumplan
 `SUPERVISOR_ROLE_IDS`. Los resultados representan el estado actual de Discord, no un historial de
@@ -216,6 +231,8 @@ el contenido exacto del FAQ.
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
 | `SUPERVISOR_ROLE_IDS` | `*` | Roles autorizados para comandos de supervisión y para asignar estados manuales reconocidos por las consultas; `*`/vacío permite a todos. |
 | `REVIEW_ESCALATION_ROLE_IDS` | vacío | Roles existentes que reciben una mención ante resultados inconclusos o fallas; acepta CSV. |
+| `ROLE_REQUEST_ALLOWED_CHANNEL_IDS` | `*` | Canales de texto normales donde puede ejecutarse `/solicitar-roles`; `*`/vacío permite todos y un CSV restringe. Los hilos siempre se rechazan. |
+| `ROLE_REQUEST_REVIEWER_ROLE_IDS` | vacío | Roles que pueden resolver solicitudes. Requiere IDs explícitos, no admite `*`; vacío deshabilita ambos comandos de roles. |
 | `BOT_PERSONA` | obligatorio | ID del perfil empaquetado que controla identidad, tono, presencia y perfil de Discord. |
 | `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | Modelo del runner. |

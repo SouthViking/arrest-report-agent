@@ -35,6 +35,7 @@ async def run() -> None:
     report_channels = settings.report_channel_allowlist
     users = settings.user_allowlist
     supervisor_roles = settings.supervisor_role_allowlist
+    role_request_channels = settings.role_request_allowed_channel_allowlist
     log_event(
         LOGGER,
         "info",
@@ -58,6 +59,12 @@ async def run() -> None:
             "restricted" if supervisor_roles.is_restricted else "open"
         ),
         configured_supervisor_roles=supervisor_roles.configured_count,
+        role_request_subsystem_enabled=runtime.role_requests_enabled,
+        role_request_channel_mode=(
+            "restricted" if role_request_channels.is_restricted else "open"
+        ),
+        configured_role_request_channels=role_request_channels.configured_count,
+        configured_role_request_reviewers=len(settings.role_request_reviewer_role_ids),
     )
     try:
         await runtime.bot.start(settings.discord_token.get_secret_value())

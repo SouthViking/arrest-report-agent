@@ -14,14 +14,18 @@ from arrest_report_agent.application import (
     PersonalReportStatus,
     PersonalReportStatusFilter,
     SupervisorRankingMetric,
+    build_approved_report_ranking,
     build_open_report_ranking,
     build_supervisor_ranking,
 )
 from arrest_report_agent.config import SnowflakeAllowlist
 from arrest_report_agent.infrastructure.discord.supervision import (
+    HonorRankingModal,
+    HonorRankingSection,
     ShameRankingModal,
     ShameRankingSection,
     SupervisorRolePolicy,
+    build_honor_ranking_embed,
     build_pending_reports_embed,
     build_ranking_embed,
     build_shame_ranking_embed,
@@ -107,6 +111,26 @@ def test_open_report_ranking_excludes_approved_and_sorts_descending() -> None:
     assert ranking[1].corrections_required == 1
 
 
+def test_approved_report_ranking_requires_approval_and_preserves_context() -> None:
+    reports = (
+        report(1, 100, PersonalReportStatus.APPROVED),
+        report(2, 100, PersonalReportStatus.APPROVED),
+        report(3, 100, PersonalReportStatus.CORRECTIONS_REQUIRED),
+        report(4, 200, PersonalReportStatus.APPROVED),
+        report(5, 200, PersonalReportStatus.PENDING),
+        report(6, 300, PersonalReportStatus.CORRECTIONS_REQUIRED),
+    )
+
+    ranking = build_approved_report_ranking(reports)
+
+    assert [entry.author_id for entry in ranking] == [100, 200]
+    assert ranking[0].approved == 2
+    assert ranking[0].total == 3
+    assert ranking[0].approval_rate == pytest.approx(66.7, abs=0.1)
+    assert ranking[1].approved == 1
+    assert ranking[1].total == 2
+
+
 def test_supervision_embeds_expose_navigation_and_current_snapshot(persona) -> None:
     reports = (
         report(1, 100, PersonalReportStatus.PENDING),
@@ -184,6 +208,49 @@ def test_shame_embed_is_public_ready_and_counts_only_non_approved(persona) -> No
     assert embed.footer.text == "Top 2 de 2 miembro(s) · Sgt. Rivera"
 
 
+def test_honor_embed_is_public_ready_and_includes_only_approved_authors(persona) -> None:
+    reports = (
+        report(1, 100, PersonalReportStatus.APPROVED),
+        report(2, 100, PersonalReportStatus.APPROVED),
+        report(3, 100, PersonalReportStatus.CORRECTIONS_REQUIRED),
+        report(4, 200, PersonalReportStatus.APPROVED),
+        report(5, 300, PersonalReportStatus.PENDING),
+    )
+    ranking = build_approved_report_ranking(reports)
+
+    embed = build_honor_ranking_embed(
+        (
+            HonorRankingSection(
+                channel_id=200,
+                channel_name="gnt-arrestos",
+                ranking=ranking,
+            ),
+            HonorRankingSection(
+                channel_id=300,
+                channel_name="dlm-arrestos",
+                ranking=(),
+            ),
+        ),
+        period=PersonalReportPeriod.LAST_30_DAYS,
+        truncated=False,
+        display_name="Sgt. Rivera",
+        ui=persona.messages.interface.supervision,
+        navigation=persona.messages.interface.navigation,
+    )
+
+    assert embed.title == "🏆 Cuadro de honor"
+    assert "Últimos 30 días" in embed.description
+    assert [field.name for field in embed.fields] == [
+        "📍 #gnt-arrestos",
+        "📍 #dlm-arrestos",
+    ]
+    assert "🥇 <@100>" in embed.fields[0].value
+    assert "2 aprobado(s) de 3 · 66.7%" in embed.fields[0].value
+    assert "<@300>" not in embed.fields[0].value
+    assert persona.messages.interface.supervision.honor_empty_body in embed.fields[1].value
+    assert embed.footer.text == "Top 2 de 2 miembro(s) · Sgt. Rivera"
+
+
 @pytest.mark.asyncio
 async def test_shame_modal_uses_selected_period_and_publishes_result(persona) -> None:
     class Finder:
@@ -245,3 +312,66 @@ async def test_shame_modal_uses_selected_period_and_publishes_result(persona) ->
     assert isinstance(embed, discord.Embed)
     assert "Últimos 30 días" in embed.description
     assert embed.fields[0].name == "📍 #gnt-arrestos"
+
+
+@pytest.mark.asyncio
+async def test_honor_modal_uses_selected_period_and_publishes_result(persona) -> None:
+    class Finder:
+        def __init__(self) -> None:
+            self.queries: list[PersonalReportQuery] = []
+
+        async def find_all(self, _guild, _member, query):
+            self.queries.append(query)
+            return PersonalReportSearchResult(
+                reports=(report(1, 100, PersonalReportStatus.APPROVED),)
+            )
+
+        def visible_channels(self, _guild, _member):
+            return (SimpleNamespace(id=200, name="gnt-arrestos"),)
+
+    deferred: list[bool] = []
+    sent: list[dict[str, object]] = []
+
+    async def defer(*, ephemeral: bool) -> None:
+        deferred.append(ephemeral)
+
+    async def send(**kwargs) -> None:
+        sent.append(kwargs)
+
+    finder = Finder()
+    member = SimpleNamespace(id=123)
+    modal = HonorRankingModal(
+        finder=finder,  # type: ignore[arg-type]
+        guild=SimpleNamespace(id=1),  # type: ignore[arg-type]
+        member=member,  # type: ignore[arg-type]
+        display_name="Sgt. Rivera",
+        access_messages=persona.messages.access,
+        failure_messages=persona.messages.failures,
+        ui=persona.messages.interface.supervision,
+        navigation=persona.messages.interface.navigation,
+    )
+    modal.period_select._interaction = SimpleNamespace(data={})  # noqa: SLF001
+    modal.period_select._selected_values = ["last_7_days"]  # noqa: SLF001
+    interaction = SimpleNamespace(
+        id=456,
+        user=member,
+        response=SimpleNamespace(defer=defer),
+        followup=SimpleNamespace(send=send),
+    )
+
+    await modal.callback(interaction)  # type: ignore[arg-type]
+
+    assert deferred == [False]
+    assert finder.queries == [
+        PersonalReportQuery(
+            period=PersonalReportPeriod.LAST_7_DAYS,
+            status=PersonalReportStatusFilter.ALL,
+        )
+    ]
+    assert len(sent) == 1
+    assert sent[0]["ephemeral"] is False
+    assert isinstance(sent[0]["allowed_mentions"], discord.AllowedMentions)
+    embed = sent[0]["embed"]
+    assert isinstance(embed, discord.Embed)
+    assert "Últimos 7 días" in embed.description
+    assert "<@100>" in embed.fields[0].value

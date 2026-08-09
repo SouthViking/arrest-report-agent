@@ -26,8 +26,14 @@ No requiere Server Members Intent ni Presence Intent.
 - Manage Threads
 - Embed Links
 
-El bitfield combinado es `326417599552`, aunque se recomienda revisar permisos por nombre en lugar de
-conservar un número de forma manual.
+El bitfield base es `326417599552`; con `Manage Roles` es `326686035008`. Se recomienda revisar
+permisos por nombre en lugar de conservar un número de forma manual.
+
+`Manage Roles` solo es necesario cuando se habilita el subsistema con
+`ROLE_REQUEST_REVIEWER_ROLE_IDS`. El rol más alto del bot debe quedar por encima de todos los roles
+que podrán solicitarse; Discord no permite administrar roles iguales o superiores. En cada canal
+admitido por `ROLE_REQUEST_ALLOWED_CHANNEL_IDS` también necesita `View Channel`, `Read Message
+History`, `Send Messages` y `Embed Links`.
 
 `Change Nickname` es opcional. La persona `walter_vigil` configura `nickname: null`, por lo que su
 identidad global se sincroniza sin ese permiso. Solo una persona futura con nickname gestionado lo

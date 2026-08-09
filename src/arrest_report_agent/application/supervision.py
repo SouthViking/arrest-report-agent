@@ -106,6 +106,18 @@ def build_open_report_ranking(
     )
 
 
+def build_approved_report_ranking(
+    reports: tuple[PersonalReport, ...],
+) -> tuple[SupervisorRankingEntry, ...]:
+    """Rank authors with at least one currently approved report."""
+
+    ranking = build_supervisor_ranking(
+        reports,
+        SupervisorRankingMetric.APPROVED,
+    )
+    return tuple(entry for entry in ranking if entry.approved > 0)
+
+
 def _ranking_sort_key(
     entry: SupervisorRankingEntry,
     metric: SupervisorRankingMetric,

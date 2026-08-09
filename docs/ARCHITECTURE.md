@@ -27,8 +27,9 @@ flowchart LR
     X --> F["Invocación en hilo: mismo hilo"]
 ```
 
-`SnowflakeAllowlist` centraliza el parseo de `DISCORD_GUILD_IDS`, `REPORT_CHANNEL_IDS` y
-`AUTHORIZED_USER_IDS`: ausente, vacío o `*` abre la colección; cualquier CSV la restringe.
+`SnowflakeAllowlist` centraliza el parseo de `DISCORD_GUILD_IDS`, `REPORT_CHANNEL_IDS`,
+`AUTHORIZED_USER_IDS` y `ROLE_REQUEST_ALLOWED_CHANNEL_IDS`: ausente, vacío o `*` abre la colección;
+cualquier CSV la restringe.
 `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` se conservan como aliases de migración para
 `REPORT_CHANNEL_IDS`.
 
@@ -42,7 +43,7 @@ La colección `REPORT_CHANNEL_IDS` queda separada del acceso conversacional. El 
 consultas deterministas de reportes y para `/ayuda`; al presentarla, resuelve cada ID en la guild
 actual y solo muestra canales de texto visibles para el bot y el solicitante. Los IDs de otras guilds,
 eliminados o inaccesibles se omiten y se registran sin bloquear la conversación.
-`/verguenza` conserva ese origen en el resultado y construye una sección independiente por canal,
+`/verguenza` y `/honor` conservan ese origen en el resultado y construyen una sección independiente por canal,
 en lugar de mezclar estaciones en un único ranking. La agregación conserva por separado los
 expedientes sin reacción y aquellos marcados `⏳`, para que la presentación no confunda ausencia de
 revisión con una revisión activa.
@@ -79,6 +80,8 @@ un guardrail bloqueado no deja hilos vacíos.
 - `knowledge`: guía versionada e índice del JSON del PCU, cargados y validados al iniciar.
 - `application`: prompt, tools, contexto del runner, errores, tracing y orquestación.
 - `infrastructure/discord`: política previa, reconstrucción de hilos, embeds, reacciones y comandos.
+- `role_requests`: modelos, codec, política, servicio, modales y vistas persistentes del subsistema
+  determinista de solicitudes de roles; no depende del runner ni de `infrastructure/discord`.
 
 Los comandos personales `/mis-reportes` y `/mi-resumen` siguen una ruta determinista separada
 del runner. Leen de forma acotada los canales de revisión visibles, atribuyen publicaciones raíz al
@@ -96,6 +99,10 @@ que ya tenga ✅ y agrupa los estados restantes por autor dentro del periodo. La
 allowlist de guilds y los permisos efectivos de lectura del solicitante, pero deliberadamente no
 aplica la allowlist de usuarios ni los roles de supervisión.
 
+`/honor` reutiliza el mismo snapshot y los mismos periodos, pero conserva únicamente autores con al
+menos un reporte aprobado. El orden usa cantidad de aprobaciones, porcentaje y volumen como
+desempates; el total y la tasa mantienen todos los estados del autor para conservar el contexto.
+
 El contrato funcional completo de los comandos está documentado en [Comandos de Discord](COMMANDS.md).
 
 Los comandos `/pendientes` y `/ranking` reutilizan el mismo finder acotado, pero permiten
@@ -105,6 +112,26 @@ configuración por guild desde una base de datos sin modificar las vistas ni las
 El finder reutiliza esa política para reconocer estados manuales: confía en las reacciones del bot y
 en las de miembros que posean un rol autorizado, ignorando las del resto.
 - `bootstrap`: composición de dependencias y healthcheck.
+
+## Solicitudes de roles
+
+`ROLE_REQUEST_REVIEWER_ROLE_IDS` actúa como feature flag y frontera de autorización: vacío evita
+registrar `/solicitar-roles`, `/info-roles` y su vista persistente. Cuando está habilitado, el comando
+solo aplica la allowlist de guilds y la allowlist independiente de canales; no reutiliza
+`AUTHORIZED_USER_IDS` ni las políticas del agente.
+
+No existe repositorio ni base de datos. El adaptador publica un embed provisional, obtiene su ID y lo
+edita con el marcador `Solicitud <message_id> · role-request:v1` y tres `custom_id` estables. El codec
+valida autor del bot, guild, canal, footer, autor lógico, orden de campos, menciones de roles y estado
+de los componentes. Por eso una vista genérica registrada al arrancar puede resolver una solicitud
+después de reiniciar usando únicamente `interaction.message.id` y el mensaje vuelto a descargar.
+
+Cada decisión usa un lock por ID y revalida supervisor, miembro, roles protegidos y jerarquía dentro
+del lock. La aprobación completa o parcial calcula el conjunto final desde los roles actuales y lo
+aplica mediante una sola edición del miembro, considerando satisfechos los cambios hechos
+manualmente. La resolución terminal edita el mismo embed y deshabilita todos los componentes. Un
+error HTTP transitorio deja el mensaje pendiente; la ausencia definitiva del miembro, de un rol o de
+una jerarquía válida lo cierra como fallido.
 
 ## Personas
 

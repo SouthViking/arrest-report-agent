@@ -25,6 +25,7 @@ from .persona import (
     PersonaProvider,
     PersonaReviewMessages,
     PersonaReviewSummaryExample,
+    PersonaRoleRequestMessages,
     PersonaSupervisionMessages,
     PersonaVoice,
 )
@@ -56,6 +57,7 @@ __all__ = [
     "PersonaProvider",
     "PersonaReviewMessages",
     "PersonaReviewSummaryExample",
+    "PersonaRoleRequestMessages",
     "PersonaSupervisionMessages",
     "PersonaVoice",
     "ResolvedModel",
