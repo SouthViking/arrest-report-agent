@@ -20,7 +20,25 @@ DECISION_CUSTOM_IDS = frozenset(
     {APPROVE_ALL_CUSTOM_ID, APPROVE_PARTIAL_CUSTOM_ID, REJECT_CUSTOM_ID}
 )
 EMPTY_VALUE = "—"
-FOOTER_PATTERN = re.compile(r"^Solicitud (?P<message_id>[1-9][0-9]*) · role-request:v1$")
+ADD_FIELD_TITLE = "➕ Roles para agregar"
+REMOVE_FIELD_TITLE = "➖ Roles para retirar"
+REASON_FIELD_TITLE = "📝 Motivo"
+STATUS_FIELD_TITLE = "📌 Estado"
+APPROVED_CHANGES_TITLE = "✅ Cambios aprobados"
+UNAPPROVED_CHANGES_TITLE = "➖ Cambios no aprobados"
+REVIEWER_FIELD_TITLE = "🛡️ Resuelto por"
+DECISION_COMMENT_TITLE = "💬 Comentario de supervisión"
+ADD_CHANGE_PREFIX = "Agregar"
+REMOVE_CHANGE_PREFIX = "Retirar"
+PENDING_FIELD_ORDER = (
+    ADD_FIELD_TITLE,
+    REMOVE_FIELD_TITLE,
+    REASON_FIELD_TITLE,
+    STATUS_FIELD_TITLE,
+)
+FOOTER_PATTERN = re.compile(
+    r"^Solicitud (?P<message_id>[1-9][0-9]*)(?: · role-request:v1)?$"
+)
 USER_URL_PATTERN = re.compile(r"^https://discord\.com/users/(?P<user_id>[1-9][0-9]*)$")
 ROLE_MENTION_PATTERN = re.compile(r"^<@&(?P<role_id>[1-9][0-9]*)>$")
 
@@ -36,7 +54,6 @@ def build_pending_embed(
     remove_role_ids: Iterable[int],
     reason: str | None,
     ui: PersonaRoleRequestMessages,
-    display_name: str,
     created_at: datetime,
     message_id: int | None = None,
 ) -> discord.Embed:
@@ -44,7 +61,7 @@ def build_pending_embed(
 
     embed = discord.Embed(
         title=ui.pending_title,
-        description=ui.pending_description.format(display_name=display_name),
+        description=ui.pending_description,
         color=discord.Color.gold(),
         timestamp=created_at,
     )
@@ -54,28 +71,29 @@ def build_pending_embed(
         url=f"https://discord.com/users/{requester.id}",
         icon_url=str(avatar) if avatar else None,
     )
+    additions = tuple(add_role_ids)
+    removals = tuple(remove_role_ids)
+    if additions:
+        embed.add_field(
+            name=ADD_FIELD_TITLE,
+            value=_render_role_mentions(additions),
+            inline=True,
+        )
+    if removals:
+        embed.add_field(
+            name=REMOVE_FIELD_TITLE,
+            value=_render_role_mentions(removals),
+            inline=True,
+        )
+    if reason:
+        embed.add_field(name=REASON_FIELD_TITLE, value=reason, inline=False)
     embed.add_field(
-        name=ui.add_field_title,
-        value=_render_role_mentions(add_role_ids, EMPTY_VALUE),
-        inline=True,
-    )
-    embed.add_field(
-        name=ui.remove_field_title,
-        value=_render_role_mentions(remove_role_ids, EMPTY_VALUE),
-        inline=True,
-    )
-    embed.add_field(
-        name=ui.reason_field_title,
-        value=reason or EMPTY_VALUE,
-        inline=False,
-    )
-    embed.add_field(
-        name=ui.status_field_title,
+        name=STATUS_FIELD_TITLE,
         value=ui.status_pending,
         inline=False,
     )
     if message_id is not None:
-        embed.set_footer(text=f"Solicitud {message_id} · {CODEC_VERSION}")
+        embed.set_footer(text=f"Solicitud {message_id}")
     return embed
 
 
@@ -86,14 +104,13 @@ def build_decision_embed(
     requester_name: str,
     requester_avatar_url: str | None,
     ui: PersonaRoleRequestMessages,
-    display_name: str,
 ) -> discord.Embed:
     """Render one terminal, human-readable decision while preserving the request fields."""
 
     title, status, color = _decision_presentation(decision.status, ui)
     embed = discord.Embed(
         title=title,
-        description=ui.pending_description.format(display_name=display_name),
+        description=ui.pending_description,
         color=color,
         timestamp=request.created_at,
     )
@@ -102,62 +119,63 @@ def build_decision_embed(
         url=f"https://discord.com/users/{request.requester_id}",
         icon_url=requester_avatar_url,
     )
-    embed.add_field(
-        name=ui.add_field_title,
-        value=_render_role_mentions(request.add_role_ids, EMPTY_VALUE),
-        inline=True,
-    )
-    embed.add_field(
-        name=ui.remove_field_title,
-        value=_render_role_mentions(request.remove_role_ids, EMPTY_VALUE),
-        inline=True,
-    )
-    embed.add_field(
-        name=ui.reason_field_title,
-        value=request.reason or EMPTY_VALUE,
-        inline=False,
-    )
-    embed.add_field(name=ui.status_field_title, value=status, inline=False)
+    if request.add_role_ids:
+        embed.add_field(
+            name=ADD_FIELD_TITLE,
+            value=_render_role_mentions(request.add_role_ids),
+            inline=True,
+        )
+    if request.remove_role_ids:
+        embed.add_field(
+            name=REMOVE_FIELD_TITLE,
+            value=_render_role_mentions(request.remove_role_ids),
+            inline=True,
+        )
+    if request.reason:
+        embed.add_field(name=REASON_FIELD_TITLE, value=request.reason, inline=False)
+    embed.add_field(name=STATUS_FIELD_TITLE, value=status, inline=False)
 
     if decision.status in {
         RoleRequestStatus.APPROVED,
         RoleRequestStatus.PARTIALLY_APPROVED,
     }:
-        embed.add_field(
-            name=ui.approved_changes_title,
-            value=_render_changes(
-                decision.approved_add_role_ids,
-                decision.approved_remove_role_ids,
-                ui,
-            ),
-            inline=False,
+        approved_changes = _render_changes(
+            decision.approved_add_role_ids,
+            decision.approved_remove_role_ids,
         )
+        if approved_changes:
+            embed.add_field(
+                name=APPROVED_CHANGES_TITLE,
+                value=approved_changes,
+                inline=False,
+            )
     if decision.status in {
         RoleRequestStatus.PARTIALLY_APPROVED,
         RoleRequestStatus.REJECTED,
         RoleRequestStatus.FAILED,
     }:
-        embed.add_field(
-            name=ui.unapproved_changes_title,
-            value=_render_changes(
-                decision.unapproved_add_role_ids,
-                decision.unapproved_remove_role_ids,
-                ui,
-            ),
-            inline=False,
+        unapproved_changes = _render_changes(
+            decision.unapproved_add_role_ids,
+            decision.unapproved_remove_role_ids,
         )
+        if unapproved_changes:
+            embed.add_field(
+                name=UNAPPROVED_CHANGES_TITLE,
+                value=unapproved_changes,
+                inline=False,
+            )
     embed.add_field(
-        name=ui.reviewer_field_title,
+        name=REVIEWER_FIELD_TITLE,
         value=f"<@{decision.reviewer_id}> · <t:{int(decision.decided_at.timestamp())}:f>",
         inline=False,
     )
     if decision.comment:
         embed.add_field(
-            name=ui.decision_comment_title,
+            name=DECISION_COMMENT_TITLE,
             value=decision.comment,
             inline=False,
         )
-    embed.set_footer(text=f"Solicitud {request.message_id} · {CODEC_VERSION}")
+    embed.set_footer(text=f"Solicitud {request.message_id}")
     return embed
 
 
@@ -190,13 +208,22 @@ def decode_pending_message(
     author_match = USER_URL_PATTERN.fullmatch(author.url if author and author.url else "")
     if author_match is None:
         raise RoleRequestCodecError("role request author URL is invalid")
-    if len(embed.fields) != 4:
+    field_names = tuple(field.name for field in embed.fields)
+    if (
+        len(field_names) != len(set(field_names))
+        or STATUS_FIELD_TITLE not in field_names
+        or field_names != tuple(name for name in PENDING_FIELD_ORDER if name in field_names)
+        or any(name not in PENDING_FIELD_ORDER for name in field_names)
+    ):
         raise RoleRequestCodecError("role request embed field layout is invalid")
     _validate_pending_components(message)
 
-    add_role_ids = _parse_role_mentions(embed.fields[0].value)
-    remove_role_ids = _parse_role_mentions(embed.fields[1].value)
-    reason_value = embed.fields[2].value.strip()
+    fields = {field.name: field.value for field in embed.fields}
+    add_role_ids = _parse_role_mentions(fields.get(ADD_FIELD_TITLE, ""))
+    remove_role_ids = _parse_role_mentions(fields.get(REMOVE_FIELD_TITLE, ""))
+    if not add_role_ids and not remove_role_ids:
+        raise RoleRequestCodecError("role request must contain at least one role change")
+    reason_value = fields.get(REASON_FIELD_TITLE, "").strip()
     created_at = embed.timestamp or message.created_at
     if created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=UTC)
@@ -207,7 +234,7 @@ def decode_pending_message(
         requester_id=int(author_match.group("user_id")),
         add_role_ids=add_role_ids,
         remove_role_ids=remove_role_ids,
-        reason=None if reason_value == EMPTY_VALUE else reason_value,
+        reason=None if reason_value in {EMPTY_VALUE, ""} else reason_value,
         created_at=created_at,
     )
 
@@ -236,21 +263,22 @@ def _parse_role_mentions(value: str) -> tuple[int, ...]:
     return tuple(role_ids)
 
 
-def _render_role_mentions(role_ids: Iterable[int], empty: str) -> str:
-    values = tuple(role_ids)
-    return "\n".join(f"<@&{role_id}>" for role_id in values) if values else empty
+def _render_role_mentions(role_ids: Iterable[int]) -> str:
+    return "\n".join(f"<@&{role_id}>" for role_id in role_ids)
 
 
 def _render_changes(
     add_role_ids: Iterable[int],
     remove_role_ids: Iterable[int],
-    ui: PersonaRoleRequestMessages,
 ) -> str:
-    return (
-        f"**{ui.add_change_prefix}:** {_render_role_mentions(add_role_ids, EMPTY_VALUE)}\n"
-        f"**{ui.remove_change_prefix}:** "
-        f"{_render_role_mentions(remove_role_ids, EMPTY_VALUE)}"
-    )
+    additions = _render_role_mentions(add_role_ids)
+    removals = _render_role_mentions(remove_role_ids)
+    lines = []
+    if additions:
+        lines.append(f"**{ADD_CHANGE_PREFIX}:** {additions}")
+    if removals:
+        lines.append(f"**{REMOVE_CHANGE_PREFIX}:** {removals}")
+    return "\n".join(lines)
 
 
 def _decision_presentation(

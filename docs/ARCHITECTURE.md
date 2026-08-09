@@ -121,7 +121,7 @@ solo aplica la allowlist de guilds y la allowlist independiente de canales; no r
 `AUTHORIZED_USER_IDS` ni las políticas del agente.
 
 No existe repositorio ni base de datos. El adaptador publica un embed provisional, obtiene su ID y lo
-edita con el marcador `Solicitud <message_id> · role-request:v1` y tres `custom_id` estables. El codec
+edita con el marcador visible `Solicitud <message_id>` y tres `custom_id` internos y versionados. El codec
 valida autor del bot, guild, canal, footer, autor lógico, orden de campos, menciones de roles y estado
 de los componentes. Por eso una vista genérica registrada al arrancar puede resolver una solicitud
 después de reiniciar usando únicamente `interaction.message.id` y el mensaje vuelto a descargar.

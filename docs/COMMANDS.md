@@ -185,6 +185,9 @@ La solicitud se publica en el mismo canal con botones persistentes. El mensaje e
 verdad: su ID identifica el expediente y un codec versionado reconstruye solicitante, roles y estado.
 Solo se admite una solicitud pendiente por miembro entre todos los canales autorizados y visibles de
 esa guild.
+El embed omite altas, bajas, motivo, comentarios y grupos de cambios cuando no contienen información;
+nunca utiliza una raya como valor de relleno. El codec sigue aceptando solicitudes antiguas que sí la
+incluyan.
 
 Un supervisor puede aprobar todo, abrir un segundo modal para seleccionar un subconjunto exacto o
 rechazar con motivo. La resolución edita el mismo embed, registra supervisor y fecha, deshabilita los

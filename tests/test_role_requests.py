@@ -8,9 +8,16 @@ import discord
 import pytest
 
 from arrest_report_agent.role_requests.codec import (
+    ADD_FIELD_TITLE,
     APPROVE_ALL_CUSTOM_ID,
     APPROVE_PARTIAL_CUSTOM_ID,
+    APPROVED_CHANGES_TITLE,
+    EMPTY_VALUE,
+    REASON_FIELD_TITLE,
     REJECT_CUSTOM_ID,
+    REMOVE_FIELD_TITLE,
+    STATUS_FIELD_TITLE,
+    UNAPPROVED_CHANGES_TITLE,
     RoleRequestCodecError,
     build_pending_embed,
     decode_pending_message,
@@ -350,14 +357,20 @@ def role_request_env(settings, persona, monkeypatch):
     )
 
 
-def _pending_message(env, *, message_id: int = 800, add_ids=(701,), remove_ids=(703,)):
+def _pending_message(
+    env,
+    *,
+    message_id: int = 800,
+    add_ids=(701,),
+    remove_ids=(703,),
+    reason: str | None = "Asignación operativa",
+):
     embed = build_pending_embed(
         requester=env.requester,
         add_role_ids=add_ids,
         remove_role_ids=remove_ids,
-        reason="Asignación operativa",
+        reason=reason,
         ui=env.service.ui,
-        display_name=env.service.persona.identity.display_name,
         created_at=datetime(2026, 8, 8, 12, tzinfo=UTC),
         message_id=message_id,
     )
@@ -394,6 +407,55 @@ def test_pending_codec_round_trip_supports_add_only_request(role_request_env) ->
     assert request.add_role_ids == (701,)
     assert request.remove_role_ids == ()
     assert request.reason == "Asignación operativa"
+    assert [field.name for field in message.embeds[0].fields] == [
+        ADD_FIELD_TITLE,
+        REASON_FIELD_TITLE,
+        STATUS_FIELD_TITLE,
+    ]
+    assert EMPTY_VALUE not in [field.value for field in message.embeds[0].fields]
+
+
+def test_pending_codec_accepts_legacy_empty_fields(role_request_env) -> None:
+    message = _pending_message(role_request_env, add_ids=(701,), remove_ids=())
+    message.embeds[0].set_footer(text=f"Solicitud {message.id} · role-request:v1")
+    message.embeds[0].insert_field_at(
+        1,
+        name=REMOVE_FIELD_TITLE,
+        value=EMPTY_VALUE,
+        inline=True,
+    )
+
+    request = decode_pending_message(
+        message,
+        bot_user_id=BOT_ID,
+        allowed_channel_ids=frozenset({CHANNEL_ID}),
+    )
+
+    assert request.add_role_ids == (701,)
+    assert request.remove_role_ids == ()
+
+
+def test_pending_embed_omits_unrequested_additions_and_reason(role_request_env) -> None:
+    message = _pending_message(
+        role_request_env,
+        add_ids=(),
+        remove_ids=(703,),
+        reason=None,
+    )
+
+    request = decode_pending_message(
+        message,
+        bot_user_id=BOT_ID,
+        allowed_channel_ids=frozenset({CHANNEL_ID}),
+    )
+
+    assert request.add_role_ids == ()
+    assert request.remove_role_ids == (703,)
+    assert request.reason is None
+    assert [field.name for field in message.embeds[0].fields] == [
+        REMOVE_FIELD_TITLE,
+        STATUS_FIELD_TITLE,
+    ]
 
 
 @pytest.mark.parametrize("mutation", ["author", "footer", "channel", "buttons"])
@@ -606,6 +668,28 @@ async def test_full_approval_applies_roles_once_and_disables_buttons(role_reques
 
 
 @pytest.mark.asyncio
+async def test_decision_embed_omits_empty_request_and_change_sections(
+    role_request_env,
+) -> None:
+    message = _pending_message(
+        role_request_env,
+        add_ids=(701,),
+        remove_ids=(),
+        reason=None,
+    )
+    interaction = _interaction(role_request_env, message)
+
+    await role_request_env.service.approve_all(interaction)
+
+    fields = {field.name: field.value for field in message.embeds[0].fields}
+    assert REMOVE_FIELD_TITLE not in fields
+    assert REASON_FIELD_TITLE not in fields
+    assert "<@&701>" in fields[APPROVED_CHANGES_TITLE]
+    assert "Retirar" not in fields[APPROVED_CHANGES_TITLE]
+    assert EMPTY_VALUE not in fields.values()
+
+
+@pytest.mark.asyncio
 async def test_full_approval_accepts_changes_already_applied_manually(
     role_request_env,
 ) -> None:
@@ -645,8 +729,10 @@ async def test_partial_approval_applies_subset_and_closes_omitted_changes(
     assert 702 not in role_ids
     assert 703 in role_ids
     assert message.embeds[0].title == role_request_env.service.ui.status_partial
-    assert "<@&702>" in message.embeds[0].fields[5].value
-    assert "<@&703>" in message.embeds[0].fields[5].value
+    fields = {field.name: field.value for field in message.embeds[0].fields}
+    assert "<@&702>" in fields[UNAPPROVED_CHANGES_TITLE]
+    assert "<@&703>" in fields[UNAPPROVED_CHANGES_TITLE]
+    assert EMPTY_VALUE not in fields.values()
     partial_notice = interaction.followup.messages[-1]
     assert partial_notice["content"] is None
     assert partial_notice["embed"].title == role_request_env.service.ui.status_partial
@@ -709,9 +795,7 @@ async def test_creation_publishes_in_origin_channel_and_blocks_second_pending_re
     assert first.response.deferred == [True]
     assert len(role_request_env.channel.send_calls) == 1
     request_message = next(iter(role_request_env.channel.messages.values()))
-    assert request_message.embeds[0].footer.text == (
-        f"Solicitud {request_message.id} · role-request:v1"
-    )
+    assert request_message.embeds[0].footer.text == f"Solicitud {request_message.id}"
     assert all(not child.disabled for child in request_message.components[0].children)
     creation_notice = first.followup.messages[-1]
     assert creation_notice["content"] is None

@@ -351,7 +351,6 @@ class RoleRequestService:
             remove_role_ids=(role.id for role in removals),
             reason=normalized_reason,
             ui=self.ui,
-            display_name=self.persona.identity.display_name,
             created_at=created_at,
         )
         message = await channel.send(
@@ -364,7 +363,6 @@ class RoleRequestService:
             remove_role_ids=(role.id for role in removals),
             reason=normalized_reason,
             ui=self.ui,
-            display_name=self.persona.identity.display_name,
             created_at=created_at,
             message_id=message.id,
         )
@@ -809,7 +807,6 @@ class RoleRequestService:
             requester_name=requester_name,
             requester_avatar_url=str(avatar) if avatar else None,
             ui=self.ui,
-            display_name=self.persona.identity.display_name,
         )
         await message.edit(
             embed=embed,

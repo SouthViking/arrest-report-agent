@@ -512,10 +512,6 @@ class PersonaRoleRequestMessages(FrozenPersonaModel):
     alert_title: str = Field(min_length=1, max_length=256)
     pending_title: str = Field(min_length=1, max_length=256)
     pending_description: str = Field(min_length=1, max_length=500)
-    add_field_title: str = Field(min_length=1, max_length=256)
-    remove_field_title: str = Field(min_length=1, max_length=256)
-    reason_field_title: str = Field(min_length=1, max_length=256)
-    status_field_title: str = Field(min_length=1, max_length=256)
     status_pending: str = Field(min_length=1, max_length=100)
     status_approved: str = Field(min_length=1, max_length=100)
     status_partial: str = Field(min_length=1, max_length=100)
@@ -543,12 +539,6 @@ class PersonaRoleRequestMessages(FrozenPersonaModel):
     stale_request: str = Field(min_length=1, max_length=300)
     request_unavailable: str = Field(min_length=1, max_length=300)
     operation_failed: str = Field(min_length=1, max_length=300)
-    approved_changes_title: str = Field(min_length=1, max_length=256)
-    unapproved_changes_title: str = Field(min_length=1, max_length=256)
-    reviewer_field_title: str = Field(min_length=1, max_length=256)
-    decision_comment_title: str = Field(min_length=1, max_length=256)
-    add_change_prefix: str = Field(min_length=1, max_length=100)
-    remove_change_prefix: str = Field(min_length=1, max_length=100)
     info_title: str = Field(min_length=1, max_length=256)
     info_description: str = Field(min_length=1, max_length=600)
     info_usage_title: str = Field(min_length=1, max_length=256)
@@ -565,7 +555,7 @@ class PersonaRoleRequestMessages(FrozenPersonaModel):
         templates = (
             (
                 self.pending_description,
-                {"display_name"},
+                set[str](),
                 "interface.role_requests.pending_description",
             ),
             (
