@@ -161,9 +161,13 @@ las fuentes locales de conocimiento están cargadas; durante el arranque devuelv
 
 ### Railway
 
-El repositorio incluye [`railway.json`](railway.json) para ejecutar una única réplica permanente
-desde el `Dockerfile`, sin serverless, con reinicio automático, apagado gradual y healthcheck en
-`/health`. Railway inyecta `PORT`; para Docker local se mantiene `HEALTH_PORT=8080`.
+El repositorio incluye [`railway.json`](railway.json) para ejecutar una única réplica desde el
+`Dockerfile`, con reinicio automático, apagado gradual y healthcheck en `/health`. Railway inyecta
+`PORT`; para Docker local se mantiene `HEALTH_PORT=8080`.
+
+Un bot de Discord necesita una conexión WebSocket permanente. En Railway Hobby deshabilita el modo
+serverless (**App Sleeping**) desde la configuración del servicio. El plan Free obliga a mantenerlo
+activado y puede desconectar al bot cuando la aplicación entra en reposo.
 
 El servicio de producción se vincula al repositorio de GitHub y a la rama `main`, por lo que cada
 push inicia automáticamente un nuevo despliegue. Esa rama también ejecuta el workflow de CI en
