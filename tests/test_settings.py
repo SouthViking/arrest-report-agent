@@ -80,6 +80,29 @@ def test_json_log_indentation_can_be_disabled() -> None:
     assert settings.log_json_indented is False
 
 
+def test_railway_port_takes_precedence_over_local_health_port() -> None:
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        PORT="9090",
+        HEALTH_PORT="8080",
+    )
+
+    assert settings.health_port == 9090
+
+
+def test_local_health_port_remains_supported() -> None:
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        HEALTH_PORT="8181",
+    )
+
+    assert settings.health_port == 8181
+
+
 @pytest.mark.parametrize(
     ("variable_name", "allowlist_attribute"),
     [

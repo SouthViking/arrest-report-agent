@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import signal
+from contextlib import suppress
 
 from agents import flush_traces
 
@@ -66,9 +68,33 @@ async def run() -> None:
         configured_role_request_channels=role_request_channels.configured_count,
         configured_role_request_reviewers=len(settings.role_request_reviewer_role_ids),
     )
+    stop_requested = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    registered_signals: list[signal.Signals] = []
+    for shutdown_signal in (signal.SIGINT, signal.SIGTERM):
+        with suppress(NotImplementedError, RuntimeError):
+            loop.add_signal_handler(shutdown_signal, stop_requested.set)
+            registered_signals.append(shutdown_signal)
+
+    bot_task = asyncio.create_task(
+        runtime.bot.start(settings.discord_token.get_secret_value()),
+        name="discord-bot",
+    )
+    stop_task = asyncio.create_task(stop_requested.wait(), name="shutdown-signal")
     try:
-        await runtime.bot.start(settings.discord_token.get_secret_value())
+        done, _ = await asyncio.wait(
+            {bot_task, stop_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if stop_task in done and not bot_task.done():
+            log_event(LOGGER, "info", "runtime_shutdown_requested")
+            await runtime.bot.close()
+        await bot_task
     finally:
+        stop_task.cancel()
+        await asyncio.gather(stop_task, return_exceptions=True)
+        for shutdown_signal in registered_signals:
+            loop.remove_signal_handler(shutdown_signal)
         health_server.close()
         await health_server.wait_closed()
         if not runtime.bot.is_closed():

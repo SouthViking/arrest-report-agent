@@ -159,6 +159,20 @@ docker compose up --build -d
 El proceso expone `GET /health` en el puerto 8080. Devuelve `200` cuando Discord está conectado y
 las fuentes locales de conocimiento están cargadas; durante el arranque devuelve `503`.
 
+### Railway
+
+El repositorio incluye [`railway.json`](railway.json) para ejecutar una única réplica permanente
+desde el `Dockerfile`, sin serverless, con reinicio automático, apagado gradual y healthcheck en
+`/health`. Railway inyecta `PORT`; para Docker local se mantiene `HEALTH_PORT=8080`.
+
+El servicio de producción debe vincularse al repositorio de GitHub y a la rama `main`. Los pushes a
+esa rama ejecutan primero el workflow de CI en GitHub Actions; habilita **Wait for CI** en Railway
+para que un commit con checks fallidos quede omitido y no reemplace el despliegue activo.
+
+Carga las variables desde el archivo local ignorado `.env.production` en la sección **Variables**
+del servicio. No subas ese archivo, `DISCORD_TOKEN` ni `OPENAI_API_KEY` al repositorio. El bot no
+necesita dominio público, volumen ni base de datos para este MVP.
+
 ## Uso en Discord
 
 1. Para una revisión, publica el nombre o identificador del sospechoso junto con el material habitual
@@ -234,6 +248,7 @@ el contenido exacto del FAQ.
 | `ROLE_REQUEST_REVIEWER_ROLE_IDS` | vacío | Roles que pueden resolver solicitudes. Requiere IDs explícitos, no admite `*`; vacío deshabilita ambos comandos de roles. |
 | `BOT_PERSONA` | obligatorio | ID del perfil empaquetado que controla identidad, tono, presencia y perfil de Discord. |
 | `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |
+| `PORT` | Railway | Puerto inyectado por Railway para el healthcheck; tiene prioridad sobre `HEALTH_PORT`. |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | Modelo del runner. |
 | `OPENAI_REASONING_EFFORT` | `medium` | Esfuerzo validado contra los valores admitidos por el modelo. |
 | `OPENAI_MAX_RETRIES` | `2` | Reintentos del proveedor. |

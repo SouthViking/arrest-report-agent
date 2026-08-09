@@ -122,7 +122,12 @@ class AppSettings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_json_indented: bool = Field(default=True, alias="LOG_JSON_INDENTED")
     health_host: str = Field(default="0.0.0.0", alias="HEALTH_HOST")
-    health_port: int = Field(default=8080, alias="HEALTH_PORT", ge=1, le=65535)
+    health_port: int = Field(
+        default=8080,
+        validation_alias=AliasChoices("PORT", "HEALTH_PORT"),
+        ge=1,
+        le=65535,
+    )
 
     openai_model: str = Field(default="gpt-5.6-terra", alias="OPENAI_MODEL", min_length=1)
     openai_reasoning_effort: str = Field(

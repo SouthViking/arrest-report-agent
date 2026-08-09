@@ -113,6 +113,18 @@ El finder reutiliza esa política para reconocer estados manuales: confía en la
 en las de miembros que posean un rol autorizado, ignorando las del resto.
 - `bootstrap`: composición de dependencias y healthcheck.
 
+## Despliegue en Railway
+
+`railway.json` fija una sola réplica siempre activa, construcción mediante el `Dockerfile`,
+healthcheck `/health`, reinicio permanente y una ventana de 30 segundos entre `SIGTERM` y `SIGKILL`.
+El runtime escucha primero el `PORT` inyectado por Railway y conserva `HEALTH_PORT` como fallback
+local. La señal de apagado cierra Discord, el servidor de salud y los traces antes de terminar.
+
+La fuente de producción es la rama `main`. GitHub Actions valida lint, tipos, tests y la imagen
+Docker en cada push; Railway debe mantener **Wait for CI** habilitado para desplegar únicamente
+revisiones que terminen esos checks correctamente. Las variables y secretos viven en Railway, no en
+el repositorio, y la identidad continúa seleccionándose exclusivamente mediante `BOT_PERSONA`.
+
 ## Solicitudes de roles
 
 `ROLE_REQUEST_REVIEWER_ROLE_IDS` actúa como feature flag y frontera de autorización: vacío evita
