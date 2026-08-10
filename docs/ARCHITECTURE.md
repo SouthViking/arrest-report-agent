@@ -128,9 +128,15 @@ el repositorio, y la identidad continúa seleccionándose exclusivamente mediant
 ## Solicitudes de roles
 
 `ROLE_REQUEST_REVIEWER_ROLE_IDS` actúa como feature flag y frontera de autorización: vacío evita
-registrar `/solicitar-roles`, `/info-roles` y su vista persistente. Cuando está habilitado, el comando
-solo aplica la allowlist de guilds y la allowlist independiente de canales; no reutiliza
-`AUTHORIZED_USER_IDS` ni las políticas del agente.
+registrar `/solicitar-roles`, `/info-roles` y su vista persistente. Cuando está habilitado,
+`ROLE_REQUEST_ALLOWED_ROLE_IDS` es obligatorio y forma el catálogo ordenado que el adaptador resuelve
+contra la guild actual. El comando solo aplica la allowlist de guilds y la allowlist independiente de
+canales; no reutiliza `AUTHORIZED_USER_IDS` ni las políticas del agente.
+
+Los selectores de creación son `StringSelect` deterministas. El adaptador descarta roles inexistentes
+o protegidos, separa altas de bajas según el estado actual del miembro y divide catálogos de más de
+25 elementos sin superar los cinco campos del modal. Los valores recibidos del cliente se vuelven a
+resolver y validar contra el catálogo antes de publicar.
 
 No existe repositorio ni base de datos. El adaptador publica un embed provisional, obtiene su ID y lo
 edita con el marcador visible `Solicitud <message_id>` y tres `custom_id` internos y versionados. El codec

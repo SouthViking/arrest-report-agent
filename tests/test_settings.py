@@ -20,6 +20,7 @@ def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings)
     assert settings.supervisor_role_allowlist.allows(999) is True
     assert settings.role_request_allowed_channel_ids is None
     assert settings.role_request_reviewer_role_ids == ()
+    assert settings.role_request_allowed_role_ids == ()
     assert settings.openai_model == "gpt-5.6-terra"
     assert settings.openai_reasoning_effort == "medium"
     assert settings.log_json_indented is True
@@ -32,6 +33,7 @@ def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings)
 
 def test_empty_escalation_roles_disable_mentions_and_legacy_name_is_supported() -> None:
     settings = AppSettings(
+        _env_file=None,
         DISCORD_TOKEN="discord",
         OPENAI_API_KEY="openai",
         DISCORD_GUILD_ID="1",
@@ -41,6 +43,7 @@ def test_empty_escalation_roles_disable_mentions_and_legacy_name_is_supported() 
     assert settings.review_escalation_role_ids == ()
 
     legacy = AppSettings(
+        _env_file=None,
         DISCORD_TOKEN="discord",
         OPENAI_API_KEY="openai",
         MANUAL_REVIEW_ROLE_ID="123",
@@ -50,6 +53,7 @@ def test_empty_escalation_roles_disable_mentions_and_legacy_name_is_supported() 
 
 def test_escalation_roles_parse_csv_in_order_and_remove_duplicates() -> None:
     settings = AppSettings(
+        _env_file=None,
         DISCORD_TOKEN="discord",
         OPENAI_API_KEY="openai",
         REVIEW_ESCALATION_ROLE_IDS="123,456,123",
@@ -70,6 +74,7 @@ def test_escalation_roles_reject_open_or_invalid_values(configured: str) -> None
 
 def test_json_log_indentation_can_be_disabled() -> None:
     settings = AppSettings(
+        _env_file=None,
         DISCORD_TOKEN="discord",
         OPENAI_API_KEY="openai",
         DISCORD_GUILD_ID="1",
@@ -206,10 +211,12 @@ def test_role_request_reviewer_roles_enable_subsystem_with_explicit_ids() -> Non
         OPENAI_API_KEY="openai",
         ROLE_REQUEST_ALLOWED_CHANNEL_IDS="123,456",
         ROLE_REQUEST_REVIEWER_ROLE_IDS="700, 800,700",
+        ROLE_REQUEST_ALLOWED_ROLE_IDS="900, 901,900",
     )
 
     assert settings.role_request_allowed_channel_ids == frozenset({123, 456})
     assert settings.role_request_reviewer_role_ids == (700, 800)
+    assert settings.role_request_allowed_role_ids == (900, 901)
 
 
 @pytest.mark.parametrize("configured", ["*", "123,*", "invalid", "0", "-1"])
@@ -222,6 +229,40 @@ def test_role_request_reviewer_roles_reject_open_or_invalid_values(
             DISCORD_TOKEN="discord",
             OPENAI_API_KEY="openai",
             ROLE_REQUEST_REVIEWER_ROLE_IDS=configured,
+        )
+
+
+@pytest.mark.parametrize("configured", ["*", "123,*", "invalid", "0", "-1"])
+def test_role_request_allowed_roles_reject_open_or_invalid_values(
+    configured: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        AppSettings(
+            _env_file=None,
+            DISCORD_TOKEN="discord",
+            OPENAI_API_KEY="openai",
+            ROLE_REQUEST_ALLOWED_ROLE_IDS=configured,
+        )
+
+
+def test_role_request_reviewer_roles_require_a_requestable_role_catalog() -> None:
+    with pytest.raises(ValidationError, match="ROLE_REQUEST_ALLOWED_ROLE_IDS"):
+        AppSettings(
+            _env_file=None,
+            DISCORD_TOKEN="discord",
+            OPENAI_API_KEY="openai",
+            ROLE_REQUEST_REVIEWER_ROLE_IDS="700",
+        )
+
+
+def test_role_request_catalog_cannot_include_reviewer_roles() -> None:
+    with pytest.raises(ValidationError, match="cannot include reviewer roles"):
+        AppSettings(
+            _env_file=None,
+            DISCORD_TOKEN="discord",
+            OPENAI_API_KEY="openai",
+            ROLE_REQUEST_REVIEWER_ROLE_IDS="700",
+            ROLE_REQUEST_ALLOWED_ROLE_IDS="701,700",
         )
 
 
@@ -300,3 +341,4 @@ def test_default_env_template_values_are_parseable(tmp_path) -> None:
     )
     assert settings.role_request_allowed_channel_ids is None
     assert settings.role_request_reviewer_role_ids == ()
+    assert settings.role_request_allowed_role_ids == ()

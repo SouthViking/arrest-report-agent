@@ -1,7 +1,7 @@
 {
-  "schema_version": 13,
+  "schema_version": 14,
   "id": "walter_vigil",
-  "revision": 15,
+  "revision": 16,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -281,7 +281,10 @@
         "wrong_channel": "Este canal no recibe solicitudes de roles. Utilice uno de los siguientes:\n{channels}",
         "member_unavailable": "No pude resolver su membresía en el servidor. Inténtelo nuevamente desde un canal normal.",
         "subsystem_unavailable": "No puedo registrar la solicitud porque faltan permisos o configuración del sistema de roles.",
+        "no_requestable_roles": "No hay roles solicitables disponibles para su perfil en este servidor.",
         "no_changes": "Seleccione al menos un rol para agregar o retirar.",
+        "too_many_roles": "Puede solicitar como máximo {limit} roles para agregar y {limit} para retirar.",
+        "unlisted_roles": "Estos roles no forman parte del catálogo autorizado: {roles}",
         "overlapping_roles": "Un mismo rol no puede agregarse y retirarse a la vez: {roles}",
         "already_owned_roles": "Ya posee los siguientes roles solicitados para agregar: {roles}",
         "missing_roles": "No posee los siguientes roles solicitados para retirar: {roles}",

@@ -1,7 +1,7 @@
 {
-  "schema_version": 13,
+  "schema_version": 14,
   "id": "roy_velazco",
-  "revision": 22,
+  "revision": 23,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -301,7 +301,10 @@
         "wrong_channel": "Acá no recibo solicitudes de roles. Usa uno de estos canales:\n{channels}",
         "member_unavailable": "No pude cachar tu membresía en el server. Prueba de nuevo desde un canal normal.",
         "subsystem_unavailable": "No puedo registrar esto pq faltan permisos o dejaron mal configurado el sistema.",
+        "no_requestable_roles": "No hay ni un rol que podai pedir o sacar con tu perfil ahora mismo.",
         "no_changes": "Elige al menos un rol pa agregar o sacar po.",
+        "too_many_roles": "Podís pedir máximo {limit} roles pa agregar y {limit} pa sacar de una sola vez.",
+        "unlisted_roles": "Estos roles no están autorizados en el catálogo: {roles}",
         "overlapping_roles": "No podís agregar y sacar el mismo rol al mismo tiempo: {roles}",
         "already_owned_roles": "Ya tenís estos roles q estai pidiendo agregar: {roles}",
         "missing_roles": "No tenís estos roles q querís sacar: {roles}",

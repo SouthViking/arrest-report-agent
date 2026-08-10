@@ -67,6 +67,7 @@ async def run() -> None:
         ),
         configured_role_request_channels=role_request_channels.configured_count,
         configured_role_request_reviewers=len(settings.role_request_reviewer_role_ids),
+        configured_role_request_roles=len(settings.role_request_allowed_role_ids),
     )
     stop_requested = asyncio.Event()
     loop = asyncio.get_running_loop()

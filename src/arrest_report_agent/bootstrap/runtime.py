@@ -95,6 +95,7 @@ async def build_runtime(
             "info",
             "role_request_subsystem_registered",
             reviewer_role_count=len(settings.role_request_reviewer_role_ids),
+            requestable_role_count=len(settings.role_request_allowed_role_ids),
             channel_access_mode=(
                 "restricted"
                 if settings.role_request_allowed_channel_allowlist.is_restricted

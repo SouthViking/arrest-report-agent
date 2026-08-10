@@ -332,6 +332,7 @@ def role_request_env(settings, persona, monkeypatch):
             "discord_guild_ids_csv": str(GUILD_ID),
             "role_request_allowed_channel_ids_csv": str(CHANNEL_ID),
             "role_request_reviewer_role_ids_csv": str(REVIEWER_ROLE_ID),
+            "role_request_allowed_role_ids_csv": "701,702,703",
         }
     )
     monkeypatch.setattr(
@@ -573,7 +574,7 @@ def test_submission_allows_high_ranked_requester_for_lower_roles(role_request_en
 
 
 @pytest.mark.asyncio
-async def test_modals_offer_role_selectors_and_only_requested_partial_options(
+async def test_modals_offer_filtered_role_catalog_and_only_requested_partial_options(
     role_request_env,
 ) -> None:
     create = CreateRoleRequestModal(
@@ -598,11 +599,17 @@ async def test_modals_offer_role_selectors_and_only_requested_partial_options(
     rejection = RejectRoleRequestModal(role_request_env.service, request)
 
     assert create.title == ROLE_REQUEST_MODAL_COPY.request_title
-    assert create.add_select.max_values == 10
-    assert create.remove_select.max_values == 10
-    assert create.add_select.required is False
-    assert create.add_select.placeholder == ROLE_REQUEST_MODAL_COPY.add_roles_placeholder
-    assert create.remove_select.placeholder == (
+    assert len(create.add_selects) == 1
+    assert len(create.remove_selects) == 1
+    assert [option.value for option in create.add_selects[0].options] == ["701", "702"]
+    assert [option.value for option in create.remove_selects[0].options] == ["703"]
+    assert create.add_selects[0].max_values == 2
+    assert create.remove_selects[0].max_values == 1
+    assert create.add_selects[0].required is False
+    assert create.add_selects[0].placeholder == (
+        ROLE_REQUEST_MODAL_COPY.add_roles_placeholder
+    )
+    assert create.remove_selects[0].placeholder == (
         ROLE_REQUEST_MODAL_COPY.remove_roles_placeholder
     )
     assert create.reason_input.placeholder == (
@@ -619,6 +626,63 @@ async def test_modals_offer_role_selectors_and_only_requested_partial_options(
     assert rejection.reason_input.placeholder == (
         ROLE_REQUEST_MODAL_COPY.reject_reason_placeholder
     )
+
+
+@pytest.mark.asyncio
+async def test_create_modal_splits_more_than_twenty_five_requestable_roles(
+    role_request_env,
+) -> None:
+    roles = [
+        FakeRole(1_000 + index, name=f"Asignación {index:02d}", position=2)
+        for index in range(26)
+    ]
+    for role in roles:
+        role.guild = role_request_env.guild
+        role_request_env.guild._roles[role.id] = role
+    configured = role_request_env.service.settings.model_copy(
+        update={
+            "role_request_allowed_role_ids_csv": ",".join(
+                str(role.id) for role in roles
+            )
+        }
+    )
+    service = RoleRequestService(
+        role_request_env.service.bot,
+        configured,
+        role_request_env.service.persona,
+    )
+
+    modal = CreateRoleRequestModal(
+        service,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+    )
+
+    assert [len(select.options) for select in modal.add_selects] == [25, 1]
+    assert modal.remove_selects == ()
+    assert len(modal.children) == 3
+
+
+def test_submission_rejects_unlisted_and_more_than_ten_roles(role_request_env) -> None:
+    unlisted = FakeRole(999, position=2)
+    unlisted.guild = role_request_env.guild
+    with pytest.raises(RoleRequestValidationError, match="catálogo"):
+        role_request_env.service.validate_submission(
+            role_request_env.requester,
+            (unlisted,),
+            (),
+        )
+
+    roles = [FakeRole(1_100 + index, position=2) for index in range(11)]
+    for role in roles:
+        role.guild = role_request_env.guild
+    role_request_env.service.allowed_role_ids = frozenset(role.id for role in roles)
+    with pytest.raises(RoleRequestValidationError, match="10"):
+        role_request_env.service.validate_submission(
+            role_request_env.requester,
+            roles,
+            (),
+        )
 
 
 @pytest.mark.asyncio

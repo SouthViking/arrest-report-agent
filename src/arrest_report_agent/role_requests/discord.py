@@ -34,6 +34,8 @@ from .models import (
 LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
 MAX_REASON_LENGTH = 1000
+MAX_STRING_SELECT_OPTIONS = 25
+MAX_REQUESTABLE_ROLES_PER_GUILD = MAX_STRING_SELECT_OPTIONS * 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +80,8 @@ class RoleRequestService:
         self.ui = persona.messages.interface.role_requests
         self.allowed_channels = settings.role_request_allowed_channel_allowlist
         self.reviewer_role_ids = frozenset(settings.role_request_reviewer_role_ids)
+        self.allowed_role_ids = frozenset(settings.role_request_allowed_role_ids)
+        self.allowed_role_order = settings.role_request_allowed_role_ids
         self._locks: dict[int, asyncio.Lock] = {}
         self._lock_users: dict[int, int] = {}
         self._creation_locks: dict[tuple[int, int], asyncio.Lock] = {}
@@ -173,9 +177,28 @@ class RoleRequestService:
         removals = _unique_roles(remove_roles)
         if not additions and not removals:
             raise RoleRequestValidationError(self.ui.no_changes)
+        if (
+            len(additions) > MAX_ROLES_PER_OPERATION
+            or len(removals) > MAX_ROLES_PER_OPERATION
+        ):
+            raise RoleRequestValidationError(
+                self.ui.too_many_roles.format(limit=MAX_ROLES_PER_OPERATION)
+            )
 
         add_ids = {role.id for role in additions}
         remove_ids = {role.id for role in removals}
+        unlisted = tuple(
+            role
+            for role in (*additions, *removals)
+            if role.id not in self.allowed_role_ids
+            or getattr(role.guild, "id", None) != member.guild.id
+        )
+        if unlisted:
+            raise RoleRequestValidationError(
+                self.ui.unlisted_roles.format(
+                    roles=_role_mentions(role.id for role in unlisted)
+                )
+            )
         overlap = add_ids & remove_ids
         if overlap:
             raise RoleRequestValidationError(
@@ -207,6 +230,73 @@ class RoleRequestService:
                 )
             )
         return additions, removals
+
+    def requestable_role_choices(
+        self,
+        member: discord.Member,
+    ) -> tuple[tuple[discord.Role, ...], tuple[discord.Role, ...]]:
+        """Resolve safe add/remove choices from the configured catalog for one guild."""
+
+        bot_member = member.guild.me
+        if bot_member is None:
+            raise RoleRequestValidationError(self.ui.subsystem_unavailable)
+        catalog: list[discord.Role] = []
+        unavailable_ids: list[int] = []
+        for role_id in self.allowed_role_order:
+            role = member.guild.get_role(role_id)
+            if role is None:
+                continue
+            if self._role_is_protected(role, bot_member):
+                unavailable_ids.append(role_id)
+                continue
+            catalog.append(role)
+        if unavailable_ids:
+            log_event(
+                LOGGER,
+                "warning",
+                "role_request_configured_roles_unmanageable",
+                guild_id=member.guild.id,
+                role_ids=unavailable_ids,
+                role_count=len(unavailable_ids),
+            )
+        if not catalog:
+            raise RoleRequestValidationError(self.ui.no_requestable_roles)
+        if len(catalog) > MAX_REQUESTABLE_ROLES_PER_GUILD:
+            log_event(
+                LOGGER,
+                "error",
+                "role_request_catalog_too_large",
+                guild_id=member.guild.id,
+                role_count=len(catalog),
+                maximum=MAX_REQUESTABLE_ROLES_PER_GUILD,
+            )
+            raise RoleRequestValidationError(self.ui.subsystem_unavailable)
+
+        current_ids = {role.id for role in member.roles}
+        additions = tuple(role for role in catalog if role.id not in current_ids)
+        removals = tuple(role for role in catalog if role.id in current_ids)
+        return additions, removals
+
+    def resolve_selected_roles(
+        self,
+        guild: discord.Guild,
+        raw_role_ids: Iterable[str],
+    ) -> tuple[discord.Role, ...]:
+        """Resolve untrusted select values back to configured roles."""
+
+        roles: list[discord.Role] = []
+        for raw_role_id in raw_role_ids:
+            try:
+                role_id = int(raw_role_id)
+            except (TypeError, ValueError) as error:
+                raise RoleRequestValidationError(self.ui.request_unavailable) from error
+            if role_id not in self.allowed_role_ids:
+                raise RoleRequestValidationError(self.ui.request_unavailable)
+            role = guild.get_role(role_id)
+            if role is None:
+                raise RoleRequestValidationError(self.ui.request_unavailable)
+            roles.append(role)
+        return _unique_roles(roles)
 
     async def find_pending_request(
         self,
@@ -1001,19 +1091,16 @@ class CreateRoleRequestModal(discord.ui.DesignerModal):
         self.member = member
         self.channel = channel
         copy = ROLE_REQUEST_MODAL_COPY
-        self.add_select = discord.ui.RoleSelect(
-            custom_id="role-request:v1:create:add",
+        additions, removals = service.requestable_role_choices(member)
+        self.add_selects = _request_role_selects(
+            additions,
+            operation="add",
             placeholder=copy.add_roles_placeholder,
-            min_values=0,
-            max_values=MAX_ROLES_PER_OPERATION,
-            required=False,
         )
-        self.remove_select = discord.ui.RoleSelect(
-            custom_id="role-request:v1:create:remove",
+        self.remove_selects = _request_role_selects(
+            removals,
+            operation="remove",
             placeholder=copy.remove_roles_placeholder,
-            min_values=0,
-            max_values=MAX_ROLES_PER_OPERATION,
-            required=False,
         )
         self.reason_input = discord.ui.InputText(
             custom_id="role-request:v1:create:reason",
@@ -1022,10 +1109,16 @@ class CreateRoleRequestModal(discord.ui.DesignerModal):
             required=False,
             max_length=MAX_REASON_LENGTH,
         )
+        children: list[discord.ui.Item] = []
+        children.extend(
+            _labeled_role_selects(copy.add_roles_label, self.add_selects)
+        )
+        children.extend(
+            _labeled_role_selects(copy.remove_roles_label, self.remove_selects)
+        )
+        children.append(discord.ui.Label(copy.request_reason_label, self.reason_input))
         super().__init__(
-            discord.ui.Label(copy.add_roles_label, self.add_select),
-            discord.ui.Label(copy.remove_roles_label, self.remove_select),
-            discord.ui.Label(copy.request_reason_label, self.reason_input),
+            *children,
             title=copy.request_title,
             custom_id=f"role-request:v1:create:{member.id}",
             timeout=MODAL_TIMEOUT_SECONDS,
@@ -1040,12 +1133,28 @@ class CreateRoleRequestModal(discord.ui.DesignerModal):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
+        try:
+            add_roles = self.service.resolve_selected_roles(
+                member.guild,
+                _selected_values(self.add_selects),
+            )
+            remove_roles = self.service.resolve_selected_roles(
+                member.guild,
+                _selected_values(self.remove_selects),
+            )
+        except RoleRequestValidationError as error:
+            await interaction.response.send_message(
+                embed=self.service.build_alert_embed(error.public_message),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
         await self.service.create_request(
             interaction,
             member=member,
             channel=self.channel,
-            add_roles=tuple(self.add_select.values),
-            remove_roles=tuple(self.remove_select.values),
+            add_roles=add_roles,
+            remove_roles=remove_roles,
             reason=self.reason_input.value,
         )
 
@@ -1209,9 +1318,20 @@ class RoleRequestCog(commands.Cog):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
-        await ctx.send_modal(
-            CreateRoleRequestModal(self.service, member=member, channel=channel)
-        )
+        try:
+            modal = CreateRoleRequestModal(
+                self.service,
+                member=member,
+                channel=channel,
+            )
+        except RoleRequestValidationError as error:
+            await ctx.respond(
+                embed=self.service.build_alert_embed(error.public_message),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await ctx.send_modal(modal)
 
     @discord.slash_command(
         name="info-roles",
@@ -1274,6 +1394,50 @@ def _requested_role_select(
         max_values=len(options),
         required=False,
     )
+
+
+def _request_role_selects(
+    roles: tuple[discord.Role, ...],
+    *,
+    operation: str,
+    placeholder: str,
+) -> tuple[discord.ui.StringSelect, ...]:
+    selects: list[discord.ui.StringSelect] = []
+    for index, start in enumerate(range(0, len(roles), MAX_STRING_SELECT_OPTIONS), start=1):
+        group = roles[start : start + MAX_STRING_SELECT_OPTIONS]
+        options = [
+            discord.SelectOption(label=role.name[:100], value=str(role.id))
+            for role in group
+        ]
+        selects.append(
+            discord.ui.StringSelect(
+                custom_id=f"role-request:v1:create:{operation}:{index}",
+                options=options,
+                placeholder=placeholder,
+                min_values=0,
+                max_values=min(MAX_ROLES_PER_OPERATION, len(options)),
+                required=False,
+            )
+        )
+    return tuple(selects)
+
+
+def _labeled_role_selects(
+    label: str,
+    selects: tuple[discord.ui.StringSelect, ...],
+) -> tuple[discord.ui.Label, ...]:
+    total = len(selects)
+    return tuple(
+        discord.ui.Label(
+            label if total == 1 else f"{label} · {index}/{total}",
+            select,
+        )
+        for index, select in enumerate(selects, start=1)
+    )
+
+
+def _selected_values(selects: Iterable[discord.ui.StringSelect]) -> tuple[str, ...]:
+    return tuple(value for select in selects for value in select.values)
 
 
 def _unique_roles(roles: Iterable[discord.Role]) -> tuple[discord.Role, ...]:

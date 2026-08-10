@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 13
+PERSONA_SCHEMA_VERSION = 14
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -529,7 +529,10 @@ class PersonaRoleRequestMessages(FrozenPersonaModel):
     wrong_channel: str = Field(min_length=1, max_length=500)
     member_unavailable: str = Field(min_length=1, max_length=300)
     subsystem_unavailable: str = Field(min_length=1, max_length=300)
+    no_requestable_roles: str = Field(min_length=1, max_length=300)
     no_changes: str = Field(min_length=1, max_length=300)
+    too_many_roles: str = Field(min_length=1, max_length=300)
+    unlisted_roles: str = Field(min_length=1, max_length=500)
     overlapping_roles: str = Field(min_length=1, max_length=500)
     already_owned_roles: str = Field(min_length=1, max_length=500)
     missing_roles: str = Field(min_length=1, max_length=500)
@@ -572,6 +575,16 @@ class PersonaRoleRequestMessages(FrozenPersonaModel):
                 self.overlapping_roles,
                 {"roles"},
                 "interface.role_requests.overlapping_roles",
+            ),
+            (
+                self.too_many_roles,
+                {"limit"},
+                "interface.role_requests.too_many_roles",
+            ),
+            (
+                self.unlisted_roles,
+                {"roles"},
+                "interface.role_requests.unlisted_roles",
             ),
             (
                 self.already_owned_roles,
