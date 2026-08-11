@@ -1,26 +1,25 @@
 # Comandos de Discord
 
-## Administración dinámica: `$rac`
+## Administración dinámica: `/config`
 
-Es un comando inline de mensaje plano y no aparece en el selector slash. Pueden usarlo los IDs definidos en
-`CONFIG_OWNER_USER_IDS` y los miembros con un rol de la política `config_admin_roles`; cambiar el
-perfil global exige ser owner. Sus respuestas son embeds públicos. Un intento no autorizado responde
-con la personalidad activa, aplica un cooldown por usuario y no alcanza el runner.
+No recibe argumentos. Pueden usarlo los IDs definidos en `CONFIG_OWNER_USER_IDS` y los miembros con
+un rol de la política `config_admin_roles`; cambiar el perfil global exige ser owner. Un intento no
+autorizado recibe una alerta efímera con la personalidad activa y no alcanza el runner.
 
-- `$rac ver`: revisión activa, borrador, persona, modelo y resumen de políticas.
-- `$rac borrador crear|descartar`: inicia o elimina un borrador sin alterar producción.
-- `$rac acceso modo|agregar|quitar …`: edita políticas relacionales del borrador.
-- `$rac agente clave=valor …`: cambia modelo, reasoning y límites principales.
-- `$rac modulo <clave> <on|off> ['{…}']`: habilita módulos y valida sus opciones JSON.
-- `$rac persona importar|publicar|asignar|revertir …`: administra revisiones y avatares.
-- `$rac publicar`: valida el agregado y lo activa en una transacción.
-- `$rac rollback <revisión>`: clona una revisión histórica como una nueva.
-- `$rac perfil-global <persona> [revisión]`: programa username, avatar, bio y presencia globales.
-- `$rac ayuda`: muestra la sintaxis compacta en Discord.
+El comando abre un panel efímero con botones para:
 
-`$rac` debe ser el primer token del mensaje y se procesa antes de menciones o allowlists del agente.
-Cada mutación usa el ID del mensaje como clave idempotente y queda en `config_audit_events`. Las
-publicaciones emiten una notificación de PostgreSQL para refrescar el runtime sin redeploy.
+- Consultar la configuración activa y actualizar la vista.
+- Crear o descartar el borrador.
+- Editar políticas de acceso mediante selectores e IDs ingresados en un formulario.
+- Seleccionar modelo, reasoning y límites principales del agente.
+- Configurar módulos y sus opciones JSON.
+- Importar, publicar, asignar o revertir personas, incluyendo carga de JSON y avatar.
+- Publicar el borrador o restaurar una revisión histórica.
+- Cambiar el perfil global cuando quien opera es owner.
+
+El panel está ligado al solicitante, expira tras quince minutos y revalida permisos en cada acción.
+Cada mutación usa el ID de la interacción como clave idempotente y queda en `config_audit_events`.
+Las publicaciones emiten una notificación de PostgreSQL para refrescar el runtime sin redeploy.
 
 Los comandos se registran directamente en la raíz, sin depender del nombre o personalidad del bot.
 Salvo `/ayuda`, `/ts3`, `/info-roles`, los resultados de `/verguenza` y `/honor`, y el expediente publicado

@@ -188,11 +188,11 @@ Los datos y nombres que provienen del catálogo o la guía, además de los halla
 revisión, permanecen en la capa funcional para no contaminar información objetiva con la
 personalidad.
 
-La administración no registra comandos slash. `ConfigurationInlineController` reconoce `$rac` solo
-como primer token, valida owners o `config_admin_roles` y se ejecuta antes del middleware de
-menciones. Las denegaciones reutilizan el pool de `messages.access` de la persona de la guild; las
-operaciones autorizadas conservan borradores, transacciones, auditoría y publicación por
-`LISTEN/NOTIFY` sin involucrar al runner.
+`ConfigurationAdminCog` registra un único `/config` sin argumentos. Tras validar owners o
+`config_admin_roles`, entrega un panel efímero ligado al solicitante y abre formularios especializados
+para cada mutación. Cada interacción vuelve a validar autorización; las denegaciones reutilizan el
+pool de `messages.access` de la persona de la guild. Las operaciones conservan borradores,
+transacciones, auditoría y publicación por `LISTEN/NOTIFY` sin involucrar al runner.
 
 En `on_ready`, `DiscordProfileSynchronizer` aplica username y avatar desde la persona, el banner
 verde musgo global de LSSD y la biografía por guild. Los campos globales se envían por separado para

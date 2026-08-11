@@ -32,7 +32,6 @@ from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError
 
-from .config_admin import ConfigurationInlineController
 from .context import DiscordContextBuilder, render_agent_input
 from .general_knowledge import (
     PENAL_CODE_URL,
@@ -220,11 +219,9 @@ class ReviewCog(commands.Cog):
         persona: BotPersona,
         profile_synchronizer: DiscordProfileSynchronizer | None = None,
         config_provider: object | None = None,
-        config_controller: ConfigurationInlineController | None = None,
     ) -> None:
         self.bot = bot
         self._config_provider = config_provider
-        self._config_controller = config_controller
         self._runtime_context: contextvars.ContextVar[ReviewCogRuntime | None] = contextvars.ContextVar(
             "review_cog_runtime", default=None
         )
@@ -385,11 +382,6 @@ class ReviewCog(commands.Cog):
     async def _handle_message(self, message: discord.Message) -> None:
         bot_user = self.bot.user
         if bot_user is None:
-            return
-        if self._config_controller is not None and await self._config_controller.handle(
-            message,
-            self.persona,
-        ):
             return
         evaluation = await self.access_policy.evaluate_event(message, bot_user.id)
         decision = evaluation.decision

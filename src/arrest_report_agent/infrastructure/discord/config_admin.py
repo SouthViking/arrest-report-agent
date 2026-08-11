@@ -1,15 +1,14 @@
-"""Owner-gated inline commands for versioned PostgreSQL configuration."""
+"""Private Discord control panel for versioned PostgreSQL configuration."""
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import mimetypes
-import shlex
-from time import monotonic
+from collections.abc import Awaitable, Callable
 
 import discord
+from discord.ext import commands
 
 from arrest_report_agent.config import (
     AccessPolicyKey,
@@ -28,36 +27,19 @@ from arrest_report_agent.infrastructure.postgres import (
 )
 
 LOGGER = logging.getLogger(__name__)
-CONFIG_COMMAND_PREFIX = "$rac"
-CONFIG_UNAUTHORIZED_COOLDOWN_SECONDS = 30.0
+CONFIG_PANEL_TIMEOUT_SECONDS = 900
 MAX_PERSONA_JSON_BYTES = 1_000_000
 MAX_PERSONA_AVATAR_BYTES = 10_485_760
 
-
-class InlineConfigAuthorizationError(PermissionError):
-    """Raised when a valid inline command requires owner-only access."""
-
-
-def parse_inline_config_command(content: str) -> tuple[str, ...] | None:
-    """Return shell-like arguments only when ``$rac`` is the first exact token."""
-
-    normalized = content.lstrip()
-    prefix_end = len(CONFIG_COMMAND_PREFIX)
-    if normalized[:prefix_end].lower() != CONFIG_COMMAND_PREFIX:
-        return None
-    if len(normalized) > prefix_end and not normalized[prefix_end].isspace():
-        return None
-    remainder = normalized[prefix_end:].strip()
-    if not remainder:
-        return ("ayuda",)
-    return tuple(shlex.split(remainder))
+MutationResult = tuple[str, str, discord.Color]
+Mutation = Callable[[], Awaitable[MutationResult]]
 
 
-def build_config_unauthorized_embed(persona: BotPersona, message_id: int) -> discord.Embed:
-    """Build a stable, personality-aware denial from the persona's existing pool."""
+def build_config_unauthorized_embed(persona: BotPersona, interaction_id: int) -> discord.Embed:
+    """Build a personality-aware denial from the active persona's message pool."""
 
     messages = persona.messages.access
-    intro = messages.unauthorized_user_intros[message_id % len(messages.unauthorized_user_intros)]
+    intro = messages.unauthorized_user_intros[interaction_id % len(messages.unauthorized_user_intros)]
     description = messages.unauthorized_user.format(
         form_of_address=persona.identity.default_form_of_address,
         intro=intro,
@@ -69,8 +51,42 @@ def build_config_unauthorized_embed(persona: BotPersona, message_id: int) -> dis
     )
 
 
-class ConfigurationInlineController:
-    """Dispatch ``$rac`` before mention handling without registering slash commands."""
+def build_config_panel_embed(snapshot: object, draft_id: object | None) -> discord.Embed:
+    """Render the current immutable configuration and draft status."""
+
+    policies = "\n".join(
+        f"• `{key.value}`: **{policy.mode.value}** ({len(policy.ids)})"
+        for key, policy in sorted(snapshot.policies.items(), key=lambda item: item[0].value)
+    )
+    embed = discord.Embed(
+        title="⚙️ Panel de configuración",
+        description=(
+            "Administra un borrador y publícalo cuando esté listo. "
+            "Los cambios activos se actualizan sin redesplegar el bot."
+        ),
+        color=discord.Color.blurple(),
+    )
+    embed.add_field(
+        name="Configuración activa",
+        value=(
+            f"**Revisión:** {snapshot.revision}\n"
+            f"**Persona:** `{snapshot.persona_id}` r{snapshot.persona_revision}\n"
+            f"**Modelo:** `{snapshot.agent.model}` · `{snapshot.agent.reasoning_effort}`"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="Borrador",
+        value=f"`{draft_id}`" if draft_id is not None else "No hay un borrador abierto.",
+        inline=False,
+    )
+    embed.add_field(name="Políticas", value=policies, inline=False)
+    embed.set_footer(text="Panel privado · expira tras 15 minutos")
+    return embed
+
+
+class ConfigurationAdminCog(commands.Cog):
+    """Expose one argument-free slash command backed by private forms."""
 
     def __init__(
         self,
@@ -81,439 +97,840 @@ class ConfigurationInlineController:
         self.repository = repository
         self.provider = provider
         self.owner_ids = frozenset(settings.config_owner_user_ids)
-        self._guild_locks: dict[int, asyncio.Lock] = {}
-        self._unauthorized_cooldowns: dict[tuple[int, int], float] = {}
 
-    async def handle(self, message: discord.Message, persona: BotPersona) -> bool:
-        """Handle one inline command and report whether the message was consumed."""
+    async def _persona(self, guild_id: int) -> BotPersona:
+        return (await self.provider.cached(guild_id)).persona.profile
 
-        try:
-            arguments = parse_inline_config_command(message.content)
-        except ValueError as error:
-            arguments = ()
-            parse_error: Exception | None = error
-        else:
-            parse_error = None
-        if arguments is None:
+    async def _is_authorized(
+        self,
+        guild: discord.Guild | None,
+        member: discord.abc.User,
+        *,
+        owner_only: bool = False,
+    ) -> bool:
+        if member.id in self.owner_ids:
+            return True
+        if owner_only or guild is None or not isinstance(member, discord.Member):
             return False
-        if getattr(message.author, "bot", False):
-            return True
-        guild = message.guild
-        if guild is None:
-            return True
-        try:
-            authorized = await self._authorized(message)
-        except Exception as error:
-            await self._failure(message, error, operation="authorize")
-            return True
-        if not authorized:
-            await self._send_unauthorized(message, persona)
-            return True
-        if parse_error is not None:
-            await self._failure(message, parse_error, operation="parse")
-            return True
-
-        command = arguments[0].lower() if arguments else "invalid"
-        log_event(
-            LOGGER,
-            "info",
-            "inline_config_command_received",
-            command=command,
-            guild_id=guild.id,
-            channel_id=message.channel.id,
-            message_id=message.id,
-            user_id=message.author.id,
-        )
-        lock = self._guild_locks.setdefault(guild.id, asyncio.Lock())
-        async with lock:
-            try:
-                await self._dispatch(message, arguments)
-            except InlineConfigAuthorizationError:
-                await self._send_unauthorized(message, persona, apply_cooldown=False)
-            except Exception as error:
-                await self._failure(message, error, operation=command)
-            else:
-                log_event(
-                    LOGGER,
-                    "info",
-                    "inline_config_command_completed",
-                    command=command,
-                    guild_id=guild.id,
-                    channel_id=message.channel.id,
-                    message_id=message.id,
-                    user_id=message.author.id,
-                )
-        return True
-
-    async def _authorized(self, message: discord.Message) -> bool:
-        if message.author.id in self.owner_ids:
-            return True
-        if message.guild is None or not isinstance(message.author, discord.Member):
-            return False
-        bundle = await self.provider.cached(message.guild.id)
+        bundle = await self.provider.cached(guild.id)
         policy = bundle.snapshot.policy(AccessPolicyKey.CONFIG_ADMIN_ROLES)
         return policy.mode is AccessPolicyMode.RESTRICTED and any(
-            role.id in policy.ids for role in message.author.roles
+            role.id in policy.ids for role in member.roles
         )
 
-    async def _send_unauthorized(
+    async def _unauthorized_embed(
         self,
-        message: discord.Message,
-        persona: BotPersona,
-        *,
-        apply_cooldown: bool = True,
-    ) -> None:
-        if message.guild is None:
-            return
-        key = (message.guild.id, message.author.id)
-        now = monotonic()
-        if apply_cooldown:
-            previous = self._unauthorized_cooldowns.get(key)
-            if previous is not None and now - previous < CONFIG_UNAUTHORIZED_COOLDOWN_SECONDS:
-                log_event(
-                    LOGGER,
-                    "info",
-                    "inline_config_unauthorized_suppressed",
-                    guild_id=message.guild.id,
-                    channel_id=message.channel.id,
-                    message_id=message.id,
-                    user_id=message.author.id,
-                )
-                return
-            self._unauthorized_cooldowns[key] = now
-        try:
-            await message.reply(
-                embed=build_config_unauthorized_embed(persona, message.id),
-                mention_author=False,
-                allowed_mentions=discord.AllowedMentions.none(),
+        guild: discord.Guild | None,
+        interaction_id: int,
+    ) -> discord.Embed:
+        if guild is None:
+            return discord.Embed(
+                title="🔒 Configuración restringida",
+                description="Este panel solo está disponible dentro de un servidor configurado.",
+                color=discord.Color.red(),
             )
-            log_event(
-                LOGGER,
-                "warning",
-                "inline_config_unauthorized",
-                guild_id=message.guild.id,
-                channel_id=message.channel.id,
-                message_id=message.id,
-                user_id=message.author.id,
-            )
-        except (discord.Forbidden, discord.HTTPException) as error:
-            log_event(
-                LOGGER,
-                "error",
-                "inline_config_unauthorized_reply_failed",
-                exc_info=error,
-                guild_id=message.guild.id,
-                channel_id=message.channel.id,
-                message_id=message.id,
-                user_id=message.author.id,
-                **exception_fields(error),
-            )
+        return build_config_unauthorized_embed(await self._persona(guild.id), interaction_id)
 
-    async def _reply(
+    async def authorize_context(
         self,
-        message: discord.Message,
-        title: str,
-        description: str,
+        ctx: discord.ApplicationContext,
         *,
-        color: discord.Color | None = None,
-    ) -> None:
-        await message.reply(
-            embed=discord.Embed(
-                title=title,
-                description=description,
-                color=color or discord.Color.blurple(),
-            ),
-            mention_author=False,
+        owner_only: bool = False,
+    ) -> bool:
+        try:
+            authorized = await self._is_authorized(ctx.guild, ctx.author, owner_only=owner_only)
+        except Exception as error:
+            await self._context_failure(ctx, error, operation="authorize")
+            return False
+        if authorized:
+            return True
+        await ctx.respond(
+            embed=await self._unauthorized_embed(ctx.guild, ctx.interaction.id),
+            ephemeral=True,
             allowed_mentions=discord.AllowedMentions.none(),
         )
+        return False
 
-    async def _failure(
+    async def authorize_interaction(
         self,
-        message: discord.Message,
+        interaction: discord.Interaction,
+        requester_id: int,
+        *,
+        owner_only: bool = False,
+    ) -> bool:
+        if interaction.user.id != requester_id:
+            await self._send_interaction_embed(
+                interaction,
+                discord.Embed(
+                    title="🔒 Panel privado",
+                    description="Este panel pertenece a otra sesión de administración.",
+                    color=discord.Color.red(),
+                ),
+            )
+            return False
+        try:
+            authorized = await self._is_authorized(
+                interaction.guild,
+                interaction.user,
+                owner_only=owner_only,
+            )
+        except Exception as error:
+            await self._interaction_failure(interaction, error, operation="authorize")
+            return False
+        if authorized:
+            return True
+        await self._send_interaction_embed(
+            interaction,
+            await self._unauthorized_embed(interaction.guild, interaction.id),
+        )
+        return False
+
+    @staticmethod
+    async def _send_interaction_embed(
+        interaction: discord.Interaction,
+        embed: discord.Embed,
+    ) -> None:
+        kwargs = {
+            "embed": embed,
+            "ephemeral": True,
+            "allowed_mentions": discord.AllowedMentions.none(),
+        }
+        if interaction.response.is_done():
+            await interaction.followup.send(**kwargs)
+        else:
+            await interaction.response.send_message(**kwargs)
+
+    async def _context_failure(
+        self,
+        ctx: discord.ApplicationContext,
         error: Exception,
         *,
         operation: str,
     ) -> None:
+        self._log_failure(
+            error,
+            operation=operation,
+            guild_id=ctx.guild.id if ctx.guild else None,
+            user_id=ctx.author.id,
+            interaction_id=ctx.interaction.id,
+        )
+        await ctx.respond(
+            embed=self._error_embed(error, ctx.interaction.id),
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    async def _interaction_failure(
+        self,
+        interaction: discord.Interaction,
+        error: Exception,
+        *,
+        operation: str,
+    ) -> None:
+        self._log_failure(
+            error,
+            operation=operation,
+            guild_id=interaction.guild.id if interaction.guild else None,
+            user_id=interaction.user.id,
+            interaction_id=interaction.id,
+        )
+        await self._send_interaction_embed(
+            interaction,
+            self._error_embed(error, interaction.id),
+        )
+
+    @staticmethod
+    def _log_failure(
+        error: Exception,
+        *,
+        operation: str,
+        guild_id: int | None,
+        user_id: int,
+        interaction_id: int,
+    ) -> None:
         log_event(
             LOGGER,
             "error",
-            "inline_config_command_failed",
+            "database_configuration_command_failed",
             exc_info=error,
             operation=operation,
-            guild_id=message.guild.id if message.guild else None,
-            channel_id=message.channel.id,
-            user_id=message.author.id,
-            message_id=message.id,
+            guild_id=guild_id,
+            user_id=user_id,
+            interaction_id=interaction_id,
             **exception_fields(error),
         )
+
+    @staticmethod
+    def _error_embed(error: Exception, interaction_id: int) -> discord.Embed:
         if isinstance(error, (LookupError, ValueError, json.JSONDecodeError)):
             description = str(error) or "No pude aplicar ese cambio."
         else:
-            description = f"No pude aplicar ese cambio. Referencia: `{message.id}`."
-        try:
-            await self._reply(
-                message,
-                "⚠️ Configuración",
-                description,
-                color=discord.Color.red(),
-            )
-        except (discord.Forbidden, discord.HTTPException):
+            description = f"No pude aplicar ese cambio. Referencia: `{interaction_id}`."
+        return discord.Embed(
+            title="⚠️ Configuración",
+            description=description,
+            color=discord.Color.red(),
+        )
+
+    async def run_mutation(
+        self,
+        interaction: discord.Interaction,
+        requester_id: int,
+        operation: str,
+        mutation: Mutation,
+        *,
+        owner_only: bool = False,
+    ) -> None:
+        if not await self.authorize_interaction(
+            interaction,
+            requester_id,
+            owner_only=owner_only,
+        ):
             return
-
-    async def _dispatch(self, message: discord.Message, arguments: tuple[str, ...]) -> None:
-        command = arguments[0].lower()
-        tail = arguments[1:]
-        if command in {"ayuda", "help"}:
-            _expect_count(tail, 0, "$rac ayuda")
-            await self._show_help(message)
-        elif command == "ver":
-            _expect_count(tail, 0, "$rac ver")
-            await self._show_configuration(message)
-        elif command == "borrador":
-            await self._draft(message, tail)
-        elif command == "acceso":
-            await self._access(message, tail)
-        elif command == "agente":
-            await self._agent(message, tail)
-        elif command == "modulo":
-            await self._feature(message, tail)
-        elif command == "persona":
-            await self._persona(message, tail)
-        elif command == "publicar":
-            _expect_count(tail, 0, "$rac publicar")
-            await self._publish(message)
-        elif command == "rollback":
-            _expect_count(tail, 1, "$rac rollback <revision>")
-            await self._rollback(message, int(tail[0]))
-        elif command == "perfil-global":
-            await self._global_profile(message, tail)
-        else:
-            raise ValueError(f"Comando desconocido. Usa `{CONFIG_COMMAND_PREFIX} ayuda`.")
-
-    async def _show_help(self, message: discord.Message) -> None:
-        await self._reply(
-            message,
-            "🛠️ Administración de configuración",
-            (
-                "`$rac ver`\n"
-                "`$rac borrador crear|descartar`\n"
-                "`$rac acceso modo|agregar|quitar …`\n"
-                "`$rac agente clave=valor …`\n"
-                "`$rac modulo <clave> <on|off> ['{…}']`\n"
-                "`$rac persona importar|publicar|asignar|revertir …`\n"
-                "`$rac publicar` · `$rac rollback <revisión>`\n"
-                "`$rac perfil-global <persona> [revisión]`"
-            ),
+        await interaction.response.defer(ephemeral=True)
+        try:
+            title, description, color = await mutation()
+        except Exception as error:
+            await self._interaction_failure(interaction, error, operation=operation)
+            return
+        await self._send_interaction_embed(
+            interaction,
+            discord.Embed(title=title, description=description, color=color),
+        )
+        log_event(
+            LOGGER,
+            "info",
+            "database_configuration_command_completed",
+            operation=operation,
+            guild_id=interaction.guild.id if interaction.guild else None,
+            user_id=interaction.user.id,
+            interaction_id=interaction.id,
         )
 
-    async def _show_configuration(self, message: discord.Message) -> None:
-        guild = _require_guild(message)
-        snapshot = (await self.provider.cached(guild.id)).snapshot
-        draft_id = await self.repository.draft_revision_id(guild.id)
-        policies = "\n".join(
-            f"• `{key.value}`: **{policy.mode.value}** ({len(policy.ids)})"
-            for key, policy in sorted(snapshot.policies.items(), key=lambda item: item[0].value)
-        )
-        await self._reply(
-            message,
-            "⚙️ Configuración activa",
-            (
-                f"**Revisión:** {snapshot.revision}\n"
-                f"**Persona:** `{snapshot.persona_id}` r{snapshot.persona_revision}\n"
-                f"**Modelo:** `{snapshot.agent.model}` · `{snapshot.agent.reasoning_effort}`\n"
-                f"**Borrador:** `{draft_id or 'ninguno'}`\n\n{policies}"
-            ),
-        )
+    async def panel_embed(self, guild_id: int) -> discord.Embed:
+        snapshot = (await self.provider.cached(guild_id)).snapshot
+        draft_id = await self.repository.draft_revision_id(guild_id)
+        return build_config_panel_embed(snapshot, draft_id)
 
-    async def _draft(self, message: discord.Message, arguments: tuple[str, ...]) -> None:
-        _expect_count(arguments, 1, "$rac borrador crear|descartar")
-        guild = _require_guild(message)
-        action = arguments[0].lower()
-        if action == "crear":
-            revision_id = await self.repository.create_draft(
-                guild.id,
-                actor_user_id=message.author.id,
-                interaction_id=message.id,
-            )
-            await self._reply(message, "📝 Borrador creado", f"ID: `{revision_id}`")
-        elif action == "descartar":
-            await self.repository.discard_draft(
-                guild.id,
-                actor_user_id=message.author.id,
-                interaction_id=message.id,
-            )
-            await self._reply(message, "🗑️ Borrador descartado", "La revisión activa no cambió.")
-        else:
-            raise ValueError("Usa `$rac borrador crear` o `$rac borrador descartar`.")
-
-    async def _draft_policy(
+    async def draft_policy(
         self,
         guild_id: int,
-        raw_key: str,
+        key: AccessPolicyKey,
     ) -> AccessPolicySnapshot:
-        key = AccessPolicyKey(raw_key.strip().lower())
         draft_id = await self.repository.draft_revision_id(guild_id)
         if draft_id is None:
             raise LookupError("Crea un borrador antes de editar accesos.")
         snapshot = await self.repository.snapshot_for_revision(guild_id, draft_id)
         return snapshot.policy(key)
 
-    async def _access(self, message: discord.Message, arguments: tuple[str, ...]) -> None:
-        if not arguments:
-            raise ValueError("Usa `$rac acceso modo|agregar|quitar …`.")
-        action = arguments[0].lower()
-        guild = _require_guild(message)
-        if action == "modo":
-            _expect_count(arguments, 3, "$rac acceso modo <política> <open|restricted|disabled>")
-            current = await self._draft_policy(guild.id, arguments[1])
-            mode = AccessPolicyMode(arguments[2].lower())
-            ids = current.ids if mode is AccessPolicyMode.RESTRICTED else ()
-            if mode is AccessPolicyMode.RESTRICTED and not ids:
-                raise ValueError("Agrega al menos un ID antes de usar `restricted`.")
+    @discord.slash_command(
+        name="config",
+        description="Abre el panel privado de configuración",
+        contexts={discord.InteractionContextType.guild},
+    )
+    async def config(self, ctx: discord.ApplicationContext) -> None:
+        if not await self.authorize_context(ctx) or ctx.guild is None:
+            return
+        try:
+            embed = await self.panel_embed(ctx.guild.id)
+        except Exception as error:
+            await self._context_failure(ctx, error, operation="show")
+            return
+        await ctx.respond(
+            embed=embed,
+            view=ConfigurationPanelView(self, requester_id=ctx.author.id),
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+
+class ConfigurationPanelView(discord.ui.View):
+    """Requester-bound navigation for the private configuration panel."""
+
+    def __init__(self, cog: ConfigurationAdminCog, *, requester_id: int) -> None:
+        super().__init__(timeout=CONFIG_PANEL_TIMEOUT_SECONDS, disable_on_timeout=True)
+        self.cog = cog
+        self.requester_id = requester_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return await self.cog.authorize_interaction(interaction, self.requester_id)
+
+    @discord.ui.button(label="Actualizar", emoji="🔄", style=discord.ButtonStyle.secondary, row=0)
+    async def refresh(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        if interaction.guild is None:
+            return
+        try:
+            embed = await self.cog.panel_embed(interaction.guild.id)
+        except Exception as error:
+            await self.cog._interaction_failure(interaction, error, operation="show")
+            return
+        await interaction.response.edit_message(
+            embed=embed,
+            view=ConfigurationPanelView(self.cog, requester_id=self.requester_id),
+        )
+
+    @discord.ui.button(label="Borrador", emoji="📝", style=discord.ButtonStyle.primary, row=0)
+    async def draft(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        await interaction.response.send_modal(DraftConfigurationModal(self.cog, self.requester_id))
+
+    @discord.ui.button(label="Publicar", emoji="✅", style=discord.ButtonStyle.success, row=0)
+    async def publish(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        await interaction.response.send_modal(PublishConfigurationModal(self.cog, self.requester_id))
+
+    @discord.ui.button(label="Accesos", emoji="🔐", style=discord.ButtonStyle.primary, row=1)
+    async def access(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        await interaction.response.send_modal(AccessPolicyModal(self.cog, self.requester_id))
+
+    @discord.ui.button(label="Agente", emoji="🤖", style=discord.ButtonStyle.primary, row=1)
+    async def agent(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        if interaction.guild is None:
+            return
+        try:
+            draft_id = await self.cog.repository.draft_revision_id(interaction.guild.id)
+            if draft_id is None:
+                raise LookupError("Crea un borrador antes de editar el agente.")
+            current = (await self.cog.repository.snapshot_for_revision(interaction.guild.id, draft_id)).agent
+            modal = AgentConfigurationModal(self.cog, self.requester_id, current)
+        except Exception as error:
+            await self.cog._interaction_failure(interaction, error, operation="agent.open")
+            return
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="Módulos", emoji="🧩", style=discord.ButtonStyle.primary, row=1)
+    async def feature(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        await interaction.response.send_modal(FeatureConfigurationModal(self.cog, self.requester_id))
+
+    @discord.ui.button(label="Personas", emoji="🎭", style=discord.ButtonStyle.primary, row=2)
+    async def persona(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        await interaction.response.send_modal(
+            PersonaConfigurationModal(
+                self.cog,
+                self.requester_id,
+                include_global_profile=interaction.user.id in self.cog.owner_ids,
+            )
+        )
+
+    @discord.ui.button(label="Rollback", emoji="↩️", style=discord.ButtonStyle.secondary, row=2)
+    async def rollback(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        await interaction.response.send_modal(RollbackConfigurationModal(self.cog, self.requester_id))
+
+
+class BaseConfigurationModal(discord.ui.DesignerModal):
+    """Shared authorization and mutation plumbing for private forms."""
+
+    def __init__(
+        self,
+        cog: ConfigurationAdminCog,
+        requester_id: int,
+        *children: discord.ui.ModalItem,
+        title: str,
+        custom_id: str,
+    ) -> None:
+        self.cog = cog
+        self.requester_id = requester_id
+        super().__init__(
+            *children,
+            title=title,
+            custom_id=custom_id,
+            timeout=CONFIG_PANEL_TIMEOUT_SECONDS,
+        )
+
+    async def run(
+        self,
+        interaction: discord.Interaction,
+        operation: str,
+        mutation: Mutation,
+        *,
+        owner_only: bool = False,
+    ) -> None:
+        await self.cog.run_mutation(
+            interaction,
+            self.requester_id,
+            operation,
+            mutation,
+            owner_only=owner_only,
+        )
+
+
+class DraftConfigurationModal(BaseConfigurationModal):
+    def __init__(self, cog: ConfigurationAdminCog, requester_id: int) -> None:
+        self.action = discord.ui.StringSelect(
+            custom_id="config:v2:draft:action",
+            placeholder="Selecciona una acción",
+            options=[
+                discord.SelectOption(label="Crear borrador", value="create", emoji="📝"),
+                discord.SelectOption(label="Descartar borrador", value="discard", emoji="🗑️"),
+            ],
+        )
+        super().__init__(
+            cog,
+            requester_id,
+            discord.ui.Label("Acción", self.action),
+            title="Administrar borrador",
+            custom_id=f"config:v2:draft:{requester_id}",
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        action = self.action.values[0]
+
+        async def mutation() -> MutationResult:
+            if interaction.guild is None:
+                raise ValueError("Este panel solo funciona dentro de un servidor.")
+            if action == "create":
+                revision_id = await self.cog.repository.create_draft(
+                    interaction.guild.id,
+                    actor_user_id=interaction.user.id,
+                    interaction_id=interaction.id,
+                )
+                return "📝 Borrador creado", f"ID: `{revision_id}`", discord.Color.blurple()
+            await self.cog.repository.discard_draft(
+                interaction.guild.id,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            return (
+                "🗑️ Borrador descartado",
+                "La configuración activa no cambió.",
+                discord.Color.orange(),
+            )
+
+        await self.run(interaction, f"draft.{action}", mutation)
+
+
+class PublishConfigurationModal(BaseConfigurationModal):
+    def __init__(self, cog: ConfigurationAdminCog, requester_id: int) -> None:
+        self.confirmation = discord.ui.StringSelect(
+            custom_id="config:v2:publish:confirmation",
+            placeholder="Confirma la publicación",
+            options=[
+                discord.SelectOption(
+                    label="Publicar el borrador",
+                    value="publish",
+                    description="Reemplazará la configuración activa.",
+                    emoji="✅",
+                )
+            ],
+        )
+        super().__init__(
+            cog,
+            requester_id,
+            discord.ui.Label("Confirmación", self.confirmation),
+            title="Publicar configuración",
+            custom_id=f"config:v2:publish:{requester_id}",
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        async def mutation() -> MutationResult:
+            if interaction.guild is None:
+                raise ValueError("Este panel solo funciona dentro de un servidor.")
+            revision_id = await self.cog.repository.publish_draft(
+                interaction.guild.id,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            return (
+                "✅ Configuración publicada",
+                f"Revisión activa: `{revision_id}`.",
+                discord.Color.green(),
+            )
+
+        await self.run(interaction, "config.publish", mutation)
+
+
+class AccessPolicyModal(BaseConfigurationModal):
+    def __init__(self, cog: ConfigurationAdminCog, requester_id: int) -> None:
+        self.policy = discord.ui.StringSelect(
+            custom_id="config:v2:access:policy",
+            placeholder="Selecciona una política",
+            options=[
+                discord.SelectOption(
+                    label=key.value.replace("_", " ").title()[:100],
+                    value=key.value,
+                )
+                for key in AccessPolicyKey
+            ],
+        )
+        self.action = discord.ui.StringSelect(
+            custom_id="config:v2:access:action",
+            placeholder="Selecciona el cambio",
+            options=[
+                discord.SelectOption(label="Permitir todos", value="open"),
+                discord.SelectOption(label="Restringir a los IDs indicados", value="restricted"),
+                discord.SelectOption(label="Deshabilitar", value="disabled"),
+                discord.SelectOption(label="Agregar IDs", value="add"),
+                discord.SelectOption(label="Quitar IDs", value="remove"),
+            ],
+        )
+        self.ids = discord.ui.InputText(
+            custom_id="config:v2:access:ids",
+            style=discord.InputTextStyle.long,
+            placeholder="IDs separados por coma; acepta menciones de Discord.",
+            required=False,
+            max_length=2000,
+        )
+        super().__init__(
+            cog,
+            requester_id,
+            discord.ui.Label("Política", self.policy),
+            discord.ui.Label("Acción", self.action),
+            discord.ui.Label("IDs", self.ids, description="Requeridos para restringir, agregar o quitar."),
+            title="Configurar accesos",
+            custom_id=f"config:v2:access:{requester_id}",
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        key = AccessPolicyKey(self.policy.values[0])
+        action = self.action.values[0]
+
+        async def mutation() -> MutationResult:
+            if interaction.guild is None:
+                raise ValueError("Este panel solo funciona dentro de un servidor.")
+            current = await self.cog.draft_policy(interaction.guild.id, key)
+            raw_ids = self.ids.value.strip()
+            if action in {"restricted", "add", "remove"} and not raw_ids:
+                raise ValueError("Indica al menos un ID para esta acción.")
+            if action == "open":
+                mode, ids = AccessPolicyMode.OPEN, ()
+            elif action == "disabled":
+                mode, ids = AccessPolicyMode.DISABLED, ()
+            elif action == "restricted":
+                mode, ids = AccessPolicyMode.RESTRICTED, _parse_snowflakes(raw_ids)
+            else:
+                values = set(current.ids)
+                supplied = set(_parse_snowflakes(raw_ids))
+                values.difference_update(supplied) if action == "remove" else values.update(supplied)
+                mode = AccessPolicyMode.RESTRICTED if values else AccessPolicyMode.DISABLED
+                ids = tuple(sorted(values))
             updated = AccessPolicySnapshot(
-                key=current.key,
-                subject_type=current.subject_type,
+                key=key,
+                subject_type=POLICY_SUBJECT_TYPES[key],
                 mode=mode,
                 ids=ids,
             )
-        elif action in {"agregar", "quitar"}:
-            _expect_count(arguments, 3, f"$rac acceso {action} <política> <ids_csv>")
-            current = await self._draft_policy(guild.id, arguments[1])
-            supplied = _parse_snowflakes(arguments[2])
-            values = set(current.ids)
-            values.difference_update(supplied) if action == "quitar" else values.update(supplied)
-            updated = AccessPolicySnapshot(
-                key=current.key,
-                subject_type=POLICY_SUBJECT_TYPES[current.key],
-                mode=AccessPolicyMode.RESTRICTED if values else AccessPolicyMode.DISABLED,
-                ids=tuple(sorted(values)),
+            await self.cog.repository.update_draft_policy(
+                interaction.guild.id,
+                updated,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
             )
-        else:
-            raise ValueError("Usa `$rac acceso modo|agregar|quitar …`.")
-        await self.repository.update_draft_policy(
-            guild.id,
-            updated,
-            actor_user_id=message.author.id,
-            interaction_id=message.id,
-        )
-        await self._reply(
-            message,
-            "🔐 Acceso actualizado",
-            f"`{updated.key.value}` → **{updated.mode.value}** ({len(updated.ids)} IDs).",
-        )
-
-    async def _agent(self, message: discord.Message, arguments: tuple[str, ...]) -> None:
-        if not arguments:
-            raise ValueError("Indica al menos un cambio como `reasoning=low`.")
-        guild = _require_guild(message)
-        draft_id = await self.repository.draft_revision_id(guild.id)
-        if draft_id is None:
-            raise LookupError("Crea un borrador antes de editar el agente.")
-        current = (await self.repository.snapshot_for_revision(guild.id, draft_id)).agent
-        assignments = _parse_assignments(arguments)
-        aliases = {
-            "modelo": "model",
-            "model": "model",
-            "reasoning": "reasoning_effort",
-            "contexto_hilo": "thread_context_max_messages",
-            "contexto_canal": "channel_context_max_messages",
-            "max_turnos": "max_agent_turns",
-        }
-        unknown = set(assignments) - set(aliases)
-        if unknown:
-            raise ValueError("Parámetros desconocidos: " + ", ".join(sorted(unknown)))
-        integer_fields = {"thread_context_max_messages", "channel_context_max_messages", "max_agent_turns"}
-        payload = current.model_dump()
-        for key, value in assignments.items():
-            target = aliases[key]
-            payload[target] = int(value) if target in integer_fields else value
-        agent = GuildAgentConfig.model_validate(payload)
-        await self.repository.update_draft_agent(
-            guild.id,
-            agent,
-            actor_user_id=message.author.id,
-            interaction_id=message.id,
-        )
-        await self._reply(message, "🤖 Agente actualizado", "Los cambios quedaron en el borrador.")
-
-    async def _feature(self, message: discord.Message, arguments: tuple[str, ...]) -> None:
-        if len(arguments) not in {2, 3}:
-            raise ValueError("Uso: `$rac modulo <clave> <on|off> ['{…}']`.")
-        guild = _require_guild(message)
-        enabled = _parse_boolean(arguments[1])
-        payload = json.loads(arguments[2]) if len(arguments) == 3 else {}
-        if not isinstance(payload, dict):
-            raise ValueError("Las opciones del módulo deben ser un objeto JSON.")
-        feature = GuildFeatureSnapshot(
-            key=arguments[0].strip().lower(),
-            enabled=enabled,
-            schema_version=1,
-            payload=payload,
-        )
-        await self.repository.update_draft_feature(
-            guild.id,
-            feature,
-            actor_user_id=message.author.id,
-            interaction_id=message.id,
-        )
-        await self._reply(message, "🧩 Módulo actualizado", "El cambio quedó en el borrador.")
-
-    async def _persona(self, message: discord.Message, arguments: tuple[str, ...]) -> None:
-        if not arguments:
-            raise ValueError("Usa `$rac persona importar|publicar|asignar|revertir …`.")
-        action = arguments[0].lower()
-        tail = arguments[1:]
-        if action == "importar":
-            _expect_count(tail, 0, "$rac persona importar (adjunta JSON y avatar)")
-            await self._import_persona(message)
-        elif action == "publicar":
-            _expect_count(tail, 2, "$rac persona publicar <persona> <revision>")
-            await self.repository.publish_persona_revision(
-                tail[0],
-                int(tail[1]),
-                actor_user_id=message.author.id,
-                interaction_id=message.id,
+            return (
+                "🔐 Acceso actualizado",
+                f"`{key.value}` → **{mode.value}** ({len(ids)} IDs).",
+                discord.Color.blurple(),
             )
-            await self._reply(message, "🎭 Persona publicada", f"`{tail[0]}` r{tail[1]} está disponible.")
-        elif action in {"asignar", "revertir"}:
-            if len(tail) not in ({1, 2} if action == "asignar" else {2}):
-                usage = (
-                    "$rac persona asignar <persona> [revision]"
-                    if action == "asignar"
-                    else "$rac persona revertir <persona> <revision>"
+
+        await self.run(interaction, f"access.{action}", mutation)
+
+
+class AgentConfigurationModal(BaseConfigurationModal):
+    def __init__(
+        self,
+        cog: ConfigurationAdminCog,
+        requester_id: int,
+        current: GuildAgentConfig,
+    ) -> None:
+        self.model = discord.ui.StringSelect(
+            custom_id="config:v2:agent:model",
+            options=[
+                discord.SelectOption(
+                    label=model.id,
+                    value=model.id,
+                    default=model.id == current.model,
                 )
-                raise ValueError(f"Uso: `{usage}`.")
-            revision = int(tail[1]) if len(tail) == 2 else None
-            guild = _require_guild(message)
-            await self.repository.assign_draft_persona(
-                guild.id,
-                tail[0],
-                revision,
-                actor_user_id=message.author.id,
-                interaction_id=message.id,
+                for model in cog.provider.model_catalog.payload.models
+            ],
+        )
+        efforts = tuple(
+            dict.fromkeys(
+                effort
+                for model in cog.provider.model_catalog.payload.models
+                for effort in model.supported_reasoning_efforts
             )
-            title = "🎭 Persona asignada" if action == "asignar" else "↩️ Persona revertida"
-            await self._reply(message, title, "La revisión elegida quedó en el borrador.")
-        else:
-            raise ValueError("Usa `$rac persona importar|publicar|asignar|revertir …`.")
+        )
+        self.reasoning = discord.ui.StringSelect(
+            custom_id="config:v2:agent:reasoning",
+            options=[
+                discord.SelectOption(
+                    label=effort,
+                    value=effort,
+                    default=effort == current.reasoning_effort,
+                )
+                for effort in efforts
+            ],
+        )
+        self.thread_context = discord.ui.InputText(
+            custom_id="config:v2:agent:thread-context",
+            value=str(current.thread_context_max_messages),
+            min_length=1,
+            max_length=3,
+        )
+        self.channel_context = discord.ui.InputText(
+            custom_id="config:v2:agent:channel-context",
+            value=str(current.channel_context_max_messages),
+            min_length=1,
+            max_length=2,
+        )
+        self.max_turns = discord.ui.InputText(
+            custom_id="config:v2:agent:max-turns",
+            value=str(current.max_agent_turns),
+            min_length=1,
+            max_length=2,
+        )
+        super().__init__(
+            cog,
+            requester_id,
+            discord.ui.Label("Modelo", self.model),
+            discord.ui.Label("Reasoning", self.reasoning),
+            discord.ui.Label("Mensajes de contexto en hilos", self.thread_context),
+            discord.ui.Label("Mensajes de contexto en canales", self.channel_context),
+            discord.ui.Label("Máximo de turnos", self.max_turns),
+            title="Configurar agente",
+            custom_id=f"config:v2:agent:{requester_id}",
+        )
 
-    async def _import_persona(self, message: discord.Message) -> None:
-        profile_attachment = next(
-            (
-                attachment
-                for attachment in message.attachments
-                if attachment.filename.lower().endswith(".json")
+    async def callback(self, interaction: discord.Interaction) -> None:
+        async def mutation() -> MutationResult:
+            if interaction.guild is None:
+                raise ValueError("Este panel solo funciona dentro de un servidor.")
+            draft_id = await self.cog.repository.draft_revision_id(interaction.guild.id)
+            if draft_id is None:
+                raise LookupError("Crea un borrador antes de editar el agente.")
+            current = (await self.cog.repository.snapshot_for_revision(interaction.guild.id, draft_id)).agent
+            model = self.model.values[0]
+            reasoning = self.reasoning.values[0]
+            self.cog.provider.model_catalog.resolve(model, reasoning)
+            payload = current.model_dump()
+            payload.update(
+                {
+                    "model": model,
+                    "reasoning_effort": reasoning,
+                    "thread_context_max_messages": int(self.thread_context.value),
+                    "channel_context_max_messages": int(self.channel_context.value),
+                    "max_agent_turns": int(self.max_turns.value),
+                }
+            )
+            agent = GuildAgentConfig.model_validate(payload)
+            await self.cog.repository.update_draft_agent(
+                interaction.guild.id,
+                agent,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            return (
+                "🤖 Agente actualizado",
+                "Los cambios quedaron guardados en el borrador.",
+                discord.Color.blurple(),
+            )
+
+        await self.run(interaction, "agent.update", mutation)
+
+
+class FeatureConfigurationModal(BaseConfigurationModal):
+    def __init__(self, cog: ConfigurationAdminCog, requester_id: int) -> None:
+        self.key = discord.ui.InputText(
+            custom_id="config:v2:feature:key",
+            placeholder="Ejemplo: role_requests",
+            min_length=2,
+            max_length=80,
+        )
+        self.enabled = discord.ui.StringSelect(
+            custom_id="config:v2:feature:enabled",
+            options=[
+                discord.SelectOption(label="Habilitado", value="true"),
+                discord.SelectOption(label="Deshabilitado", value="false"),
+            ],
+        )
+        self.options = discord.ui.InputText(
+            custom_id="config:v2:feature:options",
+            style=discord.InputTextStyle.long,
+            value="{}",
+            max_length=4000,
+        )
+        super().__init__(
+            cog,
+            requester_id,
+            discord.ui.Label("Clave del módulo", self.key),
+            discord.ui.Label("Estado", self.enabled),
+            discord.ui.Label("Opciones JSON", self.options),
+            title="Configurar módulo",
+            custom_id=f"config:v2:feature:{requester_id}",
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        async def mutation() -> MutationResult:
+            if interaction.guild is None:
+                raise ValueError("Este panel solo funciona dentro de un servidor.")
+            payload = json.loads(self.options.value)
+            if not isinstance(payload, dict):
+                raise ValueError("Las opciones deben ser un objeto JSON.")
+            feature = GuildFeatureSnapshot(
+                key=self.key.value.strip().lower(),
+                enabled=self.enabled.values[0] == "true",
+                schema_version=1,
+                payload=payload,
+            )
+            await self.cog.repository.update_draft_feature(
+                interaction.guild.id,
+                feature,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            return (
+                "🧩 Módulo actualizado",
+                f"`{feature.key}` quedó guardado en el borrador.",
+                discord.Color.blurple(),
+            )
+
+        await self.run(interaction, "feature.update", mutation)
+
+
+class PersonaConfigurationModal(BaseConfigurationModal):
+    def __init__(
+        self,
+        cog: ConfigurationAdminCog,
+        requester_id: int,
+        *,
+        include_global_profile: bool,
+    ) -> None:
+        options = [
+            discord.SelectOption(label="Importar borrador", value="import", emoji="📥"),
+            discord.SelectOption(label="Publicar revisión", value="publish", emoji="✅"),
+            discord.SelectOption(label="Asignar a la guild", value="assign", emoji="🎭"),
+            discord.SelectOption(label="Revertir revisión", value="revert", emoji="↩️"),
+        ]
+        if include_global_profile:
+            options.append(discord.SelectOption(label="Cambiar perfil global", value="global", emoji="🌐"))
+        self.action = discord.ui.StringSelect(
+            custom_id="config:v2:persona:action",
+            placeholder="Selecciona una acción",
+            options=options,
+        )
+        self.slug = discord.ui.InputText(
+            custom_id="config:v2:persona:slug",
+            placeholder="Ejemplo: roy_velazco",
+            required=False,
+            max_length=100,
+        )
+        self.revision = discord.ui.InputText(
+            custom_id="config:v2:persona:revision",
+            placeholder="Opcional para asignar o perfil global",
+            required=False,
+            max_length=10,
+        )
+        self.files = discord.ui.FileUpload(
+            custom_id="config:v2:persona:files",
+            min_values=0,
+            max_values=2,
+            required=False,
+        )
+        super().__init__(
+            cog,
+            requester_id,
+            discord.ui.Label("Acción", self.action),
+            discord.ui.Label("Identificador de persona", self.slug),
+            discord.ui.Label("Revisión", self.revision),
+            discord.ui.Label(
+                "Archivos para importar",
+                self.files,
+                description="Adjunta el JSON de la persona y su avatar.",
             ),
+            title="Administrar personas",
+            custom_id=f"config:v2:persona:{requester_id}",
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        action = self.action.values[0]
+        owner_only = action == "global"
+
+        async def mutation() -> MutationResult:
+            if action == "import":
+                return await self._import(interaction)
+            slug = self.slug.value.strip()
+            if not slug:
+                raise ValueError("Indica el identificador de la persona.")
+            revision = int(self.revision.value) if self.revision.value.strip() else None
+            if action in {"publish", "revert"} and revision is None:
+                raise ValueError("Esta acción requiere una revisión.")
+            if action == "publish":
+                await self.cog.repository.publish_persona_revision(
+                    slug,
+                    revision,
+                    actor_user_id=interaction.user.id,
+                    interaction_id=interaction.id,
+                )
+                return "🎭 Persona publicada", f"`{slug}` r{revision} está disponible.", discord.Color.green()
+            if action in {"assign", "revert"}:
+                if interaction.guild is None:
+                    raise ValueError("Este panel solo funciona dentro de un servidor.")
+                await self.cog.repository.assign_draft_persona(
+                    interaction.guild.id,
+                    slug,
+                    revision,
+                    actor_user_id=interaction.user.id,
+                    interaction_id=interaction.id,
+                )
+                title = "🎭 Persona asignada" if action == "assign" else "↩️ Persona revertida"
+                return title, "La selección quedó guardada en el borrador.", discord.Color.blurple()
+            await self.cog.repository.set_global_persona_by_slug(
+                slug,
+                revision,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            return (
+                "🌐 Perfil global programado",
+                f"`{slug}` se sincronizará de forma segura.",
+                discord.Color.blurple(),
+            )
+
+        await self.run(interaction, f"persona.{action}", mutation, owner_only=owner_only)
+
+    async def _import(self, interaction: discord.Interaction) -> MutationResult:
+        attachments = tuple(self.files.values or ())
+        profile_attachment = next(
+            (item for item in attachments if item.filename.lower().endswith(".json")),
             None,
         )
         avatar_attachment = next(
             (
-                attachment
-                for attachment in message.attachments
-                if attachment is not profile_attachment
+                item
+                for item in attachments
+                if item is not profile_attachment
                 and (
-                    (attachment.content_type or "").lower() in {"image/png", "image/jpeg", "image/gif"}
-                    or attachment.filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))
+                    (item.content_type or "").lower() in {"image/png", "image/jpeg", "image/gif"}
+                    or item.filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))
                 )
             ),
             None,
@@ -530,88 +947,53 @@ class ConfigurationInlineController:
         content_type = avatar_attachment.content_type or mimetypes.guess_type(avatar_attachment.filename)[0]
         if content_type not in {"image/png", "image/jpeg", "image/gif"}:
             raise ValueError("El avatar debe ser PNG, JPEG o GIF.")
-        record = await self.repository.import_persona_draft(
+        record = await self.cog.repository.import_persona_draft(
             profile,
             avatar_bytes,
             content_type=content_type,
-            actor_user_id=message.author.id,
-            interaction_id=message.id,
+            actor_user_id=interaction.user.id,
+            interaction_id=interaction.id,
         )
-        await self._reply(
-            message,
+        return (
             "🎭 Persona importada",
             f"`{record.slug}` r{record.revision} quedó como borrador.",
-        )
-
-    async def _publish(self, message: discord.Message) -> None:
-        guild = _require_guild(message)
-        revision_id = await self.repository.publish_draft(
-            guild.id,
-            actor_user_id=message.author.id,
-            interaction_id=message.id,
-        )
-        await self._reply(message, "✅ Configuración publicada", f"Revisión: `{revision_id}`")
-
-    async def _rollback(self, message: discord.Message, revision: int) -> None:
-        guild = _require_guild(message)
-        revision_id = await self.repository.rollback(
-            guild.id,
-            revision,
-            actor_user_id=message.author.id,
-            interaction_id=message.id,
-        )
-        await self._reply(message, "↩️ Configuración restaurada", f"Nueva revisión: `{revision_id}`")
-
-    async def _global_profile(self, message: discord.Message, arguments: tuple[str, ...]) -> None:
-        if message.author.id not in self.owner_ids:
-            raise InlineConfigAuthorizationError
-        if len(arguments) not in {1, 2}:
-            raise ValueError("Uso: `$rac perfil-global <persona> [revision]`.")
-        revision = int(arguments[1]) if len(arguments) == 2 else None
-        revision_id = await self.repository.set_global_persona_by_slug(
-            arguments[0],
-            revision,
-            actor_user_id=message.author.id,
-            interaction_id=message.id,
-        )
-        await self._reply(
-            message,
-            "🌐 Perfil global programado",
-            f"Persona: `{arguments[0]}` · revisión DB `{revision_id}`.",
+            discord.Color.blurple(),
         )
 
 
-def _require_guild(message: discord.Message) -> discord.Guild:
-    if message.guild is None:
-        raise ValueError("Este comando solo funciona dentro de una guild configurada.")
-    return message.guild
+class RollbackConfigurationModal(BaseConfigurationModal):
+    def __init__(self, cog: ConfigurationAdminCog, requester_id: int) -> None:
+        self.revision = discord.ui.InputText(
+            custom_id="config:v2:rollback:revision",
+            placeholder="Número de revisión histórica",
+            min_length=1,
+            max_length=10,
+        )
+        super().__init__(
+            cog,
+            requester_id,
+            discord.ui.Label("Revisión", self.revision),
+            title="Restaurar configuración",
+            custom_id=f"config:v2:rollback:{requester_id}",
+        )
 
+    async def callback(self, interaction: discord.Interaction) -> None:
+        async def mutation() -> MutationResult:
+            if interaction.guild is None:
+                raise ValueError("Este panel solo funciona dentro de un servidor.")
+            revision_id = await self.cog.repository.rollback(
+                interaction.guild.id,
+                int(self.revision.value),
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            return (
+                "↩️ Configuración restaurada",
+                f"Nueva revisión activa: `{revision_id}`.",
+                discord.Color.orange(),
+            )
 
-def _expect_count(arguments: tuple[str, ...], count: int, usage: str) -> None:
-    if len(arguments) != count:
-        raise ValueError(f"Uso: `{usage}`.")
-
-
-def _parse_assignments(arguments: tuple[str, ...]) -> dict[str, str]:
-    assignments: dict[str, str] = {}
-    for argument in arguments:
-        key, separator, value = argument.partition("=")
-        if not separator or not key.strip() or not value.strip():
-            raise ValueError("Usa parámetros `clave=valor` separados por espacios.")
-        normalized = key.strip().lower()
-        if normalized in assignments:
-            raise ValueError(f"El parámetro `{normalized}` está repetido.")
-        assignments[normalized] = value.strip()
-    return assignments
-
-
-def _parse_boolean(value: str) -> bool:
-    normalized = value.strip().lower()
-    if normalized in {"1", "true", "on", "si", "sí"}:
-        return True
-    if normalized in {"0", "false", "off", "no"}:
-        return False
-    raise ValueError("Usa `on` u `off` para indicar el estado del módulo.")
+        await self.run(interaction, "config.rollback", mutation)
 
 
 def _parse_snowflakes(raw_value: str) -> tuple[int, ...]:

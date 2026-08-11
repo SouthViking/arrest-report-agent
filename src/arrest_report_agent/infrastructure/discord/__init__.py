@@ -2,11 +2,11 @@
 
 from .bot import create_bot
 from .cog import ReviewCog
-from .config_admin import ConfigurationInlineController
+from .config_admin import ConfigurationAdminCog
 from .profile import DiscordProfileSynchronizer
 
 __all__ = [
-    "ConfigurationInlineController",
+    "ConfigurationAdminCog",
     "DiscordProfileSynchronizer",
     "ReviewCog",
     "create_bot",
