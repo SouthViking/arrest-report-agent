@@ -14,7 +14,10 @@ from arrest_report_agent.infrastructure.postgres.schema import metadata
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Alembic runs inside the same process for the CLI and tests. Preserve the
+    # application's structured loggers instead of disabling every logger that
+    # is not declared in alembic.ini.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = metadata
 
