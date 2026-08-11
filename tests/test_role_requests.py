@@ -158,6 +158,7 @@ class FakeGuild:
     ) -> None:
         self.id = GUILD_ID
         self.default_role = roles[0]
+        self.roles = roles
         self.me = bot_member
         self.text_channels = [channel]
         self._channels = {channel.id: channel}
@@ -676,13 +677,77 @@ def test_submission_rejects_unlisted_and_more_than_ten_roles(role_request_env) -
     roles = [FakeRole(1_100 + index, position=2) for index in range(11)]
     for role in roles:
         role.guild = role_request_env.guild
-    role_request_env.service.allowed_role_ids = frozenset(role.id for role in roles)
+    configured = role_request_env.service.settings.model_copy(
+        update={
+            "role_request_allowed_role_ids_csv": ",".join(
+                str(role.id) for role in roles
+            )
+        }
+    )
+    service = RoleRequestService(
+        role_request_env.service.bot,
+        configured,
+        role_request_env.service.persona,
+    )
     with pytest.raises(RoleRequestValidationError, match="10"):
-        role_request_env.service.validate_submission(
+        service.validate_submission(
             role_request_env.requester,
             roles,
             (),
         )
+
+
+def test_open_role_catalog_uses_every_safe_role_in_the_current_guild(
+    role_request_env,
+) -> None:
+    privileged = FakeRole(
+        704,
+        name="Administración",
+        position=2,
+        permissions=FakePermissions(manage_roles=True),
+    )
+    privileged.guild = role_request_env.guild
+    role_request_env.guild.roles.append(privileged)
+    role_request_env.guild._roles[privileged.id] = privileged
+    configured = role_request_env.service.settings.model_copy(
+        update={"role_request_allowed_role_ids_csv": "*"}
+    )
+    service = RoleRequestService(
+        role_request_env.service.bot,
+        configured,
+        role_request_env.service.persona,
+    )
+
+    additions, removals = service.requestable_role_choices(role_request_env.requester)
+
+    assert {role.id for role in additions} == {701, 702}
+    assert {role.id for role in removals} == {703, 901}
+    assert privileged not in additions
+
+
+def test_open_role_catalog_accepts_safe_selected_roles(role_request_env) -> None:
+    configured = role_request_env.service.settings.model_copy(
+        update={"role_request_allowed_role_ids_csv": ""}
+    )
+    service = RoleRequestService(
+        role_request_env.service.bot,
+        configured,
+        role_request_env.service.persona,
+    )
+
+    additions, removals = service.validate_submission(
+        role_request_env.requester,
+        (role_request_env.add_one,),
+        (role_request_env.removable,),
+    )
+    resolved = service.resolve_selected_roles(
+        role_request_env.guild,
+        (str(role_request_env.add_one.id), str(role_request_env.removable.id)),
+    )
+
+    assert additions == (role_request_env.add_one,)
+    assert removals == (role_request_env.removable,)
+    assert resolved == (role_request_env.add_one, role_request_env.removable)
 
 
 @pytest.mark.asyncio

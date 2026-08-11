@@ -67,7 +67,14 @@ async def run() -> None:
         ),
         configured_role_request_channels=role_request_channels.configured_count,
         configured_role_request_reviewers=len(settings.role_request_reviewer_role_ids),
-        configured_role_request_roles=len(settings.role_request_allowed_role_ids),
+        role_request_role_mode=(
+            "restricted"
+            if settings.role_request_allowed_role_allowlist.is_restricted
+            else "open"
+        ),
+        configured_role_request_roles=(
+            settings.role_request_allowed_role_allowlist.configured_count
+        ),
     )
     stop_requested = asyncio.Event()
     loop = asyncio.get_running_loop()

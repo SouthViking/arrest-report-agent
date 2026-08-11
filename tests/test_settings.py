@@ -21,6 +21,7 @@ def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings)
     assert settings.role_request_allowed_channel_ids is None
     assert settings.role_request_reviewer_role_ids == ()
     assert settings.role_request_allowed_role_ids == ()
+    assert settings.role_request_allowed_role_allowlist.ids is None
     assert settings.openai_model == "gpt-5.6-terra"
     assert settings.openai_reasoning_effort == "medium"
     assert settings.log_json_indented is True
@@ -232,8 +233,21 @@ def test_role_request_reviewer_roles_reject_open_or_invalid_values(
         )
 
 
-@pytest.mark.parametrize("configured", ["*", "123,*", "invalid", "0", "-1"])
-def test_role_request_allowed_roles_reject_open_or_invalid_values(
+@pytest.mark.parametrize("configured", ["", "*"])
+def test_role_request_allowed_roles_support_open_values(configured: str) -> None:
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        ROLE_REQUEST_ALLOWED_ROLE_IDS=configured,
+    )
+
+    assert settings.role_request_allowed_role_allowlist.ids is None
+    assert settings.role_request_allowed_role_ids == ()
+
+
+@pytest.mark.parametrize("configured", ["123,*", "invalid", "0", "-1"])
+def test_role_request_allowed_roles_reject_mixed_or_invalid_values(
     configured: str,
 ) -> None:
     with pytest.raises(ValidationError):
@@ -245,14 +259,15 @@ def test_role_request_allowed_roles_reject_open_or_invalid_values(
         )
 
 
-def test_role_request_reviewer_roles_require_a_requestable_role_catalog() -> None:
-    with pytest.raises(ValidationError, match="ROLE_REQUEST_ALLOWED_ROLE_IDS"):
-        AppSettings(
-            _env_file=None,
-            DISCORD_TOKEN="discord",
-            OPENAI_API_KEY="openai",
-            ROLE_REQUEST_REVIEWER_ROLE_IDS="700",
-        )
+def test_role_request_reviewer_roles_allow_an_open_requestable_catalog() -> None:
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        ROLE_REQUEST_REVIEWER_ROLE_IDS="700",
+    )
+
+    assert settings.role_request_allowed_role_allowlist.ids is None
 
 
 def test_role_request_catalog_cannot_include_reviewer_roles() -> None:
@@ -342,3 +357,4 @@ def test_default_env_template_values_are_parseable(tmp_path) -> None:
     assert settings.role_request_allowed_channel_ids is None
     assert settings.role_request_reviewer_role_ids == ()
     assert settings.role_request_allowed_role_ids == ()
+    assert settings.role_request_allowed_role_allowlist.ids is None

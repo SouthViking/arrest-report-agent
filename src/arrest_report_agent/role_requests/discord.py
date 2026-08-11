@@ -35,7 +35,10 @@ LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
 MAX_REASON_LENGTH = 1000
 MAX_STRING_SELECT_OPTIONS = 25
-MAX_REQUESTABLE_ROLES_PER_GUILD = MAX_STRING_SELECT_OPTIONS * 2
+MAX_ROLE_SELECTS_PER_MODAL = 4
+MAX_REQUESTABLE_ROLES_PER_GUILD = (
+    MAX_STRING_SELECT_OPTIONS * MAX_ROLE_SELECTS_PER_MODAL
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,7 +83,7 @@ class RoleRequestService:
         self.ui = persona.messages.interface.role_requests
         self.allowed_channels = settings.role_request_allowed_channel_allowlist
         self.reviewer_role_ids = frozenset(settings.role_request_reviewer_role_ids)
-        self.allowed_role_ids = frozenset(settings.role_request_allowed_role_ids)
+        self.allowed_roles = settings.role_request_allowed_role_allowlist
         self.allowed_role_order = settings.role_request_allowed_role_ids
         self._locks: dict[int, asyncio.Lock] = {}
         self._lock_users: dict[int, int] = {}
@@ -190,7 +193,7 @@ class RoleRequestService:
         unlisted = tuple(
             role
             for role in (*additions, *removals)
-            if role.id not in self.allowed_role_ids
+            if not self.allowed_roles.allows(role.id)
             or getattr(role.guild, "id", None) != member.guild.id
         )
         if unlisted:
@@ -242,12 +245,18 @@ class RoleRequestService:
             raise RoleRequestValidationError(self.ui.subsystem_unavailable)
         catalog: list[discord.Role] = []
         unavailable_ids: list[int] = []
-        for role_id in self.allowed_role_order:
-            role = member.guild.get_role(role_id)
-            if role is None:
-                continue
+        if self.allowed_roles.is_restricted:
+            candidates = tuple(
+                role
+                for role_id in self.allowed_role_order
+                if (role := member.guild.get_role(role_id)) is not None
+            )
+        else:
+            candidates = tuple(reversed(member.guild.roles))
+        for role in candidates:
             if self._role_is_protected(role, bot_member):
-                unavailable_ids.append(role_id)
+                if self.allowed_roles.is_restricted:
+                    unavailable_ids.append(role.id)
                 continue
             catalog.append(role)
         if unavailable_ids:
@@ -261,20 +270,25 @@ class RoleRequestService:
             )
         if not catalog:
             raise RoleRequestValidationError(self.ui.no_requestable_roles)
-        if len(catalog) > MAX_REQUESTABLE_ROLES_PER_GUILD:
+        current_ids = {role.id for role in member.roles}
+        additions = tuple(role for role in catalog if role.id not in current_ids)
+        removals = tuple(role for role in catalog if role.id in current_ids)
+        select_count = _role_select_count(additions) + _role_select_count(removals)
+        if (
+            len(catalog) > MAX_REQUESTABLE_ROLES_PER_GUILD
+            or select_count > MAX_ROLE_SELECTS_PER_MODAL
+        ):
             log_event(
                 LOGGER,
                 "error",
                 "role_request_catalog_too_large",
                 guild_id=member.guild.id,
                 role_count=len(catalog),
-                maximum=MAX_REQUESTABLE_ROLES_PER_GUILD,
+                select_count=select_count,
+                maximum_roles=MAX_REQUESTABLE_ROLES_PER_GUILD,
+                maximum_selects=MAX_ROLE_SELECTS_PER_MODAL,
             )
             raise RoleRequestValidationError(self.ui.subsystem_unavailable)
-
-        current_ids = {role.id for role in member.roles}
-        additions = tuple(role for role in catalog if role.id not in current_ids)
-        removals = tuple(role for role in catalog if role.id in current_ids)
         return additions, removals
 
     def resolve_selected_roles(
@@ -290,7 +304,7 @@ class RoleRequestService:
                 role_id = int(raw_role_id)
             except (TypeError, ValueError) as error:
                 raise RoleRequestValidationError(self.ui.request_unavailable) from error
-            if role_id not in self.allowed_role_ids:
+            if not self.allowed_roles.allows(role_id):
                 raise RoleRequestValidationError(self.ui.request_unavailable)
             role = guild.get_role(role_id)
             if role is None:
@@ -1438,6 +1452,12 @@ def _labeled_role_selects(
 
 def _selected_values(selects: Iterable[discord.ui.StringSelect]) -> tuple[str, ...]:
     return tuple(value for select in selects for value in select.values)
+
+
+def _role_select_count(roles: tuple[discord.Role, ...]) -> int:
+    if not roles:
+        return 0
+    return (len(roles) + MAX_STRING_SELECT_OPTIONS - 1) // MAX_STRING_SELECT_OPTIONS
 
 
 def _unique_roles(roles: Iterable[discord.Role]) -> tuple[discord.Role, ...]:

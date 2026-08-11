@@ -131,9 +131,10 @@ el repositorio, y la identidad continúa seleccionándose exclusivamente mediant
 
 `ROLE_REQUEST_REVIEWER_ROLE_IDS` actúa como feature flag y frontera de autorización: vacío evita
 registrar `/solicitar-roles`, `/info-roles` y su vista persistente. Cuando está habilitado,
-`ROLE_REQUEST_ALLOWED_ROLE_IDS` es obligatorio y forma el catálogo ordenado que el adaptador resuelve
-contra la guild actual. El comando solo aplica la allowlist de guilds y la allowlist independiente de
-canales; no reutiliza `AUTHORIZED_USER_IDS` ni las políticas del agente.
+`ROLE_REQUEST_ALLOWED_ROLE_IDS` puede abrir todos los roles seguros con `*`/vacío o formar un
+catálogo ordenado y cerrado mediante CSV. El adaptador lo resuelve contra la guild actual. El
+comando solo aplica la allowlist de guilds y la allowlist independiente de canales; no reutiliza
+`AUTHORIZED_USER_IDS` ni las políticas del agente.
 
 Los selectores de creación son `StringSelect` deterministas. El adaptador descarta roles inexistentes
 o protegidos, separa altas de bajas según el estado actual del miembro y divide catálogos de más de

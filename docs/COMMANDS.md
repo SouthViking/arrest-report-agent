@@ -36,8 +36,9 @@ todos; una lista CSV exige que el miembro posea al menos uno de esos roles. La c
 centralizada y no depende de `AUTHORIZED_USER_IDS`.
 
 Los comandos de roles se registran únicamente cuando `ROLE_REQUEST_REVIEWER_ROLE_IDS` contiene al
-menos un ID explícito; en ese caso `ROLE_REQUEST_ALLOWED_ROLE_IDS` debe definir también el catálogo
-solicitable. No aplican `AUTHORIZED_USER_IDS`. Los botones de una solicitud son visibles,
+menos un ID explícito. `ROLE_REQUEST_ALLOWED_ROLE_IDS` ausente, vacío o con `*` permite todos los
+roles seguros de la guild; un CSV define un catálogo cerrado. No aplican `AUTHORIZED_USER_IDS`.
+Los botones de una solicitud son visibles,
 pero sus callbacks verifican siempre que quien decide posea uno de esos roles. Tanto los IDs de
 revisores como los de canales pueden mezclar distintas guilds; en cada interacción solo se resuelven
 los objetos pertenecientes a la guild actual.
@@ -182,9 +183,10 @@ sin una base de datos.
 
 Solo puede ejecutarse en un canal de texto normal de una guild habilitada. Los hilos se rechazan
 aunque su canal padre figure en `ROLE_REQUEST_ALLOWED_CHANNEL_IDS`. El modal muestra únicamente los
-roles seguros de `ROLE_REQUEST_ALLOWED_ROLE_IDS`: para agregar omite los ya poseídos y para retirar
-muestra solo los actuales. Si el catálogo supera las 25 opciones de un selector, se divide en dos
-grupos; se admiten hasta 50 roles solicitables por guild y un máximo de diez altas y diez bajas por
+roles admitidos por `ROLE_REQUEST_ALLOWED_ROLE_IDS` que superan las validaciones de seguridad: para
+agregar omite los ya poseídos y para retirar muestra solo los actuales. Si el catálogo supera las
+25 opciones de un selector, se divide en dos o más grupos; se admiten hasta 100 roles solicitables
+por guild, siempre que quepan en cuatro selectores, y un máximo de diez altas y diez bajas por
 solicitud. También permite un motivo opcional. Antes de publicar, valida el
 estado actual del miembro, la jerarquía del bot y que no se incluyan `@everyone`, roles gestionados,
 roles revisores, roles administrativos o roles iguales o superiores al bot.

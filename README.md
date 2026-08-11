@@ -73,7 +73,7 @@ DISCORD_GUILD_IDS=1234674521416663070
 REPORT_CHANNEL_IDS=1462992794569281617,1462992859761217745
 AUTHORIZED_USER_IDS=*
 ROLE_REQUEST_ALLOWED_CHANNEL_IDS=*
-ROLE_REQUEST_ALLOWED_ROLE_IDS=
+ROLE_REQUEST_ALLOWED_ROLE_IDS=*
 ROLE_REQUEST_REVIEWER_ROLE_IDS=
 BOT_PERSONA=walter_vigil
 OPENAI_MODEL=gpt-5.6-terra
@@ -93,7 +93,8 @@ de migración. Al mostrarlos, el bot conserva únicamente los que pertenecen a l
 visibles para él y para el solicitante, evitando referencias `#desconocido` entre servidores.
 
 El subsistema de solicitudes de roles se habilita al configurar uno o más IDs explícitos en
-`ROLE_REQUEST_REVIEWER_ROLE_IDS` y exige un catálogo en `ROLE_REQUEST_ALLOWED_ROLE_IDS`.
+`ROLE_REQUEST_REVIEWER_ROLE_IDS`. `ROLE_REQUEST_ALLOWED_ROLE_IDS` sigue la regla uniforme de las
+allowlists: ausente, vacío o `*` permite todos los roles seguros; un CSV define un catálogo cerrado.
 `/solicitar-roles` publica la solicitud en el mismo canal de texto
 donde se ejecuta; `ROLE_REQUEST_ALLOWED_CHANNEL_IDS` puede abrir todos esos canales con `*` o
 restringirlos mediante CSV. No aplica `AUTHORIZED_USER_IDS`, no funciona dentro de hilos y no usa
@@ -260,7 +261,7 @@ el contenido exacto del FAQ.
 | `SUPERVISOR_ROLE_IDS` | `*` | Roles autorizados para comandos de supervisión y para asignar estados manuales reconocidos por las consultas; `*`/vacío permite a todos. |
 | `REVIEW_ESCALATION_ROLE_IDS` | vacío | Roles existentes que reciben una mención ante resultados inconclusos o fallas; acepta CSV. |
 | `ROLE_REQUEST_ALLOWED_CHANNEL_IDS` | `*` | Canales de texto normales donde puede ejecutarse `/solicitar-roles`; `*`/vacío permite todos y un CSV restringe. Los hilos siempre se rechazan. |
-| `ROLE_REQUEST_ALLOWED_ROLE_IDS` | vacío | Catálogo ordenado de roles solicitables. Requiere IDs explícitos, no admite `*` y es obligatorio cuando el subsistema está habilitado. |
+| `ROLE_REQUEST_ALLOWED_ROLE_IDS` | `*` | Roles solicitables: `*`/vacío permite todos los roles seguros; un CSV define un catálogo ordenado y cerrado. |
 | `ROLE_REQUEST_REVIEWER_ROLE_IDS` | vacío | Roles que pueden resolver solicitudes. Requiere IDs explícitos, no admite `*`; vacío deshabilita ambos comandos de roles. |
 | `BOT_PERSONA` | obligatorio | ID del perfil empaquetado que controla identidad, tono, presencia y perfil de Discord. |
 | `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |

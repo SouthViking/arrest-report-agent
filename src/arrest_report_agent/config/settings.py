@@ -108,7 +108,7 @@ class AppSettings(BaseSettings):
         alias="ROLE_REQUEST_REVIEWER_ROLE_IDS",
     )
     role_request_allowed_role_ids_csv: str = Field(
-        default="",
+        default="*",
         alias="ROLE_REQUEST_ALLOWED_ROLE_IDS",
     )
     review_escalation_role_ids_csv: str = Field(
@@ -210,14 +210,10 @@ class AppSettings(BaseSettings):
             self.supervisor_role_allowlist,
             self.role_request_allowed_channel_allowlist,
             self.role_request_reviewer_role_ids,
+            self.role_request_allowed_role_allowlist,
             self.role_request_allowed_role_ids,
             self.review_escalation_role_ids,
         )
-        if self.role_request_reviewer_role_ids and not self.role_request_allowed_role_ids:
-            raise ValueError(
-                "ROLE_REQUEST_ALLOWED_ROLE_IDS must contain explicit role IDs when "
-                "ROLE_REQUEST_REVIEWER_ROLE_IDS enables the role-request subsystem"
-            )
         overlap = set(self.role_request_reviewer_role_ids) & set(
             self.role_request_allowed_role_ids
         )
@@ -271,7 +267,16 @@ class AppSettings(BaseSettings):
         )
 
     @property
+    def role_request_allowed_role_allowlist(self) -> SnowflakeAllowlist:
+        return SnowflakeAllowlist.parse(
+            self.role_request_allowed_role_ids_csv,
+            variable_name="ROLE_REQUEST_ALLOWED_ROLE_IDS",
+        )
+
+    @property
     def role_request_allowed_role_ids(self) -> tuple[int, ...]:
+        if not self.role_request_allowed_role_allowlist.is_restricted:
+            return ()
         return parse_configured_snowflakes(
             self.role_request_allowed_role_ids_csv,
             variable_name="ROLE_REQUEST_ALLOWED_ROLE_IDS",
