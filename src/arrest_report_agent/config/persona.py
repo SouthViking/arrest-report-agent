@@ -734,9 +734,7 @@ class BotPersona(FrozenPersonaModel):
     @classmethod
     def validate_schema_version(cls, value: int) -> int:
         if value != PERSONA_SCHEMA_VERSION:
-            raise ValueError(
-                f"unsupported persona schema version {value}; expected {PERSONA_SCHEMA_VERSION}"
-            )
+            raise ValueError(f"unsupported persona schema version {value}; expected {PERSONA_SCHEMA_VERSION}")
         return value
 
 
@@ -747,17 +745,18 @@ def _require_template_fields(template: str, expected: set[str], label: str) -> N
         for _, field_name, format_spec, conversion in parts:
             if field_name is None:
                 continue
-            if not field_name or format_spec or conversion or any(
-                token in field_name for token in (".", "[", "]")
+            if (
+                not field_name
+                or format_spec
+                or conversion
+                or any(token in field_name for token in (".", "[", "]"))
             ):
                 raise ValueError(f"persona message template '{label}' uses unsafe formatting")
             fields.add(field_name)
     except ValueError as error:
         raise ValueError(f"invalid persona message template '{label}': {error}") from error
     if fields != expected:
-        raise ValueError(
-            f"persona message template '{label}' must use placeholders {sorted(expected)}"
-        )
+        raise ValueError(f"persona message template '{label}' must use placeholders {sorted(expected)}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -792,20 +791,14 @@ class PackagedPersonaProvider:
         try:
             raw_profile = json.loads(resource.read_text(encoding="utf-8"))
         except FileNotFoundError as error:
-            raise PersonaConfigurationError(
-                f"unknown BOT_PERSONA '{normalized_id}'"
-            ) from error
+            raise PersonaConfigurationError(f"unknown BOT_PERSONA '{normalized_id}'") from error
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
-            raise PersonaConfigurationError(
-                f"unable to read persona '{normalized_id}': {error}"
-            ) from error
+            raise PersonaConfigurationError(f"unable to read persona '{normalized_id}': {error}") from error
 
         try:
             profile = BotPersona.model_validate(raw_profile)
         except Exception as error:
-            raise PersonaConfigurationError(
-                f"invalid persona '{normalized_id}': {error}"
-            ) from error
+            raise PersonaConfigurationError(f"invalid persona '{normalized_id}': {error}") from error
         if profile.id != normalized_id:
             raise PersonaConfigurationError(
                 f"persona id '{profile.id}' does not match BOT_PERSONA '{normalized_id}'"
@@ -822,23 +815,17 @@ class PackagedPersonaProvider:
         if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
             raise PersonaConfigurationError(f"persona {label} path must remain inside its profile")
         if path.suffix.lower() not in SUPPORTED_PROFILE_ASSET_SUFFIXES:
-            raise PersonaConfigurationError(
-                f"persona {label} must be a PNG, JPEG or GIF image"
-            )
+            raise PersonaConfigurationError(f"persona {label} must be a PNG, JPEG or GIF image")
 
         resource = self._root.joinpath(*path.parts)
         try:
             payload = resource.read_bytes()
         except (FileNotFoundError, OSError) as error:
-            raise PersonaConfigurationError(
-                f"persona {label} asset '{reference}' is unavailable"
-            ) from error
+            raise PersonaConfigurationError(f"persona {label} asset '{reference}' is unavailable") from error
         if not payload:
             raise PersonaConfigurationError(f"persona {label} asset cannot be empty")
         if len(payload) > MAX_PROFILE_ASSET_BYTES:
-            raise PersonaConfigurationError(
-                f"persona {label} asset exceeds {MAX_PROFILE_ASSET_BYTES} bytes"
-            )
+            raise PersonaConfigurationError(f"persona {label} asset exceeds {MAX_PROFILE_ASSET_BYTES} bytes")
         if not _matches_image_signature(payload, path.suffix.lower()):
             raise PersonaConfigurationError(
                 f"persona {label} asset '{reference}' does not match its image format"

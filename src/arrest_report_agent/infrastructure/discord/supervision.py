@@ -330,11 +330,7 @@ class ShameRankingModal(discord.ui.DesignerModal):
                     channel_id=channel.id,
                     channel_name=channel.name,
                     ranking=build_open_report_ranking(
-                        tuple(
-                            report
-                            for report in result.reports
-                            if report.channel_id == channel.id
-                        )
+                        tuple(report for report in result.reports if report.channel_id == channel.id)
                     ),
                 )
                 for channel in channels
@@ -361,13 +357,7 @@ class ShameRankingModal(discord.ui.DesignerModal):
                 report_count=len(result.reports),
                 channel_count=len(sections),
                 channel_ids=[section.channel_id for section in sections],
-                member_count=len(
-                    {
-                        entry.author_id
-                        for section in sections
-                        for entry in section.ranking
-                    }
-                ),
+                member_count=len({entry.author_id for section in sections for entry in section.ranking}),
                 truncated=result.truncated,
             )
         except Exception as error:
@@ -442,11 +432,7 @@ class HonorRankingModal(discord.ui.DesignerModal):
                     channel_id=channel.id,
                     channel_name=channel.name,
                     ranking=build_approved_report_ranking(
-                        tuple(
-                            report
-                            for report in result.reports
-                            if report.channel_id == channel.id
-                        )
+                        tuple(report for report in result.reports if report.channel_id == channel.id)
                     ),
                 )
                 for channel in channels
@@ -473,13 +459,7 @@ class HonorRankingModal(discord.ui.DesignerModal):
                 report_count=len(result.reports),
                 channel_count=len(sections),
                 channel_ids=[section.channel_id for section in sections],
-                member_count=len(
-                    {
-                        entry.author_id
-                        for section in sections
-                        for entry in section.ranking
-                    }
-                ),
+                member_count=len({entry.author_id for section in sections for entry in section.ranking}),
                 truncated=result.truncated,
             )
         except Exception as error:
@@ -664,11 +644,7 @@ def build_pending_reports_embed(
         )
     for report in reports:
         icon, status_label = status_presentation[report.status]
-        author = (
-            f"<@{report.author_id}>"
-            if report.author_id is not None
-            else navigation.unknown_author
-        )
+        author = f"<@{report.author_id}>" if report.author_id is not None else navigation.unknown_author
         links = f"[{navigation.open_post}]({report.post_url})"
         if report.thread_url:
             links += f" · [{navigation.open_thread}]({report.thread_url})"
@@ -959,9 +935,7 @@ def _ranking_value(
     if metric is SupervisorRankingMetric.APPROVED:
         return ui.ranking_value_approved.format(count=entry.approved)
     if metric is SupervisorRankingMetric.CORRECTIONS_REQUIRED:
-        return ui.ranking_value_corrections_required.format(
-            count=entry.corrections_required
-        )
+        return ui.ranking_value_corrections_required.format(count=entry.corrections_required)
     if metric is SupervisorRankingMetric.APPROVAL_RATE:
         return ui.ranking_value_approval_rate.format(rate=f"{entry.approval_rate:.1f}")
     return ui.ranking_value_submitted.format(count=entry.total)
@@ -973,8 +947,6 @@ def build_ranking_metric_labels(
     return {
         SupervisorRankingMetric.SUBMITTED: messages.metric_submitted,
         SupervisorRankingMetric.APPROVED: messages.metric_approved,
-        SupervisorRankingMetric.CORRECTIONS_REQUIRED: (
-            messages.metric_corrections_required
-        ),
+        SupervisorRankingMetric.CORRECTIONS_REQUIRED: (messages.metric_corrections_required),
         SupervisorRankingMetric.APPROVAL_RATE: messages.metric_approval_rate,
     }

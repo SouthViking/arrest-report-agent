@@ -266,9 +266,7 @@ def build_agent_tools(
                 sort_direction=sort_direction,
                 limit=limit,
                 cursor=cursor,
-                include_member_count=(
-                    "member_count" in selected_fields or sort_by == "member_count"
-                ),
+                include_member_count=("member_count" in selected_fields or sort_by == "member_count"),
             ),
         )
         if lookup.error is not None:
@@ -361,9 +359,7 @@ def build_agent_tools(
         if directory is None:
             return _directory_error("member_directory_unavailable", "members")
         selected_fields = tuple(dict.fromkeys(fields or DEFAULT_GUILD_MEMBER_FIELDS))
-        selected_channel_id = (
-            int(channel_id) if channel_id is not None else run_context.case.channel_id
-        )
+        selected_channel_id = int(channel_id) if channel_id is not None else run_context.case.channel_id
         lookup = await directory.search_channel_members(
             guild_id=run_context.case.guild_id,
             requester_user_id=run_context.case.requester_user_id,
@@ -431,9 +427,7 @@ def build_agent_tools(
                         "user_id": str(user_id),
                         "found": False,
                         "reason": (
-                            "temporarily_unavailable"
-                            if user_id in lookup.unavailable
-                            else "not_found"
+                            "temporarily_unavailable" if user_id in lookup.unavailable else "not_found"
                         ),
                     }
                 )
@@ -528,10 +522,7 @@ def build_agent_tools(
             }
 
         budget = _TextBudget(MESSAGE_TOOL_TEXT_BUDGET)
-        messages = [
-            _project_message(profile, selected_fields, budget)
-            for profile in lookup.messages
-        ]
+        messages = [_project_message(profile, selected_fields, budget) for profile in lookup.messages]
         return {
             "ok": True,
             "channel_id": str(query.channel_id),
@@ -571,9 +562,7 @@ def build_agent_tools(
         if directory is None:
             return _attachment_tool_error("message_directory_unavailable")
 
-        selected_channel_id = (
-            int(channel_id) if channel_id is not None else run_context.case.channel_id
-        )
+        selected_channel_id = int(channel_id) if channel_id is not None else run_context.case.channel_id
         selected_attachment_ids = tuple(
             dict.fromkeys(int(attachment_id) for attachment_id in (attachment_ids or []))
         )
@@ -1085,8 +1074,6 @@ def _project_message(
             ]
         elif field == "reply_reference":
             projected[field] = (
-                str(profile.reply_to_message_id)
-                if profile.reply_to_message_id is not None
-                else None
+                str(profile.reply_to_message_id) if profile.reply_to_message_id is not None else None
             )
     return projected

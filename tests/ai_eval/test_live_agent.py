@@ -147,9 +147,7 @@ def _case(*turns: tuple[str, str]) -> ReviewCase:
         requester_display_name="Elena Torres",
         requester_role_names=["Deputy Sheriff"],
         interaction_mode=(
-            InteractionMode.THREAD_FOLLOW_UP
-            if len(turns) > 1
-            else InteractionMode.INITIAL_REVIEW
+            InteractionMode.THREAD_FOLLOW_UP if len(turns) > 1 else InteractionMode.INITIAL_REVIEW
         ),
         messages=messages,
         attachments=[],
@@ -195,8 +193,7 @@ Revisa la narrativa y los cargos.""",
     assert publication.verdict is ReviewVerdict.APPROVED
     assert not any(finding.severity.value == "required" for finding in publication.findings)
     assert not any(
-        finding.severity.value == "required"
-        and "grabaci" in f"{finding.title} {finding.detail}".lower()
+        finding.severity.value == "required" and "grabaci" in f"{finding.title} {finding.detail}".lower()
         for finding in publication.findings
     )
     assert any(charge.alignment == "supported" for charge in publication.charges)
@@ -299,10 +296,7 @@ Revisa la narrativa y los cargos.""",
     assert publication.verdict is ReviewVerdict.APPROVED
     assert not any(
         finding.severity.value == "required"
-        and any(
-            term in f"{finding.title} {finding.detail}".lower()
-            for term in ("cronolog", "fecha", "hora")
-        )
+        and any(term in f"{finding.title} {finding.detail}".lower() for term in ("cronolog", "fecha", "hora"))
         for finding in publication.findings
     )
 
@@ -338,10 +332,7 @@ Revisa la narrativa y los cargos.""",
         finding.severity.value == "required"
         and any(
             term
-            in (
-                f"{finding.title} {finding.detail} {finding.recommendation} "
-                f"{finding.evidence or ''}"
-            ).lower()
+            in (f"{finding.title} {finding.detail} {finding.recommendation} {finding.evidence or ''}").lower()
             for term in (
                 "nombre",
                 "personaje",
@@ -467,10 +458,7 @@ Idlewood, junto a la estación de servicio, donde el vehículo quedó inmoviliza
     assert publication.focus is not None
     assert publication.verdict is ReviewVerdict.APPROVED
     assert not any(
-        any(
-            term in f"{finding.title} {finding.detail}".lower()
-            for term in ("ortograf", "redacción", "iva")
-        )
+        any(term in f"{finding.title} {finding.detail}".lower() for term in ("ortograf", "redacción", "iva"))
         for finding in publication.findings
     )
 

@@ -93,9 +93,7 @@ def test_evidence_guide_treats_recordings_as_roleplay_and_requires_bag_reference
 
 
 def test_charge_guide_filters_historical_rows_by_identity_and_proximity() -> None:
-    rules = ReportGuide.load_default().get(["charge_review"])["sections"]["charge_review"][
-        "rules"
-    ]
+    rules = ReportGuide.load_default().get(["charge_review"])["sections"]["charge_review"]["rules"]
     rendered = " ".join(rules)
 
     assert "historial completo del personaje" in rendered
@@ -108,9 +106,7 @@ def test_charge_guide_filters_historical_rows_by_identity_and_proximity() -> Non
 
 
 def test_review_calibration_uses_semantic_coverage_and_material_threshold() -> None:
-    calibration = ReportGuide.load_default().get(["review_calibration"])["sections"][
-        "review_calibration"
-    ]
+    calibration = ReportGuide.load_default().get(["review_calibration"])["sections"]["review_calibration"]
 
     assert "cantidad ni un orden fijo" in calibration["semantic_coverage"][0]
     assert "cargos" in calibration["semantic_coverage"][2]

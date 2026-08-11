@@ -43,32 +43,21 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     assert profile.discord.nickname is None
     assert profile.discord.avatar == "assets/roy-velazco-skin-avatar.png"
     assert "que el juez haga el resto" in profile.discord.bio
-    assert any(
-        "chilenismos" in instruction
-        for instruction in profile.personality.communication.conversation
-    )
-    assert any(
-        "veredicto" in instruction
-        for instruction in profile.personality.communication.review_summary
-    )
-    assert any(
-        "hallazgos técnicos" in instruction
-        for instruction in profile.personality.boundaries
-    )
+    assert any("chilenismos" in instruction for instruction in profile.personality.communication.conversation)
+    assert any("veredicto" in instruction for instruction in profile.personality.communication.review_summary)
+    assert any("hallazgos técnicos" in instruction for instruction in profile.personality.boundaries)
     assert len(profile.personality.examples.conversation) == 6
+    assert any("saco wea" in example.assistant for example in profile.personality.examples.conversation)
     assert any(
-        "saco wea" in example.assistant
-        for example in profile.personality.examples.conversation
-    )
-    assert any(
-        "q no entendiste" in example.assistant
-        for example in profile.personality.examples.conversation
+        "q no entendiste" in example.assistant for example in profile.personality.examples.conversation
     )
     role_info = profile.messages.interface.role_requests
     assert len(role_info.info_rules.splitlines()) == 2
-    assert {
-        example.verdict for example in profile.personality.examples.review_summary
-    } == {"approved", "corrections_required", "inconclusive"}
+    assert {example.verdict for example in profile.personality.examples.review_summary} == {
+        "approved",
+        "corrections_required",
+        "inconclusive",
+    }
     assert loaded.avatar_bytes.startswith(b"\x89PNG")
 
 
@@ -77,15 +66,10 @@ async def test_personas_keep_personality_copy_with_capitalized_titles(loaded_per
     walter = loaded_persona.profile
     roy = (await PackagedPersonaProvider().load("roy_velazco")).profile
 
-    assert walter.messages.access.supervisor_unauthorized != (
-        roy.messages.access.supervisor_unauthorized
-    )
+    assert walter.messages.access.supervisor_unauthorized != (roy.messages.access.supervisor_unauthorized)
     assert "Su rol" in walter.messages.access.supervisor_unauthorized
     assert "bonito intento" in roy.messages.access.supervisor_unauthorized
-    assert (
-        "pa q arregle tu caga de acceso antes de volver"
-        in roy.messages.access.unauthorized_user
-    )
+    assert "pa q arregle tu caga de acceso antes de volver" in roy.messages.access.unauthorized_user
     assert roy.messages.failures.review_failure_title == "⚠️ Se trabó el papeleo"
     assert walter.messages.interface.review.narrative_scope_label == "solo narrativa"
     assert roy.messages.interface.review.charges_scope_label == "los cargos"

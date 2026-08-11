@@ -90,9 +90,7 @@ class RoleRequestDecision(BaseModel):
         unapproved = self.unapproved_add_role_ids or self.unapproved_remove_role_ids
         if self.status is RoleRequestStatus.APPROVED and (not approved or unapproved):
             raise ValueError("an approval must approve every requested change")
-        if self.status is RoleRequestStatus.PARTIALLY_APPROVED and (
-            not approved or not unapproved
-        ):
+        if self.status is RoleRequestStatus.PARTIALLY_APPROVED and (not approved or not unapproved):
             raise ValueError("a partial approval requires approved and unapproved changes")
         if self.status in {RoleRequestStatus.REJECTED, RoleRequestStatus.FAILED} and (
             approved or not unapproved

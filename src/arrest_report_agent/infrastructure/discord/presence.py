@@ -93,6 +93,23 @@ class ReviewPresence:
         async with self._lock:
             await self._publish(self.mode, force=True)
 
+    async def update_texts(
+        self,
+        *,
+        idle_text: str,
+        conversation_text: str,
+        knowledge_text: str,
+        review_text: str,
+    ) -> None:
+        async with self._lock:
+            self._activity_text = {
+                PresenceMode.IDLE: idle_text,
+                PresenceMode.CONVERSATION: conversation_text,
+                PresenceMode.KNOWLEDGE: knowledge_text,
+                PresenceMode.REVIEW: review_text,
+            }
+            await self._publish(self.mode, force=True)
+
     @asynccontextmanager
     async def handling(self) -> AsyncIterator[PresenceLease]:
         """Track an eligible interaction until its complete runner lifecycle exits."""

@@ -119,12 +119,8 @@ def fake_message(
 def test_periods_and_status_filters_are_bounded_and_explicit() -> None:
     now = datetime(2026, 8, 20, 16, 30, tzinfo=UTC)
 
-    assert PersonalReportPeriod.CURRENT_MONTH.starts_at(now) == datetime(
-        2026, 8, 1, tzinfo=UTC
-    )
-    assert PersonalReportPeriod.LAST_7_DAYS.starts_at(now) == datetime(
-        2026, 8, 13, 16, 30, tzinfo=UTC
-    )
+    assert PersonalReportPeriod.CURRENT_MONTH.starts_at(now) == datetime(2026, 8, 1, tzinfo=UTC)
+    assert PersonalReportPeriod.LAST_7_DAYS.starts_at(now) == datetime(2026, 8, 13, 16, 30, tzinfo=UTC)
     assert PersonalReportStatusFilter.PENDING.includes(PersonalReportStatus.PENDING)
     assert PersonalReportStatusFilter.PENDING.includes(PersonalReportStatus.IN_REVIEW)
     assert not PersonalReportStatusFilter.PENDING.includes(PersonalReportStatus.INCONCLUSIVE)
@@ -305,9 +301,7 @@ async def test_finder_fetches_uncached_supervisor_once_per_query(
         now=datetime(2026, 8, 5, tzinfo=UTC),
     )
 
-    assert all(
-        report.status is PersonalReportStatus.APPROVED for report in result.reports
-    )
+    assert all(report.status is PersonalReportStatus.APPROVED for report in result.reports)
     assert guild.fetch_calls == [authorized.id]
 
 
@@ -356,9 +350,7 @@ def sample_reports(count: int = 1) -> tuple[PersonalReport, ...]:
             title=f"Reporte {index + 1}",
             status=statuses[index % len(statuses)],
             post_url=f"https://discord.com/channels/1/200/{100 + index}",
-            thread_url=(
-                f"https://discord.com/channels/1/{100 + index}" if index % 2 == 0 else None
-            ),
+            thread_url=(f"https://discord.com/channels/1/{100 + index}" if index % 2 == 0 else None),
         )
         for index in range(count)
     )

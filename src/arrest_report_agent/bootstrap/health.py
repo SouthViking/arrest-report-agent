@@ -37,4 +37,3 @@ async def serve_health(host: str, port: int, check: HealthCheck) -> asyncio.Serv
             await writer.wait_closed()
 
     return await asyncio.start_server(handle, host, port)
-

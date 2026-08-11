@@ -72,8 +72,7 @@ class ChargeCatalog:
             raise ValueError("Charge IDs must be globally unique")
         self._charges_by_id = {charge.id: charge for charge in charges}
         self._search_documents = {
-            charge.id: _search_document(charge, self._categories_by_id[charge.category])
-            for charge in charges
+            charge.id: _search_document(charge, self._categories_by_id[charge.category]) for charge in charges
         }
 
     @classmethod

@@ -124,9 +124,7 @@ class DiscordGuildMemberDirectory:
                     name=role.name[:AUTHOR_ROLE_NAME_MAX_CHARS],
                     position=role.position,
                     managed=role.managed,
-                    member_count=sum(
-                        1 for member in members if role.id in _assigned_role_ids(member)
-                    ),
+                    member_count=sum(1 for member in members if role.id in _assigned_role_ids(member)),
                 )
             )
 
@@ -184,9 +182,7 @@ class DiscordGuildMemberDirectory:
             try:
                 channel = await guild.fetch_channel(query.channel_id)
             except discord.InvalidData as error:
-                return self._channel_error(
-                    "channel_outside_guild", guild_id, query.channel_id, error
-                )
+                return self._channel_error("channel_outside_guild", guild_id, query.channel_id, error)
             except discord.NotFound as error:
                 return self._channel_error("channel_not_found", guild_id, query.channel_id, error)
             except (discord.Forbidden, discord.HTTPException) as error:
@@ -200,15 +196,9 @@ class DiscordGuildMemberDirectory:
         requester_permissions = channel.permissions_for(requester)
         if not requester_permissions.view_channel:
             return self._channel_error("channel_forbidden", guild_id, query.channel_id)
-        if query.membership == "recent_participants" and not (
-            requester_permissions.read_message_history
-        ):
+        if query.membership == "recent_participants" and not (requester_permissions.read_message_history):
             return self._channel_error("channel_forbidden", guild_id, query.channel_id)
-        if (
-            isinstance(channel, discord.Thread)
-            and channel.is_private()
-            and channel.id != current_channel_id
-        ):
+        if isinstance(channel, discord.Thread) and channel.is_private() and channel.id != current_channel_id:
             return self._channel_error("private_thread_forbidden", guild_id, query.channel_id)
 
         members, error = await self._complete_members(guild)
@@ -232,9 +222,7 @@ class DiscordGuildMemberDirectory:
         return _search_member_candidates(
             candidates,
             query.members,
-            cursor_kind=(
-                f"channel_members:{query.channel_id}:{query.membership}:{query.message_limit}"
-            ),
+            cursor_kind=(f"channel_members:{query.channel_id}:{query.membership}:{query.message_limit}"),
         )
 
     async def _complete_members(
@@ -390,9 +378,7 @@ def _matches_member(member: discord.Member, query: GuildMemberSearchQuery) -> bo
         return False
     if query.role_ids_none and member_role_ids.intersection(query.role_ids_none):
         return False
-    if query.joined_after is not None and (
-        member.joined_at is None or member.joined_at < query.joined_after
-    ):
+    if query.joined_after is not None and (member.joined_at is None or member.joined_at < query.joined_after):
         return False
     return not (
         query.joined_before is not None
@@ -407,14 +393,18 @@ def _sort_members(
 ) -> list[discord.Member]:
     minimum = datetime.min.replace(tzinfo=UTC)
     if sort_by == "joined_at":
+
         def key(member: discord.Member) -> tuple[object, int]:
             return member.joined_at or minimum, member.id
     elif sort_by == "created_at":
+
         def key(member: discord.Member) -> tuple[object, int]:
             return member.created_at, member.id
     else:
+
         def key(member: discord.Member) -> tuple[object, int]:
             return _normalize(member.display_name), member.id
+
     return sorted(members, key=key, reverse=sort_direction == "desc")
 
 
@@ -424,14 +414,18 @@ def _sort_roles(
     sort_direction: str,
 ) -> list[GuildRoleProfile]:
     if sort_by == "name":
+
         def key(role: GuildRoleProfile) -> tuple[object, int]:
             return _normalize(role.name), role.role_id
     elif sort_by == "member_count":
+
         def key(role: GuildRoleProfile) -> tuple[object, int]:
             return role.member_count, role.role_id
     else:
+
         def key(role: GuildRoleProfile) -> tuple[object, int]:
             return role.position, role.role_id
+
     return sorted(roles, key=key, reverse=sort_direction == "desc")
 
 
@@ -459,9 +453,7 @@ def _paginate[T](
 
     page = items[offset : offset + limit]
     next_offset = offset + len(page)
-    next_cursor = (
-        _encode_cursor(kind, fingerprint, next_offset) if next_offset < len(items) else None
-    )
+    next_cursor = _encode_cursor(kind, fingerprint, next_offset) if next_offset < len(items) else None
     return page, next_cursor, None
 
 
@@ -553,11 +545,7 @@ def _member_role_ids(member: object) -> set[int]:
 
 
 def _assigned_role_ids(member: object) -> set[int]:
-    return {
-        int(role.id)
-        for role in getattr(member, "roles", ())
-        if not _is_default_role(role)
-    }
+    return {int(role.id) for role in getattr(member, "roles", ()) if not _is_default_role(role)}
 
 
 def _is_default_role(role: object) -> bool:
@@ -571,11 +559,7 @@ def compact_role_names(member: discord.abc.User) -> list[str]:
     candidates: list[tuple[int, int, str]] = []
     for role in getattr(member, "roles", ()):
         name = " ".join(str(getattr(role, "name", "")).split())
-        if (
-            not name
-            or _is_default_role(role)
-            or bool(getattr(role, "managed", False))
-        ):
+        if not name or _is_default_role(role) or bool(getattr(role, "managed", False)):
             continue
         candidates.append(
             (

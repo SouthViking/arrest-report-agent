@@ -107,9 +107,7 @@ class FakeDiscoveryDirectory(FakeMemberDirectory):
         self.member_result = member_result or GuildMemberSearchResult(members=())
         self.role_calls: list[tuple[int, GuildRoleSearchQuery]] = []
         self.member_calls: list[tuple[int, GuildMemberSearchQuery]] = []
-        self.channel_member_calls: list[
-            tuple[int, int, int, ChannelMemberSearchQuery]
-        ] = []
+        self.channel_member_calls: list[tuple[int, int, int, ChannelMemberSearchQuery]] = []
 
     async def search_roles(
         self,
@@ -134,9 +132,7 @@ class FakeDiscoveryDirectory(FakeMemberDirectory):
         current_channel_id: int,
         query: ChannelMemberSearchQuery,
     ) -> GuildMemberSearchResult:
-        self.channel_member_calls.append(
-            (guild_id, requester_user_id, current_channel_id, query)
-        )
+        self.channel_member_calls.append((guild_id, requester_user_id, current_channel_id, query))
         return self.member_result
 
 
@@ -147,9 +143,7 @@ class FakeMessageDirectory:
         attachment_result: MessageAttachmentLookupResult | None = None,
     ) -> None:
         self.result = result
-        self.attachment_result = attachment_result or MessageAttachmentLookupResult(
-            attachments=()
-        )
+        self.attachment_result = attachment_result or MessageAttachmentLookupResult(attachments=())
         self.calls: list[tuple[int, int, int, MessageLookupQuery]] = []
         self.attachment_calls: list[tuple[int, int, int, int, int, tuple[int, ...]]] = []
 
@@ -910,9 +904,7 @@ async def test_message_tool_uses_run_scope_and_projects_results() -> None:
                 input_kind="image",
             ),
         ),
-        reactions=(
-            MessageReactionProfile(emoji="✅", count=2, reacted_by_bot=True),
-        ),
+        reactions=(MessageReactionProfile(emoji="✅", count=2, reacted_by_bot=True),),
     )
     directory = FakeMessageDirectory(MessageLookupResult(messages=(profile,)))
     case = ReviewCase(
@@ -1257,9 +1249,7 @@ async def test_messages_can_be_sent_before_explicit_conversational_completion() 
         progress_arguments,
     )
     second_progress = "Ya tengo las definiciones; estoy preparando la diferencia práctica."
-    second_arguments = json.dumps(
-        {"content": second_progress, "response_route": "thread"}
-    )
+    second_arguments = json.dumps({"content": second_progress, "response_route": "thread"})
     await tools["send_message"].on_invoke_tool(
         ToolContext(
             context=run_context,

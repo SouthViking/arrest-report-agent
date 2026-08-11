@@ -10,9 +10,7 @@ from arrest_report_agent.config import AppSettings
 
 def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings) -> None:
     assert settings.discord_guild_ids == frozenset({1234674521416663070})
-    assert settings.report_channel_ids == frozenset(
-        {1462992794569281617, 1462992859761217745}
-    )
+    assert settings.report_channel_ids == frozenset({1462992794569281617, 1462992859761217745})
     assert settings.bot_persona == "walter_vigil"
     assert settings.authorized_user_ids is None
     assert settings.user_allowlist.allows(999) is True
@@ -316,14 +314,16 @@ def test_report_channel_variable_takes_precedence_over_legacy_aliases() -> None:
     assert settings.report_channel_ids == frozenset({123})
 
 
-def test_missing_persona_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_missing_legacy_persona_is_allowed_for_database_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv("BOT_PERSONA", raising=False)
-    with pytest.raises(ValidationError):
-        AppSettings(
-            _env_file=None,
-            DISCORD_TOKEN="discord",
-            OPENAI_API_KEY="openai",
-        )
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+    )
+    assert settings.bot_persona is None
 
 
 def test_empty_secret_is_rejected() -> None:
@@ -351,9 +351,7 @@ def test_default_env_template_values_are_parseable(tmp_path) -> None:
     assert settings.discord_guild_ids == frozenset({1234674521416663070})
     assert settings.authorized_user_ids is None
     assert settings.supervisor_role_ids is None
-    assert settings.report_channel_ids == frozenset(
-        {1462992794569281617, 1462992859761217745}
-    )
+    assert settings.report_channel_ids == frozenset({1462992794569281617, 1462992859761217745})
     assert settings.role_request_allowed_channel_ids is None
     assert settings.role_request_reviewer_role_ids == ()
     assert settings.role_request_allowed_role_ids == ()

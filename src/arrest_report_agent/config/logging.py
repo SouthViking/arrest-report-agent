@@ -64,9 +64,7 @@ def log_event(
     """Write a stable event and optionally attach a complete exception traceback."""
 
     structured_event = {"event": event}
-    structured_event.update(
-        {key: _safe_value(value) for key, value in sorted(fields.items())}
-    )
+    structured_event.update({key: _safe_value(value) for key, value in sorted(fields.items())})
     getattr(logger, level)(
         event,
         exc_info=exc_info,

@@ -15,6 +15,8 @@ COPY requirements.txt ./
 RUN pip install --requirement requirements.txt
 
 COPY src ./src
+COPY alembic.ini ./alembic.ini
+COPY migrations ./migrations
 
 USER arrestagent
 

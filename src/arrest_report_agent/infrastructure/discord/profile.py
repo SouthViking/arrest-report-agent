@@ -44,6 +44,22 @@ class DiscordProfileSynchronizer:
                 await self._synchronize_global_profile()
             await self._synchronize_guild_profiles()
 
+    async def select_persona(self, persona: LoadedPersona) -> None:
+        """Switch the desired profile and safely retry every managed field."""
+
+        async with self._lock:
+            if persona.profile.id == self.persona.profile.id and (
+                persona.profile.revision == self.persona.profile.revision
+            ):
+                await self._synchronize_global_profile()
+                await self._synchronize_guild_profiles()
+                return
+            self.persona = persona
+            self._synchronized_global_fields.clear()
+            self._guild_profile_ids.clear()
+            await self._synchronize_global_profile()
+            await self._synchronize_guild_profiles()
+
     async def _synchronize_global_profile(self) -> None:
         bot_user = self.bot.user
         profile = self.persona.profile

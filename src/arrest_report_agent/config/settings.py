@@ -30,9 +30,7 @@ class SnowflakeAllowlist:
             try:
                 snowflake = int(raw_id)
             except ValueError as error:
-                raise ValueError(
-                    f"{variable_name} must contain positive Discord snowflakes"
-                ) from error
+                raise ValueError(f"{variable_name} must contain positive Discord snowflakes") from error
             if snowflake <= 0:
                 raise ValueError(f"{variable_name} must contain positive Discord snowflakes")
             ids.add(snowflake)
@@ -67,9 +65,7 @@ def parse_configured_snowflakes(raw_value: str, *, variable_name: str) -> tuple[
         try:
             snowflake = int(raw_id)
         except ValueError as error:
-            raise ValueError(
-                f"{variable_name} must contain positive Discord snowflakes"
-            ) from error
+            raise ValueError(f"{variable_name} must contain positive Discord snowflakes") from error
         if snowflake <= 0:
             raise ValueError(f"{variable_name} must contain positive Discord snowflakes")
         if snowflake not in seen:
@@ -85,6 +81,57 @@ class AppSettings(BaseSettings):
 
     discord_token: SecretStr = Field(alias="DISCORD_TOKEN")
     openai_api_key: SecretStr = Field(alias="OPENAI_API_KEY")
+    database_url: SecretStr | None = Field(default=None, alias="DATABASE_URL")
+    config_owner_user_ids_csv: str = Field(default="", alias="CONFIG_OWNER_USER_IDS")
+    database_pool_size: int = Field(default=3, alias="DATABASE_POOL_SIZE", ge=1, le=20)
+    database_max_overflow: int = Field(default=2, alias="DATABASE_MAX_OVERFLOW", ge=0, le=20)
+    database_pool_timeout_seconds: float = Field(
+        default=10.0,
+        alias="DATABASE_POOL_TIMEOUT_SECONDS",
+        gt=0,
+        le=120,
+    )
+    database_pool_recycle_seconds: int = Field(
+        default=900,
+        alias="DATABASE_POOL_RECYCLE_SECONDS",
+        ge=60,
+        le=86_400,
+    )
+    database_statement_timeout_ms: int = Field(
+        default=15_000,
+        alias="DATABASE_STATEMENT_TIMEOUT_MS",
+        ge=1_000,
+        le=300_000,
+    )
+    config_refresh_seconds: int = Field(
+        default=60,
+        alias="CONFIG_REFRESH_SECONDS",
+        ge=5,
+        le=3600,
+    )
+    bucket_name: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("PERSONA_ASSET_BUCKET", "BUCKET"),
+    )
+    bucket_endpoint: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("PERSONA_ASSET_ENDPOINT", "ENDPOINT"),
+    )
+    bucket_region: str = Field(
+        default="auto",
+        validation_alias=AliasChoices("PERSONA_ASSET_REGION", "REGION"),
+    )
+    bucket_access_key_id: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("PERSONA_ASSET_ACCESS_KEY_ID", "ACCESS_KEY_ID"),
+    )
+    bucket_secret_access_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "PERSONA_ASSET_SECRET_ACCESS_KEY",
+            "SECRET_ACCESS_KEY",
+        ),
+    )
     discord_guild_ids_csv: str = Field(
         default="*",
         validation_alias=AliasChoices("DISCORD_GUILD_IDS", "DISCORD_GUILD_ID"),
@@ -115,9 +162,9 @@ class AppSettings(BaseSettings):
         default="",
         validation_alias=AliasChoices("REVIEW_ESCALATION_ROLE_IDS", "MANUAL_REVIEW_ROLE_ID"),
     )
-    bot_persona: str = Field(
+    bot_persona: str | None = Field(
+        default=None,
         alias="BOT_PERSONA",
-        min_length=1,
         pattern=r"^[a-z0-9]+(?:_[a-z0-9]+)*$",
     )
 
@@ -134,9 +181,7 @@ class AppSettings(BaseSettings):
     )
 
     openai_model: str = Field(default="gpt-5.6-terra", alias="OPENAI_MODEL", min_length=1)
-    openai_reasoning_effort: str = Field(
-        default="medium", alias="OPENAI_REASONING_EFFORT", min_length=1
-    )
+    openai_reasoning_effort: str = Field(default="medium", alias="OPENAI_REASONING_EFFORT", min_length=1)
     openai_max_retries: int = Field(default=2, alias="OPENAI_MAX_RETRIES", ge=0, le=10)
     openai_tracing_enabled: bool = Field(default=True, alias="OPENAI_TRACING_ENABLED")
     openai_trace_include_sensitive_data: bool = Field(
@@ -159,12 +204,8 @@ class AppSettings(BaseSettings):
         ge=1,
         le=52_428_800,
     )
-    thread_context_max_messages: int = Field(
-        default=20, alias="THREAD_CONTEXT_MAX_MESSAGES", ge=1, le=100
-    )
-    channel_context_max_messages: int = Field(
-        default=5, alias="CHANNEL_CONTEXT_MAX_MESSAGES", ge=0, le=25
-    )
+    thread_context_max_messages: int = Field(default=20, alias="THREAD_CONTEXT_MAX_MESSAGES", ge=1, le=100)
+    channel_context_max_messages: int = Field(default=5, alias="CHANNEL_CONTEXT_MAX_MESSAGES", ge=0, le=25)
     thread_context_max_chars: int = Field(default=8000, alias="THREAD_CONTEXT_MAX_CHARS", ge=500)
     thread_context_max_message_chars: int = Field(
         default=1500, alias="THREAD_CONTEXT_MAX_MESSAGE_CHARS", ge=100
@@ -175,9 +216,7 @@ class AppSettings(BaseSettings):
     thread_context_max_historical_files: int = Field(
         default=2, alias="THREAD_CONTEXT_MAX_HISTORICAL_FILES", ge=0, le=5
     )
-    thread_auto_archive_minutes: int = Field(
-        default=1440, alias="THREAD_AUTO_ARCHIVE_MINUTES"
-    )
+    thread_auto_archive_minutes: int = Field(default=1440, alias="THREAD_AUTO_ARCHIVE_MINUTES")
 
     @field_validator("log_level")
     @classmethod
@@ -186,8 +225,8 @@ class AppSettings(BaseSettings):
 
     @field_validator("bot_persona")
     @classmethod
-    def normalize_bot_persona(cls, value: str) -> str:
-        return value.strip()
+    def normalize_bot_persona(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
 
     @field_validator("thread_auto_archive_minutes")
     @classmethod
@@ -204,6 +243,7 @@ class AppSettings(BaseSettings):
         if not self.openai_api_key.get_secret_value().strip():
             raise ValueError("OPENAI_API_KEY must not be empty")
         _ = (
+            self.config_owner_user_ids,
             self.guild_allowlist,
             self.report_channel_allowlist,
             self.user_allowlist,
@@ -214,15 +254,38 @@ class AppSettings(BaseSettings):
             self.role_request_allowed_role_ids,
             self.review_escalation_role_ids,
         )
-        overlap = set(self.role_request_reviewer_role_ids) & set(
-            self.role_request_allowed_role_ids
-        )
+        overlap = set(self.role_request_reviewer_role_ids) & set(self.role_request_allowed_role_ids)
         if overlap:
             raise ValueError(
                 "ROLE_REQUEST_ALLOWED_ROLE_IDS cannot include reviewer roles configured in "
                 "ROLE_REQUEST_REVIEWER_ROLE_IDS"
             )
         return self
+
+    @property
+    def config_owner_user_ids(self) -> tuple[int, ...]:
+        return parse_configured_snowflakes(
+            self.config_owner_user_ids_csv,
+            variable_name="CONFIG_OWNER_USER_IDS",
+        )
+
+    @property
+    def postgres_url(self) -> str:
+        if self.database_url is None or not self.database_url.get_secret_value().strip():
+            raise ValueError("DATABASE_URL is required for database-backed runtime commands")
+        return self.database_url.get_secret_value().strip()
+
+    @property
+    def bucket_is_configured(self) -> bool:
+        values = (
+            self.bucket_name,
+            self.bucket_endpoint,
+            self.bucket_access_key_id.get_secret_value() if self.bucket_access_key_id is not None else None,
+            self.bucket_secret_access_key.get_secret_value()
+            if self.bucket_secret_access_key is not None
+            else None,
+        )
+        return all(value and str(value).strip() for value in values)
 
     @property
     def guild_allowlist(self) -> SnowflakeAllowlist:
@@ -308,6 +371,7 @@ class AppSettings(BaseSettings):
     @property
     def role_request_allowed_channel_ids(self) -> frozenset[int] | None:
         return self.role_request_allowed_channel_allowlist.ids
+
 
 @lru_cache(maxsize=1)
 def load_settings() -> AppSettings:

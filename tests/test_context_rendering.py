@@ -215,8 +215,7 @@ def test_render_includes_roles_of_other_human_participants_once() -> None:
     trigger_text = rendered[-1]["content"][0]["text"]
 
     assert (
-        "Otros participantes y roles: Sargento Gómez: Sergeant, GNT | "
-        "Teniente Rivera: Lieutenant, DLM"
+        "Otros participantes y roles: Sargento Gómez: Sergeant, GNT | Teniente Rivera: Lieutenant, DLM"
     ) in trigger_text
     assert "20=Deputy Torres" in trigger_text
     assert "30=Sargento Gómez" in trigger_text
@@ -327,9 +326,7 @@ def test_attachment_selection_includes_files_and_rejects_unsupported_types(setti
     assert notices == ["Se omitió el archivo no compatible 'material.zip'."]
 
 
-def test_attachment_selection_limits_historical_files_separately_from_images(
-    settings, persona
-) -> None:
+def test_attachment_selection_limits_historical_files_separately_from_images(settings, persona) -> None:
     settings.thread_context_max_historical_files = 1
     settings.thread_context_max_historical_images = 1
 
@@ -402,9 +399,7 @@ def test_bot_embed_content_is_preserved_in_thread_history(settings, persona) -> 
         thread=SimpleNamespace(id=3),
     )
 
-    converted, truncated = DiscordContextBuilder(settings, persona)._convert_messages(
-        [message], target
-    )
+    converted, truncated = DiscordContextBuilder(settings, persona)._convert_messages([message], target)
 
     assert truncated is False
     assert "Título: ❌ Correcciones requeridas" in converted[0].content
@@ -473,10 +468,7 @@ def test_render_describes_inline_reply_without_delegating_routing() -> None:
 
     text = render_agent_input(case, "original")[0]["content"][0]["text"]
 
-    assert (
-        "Entorno de Discord: canal; la respuesta se publicará como reply al mensaje actual."
-        in text
-    )
+    assert "Entorno de Discord: canal; la respuesta se publicará como reply al mensaje actual." in text
 
 
 def test_context_trimming_preserves_root_and_current_request(settings, persona) -> None:
@@ -514,9 +506,7 @@ def test_context_trimming_preserves_root_and_current_request(settings, persona) 
 
 
 @pytest.mark.asyncio
-async def test_response_route_is_derived_from_activation_and_channel(
-    settings, persona, monkeypatch
-) -> None:
+async def test_response_route_is_derived_from_activation_and_channel(settings, persona, monkeypatch) -> None:
     class FakeTextChannel:
         def __init__(self) -> None:
             self.id = 20
@@ -606,9 +596,7 @@ async def test_orphaned_thread_uses_oldest_visible_message_as_root(
 
 
 @pytest.mark.asyncio
-async def test_empty_orphaned_thread_falls_back_to_trigger_message(
-    settings, persona, monkeypatch
-) -> None:
+async def test_empty_orphaned_thread_falls_back_to_trigger_message(settings, persona, monkeypatch) -> None:
     class FakeDiscordError(Exception):
         pass
 
@@ -799,14 +787,10 @@ async def test_channel_context_includes_bounded_prior_text_without_historical_at
 
     assert [item.id for item in case.messages] == [1, 2, 3]
     assert all(not item.attachment_ids for item in case.messages)
-    assert case.messages[1].ambient_attachment_summary == (
-        "1 imagen (captura-anterior.png)"
-    )
+    assert case.messages[1].ambient_attachment_summary == ("1 imagen (captura-anterior.png)")
     assert case.attachments == []
     assert case.context_state is ContextState.TRUNCATED
-    assert case.context_notice == (
-        "El contexto del canal fue limitado a los mensajes más recientes."
-    )
+    assert case.context_notice == ("El contexto del canal fue limitado a los mensajes más recientes.")
     rendered = render_agent_input(case, "original")
     assert "CONTEXTO_PREVIO_CANAL" in rendered[0]["content"][0]["text"]
     assert "CONTEXTO_PREVIO_CANAL" in rendered[1]["content"][0]["text"]
@@ -1117,10 +1101,7 @@ async def test_context_includes_only_brief_relevant_requester_role_names(setting
     ]
     assert case.messages[0].author_role_names == case.requester_role_names
     rendered = render_agent_input(case, "original")[0]["content"][0]["text"]
-    assert (
-        "Roles del solicitante: Rol 10, Rol 9, Rol 8, Rol 7, Rol 6, Rol 5, Rol 4, Rol 3"
-        in rendered
-    )
+    assert "Roles del solicitante: Rol 10, Rol 9, Rol 8, Rol 7, Rol 6, Rol 5, Rol 4, Rol 3" in rendered
     assert "Integración" not in rendered
     assert "@everyone" not in rendered
     assert "role_id" not in rendered

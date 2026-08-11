@@ -52,9 +52,7 @@ class ServiceTierPricing(BaseModel):
         if self.context_bands[-1].max_input_tokens is not None:
             raise ValueError("the final context pricing band must be unbounded")
         numeric_limits = [limit for limit in bounded if limit is not None]
-        if numeric_limits != sorted(numeric_limits) or len(set(numeric_limits)) != len(
-            numeric_limits
-        ):
+        if numeric_limits != sorted(numeric_limits) or len(set(numeric_limits)) != len(numeric_limits):
             raise ValueError("context pricing bands must have unique ascending limits")
         return self
 
@@ -166,9 +164,7 @@ class ModelCatalog:
         definition = self._definitions.get(normalized_model)
         if definition is None:
             supported = ", ".join(model.id for model in self.payload.models)
-            raise ValueError(
-                f"unsupported OPENAI_MODEL {normalized_model!r}; supported models: {supported}"
-            )
+            raise ValueError(f"unsupported OPENAI_MODEL {normalized_model!r}; supported models: {supported}")
         if normalized_effort not in definition.supported_reasoning_efforts:
             supported_efforts = ", ".join(definition.supported_reasoning_efforts)
             raise ValueError(

@@ -4,12 +4,13 @@
 
 ```mermaid
 flowchart LR
-    V["BOT_PERSONA"] --> B["PersonaProvider"]
-    B --> Q["BotPersona + assets en memoria"]
+    V["PostgreSQL: revisión activa por guild"] --> B["DatabaseConfigProvider"]
+    K["Railway Bucket: avatares"] --> B
+    B --> Q["GuildConfigSnapshot + BotPersona"]
     Q --> R
     Q --> Y["Perfil y presencia de Discord"]
     M["Mensaje de Discord"] --> T["DiscordAccessPolicy"]
-    A["Allowlists de guild y usuario"] --> T
+    A["Políticas relacionales por guild"] --> T
     T -->|"guild y usuario habilitados"| C["Contexto acotado de Discord"]
     T -->|"guild no habilitada"| I["Ignorar"]
     T -->|"usuario no habilitado"| U["Respuesta local de acceso"]
@@ -27,11 +28,14 @@ flowchart LR
     X --> F["Invocación en hilo: mismo hilo"]
 ```
 
-`SnowflakeAllowlist` centraliza el parseo de `DISCORD_GUILD_IDS`, `REPORT_CHANNEL_IDS`,
-`AUTHORIZED_USER_IDS` y `ROLE_REQUEST_ALLOWED_CHANNEL_IDS`: ausente, vacío o `*` abre la colección;
-cualquier CSV la restringe.
-`ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` se conservan como aliases de migración para
-`REPORT_CHANNEL_IDS`.
+`DatabaseConfigProvider` reconstruye un snapshot Pydantic inmutable por guild. Cada interacción
+conserva la misma revisión hasta terminar, aunque se publique otra concurrentemente. Las políticas
+relacionales se convierten al contrato `SnowflakeAllowlist` existente en el borde del adaptador, por
+lo que `open`, `restricted` y `disabled` no se reinterpretan dentro de Discord.
+
+Los env legacy se leen solamente mediante `db import-env`; el runtime no vuelve a consultarlos. El
+importador resuelve canales y roles contra Discord, los distribuye por guild y registra un checksum
+idempotente antes del corte definitivo.
 
 `DiscordAccessPolicy` es el único preprocesador del listener y se ejecuta antes de descargar contexto
 o llamar a OpenAI. Valida guild, autor humano, activación por mención o respuesta directa al bot y
@@ -78,10 +82,12 @@ modelo no puede escoger una guild ni un canal de publicación.
 ## Capas
 
 - `domain`: modelos Pydantic y enums que definen el contrato de revisión.
-- `config`: entorno, allowlists, proveedor de personas y catálogos JSON validados.
+- `config`: secretos de proceso, snapshots Pydantic y catálogos JSON validados.
 - `knowledge`: guía versionada e índice del JSON del PCU, cargados y validados al iniciar.
 - `application`: prompt, tools, contexto del runner, errores, tracing y orquestación.
 - `infrastructure/discord`: política previa, reconstrucción de hilos, embeds, reacciones y comandos.
+- `infrastructure/postgres`: cliente async, esquema SQLAlchemy, repositorios y caché dinámica.
+- `infrastructure/storage`: contrato de objetos y adaptador S3 para Railway Bucket.
 - `role_requests`: modelos, codec, política, servicio, modales y vistas persistentes del subsistema
   determinista de solicitudes de roles; no depende del runner ni de `infrastructure/discord`.
 
@@ -117,31 +123,29 @@ en las de miembros que posean un rol autorizado, ignorando las del resto.
 
 ## Despliegue en Railway
 
-`railway.json` fija una sola réplica siempre activa, construcción mediante el `Dockerfile`,
-healthcheck `/health`, reinicio permanente y una ventana de 30 segundos entre `SIGTERM` y `SIGKILL`.
+`railway.json` fija una sola réplica siempre activa, construcción mediante el `Dockerfile`, aplica
+Alembic como pre-deploy, usa `/health`, reinicio permanente y una ventana de 30 segundos entre
+`SIGTERM` y `SIGKILL`.
 El runtime escucha primero el `PORT` inyectado por Railway y conserva `HEALTH_PORT` como fallback
 local. La señal de apagado cierra Discord, el servidor de salud y los traces antes de terminar.
 
 La fuente de producción es la rama `main`. GitHub Actions valida lint, tipos, tests y la imagen
 Docker en cada push; Railway debe mantener **Wait for CI** habilitado para desplegar únicamente
 revisiones que terminen esos checks correctamente. Las variables y secretos viven en Railway, no en
-el repositorio, y la identidad continúa seleccionándose exclusivamente mediante `BOT_PERSONA`.
+el repositorio. PostgreSQL y Bucket se enlazan mediante referencias de variables del proyecto.
 
 ## Solicitudes de roles
 
-`ROLE_REQUEST_REVIEWER_ROLE_IDS` actúa como feature flag y frontera de autorización: vacío evita
-registrar `/solicitar-roles`, `/info-roles` y su vista persistente. Cuando está habilitado,
-`ROLE_REQUEST_ALLOWED_ROLE_IDS` puede abrir todos los roles seguros con `*`/vacío o formar un
-catálogo ordenado y cerrado mediante CSV. El adaptador lo resuelve contra la guild actual. El
-comando solo aplica la allowlist de guilds y la allowlist independiente de canales; no reutiliza
-`AUTHORIZED_USER_IDS` ni las políticas del agente.
+La feature `role_requests` y sus políticas viven en la revisión activa. Un registro dinámico resuelve
+un `RoleRequestService` por guild y revisión; la vista persistente vuelve a resolverlo en cada clic,
+de modo que una solicitud conservada por Discord sigue funcionando tras reinicios o publicaciones.
 
 Los selectores de creación son `StringSelect` deterministas. El adaptador descarta roles inexistentes
 o protegidos, separa altas de bajas según el estado actual del miembro y divide catálogos de más de
 25 elementos sin superar los cinco campos del modal. Los valores recibidos del cliente se vuelven a
 resolver y validar contra el catálogo antes de publicar.
 
-No existe repositorio ni base de datos. El adaptador publica un embed provisional, obtiene su ID y lo
+La solicitud en sí no se duplica en PostgreSQL. El adaptador publica un embed provisional, obtiene su ID y lo
 edita con el marcador visible `Solicitud <message_id>` y tres `custom_id` internos y versionados. El codec
 valida autor del bot, guild, canal, footer, autor lógico, orden de campos, menciones de roles y estado
 de los componentes. Por eso una vista genérica registrada al arrancar puede resolver una solicitud
@@ -156,14 +160,16 @@ una jerarquía válida lo cierra como fallido.
 
 ## Personas
 
-`BOT_PERSONA` es obligatorio y selecciona un perfil empaquetado. `PackagedPersonaProvider` valida el
-JSON y carga su avatar antes de construir Discord o el runner. El resultado inmutable se comparte
-en memoria; prompt, embeds, mensajes deterministas, presencia, trazas y perfil no vuelven a leer el
-entorno ni los archivos.
+`persona_revisions` almacena el payload completo validado de `BotPersona` como JSONB y
+`persona_assets` referencia un objeto inmutable del Bucket por checksum. Walter y Roy permanecen
+empaquetados como fuentes de bootstrap y fixtures, pero no son leídos por el runtime. Una asignación
+relacional selecciona la revisión por guild; `bot_application_profile` selecciona la identidad
+global de la cuenta de Discord.
 
-`PersonaProvider` separa el contrato de su almacenamiento. Una implementación futura puede obtener
-el mismo `BotPersona` y assets desde una base de datos sin cambiar los consumidores. En el MVP
-existen `walter_vigil` y `roy_velazco`; cambiar la selección requiere reiniciar el proceso.
+La publicación emite `NOTIFY`; cada instancia actualiza su caché atómicamente y además reconcilia la
+revisión cada 60 segundos. Una caída temporal conserva el último snapshot válido, pero impide
+mutaciones administrativas. Un arranque sin PostgreSQL, configuración activa o assets válidos falla
+antes de conectar el gateway.
 
 La personalidad separa la voz de conversación natural de la voz breve del resumen superior de una
 revisión. El prompt y el esquema de `publish_review` reservan esos registros para sus contextos; los
@@ -351,7 +357,7 @@ mensajes más recientes hasta `THREAD_CONTEXT_MAX_MESSAGES`. El input indica si 
 
 ## Extensión futura
 
-`ReviewPublisher` aísla el runner de Discord y las fuentes locales no dependen del bot. Una futura
-persistencia puede almacenar configuración, intentos, veredictos y threads sin cambiar el contrato
-de `ReviewPublication`. Una API de PCU/OpenMP puede reemplazar `ChargeCatalog` mediante el mismo
-interfaz de consulta; una tabla por guild/facción puede sustituir las variables de entorno.
+`ReviewPublisher` aísla el runner de Discord y las fuentes locales no dependen del bot. PostgreSQL
+ya permite agregar módulos y políticas por guild sin cambiar consumidores. Una API de PCU/OpenMP
+puede reemplazar `ChargeCatalog` mediante el mismo interfaz; reportes, veredictos y threads siguen
+siendo deliberadamente snapshots reconstruidos desde Discord.

@@ -150,9 +150,7 @@ def test_review_tool_schema_exposes_context_specific_writing_rules() -> None:
     assert "targeted" in publication_properties["focus"]["description"]
     assert "next_step" not in publication_properties
     assert "neutral Spanish" in finding_properties["detail"]["description"]
-    assert "second-person singular tú imperatives" in (
-        finding_properties["recommendation"]["description"]
-    )
+    assert "second-person singular tú imperatives" in (finding_properties["recommendation"]["description"])
     assert "never use formal usted forms" in finding_properties["recommendation"]["description"]
     assert "without persona slang" in charge_properties["note"]["description"]
 

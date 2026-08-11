@@ -523,9 +523,7 @@ def build_status_filter_labels(
         PersonalReportStatusFilter.ALL: messages.status_filter_all,
         PersonalReportStatusFilter.PENDING: messages.status_filter_pending,
         PersonalReportStatusFilter.APPROVED: messages.status_filter_approved,
-        PersonalReportStatusFilter.CORRECTIONS_REQUIRED: (
-            messages.status_filter_corrections_required
-        ),
+        PersonalReportStatusFilter.CORRECTIONS_REQUIRED: (messages.status_filter_corrections_required),
         PersonalReportStatusFilter.INCONCLUSIVE: messages.status_filter_inconclusive,
     }
 
@@ -672,9 +670,7 @@ def _to_personal_report(
     guild_id: int,
 ) -> PersonalReport:
     thread = message.thread
-    thread_url = (
-        f"https://discord.com/channels/{guild_id}/{thread.id}" if thread is not None else None
-    )
+    thread_url = f"https://discord.com/channels/{guild_id}/{thread.id}" if thread is not None else None
     return PersonalReport(
         message_id=message.id,
         channel_id=message.channel.id,

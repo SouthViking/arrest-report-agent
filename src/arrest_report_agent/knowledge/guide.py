@@ -30,4 +30,3 @@ class ReportGuide:
             "sections": selected,
             "unknown_sections": unknown,
         }
-

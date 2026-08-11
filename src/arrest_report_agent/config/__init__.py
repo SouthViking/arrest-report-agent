@@ -1,6 +1,15 @@
 """Application and model configuration."""
 
 from .branding import BrandingConfigurationError, load_global_profile_banner
+from .database import (
+    AccessPolicyKey,
+    AccessPolicyMode,
+    AccessPolicySnapshot,
+    GuildAgentConfig,
+    GuildConfigSnapshot,
+    GuildFeatureSnapshot,
+    GuildRuntimeSettings,
+)
 from .model_catalog import ModelCatalog, ResolvedModel
 from .persona import (
     BotPersona,
@@ -33,9 +42,16 @@ from .settings import AppSettings, SnowflakeAllowlist, load_settings
 
 __all__ = [
     "AppSettings",
+    "AccessPolicyKey",
+    "AccessPolicyMode",
+    "AccessPolicySnapshot",
     "BotPersona",
     "BrandingConfigurationError",
     "DiscordPersona",
+    "GuildAgentConfig",
+    "GuildConfigSnapshot",
+    "GuildFeatureSnapshot",
+    "GuildRuntimeSettings",
     "LoadedPersona",
     "ModelCatalog",
     "PackagedPersonaProvider",

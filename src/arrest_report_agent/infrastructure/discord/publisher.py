@@ -134,11 +134,7 @@ class DiscordReviewPublisher:
         if bot_user is None:
             raise PublicationError("Unable to resolve the bot user for a reaction")
 
-        rendered_reactions = {
-            str(reaction.emoji): reaction
-            for reaction in message.reactions
-            if reaction.me
-        }
+        rendered_reactions = {str(reaction.emoji): reaction for reaction in message.reactions if reaction.me}
         removed_status = False
         try:
             if emoji in STATUS_EMOJIS:
@@ -312,9 +308,7 @@ class DiscordReviewPublisher:
             return None, discord.AllowedMentions.none()
         mentions = " ".join(role.mention for role in roles)
         return (
-            self.persona.messages.interface.review.escalation_notice.format(
-                roles=mentions
-            ),
+            self.persona.messages.interface.review.escalation_notice.format(roles=mentions),
             discord.AllowedMentions(
                 everyone=False,
                 users=False,
@@ -383,9 +377,7 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
         )
     description = publication.summary
     if publication.review_scope is ReviewScope.TARGETED and publication.focus is not None:
-        description = (
-            f"{ui.targeted_focus.format(focus=publication.focus)}\n\n{description}"
-        )
+        description = f"{ui.targeted_focus.format(focus=publication.focus)}\n\n{description}"
     primary = discord.Embed(
         title=f"{title} · {persona.identity.display_name}",
         description=description,
@@ -407,20 +399,12 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
         if index and index % 5 == 0:
             embeds.append(
                 discord.Embed(
-                    title=ui.continuation_title.format(
-                        display_name=persona.identity.display_name
-                    ),
+                    title=ui.continuation_title.format(display_name=persona.identity.display_name),
                     color=colors[publication.verdict],
                 )
             )
-        evidence = (
-            "\n" + ui.evidence_reference.format(evidence=finding.evidence)
-            if finding.evidence
-            else ""
-        )
-        correction = ui.correction_instruction.format(
-            recommendation=finding.recommendation
-        )
+        evidence = "\n" + ui.evidence_reference.format(evidence=finding.evidence) if finding.evidence else ""
+        correction = ui.correction_instruction.format(recommendation=finding.recommendation)
         value = (f"{finding.detail}{evidence}\n{correction}")[:850]
         embeds[-1].add_field(
             name=f"{severity_icons[finding.severity]} {_capitalize_heading(finding.title)}"[:256],
@@ -437,11 +421,7 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
         }
         for group_start in range(0, len(publication.charges), 5):
             charge_embed = discord.Embed(
-                title=(
-                    ui.charge_review_title
-                    if group_start == 0
-                    else ui.charge_review_continuation_title
-                ),
+                title=(ui.charge_review_title if group_start == 0 else ui.charge_review_continuation_title),
                 color=colors[publication.verdict],
             )
             for charge in publication.charges[group_start : group_start + 5]:
@@ -459,7 +439,7 @@ def _capitalize_heading(value: str) -> str:
 
     for index, character in enumerate(value):
         if character.lower() != character.upper():
-            return f"{value[:index]}{character.upper()}{value[index + 1:]}"
+            return f"{value[:index]}{character.upper()}{value[index + 1 :]}"
     return value
 
 

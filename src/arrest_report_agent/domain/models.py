@@ -133,9 +133,7 @@ class ReviewPublication(BaseModel):
         default=None,
         min_length=1,
         max_length=200,
-        description=(
-            "Specific user-requested point when review_scope is targeted; otherwise set null."
-        ),
+        description=("Specific user-requested point when review_scope is targeted; otherwise set null."),
     )
     verdict: ReviewVerdict = Field(
         description="Verdict limited to review_scope; partial approval is not full-report approval."
@@ -164,10 +162,7 @@ class ReviewPublication(BaseModel):
         material_findings = [
             finding for finding in self.findings if finding.severity is FindingSeverity.REQUIRED
         ]
-        if self.verdict is ReviewVerdict.APPROVED and (
-            material_findings
-            or self.manual_review_reason
-        ):
+        if self.verdict is ReviewVerdict.APPROVED and (material_findings or self.manual_review_reason):
             raise ValueError("An approved review cannot contain unresolved material findings")
         if self.verdict is ReviewVerdict.CORRECTIONS_REQUIRED and not material_findings:
             raise ValueError("Corrections required must identify a material finding")

@@ -209,10 +209,10 @@ class DiscordContextBuilder:
         truncated = False
         for message in ordered:
             content = _message_context_text(message)
-            is_prior_channel_message = (
-                target.thread is None
-                and message.id not in {target.root.id, target.trigger.id}
-            )
+            is_prior_channel_message = target.thread is None and message.id not in {
+                target.root.id,
+                target.trigger.id,
+            }
             per_message_limit = self.settings.thread_context_max_message_chars
             if len(content) > per_message_limit:
                 content = content[: per_message_limit - 1] + "…"
@@ -226,9 +226,7 @@ class DiscordContextBuilder:
                     author_display=getattr(message.author, "display_name", message.author.name),
                     author_is_bot=message.author.bot,
                     author_is_assistant=_is_own_bot(message.author, self.bot),
-                    author_role_names=(
-                        [] if message.author.bot else compact_role_names(message.author)
-                    ),
+                    author_role_names=([] if message.author.bot else compact_role_names(message.author)),
                     content=content,
                     created_at=message.created_at,
                     edited=message.edited_at is not None,
@@ -240,9 +238,7 @@ class DiscordContextBuilder:
                         else [attachment.id for attachment in message.attachments]
                     ),
                     ambient_attachment_summary=(
-                        _ambient_attachment_summary(message.attachments)
-                        if is_prior_channel_message
-                        else None
+                        _ambient_attachment_summary(message.attachments) if is_prior_channel_message else None
                     ),
                     is_trigger=message.id == target.trigger.id,
                 )
@@ -285,11 +281,7 @@ class DiscordContextBuilder:
             item for item in ordered if item.id == target.root.id and item.id != target.trigger.id
         ]
         historical_messages = (
-            [
-                item
-                for item in reversed(ordered)
-                if item.id not in {target.root.id, target.trigger.id}
-            ]
+            [item for item in reversed(ordered) if item.id not in {target.root.id, target.trigger.id}]
             if target.thread is not None
             else []
         )
@@ -315,21 +307,16 @@ class DiscordContextBuilder:
                 )
                 if input_kind is None:
                     if not historical:
-                        notices.append(
-                            f"Se omitió el archivo no compatible {attachment.filename!r}."
-                        )
+                        notices.append(f"Se omitió el archivo no compatible {attachment.filename!r}.")
                     continue
 
                 if input_kind is AttachmentInputKind.IMAGE:
                     if attachment.size > self.settings.max_image_bytes:
-                        notices.append(
-                            f"Se omitió una imagen mayor al límite de tamaño ({attachment.id})."
-                        )
+                        notices.append(f"Se omitió una imagen mayor al límite de tamaño ({attachment.id}).")
                         continue
                     if (
                         historical
-                        and historical_images_used
-                        >= self.settings.thread_context_max_historical_images
+                        and historical_images_used >= self.settings.thread_context_max_historical_images
                     ):
                         notices.append("Se limitaron las imágenes históricas del hilo.")
                         continue
@@ -338,14 +325,11 @@ class DiscordContextBuilder:
                         continue
                 else:
                     if attachment.size > self.settings.max_file_bytes:
-                        notices.append(
-                            f"Se omitió un archivo mayor al límite de tamaño ({attachment.id})."
-                        )
+                        notices.append(f"Se omitió un archivo mayor al límite de tamaño ({attachment.id}).")
                         continue
                     if (
                         historical
-                        and historical_files_used
-                        >= self.settings.thread_context_max_historical_files
+                        and historical_files_used >= self.settings.thread_context_max_historical_files
                     ):
                         notices.append("Se limitaron los archivos históricos del hilo.")
                         continue
@@ -396,17 +380,13 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
 
     known_message_ids = {message.id for message in case.messages}
     orphan_attachments = [
-        attachment
-        for attachment in case.attachments
-        if attachment.message_id not in known_message_ids
+        attachment for attachment in case.attachments if attachment.message_id not in known_message_ids
     ]
     rendered: list[dict[str, Any]] = []
     orphan_rendered = False
     for message in case.messages:
         if message.is_trigger and orphan_attachments:
-            rendered.append(
-                _render_orphan_attachments(orphan_attachments, image_detail)
-            )
+            rendered.append(_render_orphan_attachments(orphan_attachments, image_detail))
             orphan_rendered = True
 
         message_attachments = attachments_by_message.get(message.id, [])
@@ -418,9 +398,7 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
         if message.is_trigger:
             text = _render_operational_context(case) + "\n\n" + text
         if message.author_is_assistant:
-            content: list[dict[str, Any]] = [
-                {"type": "output_text", "text": text, "annotations": []}
-            ]
+            content: list[dict[str, Any]] = [{"type": "output_text", "text": text, "annotations": []}]
         else:
             content = [{"type": "input_text", "text": text}]
             _append_attachment_inputs(content, message_attachments, image_detail)
@@ -431,9 +409,7 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
             }
         )
         if message.author_is_assistant and message_attachments:
-            rendered.append(
-                _render_assistant_attachment_context(message_attachments, image_detail)
-            )
+            rendered.append(_render_assistant_attachment_context(message_attachments, image_detail))
 
     if orphan_attachments and not orphan_rendered:
         rendered.append(_render_orphan_attachments(orphan_attachments, image_detail))
@@ -441,8 +417,7 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
         fallback_content: list[dict[str, Any]] = [
             {
                 "type": "input_text",
-                "text": _render_operational_context(case)
-                + "\n\n[SOLICITUD_ACTUAL]\n[sin texto]",
+                "text": _render_operational_context(case) + "\n\n[SOLICITUD_ACTUAL]\n[sin texto]",
             }
         ]
         if not rendered:
@@ -492,10 +467,10 @@ def _render_discord_message(
     flags: list[str] = []
     if message.id == case.root_message_id:
         flags.append("REPORTE_RAIZ")
-    if (
-        case.interaction_mode is not InteractionMode.THREAD_FOLLOW_UP
-        and message.id not in {case.root_message_id, case.trigger_message_id}
-    ):
+    if case.interaction_mode is not InteractionMode.THREAD_FOLLOW_UP and message.id not in {
+        case.root_message_id,
+        case.trigger_message_id,
+    }:
         flags.append("CONTEXTO_PREVIO_CANAL")
     if message.is_trigger:
         flags.append("SOLICITUD_ACTUAL")
@@ -515,9 +490,7 @@ def _render_discord_message(
     lines.append(message.content or "[sin texto]")
     if message.attachment_ids:
         total_attachments = len(message.attachment_ids)
-        lines.append(
-            f"Adjuntos cargados en contexto: {loaded_attachment_count}/{total_attachments}"
-        )
+        lines.append(f"Adjuntos cargados en contexto: {loaded_attachment_count}/{total_attachments}")
         if loaded_attachment_count < total_attachments:
             lines.append(
                 "Hay adjuntos omitidos: recupéralos con get_message_attachments usando este "
@@ -533,8 +506,7 @@ def _render_discord_message(
 
 def _has_prior_channel_context(case: ReviewCase) -> bool:
     return case.interaction_mode is not InteractionMode.THREAD_FOLLOW_UP and any(
-        message.id not in {case.root_message_id, case.trigger_message_id}
-        for message in case.messages
+        message.id not in {case.root_message_id, case.trigger_message_id} for message in case.messages
     )
 
 
@@ -597,9 +569,7 @@ def _append_attachment_inputs(
                     ),
                 }
             )
-            content.append(
-                {"type": "input_image", "image_url": attachment.url, "detail": image_detail}
-            )
+            content.append({"type": "input_image", "image_url": attachment.url, "detail": image_detail})
             continue
 
         file_position += 1
@@ -629,8 +599,7 @@ def _render_orphan_attachments(
         {
             "type": "input_text",
             "text": (
-                "[CONTEXTO_PREVIO]\n"
-                "Adjuntos históricos cuyo texto fue omitido por los límites de contexto."
+                "[CONTEXTO_PREVIO]\nAdjuntos históricos cuyo texto fue omitido por los límites de contexto."
             ),
         }
     ]
@@ -645,10 +614,7 @@ def _render_assistant_attachment_context(
     content: list[dict[str, Any]] = [
         {
             "type": "input_text",
-            "text": (
-                "[CONTEXTO_PREVIO]\n"
-                "Adjuntos publicados por el agente en su respuesta anterior."
-            ),
+            "text": ("[CONTEXTO_PREVIO]\nAdjuntos publicados por el agente en su respuesta anterior."),
         }
     ]
     _append_attachment_inputs(content, attachments, image_detail)
@@ -673,9 +639,7 @@ def _reply_excerpt(message: discord.Message, by_id: dict[int, discord.Message]) 
         return None
     resolved = message.reference.resolved
     referenced = (
-        resolved
-        if isinstance(resolved, discord.Message)
-        else by_id.get(message.reference.message_id)
+        resolved if isinstance(resolved, discord.Message) else by_id.get(message.reference.message_id)
     )
     if referenced is None:
         return None
@@ -746,9 +710,7 @@ def _other_participant_roles(case: ReviewCase) -> list[str]:
         ):
             continue
         seen_author_ids.add(message.author_id)
-        participants.append(
-            f"{message.author_display}: {', '.join(message.author_role_names)}"
-        )
+        participants.append(f"{message.author_display}: {', '.join(message.author_role_names)}")
     return participants
 
 

@@ -235,9 +235,7 @@ class GuideNavigationView(RequesterBoundView):
         self.guide = guide
         self.display_name = display_name
         self.ui = ui
-        available = tuple(
-            section for section in GUIDE_SECTION_TITLES if section in guide.sections
-        )
+        available = tuple(section for section in GUIDE_SECTION_TITLES if section in guide.sections)
         self.section = available[0] if available else next(iter(guide.sections))
         self.add_item(GuideSectionSelect(available, ui))
 
@@ -334,9 +332,7 @@ class ChargeSearchModal(discord.ui.DesignerModal):
                     discord.SelectOption(
                         label=category.title[:100],
                         value=str(category.id),
-                        description=ui.charge_category_count.format(
-                            count=len(category.charges)
-                        ),
+                        description=ui.charge_category_count.format(count=len(category.charges)),
                     )
                     for category in catalog.categories
                     if category.charges
@@ -566,9 +562,7 @@ def build_guide_embed(
             value=_truncate(_render_guide_value(value), 1024),
             inline=False,
         )
-    embed.set_footer(
-        text=ui.guide_footer.format(version=guide.version, display_name=display_name)
-    )
+    embed.set_footer(text=ui.guide_footer.format(version=guide.version, display_name=display_name))
     return embed
 
 
@@ -678,9 +672,7 @@ def _render_guide_value(value: object) -> str:
 def _format_penalties(entry: ChargeSearchEntry, ui: PersonaKnowledgeMessages) -> str:
     values = []
     if entry.sentence_hours is not None:
-        values.append(
-            f"**{ui.charge_sentence_label}:** {_format_number(entry.sentence_hours)} h"
-        )
+        values.append(f"**{ui.charge_sentence_label}:** {_format_number(entry.sentence_hours)} h")
     if entry.parole is not None:
         values.append(f"**{ui.charge_parole_label}:** {_format_number(entry.parole)}")
     if entry.fine is not None:

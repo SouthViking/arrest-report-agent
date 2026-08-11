@@ -102,9 +102,7 @@ class PersonalReportSummary:
                 report.status in {PersonalReportStatus.PENDING, PersonalReportStatus.IN_REVIEW}
                 for report in reports
             ),
-            inconclusive=sum(
-                report.status is PersonalReportStatus.INCONCLUSIVE for report in reports
-            ),
+            inconclusive=sum(report.status is PersonalReportStatus.INCONCLUSIVE for report in reports),
         )
 
     @property

@@ -95,11 +95,7 @@ def build_open_report_ranking(
 ) -> tuple[SupervisorRankingEntry, ...]:
     """Rank authors by reports whose current Discord state has not reached approval."""
 
-    open_reports = tuple(
-        report
-        for report in reports
-        if report.status is not PersonalReportStatus.APPROVED
-    )
+    open_reports = tuple(report for report in reports if report.status is not PersonalReportStatus.APPROVED)
     return build_supervisor_ranking(
         open_reports,
         SupervisorRankingMetric.SUBMITTED,

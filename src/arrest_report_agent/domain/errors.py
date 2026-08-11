@@ -9,4 +9,3 @@ class ContextUnavailableError(RuntimeError):
 
 class PublicationError(RuntimeError):
     """Raised when Discord publication cannot complete."""
-

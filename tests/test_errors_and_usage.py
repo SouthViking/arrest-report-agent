@@ -54,15 +54,11 @@ def test_error_classifier_handles_timeout_auth_and_provider() -> None:
 
     assert classify_error(openai.APITimeoutError(request=request)).kind is ErrorKind.TIMEOUT
     assert (
-        classify_error(
-            openai.AuthenticationError("bad key", response=response(401), body={})
-        ).kind
+        classify_error(openai.AuthenticationError("bad key", response=response(401), body={})).kind
         is ErrorKind.AUTH_CONFIGURATION
     )
     assert (
-        classify_error(
-            openai.InternalServerError("upstream", response=response(500), body={})
-        ).kind
+        classify_error(openai.InternalServerError("upstream", response=response(500), body={})).kind
         is ErrorKind.PROVIDER_INTERNAL
     )
 

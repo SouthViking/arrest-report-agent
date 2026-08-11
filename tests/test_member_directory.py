@@ -277,9 +277,7 @@ async def test_member_directory_lists_roles_with_counts_and_filters() -> None:
     )
 
     assert result.error is None
-    assert [(role.name, role.member_count) for role in result.roles] == [
-        ("Field Training Officer", 2)
-    ]
+    assert [(role.name, role.member_count) for role in result.roles] == [("Field Training Officer", 2)]
 
     managed_result = await directory.search_roles(
         99,
@@ -293,9 +291,7 @@ async def test_member_directory_lists_roles_with_counts_and_filters() -> None:
             cursor=None,
         ),
     )
-    assert [(role.name, role.member_count) for role in managed_result.roles] == [
-        ("Integration", 1)
-    ]
+    assert [(role.name, role.member_count) for role in managed_result.roles] == [("Integration", 1)]
 
 
 class FakeTextChannel:

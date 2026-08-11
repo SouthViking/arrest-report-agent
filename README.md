@@ -1,8 +1,10 @@
 # Arrest Report Agent
 
 Bot agente de Discord para revisar reportes de arresto de roleplay en español. El perfil incluido es
-**Walter Vigil**, pero el repositorio, el paquete y la lógica mantienen un nombre neutral: identidad,
-personalidad, presencia y perfil de Discord se cargan desde la persona elegida con `BOT_PERSONA`.
+**Walter Vigil**, pero el repositorio, el paquete y la lógica mantienen un nombre neutral. PostgreSQL
+almacena configuraciones versionadas por guild y personalidades; Railway Bucket conserva sus avatares.
+El runtime toma un snapshot inmutable por interacción y recibe publicaciones nuevas mediante
+`LISTEN/NOTIFY`, sin reiniciar ni redesplegar el bot.
 
 El MVP usa `gnt-arrestos` y `dlm-arrestos` como archivo de reportes del servidor LSSD, pero puede
 conversar desde cualquier canal de una guild habilitada. Solo actúa cuando un usuario autorizado
@@ -56,6 +58,7 @@ también sin ejecutar el agente.
 - Python 3.12–3.14.
 - Una aplicación de Discord con bot y **Message Content Intent** habilitado.
 - Una API key de OpenAI con acceso al modelo configurado.
+- PostgreSQL 14 o superior y un Bucket compatible con S3.
 - Permisos efectivos en cada canal privado; consulta [Permisos](docs/PERMISSIONS.md).
 
 ## Configuración local
@@ -66,7 +69,8 @@ python3.12 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 ```
 
-Completa al menos `DISCORD_TOKEN` y `OPENAI_API_KEY` en `.env`. Los valores por defecto ya incluyen:
+Completa los secretos de Discord, OpenAI, PostgreSQL y Bucket en `.env`. Para una base nueva, los
+valores legacy siguientes sirven exclusivamente como entrada del importador inicial:
 
 ```dotenv
 DISCORD_GUILD_IDS=1234674521416663070
@@ -98,8 +102,9 @@ allowlists: ausente, vacío o `*` permite todos los roles seguros; un CSV define
 `/solicitar-roles` publica la solicitud en el mismo canal de texto
 donde se ejecuta; `ROLE_REQUEST_ALLOWED_CHANNEL_IDS` puede abrir todos esos canales con `*` o
 restringirlos mediante CSV. No aplica `AUTHORIZED_USER_IDS`, no funciona dentro de hilos y no usa
-base de datos ni IA: el mensaje versionado de Discord conserva la solicitud y sus botones
-persistentes. `/info-roles` permanece disponible en cualquier canal o hilo de una guild habilitada.
+IA ni persiste la solicitud en PostgreSQL: el mensaje versionado de Discord conserva la solicitud y
+sus botones persistentes. PostgreSQL solo aporta su configuración dinámica. `/info-roles` permanece
+disponible en cualquier canal o hilo de una guild habilitada.
 
 La política previa valida guild, autor y usuario antes de leer contexto o iniciar el Runner. Las
 tools de escritura operan exclusivamente dentro de la conversación autorizada. La tool de reacción
@@ -119,13 +124,13 @@ detalle de imagen, verbosity, límite de salida, service tier, capacidades admit
 resuelven al iniciar desde el catálogo JSON interno. Una combinación desconocida detiene el arranque
 con un error explícito en vez de aplicar valores silenciosos.
 
-La identidad se selecciona con una sola variable obligatoria:
+Durante la migración inicial, la identidad se selecciona con:
 
 ```dotenv
 BOT_PERSONA=walter_vigil
 ```
 
-Los perfiles
+Después de importar, `BOT_PERSONA` deja de ser parte del runtime. Los perfiles
 [`walter_vigil.json`](src/arrest_report_agent/config/personas/walter_vigil.json) y
 [`roy_velazco.json`](src/arrest_report_agent/config/personas/roy_velazco.json) definen nombre,
 organización, tratamiento, tono, presencia, biografía, referencia al avatar y un mapa versionado de
@@ -133,9 +138,9 @@ mensajes deterministas. Este último personaliza ayuda, restricciones, redirecci
 descripciones de comandos, selectores, modales, navegación, resultados y estados vacíos sin invocar
 al modelo. Los nombres y descripciones que provienen del código penal o de la guía, junto con los
 hallazgos técnicos de una revisión, permanecen neutrales. Todo se
-valida y carga una sola vez antes de conectar con Discord. Un ID ausente, desconocido o inseguro
-detiene el arranque en vez de aplicar una identidad parcial. Para usar a Roy se configura
-`BOT_PERSONA=roy_velazco`. La sincronización modifica el usuario bot; el nombre e icono de la
+validan al importarlos y cada revisión publicada permanece inmutable. Una revisión ausente,
+desconocida o insegura se rechaza antes de publicarse. La asignación por guild y el perfil global se
+administran mediante `/config`. La sincronización modifica el usuario bot; el nombre e icono de la
 aplicación mostrados en Developer Portal siguen siendo configuración de Discord.
 
 Cada personalidad distingue la voz de conversación de la voz breve usada en el resumen superior
@@ -166,14 +171,35 @@ Con Docker:
 docker compose up --build -d
 ```
 
-El proceso expone `GET /health` en el puerto 8080. Devuelve `200` cuando Discord está conectado y
-las fuentes locales de conocimiento están cargadas; durante el arranque devuelve `503`.
+### Inicialización de PostgreSQL
+
+La primera migración se ejecuta de forma explícita y nunca arranca el gateway de Discord:
+
+```bash
+.venv/bin/arrest-report-agent db migrate
+.venv/bin/arrest-report-agent db import-env --dry-run
+.venv/bin/arrest-report-agent db import-env --apply
+.venv/bin/arrest-report-agent db verify
+```
+
+El dry run consulta Discord en modo lectura para distribuir canales y roles entre guilds, pero no
+modifica PostgreSQL ni el Bucket. `--apply` importa Walter, Roy, sus avatares y una primera revisión
+por guild. La operación registra `bootstrap_env_v1` y una segunda ejecución con el mismo checksum es
+un no-op; reemplazar una importación diferente exige `--replace`.
+
+Una vez verificado el corte, el runtime ya no consulta las allowlists, modelo ni persona desde env.
+Los cambios se realizan en un borrador privado con `/config` y solo afectan nuevas interacciones al
+publicarlo de forma atómica. La última revisión válida permanece en memoria durante una caída
+temporal de PostgreSQL; mientras tanto, las mutaciones administrativas quedan bloqueadas.
+
+El proceso expone `GET /health` en el puerto 8080. Devuelve `200` cuando Discord, PostgreSQL y las
+fuentes locales de conocimiento están disponibles; durante el arranque devuelve `503`.
 
 ### Railway
 
 El repositorio incluye [`railway.json`](railway.json) para ejecutar una única réplica desde el
-`Dockerfile`, con reinicio automático, apagado gradual y healthcheck en `/health`. Railway inyecta
-`PORT`; para Docker local se mantiene `HEALTH_PORT=8080`.
+`Dockerfile`, aplicar Alembic como pre-deploy, reiniciar automáticamente, apagar de forma gradual y
+usar `/health`. Railway inyecta `PORT`; para Docker local se mantiene `HEALTH_PORT=8080`.
 
 Un bot de Discord necesita una conexión WebSocket permanente. En Railway Hobby deshabilita el modo
 serverless (**App Sleeping**) desde la configuración del servicio. El plan Free obliga a mantenerlo
@@ -184,9 +210,10 @@ push inicia automáticamente un nuevo despliegue. Esa rama también ejecuta el w
 GitHub Actions; habilita **Wait for CI** en Railway para que un commit con checks fallidos quede
 omitido y no reemplace el despliegue activo.
 
-Carga las variables desde el archivo local ignorado `.env.production` en la sección **Variables**
-del servicio. No subas ese archivo, `DISCORD_TOKEN` ni `OPENAI_API_KEY` al repositorio. El bot no
-necesita dominio público, volumen ni base de datos para este MVP.
+Carga únicamente secretos y opciones de proceso en **Variables**. Vincula `DATABASE_URL` al servicio
+PostgreSQL y las credenciales S3 al Bucket mediante referencias de Railway. No subas `.env.production`,
+tokens, URL de base ni credenciales del Bucket. Los env legacy pueden retirarse después de ejecutar
+`db verify` con éxito.
 
 ## Uso en Discord
 
@@ -236,6 +263,10 @@ Comandos disponibles:
 - `/solicitar-roles`: abre un formulario privado para solicitar hasta diez altas y diez bajas;
   publica un expediente en el canal de origen para aprobación completa, parcial o rechazo.
 - `/info-roles`: publica una explicación breve sobre el uso y los resultados de las solicitudes.
+- `/config …`: grupo privado para owners o roles `config_admin_roles`; permite inspeccionar la
+  revisión activa, crear/descartar borradores, editar accesos, agente, módulos y personas, publicar,
+  hacer rollback y seleccionar el perfil global. Todas sus respuestas son efímeras y sus mutaciones
+  quedan auditadas.
 
 Los comandos de guía, cargos, FAQ, vergüenza, honor, roles y consultas personales son deterministas:
 no ejecutan el runner ni consumen OpenAI. Los comandos personales consultan un máximo acotado del historial de los canales
@@ -255,6 +286,13 @@ el contenido exacto del FAQ.
 
 | Variable | Predeterminado | Función |
 |---|---:|---|
+| `DATABASE_URL` | obligatorio | PostgreSQL autoritativo para configuraciones y personas. |
+| `PERSONA_ASSET_BUCKET` | obligatorio | Nombre del Railway Bucket que conserva avatares inmutables. |
+| `PERSONA_ASSET_ENDPOINT` | obligatorio | Endpoint S3 del Bucket. |
+| `PERSONA_ASSET_REGION` | `auto` | Región S3 usada para firmar solicitudes. |
+| `PERSONA_ASSET_ACCESS_KEY_ID` | obligatorio | Credencial S3; secreto de proceso. |
+| `PERSONA_ASSET_SECRET_ACCESS_KEY` | obligatorio | Credencial S3; secreto de proceso. |
+| `CONFIG_OWNER_USER_IDS` | vacío | Owners de emergencia autorizados para `/config`; no se almacena en DB. |
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
 | `REPORT_CHANNEL_IDS` | `*` | Canales usados por búsquedas, resúmenes, rankings, supervisión y ayuda; no restringe menciones. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` quedan como aliases compatibles. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
@@ -263,7 +301,7 @@ el contenido exacto del FAQ.
 | `ROLE_REQUEST_ALLOWED_CHANNEL_IDS` | `*` | Canales de texto normales donde puede ejecutarse `/solicitar-roles`; `*`/vacío permite todos y un CSV restringe. Los hilos siempre se rechazan. |
 | `ROLE_REQUEST_ALLOWED_ROLE_IDS` | `*` | Roles solicitables: `*`/vacío permite todos los roles seguros; un CSV define un catálogo ordenado y cerrado. |
 | `ROLE_REQUEST_REVIEWER_ROLE_IDS` | vacío | Roles que pueden resolver solicitudes. Requiere IDs explícitos, no admite `*`; vacío deshabilita ambos comandos de roles. |
-| `BOT_PERSONA` | obligatorio | ID del perfil empaquetado que controla identidad, tono, presencia y perfil de Discord. |
+| `BOT_PERSONA` | solo importación | Persona inicial para `db import-env`; se elimina después del corte. |
 | `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |
 | `PORT` | Railway | Puerto inyectado por Railway para el healthcheck; tiene prioridad sobre `HEALTH_PORT`. |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | Modelo del runner. |
@@ -315,22 +353,22 @@ en el entorno o en `.env` y se habilita de forma explícita:
 .venv/bin/pytest tests/ai_eval --run-ai-evals -q
 ```
 
-## Límites del MVP
+## Límites actuales
 
-- No hay base de datos: intentos, locks y estado operativo se pierden al reiniciar.
+- PostgreSQL persiste configuración, revisiones, personalidades y auditoría; intentos y locks
+  operativos siguen siendo efímeros y se pierden al reiniciar.
 - Las consultas personales reconstruyen un snapshot desde mensajes y reacciones conservados en
   Discord; no pueden recuperar publicaciones eliminadas ni recordar correcciones anteriores.
-- Los canales, usuarios habilitados, servidor y roles de escalamiento se configuran por entorno, no
-  mediante comandos persistentes.
+- Los cambios de configuración se administran como snapshots completos por guild; no hay edición
+  directa de filas ni hot reload de secretos de proceso.
 - El catálogo y la guía son archivos versionados; todavía no existe sincronización con OpenMP/PCU.
-- No existe configuración por facción o tenant.
-- Se incluyen `walter_vigil` y `roy_velazco`; cambiar la persona requiere reiniciar y todavía no
-  existe carga desde base de datos ni configuración distinta por servidor.
+- Cada guild puede tener configuración y personalidad propia, pero el username, avatar, bio y
+  presencia de la aplicación de Discord siguen siendo globales por limitación de Discord.
 - No se ejecuta una segunda revisión automática ni un fallback de veredicto con otro modelo.
 
-La separación entre contexto Discord, dominio, conocimiento y runner permite añadir más adelante una
-base de datos, configuración por servidor/facción, catálogo sincronizado mediante API y políticas
-distintas para LSSD, LSPD u otras organizaciones. Consulta [Arquitectura](docs/ARCHITECTURE.md).
+La separación entre contexto Discord, dominio, conocimiento y runner permite añadir más adelante un
+catálogo sincronizado mediante API y políticas adicionales para LSSD, LSPD u otras organizaciones.
+Consulta [Arquitectura](docs/ARCHITECTURE.md).
 
 ## Privacidad y observabilidad
 

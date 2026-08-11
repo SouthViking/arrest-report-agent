@@ -13,15 +13,10 @@ def build_agent_instructions(persona: BotPersona) -> str:
     identity = persona.identity
     personality = persona.personality
     traits = "\n".join(f"- {item}" for item in personality.traits)
-    conversation = "\n".join(
-        f"- {item}" for item in personality.communication.conversation
-    )
-    review_summary = "\n".join(
-        f"- {item}" for item in personality.communication.review_summary
-    )
+    conversation = "\n".join(f"- {item}" for item in personality.communication.conversation)
+    review_summary = "\n".join(f"- {item}" for item in personality.communication.review_summary)
     conversation_examples = "\n".join(
-        f'- **{example.situation}:** Usuario: "{example.user}" → Respuesta: '
-        f'"{example.assistant}"'
+        f'- **{example.situation}:** Usuario: "{example.user}" → Respuesta: "{example.assistant}"'
         for example in personality.examples.conversation
     )
     review_summary_examples = "\n".join(

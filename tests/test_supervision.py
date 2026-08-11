@@ -55,10 +55,7 @@ def test_supervisor_role_policy_supports_open_and_restricted_modes() -> None:
     member = SimpleNamespace(roles=[SimpleNamespace(id=10), SimpleNamespace(id=20)])
 
     assert SupervisorRolePolicy(SnowflakeAllowlist(None)).allows(member) is True
-    assert (
-        SupervisorRolePolicy(SnowflakeAllowlist(frozenset({20, 30}))).allows(member)
-        is True
-    )
+    assert SupervisorRolePolicy(SnowflakeAllowlist(frozenset({20, 30}))).allows(member) is True
     assert SupervisorRolePolicy(SnowflakeAllowlist(frozenset({30}))).allows(member) is False
 
 
@@ -259,9 +256,7 @@ async def test_shame_modal_uses_selected_period_and_publishes_result(persona) ->
 
         async def find_all(self, _guild, _member, query):
             self.queries.append(query)
-            return PersonalReportSearchResult(
-                reports=(report(1, 100, PersonalReportStatus.PENDING),)
-            )
+            return PersonalReportSearchResult(reports=(report(1, 100, PersonalReportStatus.PENDING),))
 
         def visible_channels(self, _guild, _member):
             return (SimpleNamespace(id=200, name="gnt-arrestos"),)
@@ -322,9 +317,7 @@ async def test_honor_modal_uses_selected_period_and_publishes_result(persona) ->
 
         async def find_all(self, _guild, _member, query):
             self.queries.append(query)
-            return PersonalReportSearchResult(
-                reports=(report(1, 100, PersonalReportStatus.APPROVED),)
-            )
+            return PersonalReportSearchResult(reports=(report(1, 100, PersonalReportStatus.APPROVED),))
 
         def visible_channels(self, _guild, _member):
             return (SimpleNamespace(id=200, name="gnt-arrestos"),)

@@ -6,9 +6,7 @@ from arrest_report_agent.infrastructure.discord.bot import create_bot
 
 
 @pytest.mark.asyncio
-async def test_restricted_guilds_scope_slash_commands_to_configured_guilds(
-    settings, persona
-) -> None:
+async def test_restricted_guilds_scope_slash_commands_to_configured_guilds(settings, persona) -> None:
     bot = create_bot(settings, persona)
 
     assert bot.debug_guilds == sorted(settings.discord_guild_ids or ())

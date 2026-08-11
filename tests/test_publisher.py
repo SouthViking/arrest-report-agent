@@ -275,9 +275,7 @@ async def test_initial_mention_approval_uses_and_archives_thread(settings, perso
 
 
 @pytest.mark.asyncio
-async def test_partial_approval_has_scoped_title_without_terminal_reaction(
-    settings, persona
-) -> None:
+async def test_partial_approval_has_scoped_title_without_terminal_reaction(settings, persona) -> None:
     root = FakeRoot()
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     target = ReviewTarget(

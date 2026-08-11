@@ -8,28 +8,35 @@ from dataclasses import dataclass
 import discord
 from agents import set_default_openai_key
 
-from arrest_report_agent.application import ReviewService
 from arrest_report_agent.config import (
     AppSettings,
     LoadedPersona,
     ModelCatalog,
-    PackagedPersonaProvider,
     PersonaProvider,
     ResolvedModel,
     load_global_profile_banner,
 )
-from arrest_report_agent.config.logging import log_event
+from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.discord import (
+    ConfigurationAdminCog,
     DiscordProfileSynchronizer,
     ReviewCog,
     create_bot,
+)
+from arrest_report_agent.infrastructure.postgres import (
+    ConfigurationRepository,
+    DatabaseConfigProvider,
+    PostgresClient,
 )
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 from arrest_report_agent.role_requests import (
     RoleRequestCog,
     RoleRequestDecisionView,
     RoleRequestService,
+    RoleRequestServiceRegistry,
 )
+
+from .database import build_bucket_storage, build_postgres_client
 
 LOGGER = logging.getLogger(__name__)
 
@@ -42,13 +49,20 @@ class Runtime:
     model: ResolvedModel
     persona: LoadedPersona
     role_requests_enabled: bool
+    postgres: PostgresClient
+    config_provider: DatabaseConfigProvider
 
     async def health(self) -> dict[str, object]:
         discord_ready = self.bot.is_ready()
         knowledge_ready = self.catalog.charge_count > 0 and bool(self.guide.version)
+        try:
+            database_ready = await self.postgres.ping()
+        except Exception:
+            database_ready = False
         return {
-            "ok": discord_ready and knowledge_ready,
+            "ok": discord_ready and knowledge_ready and database_ready,
             "discord": discord_ready,
+            "database": database_ready,
             "knowledge": knowledge_ready,
             "charges": self.catalog.charge_count,
             "persona": self.persona.profile.id,
@@ -56,12 +70,40 @@ class Runtime:
             "role_requests": self.role_requests_enabled,
         }
 
+    async def close(self) -> None:
+        await self.config_provider.close()
+        await self.postgres.close()
+
 
 async def build_runtime(
     settings: AppSettings,
     persona_provider: PersonaProvider | None = None,
 ) -> Runtime:
-    persona = await (persona_provider or PackagedPersonaProvider()).load(settings.bot_persona)
+    if persona_provider is not None:
+        raise ValueError("Runtime personas are authoritative in PostgreSQL")
+    postgres = build_postgres_client(settings)
+    await postgres.open()
+    catalog = ChargeCatalog.load_default()
+    guide = ReportGuide.load_default()
+    model_catalog = ModelCatalog.load_default()
+    repository = ConfigurationRepository(postgres, build_bucket_storage(settings))
+    config_provider = DatabaseConfigProvider(
+        postgres,
+        repository,
+        settings,
+        catalog,
+        guide,
+        model_catalog,
+    )
+    try:
+        await config_provider.start()
+        persona = await config_provider.global_persona()
+        guild_ids = await config_provider.guild_ids()
+        initial_bundle = await config_provider.get(guild_ids[0])
+    except Exception:
+        await config_provider.close()
+        await postgres.close()
+        raise
     log_event(
         LOGGER,
         "info",
@@ -71,47 +113,71 @@ async def build_runtime(
         persona_schema_version=persona.profile.schema_version,
     )
     set_default_openai_key(settings.openai_api_key.get_secret_value(), use_for_tracing=True)
-    catalog = ChargeCatalog.load_default()
-    guide = ReportGuide.load_default()
-    model = ModelCatalog.load_default().resolve(
-        settings.openai_model,
-        settings.openai_reasoning_effort,
-    )
-    bot = create_bot(settings, persona.profile)
-    service = ReviewService(settings, catalog, guide, model, persona.profile)
+    model = initial_bundle.model
+    bot = create_bot(settings, persona.profile, guild_ids=guild_ids)
     profile_synchronizer = DiscordProfileSynchronizer(
         bot,
         persona,
         global_banner_bytes=load_global_profile_banner(),
     )
-    bot.add_cog(ReviewCog(bot, settings, service, persona.profile, profile_synchronizer))
-    role_requests_enabled = bool(settings.role_request_reviewer_role_ids)
-    if role_requests_enabled:
-        role_request_service = RoleRequestService(bot, settings, persona.profile)
-        bot.add_view(RoleRequestDecisionView(role_request_service))
-        bot.add_cog(RoleRequestCog(role_request_service))
-        log_event(
-            LOGGER,
-            "info",
-            "role_request_subsystem_registered",
-            reviewer_role_count=len(settings.role_request_reviewer_role_ids),
-            role_access_mode=(
-                "restricted"
-                if settings.role_request_allowed_role_allowlist.is_restricted
-                else "open"
-            ),
-            configured_role_count=(
-                settings.role_request_allowed_role_allowlist.configured_count
-            ),
-            channel_access_mode=(
-                "restricted"
-                if settings.role_request_allowed_channel_allowlist.is_restricted
-                else "open"
-            ),
-            configured_channels=(
-                settings.role_request_allowed_channel_allowlist.configured_count
-            ),
+    review_cog = ReviewCog(
+        bot,
+        initial_bundle.settings,  # type: ignore[arg-type]
+        initial_bundle.service,
+        initial_bundle.persona.profile,
+        profile_synchronizer,
+        config_provider=config_provider,
+    )
+    bot.add_cog(review_cog)
+
+    async def synchronize_global_persona(updated: LoadedPersona) -> None:
+        await profile_synchronizer.select_persona(updated)
+        try:
+            await repository.record_global_profile_sync(
+                synchronized=profile_synchronizer.global_profile_synchronized,
+                error="Discord rejected one or more managed profile fields",
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "warning",
+                "global_profile_sync_result_write_failed",
+                exc_info=error,
+                **exception_fields(error),
+            )
+        presence = updated.profile.presence
+        await review_cog.presence.update_texts(
+            idle_text=presence.idle,
+            conversation_text=presence.conversation,
+            knowledge_text=presence.knowledge,
+            review_text=presence.review,
         )
+
+    config_provider.register_global_callback(synchronize_global_persona)
+    bot.add_cog(ConfigurationAdminCog(settings, repository, config_provider))
+    all_bundles = [await config_provider.get(guild_id) for guild_id in guild_ids]
+    role_request_bundles = [
+        bundle
+        for bundle in all_bundles
+        if (feature := bundle.snapshot.features.get("role_requests")) is not None and feature.enabled
+    ]
+    role_requests_enabled = bool(role_request_bundles)
+    default_bundle = role_request_bundles[0] if role_request_bundles else initial_bundle
+    role_request_service = RoleRequestService(
+        bot,
+        default_bundle.settings,
+        default_bundle.persona.profile,
+    )
+    registry = RoleRequestServiceRegistry(bot, config_provider)
+    role_request_service.registry = registry
+    bot.add_view(RoleRequestDecisionView(role_request_service, registry=registry))
+    bot.add_cog(RoleRequestCog(role_request_service, registry=registry))
+    log_event(
+        LOGGER,
+        "info",
+        "role_request_subsystem_registered",
+        configured_guilds=len(role_request_bundles),
+    )
     return Runtime(
         bot=bot,
         catalog=catalog,
@@ -119,4 +185,6 @@ async def build_runtime(
         model=model,
         persona=persona,
         role_requests_enabled=role_requests_enabled,
+        postgres=postgres,
+        config_provider=config_provider,
     )

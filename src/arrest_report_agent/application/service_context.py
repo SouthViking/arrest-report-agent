@@ -53,14 +53,8 @@ class ReviewRunContext:
         if self.loaded_attachment_ids:
             return
         self.loaded_attachment_ids = {attachment.id for attachment in self.case.attachments}
-        self.loaded_image_count = sum(
-            1 for attachment in self.case.attachments if attachment.is_image
-        )
-        self.loaded_file_count = sum(
-            1 for attachment in self.case.attachments if not attachment.is_image
-        )
+        self.loaded_image_count = sum(1 for attachment in self.case.attachments if attachment.is_image)
+        self.loaded_file_count = sum(1 for attachment in self.case.attachments if not attachment.is_image)
         self.loaded_file_bytes = sum(
-            attachment.size
-            for attachment in self.case.attachments
-            if not attachment.is_image
+            attachment.size for attachment in self.case.attachments if not attachment.is_image
         )

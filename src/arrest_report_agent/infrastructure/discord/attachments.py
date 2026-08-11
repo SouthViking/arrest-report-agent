@@ -17,9 +17,7 @@ class AttachmentInputKind(StrEnum):
 # Image types accepted by OpenAI vision inputs. Animated GIFs can still be rejected by
 # the provider; that error is handled by the normal runner error boundary.
 SUPPORTED_IMAGE_EXTENSIONS = frozenset({".gif", ".jpeg", ".jpg", ".png", ".webp"})
-SUPPORTED_IMAGE_MIME_TYPES = frozenset(
-    {"image/gif", "image/jpeg", "image/png", "image/webp"}
-)
+SUPPORTED_IMAGE_MIME_TYPES = frozenset({"image/gif", "image/jpeg", "image/png", "image/webp"})
 
 # OpenAI Responses API file-input extensions. Keeping the allowlist explicit prevents
 # archives, executables, audio and video from reaching the runner accidentally.

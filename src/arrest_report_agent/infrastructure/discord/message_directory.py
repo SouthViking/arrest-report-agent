@@ -75,11 +75,7 @@ class DiscordGuildMessageDirectory:
         permissions = channel.permissions_for(requester)
         if not permissions.view_channel or not permissions.read_message_history:
             return self._error("channel_forbidden", guild_id, query.channel_id)
-        if (
-            isinstance(channel, discord.Thread)
-            and channel.is_private()
-            and channel.id != current_channel_id
-        ):
+        if isinstance(channel, discord.Thread) and channel.is_private() and channel.id != current_channel_id:
             return self._error("private_thread_forbidden", guild_id, query.channel_id)
 
         try:
@@ -137,14 +133,10 @@ class DiscordGuildMessageDirectory:
         selected_ids = attachment_ids or tuple(available)
         return MessageAttachmentLookupResult(
             attachments=tuple(
-                available[attachment_id]
-                for attachment_id in selected_ids
-                if attachment_id in available
+                available[attachment_id] for attachment_id in selected_ids if attachment_id in available
             ),
             missing_ids=tuple(
-                attachment_id
-                for attachment_id in selected_ids
-                if attachment_id not in available
+                attachment_id for attachment_id in selected_ids if attachment_id not in available
             ),
         )
 
@@ -161,9 +153,7 @@ class DiscordGuildMessageDirectory:
                     oldest_first=False,
                 )
             ]
-            selected = [message for message in candidates if _matches(message, query)][
-                : query.limit
-            ]
+            selected = [message for message in candidates if _matches(message, query)][: query.limit]
             return _chronological(selected)
 
         assert query.message_id is not None
@@ -235,10 +225,7 @@ def _matches(message: discord.Message, query: MessageLookupQuery) -> bool:
         return False
     if query.author_type == "bot" and not message.author.bot:
         return False
-    return not (
-        query.has_attachments is not None
-        and bool(message.attachments) is not query.has_attachments
-    )
+    return not (query.has_attachments is not None and bool(message.attachments) is not query.has_attachments)
 
 
 def _chronological(messages: list[discord.Message]) -> list[discord.Message]:
@@ -249,8 +236,7 @@ def _chronological(messages: list[discord.Message]) -> list[discord.Message]:
 def _message_profile(message: discord.Message) -> GuildMessageProfile:
     embeds = tuple(_compact_embed(embed) for embed in message.embeds[:MAX_EMBEDS_PER_MESSAGE])
     attachments = tuple(
-        _attachment_profile(attachment)
-        for attachment in message.attachments[:MAX_ATTACHMENTS_PER_MESSAGE]
+        _attachment_profile(attachment) for attachment in message.attachments[:MAX_ATTACHMENTS_PER_MESSAGE]
     )
     reactions = tuple(
         MessageReactionProfile(

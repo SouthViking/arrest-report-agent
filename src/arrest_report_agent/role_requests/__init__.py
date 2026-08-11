@@ -1,6 +1,11 @@
 """Deterministic Discord role-request subsystem."""
 
-from .discord import RoleRequestCog, RoleRequestDecisionView, RoleRequestService
+from .discord import (
+    RoleRequestCog,
+    RoleRequestDecisionView,
+    RoleRequestService,
+    RoleRequestServiceRegistry,
+)
 from .models import RoleRequest, RoleRequestDecision, RoleRequestStatus
 
 __all__ = [
@@ -9,5 +14,6 @@ __all__ = [
     "RoleRequestDecision",
     "RoleRequestDecisionView",
     "RoleRequestService",
+    "RoleRequestServiceRegistry",
     "RoleRequestStatus",
 ]

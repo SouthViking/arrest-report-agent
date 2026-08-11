@@ -67,6 +67,10 @@ module = ["discord", "discord.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = ["asyncpg", "boto3", "botocore", "botocore.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = ["arrest_report_agent.infrastructure.discord.*"]
 ignore_errors = true
 

@@ -121,9 +121,7 @@ def summarize_usage(usage: Usage, model: ResolvedModel) -> UsageSummary:
     entries, calculation_basis = _request_entries(usage)
     for entry in entries:
         entry_cached = int(getattr(entry.input_tokens_details, "cached_tokens", 0) or 0)
-        entry_cache_write = int(
-            getattr(entry.input_tokens_details, "cache_write_tokens", 0) or 0
-        )
+        entry_cache_write = int(getattr(entry.input_tokens_details, "cache_write_tokens", 0) or 0)
         entry_uncached = max(entry.input_tokens - entry_cached - entry_cache_write, 0)
         band = tier.select_band(entry.input_tokens)
         rates = band.rates_per_unit
@@ -149,9 +147,7 @@ def summarize_usage(usage: Usage, model: ResolvedModel) -> UsageSummary:
         cache_write_input_cost_usd=_money(cache_write_cost),
         output_cost_usd=_money(output_cost),
         estimated_cost_usd=_money(estimated),
-        pricing_context_bands=",".join(
-            f"{band_id}:{count}" for band_id, count in sorted(band_counts.items())
-        )
+        pricing_context_bands=",".join(f"{band_id}:{count}" for band_id, count in sorted(band_counts.items()))
         or "none",
         pricing_service_tier=model.runtime_defaults.service_tier,
         pricing_tier_name=tier.display_name,

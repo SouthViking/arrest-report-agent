@@ -1,5 +1,24 @@
 # Comandos de Discord
 
+## Administración dinámica: `/config`
+
+Todas las respuestas son efímeras. Pueden usarlo los IDs de emergencia definidos en
+`CONFIG_OWNER_USER_IDS` y los miembros con un rol de la política `config_admin_roles`; cambiar el
+perfil global exige ser owner.
+
+- `/config ver`: revisión activa, borrador, persona, modelo y resumen de políticas.
+- `/config borrador crear|descartar`: inicia o elimina un borrador sin alterar producción.
+- `/config acceso modo|agregar|quitar`: edita políticas relacionales del borrador.
+- `/config agente`: cambia modelo, reasoning y límites principales.
+- `/config modulo`: habilita módulos y valida sus opciones JSON.
+- `/config persona importar|publicar|asignar|revertir`: administra revisiones inmutables y avatares.
+- `/config publicar`: valida el agregado y lo activa en una transacción.
+- `/config rollback`: clona una revisión histórica como una nueva revisión activa.
+- `/config perfil-global`: programa username, avatar, bio y presencia globales.
+
+Cada mutación usa el ID de interacción como clave idempotente y queda en `config_audit_events`. Las
+publicaciones emiten una notificación de PostgreSQL para refrescar el runtime sin redeploy.
+
 Los comandos se registran directamente en la raíz, sin depender del nombre o personalidad del bot.
 Salvo `/ayuda`, `/ts3`, `/info-roles`, los resultados de `/verguenza` y `/honor`, y el expediente publicado
 por `/solicitar-roles`, sus respuestas son efímeras: solo las ve quien ejecutó el comando. Los selectores
@@ -177,7 +196,7 @@ bot. Presenta cinco resultados por página.
 Calcula el resumen privado del mes actual a partir del mismo snapshot de Discord: presentados,
 aprobados, con correcciones, pendientes, casos que requieren supervisión y porcentaje de aprobación.
 No representa un historial; publicaciones eliminadas o reacciones reemplazadas no pueden recuperarse
-sin una base de datos.
+porque PostgreSQL conserva configuración, no el contenido operativo de Discord.
 
 ## `/solicitar-roles`
 

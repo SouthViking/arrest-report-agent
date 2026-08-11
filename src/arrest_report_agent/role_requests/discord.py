@@ -12,7 +12,13 @@ from datetime import UTC, datetime
 import discord
 from discord.ext import commands
 
-from arrest_report_agent.config import AppSettings, BotPersona
+from arrest_report_agent.config import (
+    AccessPolicyKey,
+    AccessPolicyMode,
+    AppSettings,
+    BotPersona,
+    GuildRuntimeSettings,
+)
 from arrest_report_agent.config.logging import exception_fields, log_event
 
 from .codec import (
@@ -36,9 +42,7 @@ MODAL_TIMEOUT_SECONDS = 300
 MAX_REASON_LENGTH = 1000
 MAX_STRING_SELECT_OPTIONS = 25
 MAX_ROLE_SELECTS_PER_MODAL = 4
-MAX_REQUESTABLE_ROLES_PER_GUILD = (
-    MAX_STRING_SELECT_OPTIONS * MAX_ROLE_SELECTS_PER_MODAL
-)
+MAX_REQUESTABLE_ROLES_PER_GUILD = MAX_STRING_SELECT_OPTIONS * MAX_ROLE_SELECTS_PER_MODAL
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,10 +77,42 @@ class RoleRequestValidationError(ValueError):
         self.public_message = public_message
 
 
+class RoleRequestServiceRegistry:
+    """Resolve an immutable role-request service for the interaction's guild."""
+
+    def __init__(self, bot: discord.Bot, config_provider: object) -> None:
+        self.bot = bot
+        self.config_provider = config_provider
+        self._services: dict[object, RoleRequestService] = {}
+
+    async def get(self, guild_id: int) -> RoleRequestService:
+        bundle = await self.config_provider.cached(guild_id)  # type: ignore[attr-defined]
+        feature = bundle.snapshot.features.get("role_requests")
+        reviewer_policy = bundle.snapshot.policy(AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES)
+        if feature is None or not feature.enabled or reviewer_policy.mode is not AccessPolicyMode.RESTRICTED:
+            raise LookupError(f"Role requests are disabled for guild {guild_id}")
+        key = bundle.snapshot.revision_id
+        service = self._services.get(key)
+        if service is None:
+            service = RoleRequestService(
+                self.bot,
+                bundle.settings,
+                bundle.persona.profile,
+            )
+            service.registry = self
+            self._services[key] = service
+        return service
+
+
 class RoleRequestService:
     """Orchestrate role requests while Discord messages remain the only storage."""
 
-    def __init__(self, bot: discord.Bot, settings: AppSettings, persona: BotPersona) -> None:
+    def __init__(
+        self,
+        bot: discord.Bot,
+        settings: AppSettings | GuildRuntimeSettings,
+        persona: BotPersona,
+    ) -> None:
         self.bot = bot
         self.settings = settings
         self.persona = persona
@@ -85,6 +121,7 @@ class RoleRequestService:
         self.reviewer_role_ids = frozenset(settings.role_request_reviewer_role_ids)
         self.allowed_roles = settings.role_request_allowed_role_allowlist
         self.allowed_role_order = settings.role_request_allowed_role_ids
+        self.registry: RoleRequestServiceRegistry | None = None
         self._locks: dict[int, asyncio.Lock] = {}
         self._lock_users: dict[int, int] = {}
         self._creation_locks: dict[tuple[int, int], asyncio.Lock] = {}
@@ -147,10 +184,7 @@ class RoleRequestService:
         if self.allowed_channels.ids is None:
             return self.ui.info_all_channels
         channels = await self.resolve_allowed_channels(guild)
-        return (
-            "\n".join(f"• {channel.mention}" for channel in channels)
-            or self.ui.no_available_channels
-        )
+        return "\n".join(f"• {channel.mention}" for channel in channels) or self.ui.no_available_channels
 
     def validate_channel_permissions(
         self,
@@ -180,33 +214,23 @@ class RoleRequestService:
         removals = _unique_roles(remove_roles)
         if not additions and not removals:
             raise RoleRequestValidationError(self.ui.no_changes)
-        if (
-            len(additions) > MAX_ROLES_PER_OPERATION
-            or len(removals) > MAX_ROLES_PER_OPERATION
-        ):
-            raise RoleRequestValidationError(
-                self.ui.too_many_roles.format(limit=MAX_ROLES_PER_OPERATION)
-            )
+        if len(additions) > MAX_ROLES_PER_OPERATION or len(removals) > MAX_ROLES_PER_OPERATION:
+            raise RoleRequestValidationError(self.ui.too_many_roles.format(limit=MAX_ROLES_PER_OPERATION))
 
         add_ids = {role.id for role in additions}
         remove_ids = {role.id for role in removals}
         unlisted = tuple(
             role
             for role in (*additions, *removals)
-            if not self.allowed_roles.allows(role.id)
-            or getattr(role.guild, "id", None) != member.guild.id
+            if not self.allowed_roles.allows(role.id) or getattr(role.guild, "id", None) != member.guild.id
         )
         if unlisted:
             raise RoleRequestValidationError(
-                self.ui.unlisted_roles.format(
-                    roles=_role_mentions(role.id for role in unlisted)
-                )
+                self.ui.unlisted_roles.format(roles=_role_mentions(role.id for role in unlisted))
             )
         overlap = add_ids & remove_ids
         if overlap:
-            raise RoleRequestValidationError(
-                self.ui.overlapping_roles.format(roles=_role_mentions(overlap))
-            )
+            raise RoleRequestValidationError(self.ui.overlapping_roles.format(roles=_role_mentions(overlap)))
 
         current_ids = {role.id for role in member.roles}
         already_owned = add_ids & current_ids
@@ -216,9 +240,7 @@ class RoleRequestService:
             )
         missing = remove_ids - current_ids
         if missing:
-            raise RoleRequestValidationError(
-                self.ui.missing_roles.format(roles=_role_mentions(missing))
-            )
+            raise RoleRequestValidationError(self.ui.missing_roles.format(roles=_role_mentions(missing)))
 
         bot_member = member.guild.me
         if bot_member is None:
@@ -228,9 +250,7 @@ class RoleRequestService:
         )
         if protected:
             raise RoleRequestValidationError(
-                self.ui.protected_roles.format(
-                    roles=_role_mentions(role.id for role in protected)
-                )
+                self.ui.protected_roles.format(roles=_role_mentions(role.id for role in protected))
             )
         return additions, removals
 
@@ -274,10 +294,7 @@ class RoleRequestService:
         additions = tuple(role for role in catalog if role.id not in current_ids)
         removals = tuple(role for role in catalog if role.id in current_ids)
         select_count = _role_select_count(additions) + _role_select_count(removals)
-        if (
-            len(catalog) > MAX_REQUESTABLE_ROLES_PER_GUILD
-            or select_count > MAX_ROLE_SELECTS_PER_MODAL
-        ):
+        if len(catalog) > MAX_REQUESTABLE_ROLES_PER_GUILD or select_count > MAX_ROLE_SELECTS_PER_MODAL:
             log_event(
                 LOGGER,
                 "error",
@@ -381,9 +398,7 @@ class RoleRequestService:
                 await interaction.followup.send(
                     embed=self.build_notice_embed(
                         title=self.ui.pending_title,
-                        description=self.ui.created_confirmation.format(
-                            jump_url=message.jump_url
-                        ),
+                        description=self.ui.created_confirmation.format(jump_url=message.jump_url),
                         color=discord.Color.gold(),
                     ),
                     ephemeral=True,
@@ -443,9 +458,7 @@ class RoleRequestService:
         additions, removals = self.validate_submission(member, add_roles, remove_roles)
         pending = await self.find_pending_request(member.guild, member.id)
         if pending is not None:
-            raise RoleRequestValidationError(
-                self.ui.pending_exists.format(jump_url=pending.jump_url)
-            )
+            raise RoleRequestValidationError(self.ui.pending_exists.format(jump_url=pending.jump_url))
 
         normalized_reason = (reason or "").strip() or None
         created_at = datetime.now(UTC)
@@ -473,7 +486,7 @@ class RoleRequestService:
         try:
             await message.edit(
                 embed=embed,
-                view=RoleRequestDecisionView(self),
+                view=RoleRequestDecisionView(self, registry=self.registry),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
         except Exception:
@@ -645,9 +658,7 @@ class RoleRequestService:
                 requested_add = set(request.add_role_ids)
                 requested_remove = set(request.remove_role_ids)
                 approved_add = requested_add if selected_add is None else set(selected_add)
-                approved_remove = (
-                    requested_remove if selected_remove is None else set(selected_remove)
-                )
+                approved_remove = requested_remove if selected_remove is None else set(selected_remove)
                 if not approved_add <= requested_add or not approved_remove <= requested_remove:
                     raise RoleRequestCodecError("partial approval is not a request subset")
                 if not approved_add and not approved_remove:
@@ -667,26 +678,19 @@ class RoleRequestService:
                     return
                 guild, member = context
 
-                current_ids = {
-                    role.id for role in member.roles if role.id != guild.default_role.id
-                }
+                current_ids = {role.id for role in member.roles if role.id != guild.default_role.id}
                 target_ids = set(current_ids)
                 target_ids.update(approved_add)
                 target_ids.difference_update(approved_remove)
                 if target_ids != current_ids:
                     target_roles = sorted(
-                        (
-                            role
-                            for role_id in target_ids
-                            if (role := guild.get_role(role_id)) is not None
-                        ),
+                        (role for role_id in target_ids if (role := guild.get_role(role_id)) is not None),
                         key=lambda role: role.position,
                     )
                     await member.edit(
                         roles=target_roles,
                         reason=(
-                            f"Solicitud de roles {request.message_id} aprobada por "
-                            f"{interaction.user.id}"
+                            f"Solicitud de roles {request.message_id} aprobada por {interaction.user.id}"
                         ),
                     )
 
@@ -814,18 +818,13 @@ class RoleRequestService:
             return None
 
         requested_roles = tuple(
-            guild.get_role(role_id)
-            for role_id in (*request.add_role_ids, *request.remove_role_ids)
+            guild.get_role(role_id) for role_id in (*request.add_role_ids, *request.remove_role_ids)
         )
         bot_member = guild.me
         if (
             any(role is None for role in requested_roles)
             or bot_member is None
-            or any(
-                self._role_is_protected(role, bot_member)
-                for role in requested_roles
-                if role is not None
-            )
+            or any(self._role_is_protected(role, bot_member) for role in requested_roles if role is not None)
         ):
             await self._close_failed(
                 message,
@@ -1011,9 +1010,16 @@ class RoleRequestService:
 class RoleRequestDecisionView(discord.ui.View):
     """Persistent, generic controls resolved by the source message ID."""
 
-    def __init__(self, service: RoleRequestService, *, disabled: bool = False) -> None:
+    def __init__(
+        self,
+        service: RoleRequestService,
+        *,
+        registry: RoleRequestServiceRegistry | None = None,
+        disabled: bool = False,
+    ) -> None:
         super().__init__(timeout=None)
         self.service = service
+        self.registry = registry
         ui = service.ui
         self.approve_all_button.label = ui.approve_all_button
         self.approve_partial_button.label = ui.approve_partial_button
@@ -1023,7 +1029,22 @@ class RoleRequestDecisionView(discord.ui.View):
                 child.disabled = True
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        return await self.service.authorize_reviewer_interaction(interaction)
+        try:
+            service = await self._service_for(interaction)
+        except LookupError:
+            await interaction.response.send_message(
+                embed=self.service.build_alert_embed(self.service.ui.request_unavailable),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return False
+        return await service.authorize_reviewer_interaction(interaction)
+
+    async def _service_for(self, interaction: discord.Interaction) -> RoleRequestService:
+        guild = interaction.guild
+        if self.registry is None or guild is None:
+            return self.service
+        return await self.registry.get(guild.id)
 
     @discord.ui.button(
         label="Aprobar todo",
@@ -1036,7 +1057,8 @@ class RoleRequestDecisionView(discord.ui.View):
         _button: discord.ui.Button,
         interaction: discord.Interaction,
     ) -> None:
-        await self.service.approve_all(interaction)
+        service = await self._service_for(interaction)
+        await service.approve_all(interaction)
 
     @discord.ui.button(
         label="Aprobar parcialmente",
@@ -1049,11 +1071,12 @@ class RoleRequestDecisionView(discord.ui.View):
         _button: discord.ui.Button,
         interaction: discord.Interaction,
     ) -> None:
+        service = await self._service_for(interaction)
         try:
-            request = self.service.decode_interaction_message(interaction)
+            request = service.decode_interaction_message(interaction)
         except RoleRequestCodecError:
             await interaction.response.send_message(
-                embed=self.service.build_alert_embed(self.service.ui.stale_request),
+                embed=service.build_alert_embed(service.ui.stale_request),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -1061,14 +1084,12 @@ class RoleRequestDecisionView(discord.ui.View):
         guild = interaction.guild
         if guild is None:
             await interaction.response.send_message(
-                embed=self.service.build_alert_embed(self.service.ui.request_unavailable),
+                embed=service.build_alert_embed(service.ui.request_unavailable),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
-        await interaction.response.send_modal(
-            PartialApprovalModal(self.service, request=request, guild=guild)
-        )
+        await interaction.response.send_modal(PartialApprovalModal(service, request=request, guild=guild))
 
     @discord.ui.button(
         label="Rechazar",
@@ -1081,16 +1102,17 @@ class RoleRequestDecisionView(discord.ui.View):
         _button: discord.ui.Button,
         interaction: discord.Interaction,
     ) -> None:
+        service = await self._service_for(interaction)
         try:
-            request = self.service.decode_interaction_message(interaction)
+            request = service.decode_interaction_message(interaction)
         except RoleRequestCodecError:
             await interaction.response.send_message(
-                embed=self.service.build_alert_embed(self.service.ui.stale_request),
+                embed=service.build_alert_embed(service.ui.stale_request),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
-        await interaction.response.send_modal(RejectRoleRequestModal(self.service, request))
+        await interaction.response.send_modal(RejectRoleRequestModal(service, request))
 
 
 class CreateRoleRequestModal(discord.ui.DesignerModal):
@@ -1124,12 +1146,8 @@ class CreateRoleRequestModal(discord.ui.DesignerModal):
             max_length=MAX_REASON_LENGTH,
         )
         children: list[discord.ui.Item] = []
-        children.extend(
-            _labeled_role_selects(copy.add_roles_label, self.add_selects)
-        )
-        children.extend(
-            _labeled_role_selects(copy.remove_roles_label, self.remove_selects)
-        )
+        children.extend(_labeled_role_selects(copy.add_roles_label, self.add_selects))
+        children.extend(_labeled_role_selects(copy.remove_roles_label, self.remove_selects))
         children.append(discord.ui.Label(copy.request_reason_label, self.reason_input))
         super().__init__(
             *children,
@@ -1225,9 +1243,7 @@ class PartialApprovalModal(discord.ui.DesignerModal):
             guild_id=self.request.guild_id,
             channel_id=self.request.channel_id,
             message_id=self.request.message_id,
-            selected_add=tuple(int(value) for value in self.add_select.values)
-            if self.add_select
-            else (),
+            selected_add=tuple(int(value) for value in self.add_select.values) if self.add_select else (),
             selected_remove=tuple(int(value) for value in self.remove_select.values)
             if self.remove_select
             else (),
@@ -1268,11 +1284,22 @@ class RejectRoleRequestModal(discord.ui.DesignerModal):
 class RoleRequestCog(commands.Cog):
     """Root commands for the isolated role-request subsystem."""
 
-    def __init__(self, service: RoleRequestService) -> None:
+    def __init__(
+        self,
+        service: RoleRequestService,
+        *,
+        registry: RoleRequestServiceRegistry | None = None,
+    ) -> None:
         self.service = service
+        self.registry = registry
         command_copy = service.persona.messages.interface.commands
         self.request_roles.description = command_copy.request_roles_description
         self.info_roles.description = command_copy.info_roles_description
+
+    async def _service_for(self, guild: discord.Guild | None) -> RoleRequestService:
+        if self.registry is None or guild is None:
+            return self.service
+        return await self.registry.get(guild.id)
 
     @discord.slash_command(
         name="solicitar-roles",
@@ -1282,65 +1309,70 @@ class RoleRequestCog(commands.Cog):
         guild = ctx.guild
         member = ctx.author
         channel = ctx.channel
-        ui = self.service.ui
-        if guild is None or not self.service.settings.guild_allowlist.allows(guild.id):
+        try:
+            service = await self._service_for(guild)
+        except LookupError:
             await ctx.respond(
-                embed=self.service.build_alert_embed(ui.wrong_guild),
+                embed=self.service.build_alert_embed(self.service.ui.wrong_guild),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        ui = service.ui
+        if guild is None or not service.settings.guild_allowlist.allows(guild.id):
+            await ctx.respond(
+                embed=service.build_alert_embed(ui.wrong_guild),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
         if not isinstance(member, discord.Member):
             await ctx.respond(
-                embed=self.service.build_alert_embed(ui.member_unavailable),
+                embed=service.build_alert_embed(ui.member_unavailable),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
         if isinstance(channel, discord.Thread):
             await ctx.respond(
-                embed=self.service.build_alert_embed(ui.thread_blocked),
+                embed=service.build_alert_embed(ui.thread_blocked),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
         if not isinstance(channel, discord.TextChannel):
             await ctx.respond(
-                embed=self.service.build_alert_embed(
-                    ui.wrong_channel.format(channels=ui.no_available_channels)
-                ),
+                embed=service.build_alert_embed(ui.wrong_channel.format(channels=ui.no_available_channels)),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
-        if not self.service.channel_is_allowed(channel):
-            channels = await self.service.allowed_channel_summary(guild)
+        if not service.channel_is_allowed(channel):
+            channels = await service.allowed_channel_summary(guild)
             await ctx.respond(
-                embed=self.service.build_alert_embed(
-                    ui.wrong_channel.format(channels=channels)
-                ),
+                embed=service.build_alert_embed(ui.wrong_channel.format(channels=channels)),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
         try:
-            self.service.validate_channel_permissions(guild, channel)
+            service.validate_channel_permissions(guild, channel)
         except RoleRequestValidationError as error:
             await ctx.respond(
-                embed=self.service.build_alert_embed(error.public_message),
+                embed=service.build_alert_embed(error.public_message),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
         try:
             modal = CreateRoleRequestModal(
-                self.service,
+                service,
                 member=member,
                 channel=channel,
             )
         except RoleRequestValidationError as error:
             await ctx.respond(
-                embed=self.service.build_alert_embed(error.public_message),
+                embed=service.build_alert_embed(error.public_message),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -1353,15 +1385,24 @@ class RoleRequestCog(commands.Cog):
     )
     async def info_roles(self, ctx: discord.ApplicationContext) -> None:
         guild = ctx.guild
-        ui = self.service.ui
-        if guild is None or not self.service.settings.guild_allowlist.allows(guild.id):
+        try:
+            service = await self._service_for(guild)
+        except LookupError:
             await ctx.respond(
-                embed=self.service.build_alert_embed(ui.wrong_guild),
+                embed=self.service.build_alert_embed(self.service.ui.wrong_guild),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
-        channels = await self.service.allowed_channel_summary(guild)
+        ui = service.ui
+        if guild is None or not service.settings.guild_allowlist.allows(guild.id):
+            await ctx.respond(
+                embed=service.build_alert_embed(ui.wrong_guild),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        channels = await service.allowed_channel_summary(guild)
         embed = discord.Embed(
             title=ui.info_title,
             description=ui.info_description,
@@ -1371,7 +1412,7 @@ class RoleRequestCog(commands.Cog):
         embed.add_field(name=ui.info_rules_title, value=ui.info_rules, inline=False)
         embed.add_field(name=ui.info_channels_title, value=channels, inline=False)
         embed.add_field(name=ui.info_outcomes_title, value=ui.info_outcomes, inline=False)
-        avatar = getattr(getattr(self.service.bot.user, "display_avatar", None), "url", None)
+        avatar = getattr(getattr(service.bot.user, "display_avatar", None), "url", None)
         if avatar:
             embed.set_thumbnail(url=str(avatar))
         await ctx.respond(
@@ -1393,11 +1434,7 @@ def _requested_role_select(
         role = guild.get_role(role_id)
         options.append(
             discord.SelectOption(
-                label=(
-                    role.name
-                    if role
-                    else unknown_role_label.format(role_id=role_id)
-                )[:100],
+                label=(role.name if role else unknown_role_label.format(role_id=role_id))[:100],
                 value=str(role_id),
             )
         )
@@ -1419,10 +1456,7 @@ def _request_role_selects(
     selects: list[discord.ui.StringSelect] = []
     for index, start in enumerate(range(0, len(roles), MAX_STRING_SELECT_OPTIONS), start=1):
         group = roles[start : start + MAX_STRING_SELECT_OPTIONS]
-        options = [
-            discord.SelectOption(label=role.name[:100], value=str(role.id))
-            for role in group
-        ]
+        options = [discord.SelectOption(label=role.name[:100], value=str(role.id)) for role in group]
         selects.append(
             discord.ui.StringSelect(
                 custom_id=f"role-request:v1:create:{operation}:{index}",

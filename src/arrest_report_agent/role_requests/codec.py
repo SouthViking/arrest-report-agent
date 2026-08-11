@@ -16,9 +16,7 @@ CODEC_VERSION = "role-request:v1"
 APPROVE_ALL_CUSTOM_ID = f"{CODEC_VERSION}:approve-all"
 APPROVE_PARTIAL_CUSTOM_ID = f"{CODEC_VERSION}:approve-partial"
 REJECT_CUSTOM_ID = f"{CODEC_VERSION}:reject"
-DECISION_CUSTOM_IDS = frozenset(
-    {APPROVE_ALL_CUSTOM_ID, APPROVE_PARTIAL_CUSTOM_ID, REJECT_CUSTOM_ID}
-)
+DECISION_CUSTOM_IDS = frozenset({APPROVE_ALL_CUSTOM_ID, APPROVE_PARTIAL_CUSTOM_ID, REJECT_CUSTOM_ID})
 EMPTY_VALUE = "—"
 ADD_FIELD_TITLE = "➕ Roles para agregar"
 REMOVE_FIELD_TITLE = "➖ Roles para retirar"
@@ -36,9 +34,7 @@ PENDING_FIELD_ORDER = (
     REASON_FIELD_TITLE,
     STATUS_FIELD_TITLE,
 )
-FOOTER_PATTERN = re.compile(
-    r"^Solicitud (?P<message_id>[1-9][0-9]*)(?: · role-request:v1)?$"
-)
+FOOTER_PATTERN = re.compile(r"^Solicitud (?P<message_id>[1-9][0-9]*)(?: · role-request:v1)?$")
 USER_URL_PATTERN = re.compile(r"^https://discord\.com/users/(?P<user_id>[1-9][0-9]*)$")
 ROLE_MENTION_PATTERN = re.compile(r"^<@&(?P<role_id>[1-9][0-9]*)>$")
 

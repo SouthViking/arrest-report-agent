@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
+from dataclasses import dataclass, replace
 from time import monotonic
 
 import discord
@@ -20,7 +22,12 @@ from arrest_report_agent.application import (
     ReviewService,
 )
 from arrest_report_agent.application.errors import public_error_message
-from arrest_report_agent.config import AppSettings, BotPersona, PersonaAccessMessages
+from arrest_report_agent.config import (
+    AppSettings,
+    BotPersona,
+    GuildRuntimeSettings,
+    PersonaAccessMessages,
+)
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError
@@ -57,6 +64,19 @@ LOGGER = logging.getLogger(__name__)
 
 DETERMINISTIC_REPLY_COOLDOWN_SECONDS = 30.0
 TEAMSPEAK_SERVER_ADDRESS = "51.81.49.72:11189"
+
+
+@dataclass(frozen=True, slots=True)
+class ReviewCogRuntime:
+    """All guild-scoped collaborators captured for one Discord interaction."""
+
+    settings: AppSettings | GuildRuntimeSettings
+    service: ReviewService
+    persona: BotPersona
+    access_policy: DiscordAccessPolicy
+    supervisor_policy: SupervisorRolePolicy
+    context_builder: DiscordContextBuilder
+    personal_report_finder: DiscordPersonalReportFinder
 
 
 @asynccontextmanager
@@ -154,21 +174,23 @@ def build_help_embed(
         ),
         inline=False,
     )
-    embed.set_footer(
-        text=copy.footer.format(form_of_address=identity.default_form_of_address)
-    )
+    embed.set_footer(text=copy.footer.format(form_of_address=identity.default_form_of_address))
     if avatar_url:
         embed.set_thumbnail(url=avatar_url)
     return embed
 
 
-def build_teamspeak_embed(*, persona: BotPersona) -> discord.Embed:
+def build_teamspeak_embed(
+    *,
+    persona: BotPersona,
+    address: str = TEAMSPEAK_SERVER_ADDRESS,
+) -> discord.Embed:
     """Build the public, persona-aware TeamSpeak connection notice."""
 
     copy = persona.messages.interface.commands
     return discord.Embed(
         title="🎙️ TeamSpeak 3",
-        description=copy.teamspeak_message.format(address=TEAMSPEAK_SERVER_ADDRESS),
+        description=copy.teamspeak_message.format(address=address),
         color=discord.Color.blurple(),
     )
 
@@ -181,9 +203,7 @@ def build_unauthorized_user_message(
 ) -> str:
     """Build a concise in-character access notice without invoking AI."""
 
-    intro = messages.unauthorized_user_intros[
-        message_id % len(messages.unauthorized_user_intros)
-    ]
+    intro = messages.unauthorized_user_intros[message_id % len(messages.unauthorized_user_intros)]
     return messages.unauthorized_user.format(
         form_of_address=form_of_address,
         intro=intro,
@@ -198,11 +218,15 @@ class ReviewCog(commands.Cog):
         service: ReviewService,
         persona: BotPersona,
         profile_synchronizer: DiscordProfileSynchronizer | None = None,
+        config_provider: object | None = None,
     ) -> None:
         self.bot = bot
-        self.settings = settings
-        self.service = service
-        self.persona = persona
+        self._config_provider = config_provider
+        self._runtime_context: contextvars.ContextVar[ReviewCogRuntime | None] = contextvars.ContextVar(
+            "review_cog_runtime", default=None
+        )
+        self._runtime_cache: dict[object, ReviewCogRuntime] = {}
+        self._default_runtime = self._build_runtime(settings, service, persona)
         command_copy = persona.messages.interface.commands
         self.review_help.description = command_copy.help_description
         self.report_guide.description = command_copy.guide_description
@@ -216,12 +240,8 @@ class ReviewCog(commands.Cog):
         self.personal_summary.description = command_copy.personal_summary_description
         self.teamspeak_server.description = command_copy.teamspeak_description
         self.profile_synchronizer = profile_synchronizer
-        self.access_policy = DiscordAccessPolicy.from_settings(settings)
-        self.supervisor_policy = SupervisorRolePolicy.from_settings(settings)
-        self.context_builder = DiscordContextBuilder(settings, persona, bot)
         self.member_directory = DiscordGuildMemberDirectory(bot)
         self.message_directory = DiscordGuildMessageDirectory(bot)
-        self.personal_report_finder = DiscordPersonalReportFinder(bot, settings)
         self.presence = ReviewPresence(
             bot,
             idle_text=persona.presence.idle,
@@ -234,6 +254,96 @@ class ReviewCog(commands.Cog):
         self._attempts: defaultdict[int, int] = defaultdict(int)
         self._deterministic_reply_cooldowns: dict[tuple[int, int, int], float] = {}
         self._unavailable_report_channel_keys: set[tuple[int, int]] = set()
+
+    @property
+    def _runtime(self) -> ReviewCogRuntime:
+        return self._runtime_context.get() or self._default_runtime
+
+    @property
+    def settings(self) -> AppSettings | GuildRuntimeSettings:
+        return self._runtime.settings
+
+    @property
+    def service(self) -> ReviewService:
+        return self._runtime.service
+
+    @property
+    def persona(self) -> BotPersona:
+        return self._runtime.persona
+
+    @property
+    def access_policy(self) -> DiscordAccessPolicy:
+        return self._runtime.access_policy
+
+    @property
+    def supervisor_policy(self) -> SupervisorRolePolicy:
+        return self._runtime.supervisor_policy
+
+    @property
+    def context_builder(self) -> DiscordContextBuilder:
+        return self._runtime.context_builder
+
+    @context_builder.setter
+    def context_builder(self, value: DiscordContextBuilder) -> None:
+        self._default_runtime = replace(self._default_runtime, context_builder=value)
+
+    @property
+    def personal_report_finder(self) -> DiscordPersonalReportFinder:
+        return self._runtime.personal_report_finder
+
+    @personal_report_finder.setter
+    def personal_report_finder(self, value: DiscordPersonalReportFinder) -> None:
+        self._default_runtime = replace(self._default_runtime, personal_report_finder=value)
+
+    def _build_runtime(
+        self,
+        settings: AppSettings | GuildRuntimeSettings,
+        service: ReviewService,
+        persona: BotPersona,
+    ) -> ReviewCogRuntime:
+        return ReviewCogRuntime(
+            settings=settings,
+            service=service,
+            persona=persona,
+            access_policy=DiscordAccessPolicy.from_settings(settings),  # type: ignore[arg-type]
+            supervisor_policy=SupervisorRolePolicy.from_settings(settings),  # type: ignore[arg-type]
+            context_builder=DiscordContextBuilder(settings, persona, self.bot),  # type: ignore[arg-type]
+            personal_report_finder=DiscordPersonalReportFinder(self.bot, settings),  # type: ignore[arg-type]
+        )
+
+    async def _resolve_runtime(self, guild_id: int) -> ReviewCogRuntime:
+        if self._config_provider is None:
+            return self._default_runtime
+        bundle = await self._config_provider.cached(guild_id)  # type: ignore[attr-defined]
+        cache_key = bundle.snapshot.revision_id
+        runtime = self._runtime_cache.get(cache_key)
+        if runtime is None:
+            runtime = self._build_runtime(
+                bundle.settings,
+                bundle.service,
+                bundle.persona.profile,
+            )
+            self._runtime_cache[cache_key] = runtime
+        return runtime
+
+    @asynccontextmanager
+    async def _bind_guild_runtime(self, guild_id: int) -> AsyncIterator[None]:
+        token = self._runtime_context.set(await self._resolve_runtime(guild_id))
+        try:
+            yield
+        finally:
+            self._runtime_context.reset(token)
+
+    async def cog_before_invoke(self, ctx: discord.ApplicationContext) -> None:
+        if ctx.guild is None:
+            return
+        token = self._runtime_context.set(await self._resolve_runtime(ctx.guild.id))
+        ctx._database_runtime_token = token  # type: ignore[attr-defined]
+
+    async def cog_after_invoke(self, ctx: discord.ApplicationContext) -> None:
+        token = getattr(ctx, "_database_runtime_token", None)
+        if token is not None:
+            self._runtime_context.reset(token)
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
@@ -253,9 +363,7 @@ class ReviewCog(commands.Cog):
             configured_report_channels=self.settings.report_channel_allowlist.configured_count,
             user_access_mode=("restricted" if self.access_policy.users.is_restricted else "open"),
             configured_users=self.access_policy.users.configured_count,
-            supervisor_access_mode=(
-                "restricted" if self.supervisor_policy.is_restricted else "open"
-            ),
+            supervisor_access_mode=("restricted" if self.supervisor_policy.is_restricted else "open"),
             configured_supervisor_roles=self.supervisor_policy.roles.configured_count,
             persona_id=self.persona.id,
             persona_revision=self.persona.revision,
@@ -263,6 +371,15 @@ class ReviewCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
+        if message.guild is None:
+            return
+        try:
+            async with self._bind_guild_runtime(message.guild.id):
+                await self._handle_message(message)
+        except LookupError:
+            return
+
+    async def _handle_message(self, message: discord.Message) -> None:
         bot_user = self.bot.user
         if bot_user is None:
             return
@@ -572,7 +689,12 @@ class ReviewCog(commands.Cog):
     )
     async def teamspeak_server(self, ctx: discord.ApplicationContext) -> None:
         await ctx.respond(
-            embed=build_teamspeak_embed(persona=self.persona),
+            embed=build_teamspeak_embed(
+                persona=self.persona,
+                address=self.settings.teamspeak_address
+                if isinstance(self.settings, GuildRuntimeSettings)
+                else TEAMSPEAK_SERVER_ADDRESS,
+            ),
             ephemeral=False,
             allowed_mentions=discord.AllowedMentions.none(),
         )

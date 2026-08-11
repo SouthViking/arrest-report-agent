@@ -529,14 +529,8 @@ async def test_submission_noops_return_personalized_ephemeral_alerts(
     message_template_name: str,
 ) -> None:
     interaction = _interaction(role_request_env, SimpleNamespace(id=0))
-    add_roles = (
-        (getattr(role_request_env, add_role_name),) if add_role_name is not None else ()
-    )
-    remove_roles = (
-        (getattr(role_request_env, remove_role_name),)
-        if remove_role_name is not None
-        else ()
-    )
+    add_roles = (getattr(role_request_env, add_role_name),) if add_role_name is not None else ()
+    remove_roles = (getattr(role_request_env, remove_role_name),) if remove_role_name is not None else ()
 
     await role_request_env.service.create_request(
         interaction,
@@ -550,9 +544,7 @@ async def test_submission_noops_return_personalized_ephemeral_alerts(
     response = interaction.followup.messages[-1]
     embed = response["embed"]
     selected_role = add_roles[0] if add_roles else remove_roles[0]
-    expected = getattr(role_request_env.service.ui, message_template_name).format(
-        roles=selected_role.mention
-    )
+    expected = getattr(role_request_env.service.ui, message_template_name).format(roles=selected_role.mention)
     assert response["content"] is None
     assert response["ephemeral"] is True
     assert embed.title == role_request_env.service.ui.alert_title
@@ -607,45 +599,28 @@ async def test_modals_offer_filtered_role_catalog_and_only_requested_partial_opt
     assert create.add_selects[0].max_values == 2
     assert create.remove_selects[0].max_values == 1
     assert create.add_selects[0].required is False
-    assert create.add_selects[0].placeholder == (
-        ROLE_REQUEST_MODAL_COPY.add_roles_placeholder
-    )
-    assert create.remove_selects[0].placeholder == (
-        ROLE_REQUEST_MODAL_COPY.remove_roles_placeholder
-    )
-    assert create.reason_input.placeholder == (
-        ROLE_REQUEST_MODAL_COPY.request_reason_placeholder
-    )
+    assert create.add_selects[0].placeholder == (ROLE_REQUEST_MODAL_COPY.add_roles_placeholder)
+    assert create.remove_selects[0].placeholder == (ROLE_REQUEST_MODAL_COPY.remove_roles_placeholder)
+    assert create.reason_input.placeholder == (ROLE_REQUEST_MODAL_COPY.request_reason_placeholder)
     assert partial.title == ROLE_REQUEST_MODAL_COPY.partial_title
     assert [option.value for option in partial.add_select.options] == ["701", "702"]
     assert [option.value for option in partial.remove_select.options] == ["703"]
     assert partial.add_select.min_values == 0
-    assert partial.comment_input.placeholder == (
-        ROLE_REQUEST_MODAL_COPY.partial_comment_placeholder
-    )
+    assert partial.comment_input.placeholder == (ROLE_REQUEST_MODAL_COPY.partial_comment_placeholder)
     assert rejection.title == ROLE_REQUEST_MODAL_COPY.reject_title
-    assert rejection.reason_input.placeholder == (
-        ROLE_REQUEST_MODAL_COPY.reject_reason_placeholder
-    )
+    assert rejection.reason_input.placeholder == (ROLE_REQUEST_MODAL_COPY.reject_reason_placeholder)
 
 
 @pytest.mark.asyncio
 async def test_create_modal_splits_more_than_twenty_five_requestable_roles(
     role_request_env,
 ) -> None:
-    roles = [
-        FakeRole(1_000 + index, name=f"Asignación {index:02d}", position=2)
-        for index in range(26)
-    ]
+    roles = [FakeRole(1_000 + index, name=f"Asignación {index:02d}", position=2) for index in range(26)]
     for role in roles:
         role.guild = role_request_env.guild
         role_request_env.guild._roles[role.id] = role
     configured = role_request_env.service.settings.model_copy(
-        update={
-            "role_request_allowed_role_ids_csv": ",".join(
-                str(role.id) for role in roles
-            )
-        }
+        update={"role_request_allowed_role_ids_csv": ",".join(str(role.id) for role in roles)}
     )
     service = RoleRequestService(
         role_request_env.service.bot,
@@ -678,11 +653,7 @@ def test_submission_rejects_unlisted_and_more_than_ten_roles(role_request_env) -
     for role in roles:
         role.guild = role_request_env.guild
     configured = role_request_env.service.settings.model_copy(
-        update={
-            "role_request_allowed_role_ids_csv": ",".join(
-                str(role.id) for role in roles
-            )
-        }
+        update={"role_request_allowed_role_ids_csv": ",".join(str(role.id) for role in roles)}
     )
     service = RoleRequestService(
         role_request_env.service.bot,
@@ -790,10 +761,7 @@ async def test_full_approval_applies_roles_once_and_disables_buttons(role_reques
     second = _interaction(role_request_env, message)
     await role_request_env.service.approve_all(second)
     assert len(role_request_env.requester.edit_calls) == 1
-    assert (
-        role_request_env.service.ui.stale_request
-        in second.followup.messages[-1]["embed"].description
-    )
+    assert role_request_env.service.ui.stale_request in second.followup.messages[-1]["embed"].description
 
 
 @pytest.mark.asyncio
