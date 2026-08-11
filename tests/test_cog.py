@@ -63,6 +63,15 @@ class RecordingProfileSynchronizer:
         self.events.append("profile")
 
 
+class ConsumingConfigController:
+    def __init__(self) -> None:
+        self.calls: list[tuple[object, object]] = []
+
+    async def handle(self, message, persona) -> bool:
+        self.calls.append((message, persona))
+        return True
+
+
 class FakePermissions:
     def __init__(self, *, view_channel: bool) -> None:
         self.view_channel = view_channel
@@ -137,6 +146,25 @@ def test_operational_commands_are_registered_at_the_root() -> None:
     ]
     assert all(command.parent is None for command in commands)
     assert not hasattr(ReviewCog, "wv")
+    assert not hasattr(ReviewCog, "config")
+
+
+@pytest.mark.asyncio
+async def test_inline_config_is_consumed_before_trigger_evaluation(settings, persona) -> None:
+    controller = ConsumingConfigController()
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(
+        bot,
+        settings,
+        UnexpectedReviewService(),
+        persona,
+        config_controller=controller,  # type: ignore[arg-type]
+    )  # type: ignore[arg-type]
+    message = SimpleNamespace(content="$rac ver")
+
+    await cog._handle_message(message)  # noqa: SLF001
+
+    assert controller.calls == [(message, persona)]
 
 
 def test_help_embed_uses_runtime_identity_channels_and_bot_mention(persona) -> None:

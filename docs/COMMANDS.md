@@ -1,22 +1,25 @@
 # Comandos de Discord
 
-## Administración dinámica: `/config`
+## Administración dinámica: `$rac`
 
-Todas las respuestas son efímeras. Pueden usarlo los IDs de emergencia definidos en
+Es un comando inline de mensaje plano y no aparece en el selector slash. Pueden usarlo los IDs definidos en
 `CONFIG_OWNER_USER_IDS` y los miembros con un rol de la política `config_admin_roles`; cambiar el
-perfil global exige ser owner.
+perfil global exige ser owner. Sus respuestas son embeds públicos. Un intento no autorizado responde
+con la personalidad activa, aplica un cooldown por usuario y no alcanza el runner.
 
-- `/config ver`: revisión activa, borrador, persona, modelo y resumen de políticas.
-- `/config borrador crear|descartar`: inicia o elimina un borrador sin alterar producción.
-- `/config acceso modo|agregar|quitar`: edita políticas relacionales del borrador.
-- `/config agente`: cambia modelo, reasoning y límites principales.
-- `/config modulo`: habilita módulos y valida sus opciones JSON.
-- `/config persona importar|publicar|asignar|revertir`: administra revisiones inmutables y avatares.
-- `/config publicar`: valida el agregado y lo activa en una transacción.
-- `/config rollback`: clona una revisión histórica como una nueva revisión activa.
-- `/config perfil-global`: programa username, avatar, bio y presencia globales.
+- `$rac ver`: revisión activa, borrador, persona, modelo y resumen de políticas.
+- `$rac borrador crear|descartar`: inicia o elimina un borrador sin alterar producción.
+- `$rac acceso modo|agregar|quitar …`: edita políticas relacionales del borrador.
+- `$rac agente clave=valor …`: cambia modelo, reasoning y límites principales.
+- `$rac modulo <clave> <on|off> ['{…}']`: habilita módulos y valida sus opciones JSON.
+- `$rac persona importar|publicar|asignar|revertir …`: administra revisiones y avatares.
+- `$rac publicar`: valida el agregado y lo activa en una transacción.
+- `$rac rollback <revisión>`: clona una revisión histórica como una nueva.
+- `$rac perfil-global <persona> [revisión]`: programa username, avatar, bio y presencia globales.
+- `$rac ayuda`: muestra la sintaxis compacta en Discord.
 
-Cada mutación usa el ID de interacción como clave idempotente y queda en `config_audit_events`. Las
+`$rac` debe ser el primer token del mensaje y se procesa antes de menciones o allowlists del agente.
+Cada mutación usa el ID del mensaje como clave idempotente y queda en `config_audit_events`. Las
 publicaciones emiten una notificación de PostgreSQL para refrescar el runtime sin redeploy.
 
 Los comandos se registran directamente en la raíz, sin depender del nombre o personalidad del bot.

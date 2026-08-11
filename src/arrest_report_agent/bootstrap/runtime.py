@@ -18,7 +18,7 @@ from arrest_report_agent.config import (
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.discord import (
-    ConfigurationAdminCog,
+    ConfigurationInlineController,
     DiscordProfileSynchronizer,
     ReviewCog,
     create_bot,
@@ -120,6 +120,7 @@ async def build_runtime(
         persona,
         global_banner_bytes=load_global_profile_banner(),
     )
+    config_controller = ConfigurationInlineController(settings, repository, config_provider)
     review_cog = ReviewCog(
         bot,
         initial_bundle.settings,  # type: ignore[arg-type]
@@ -127,6 +128,7 @@ async def build_runtime(
         initial_bundle.persona.profile,
         profile_synchronizer,
         config_provider=config_provider,
+        config_controller=config_controller,
     )
     bot.add_cog(review_cog)
 
@@ -154,7 +156,6 @@ async def build_runtime(
         )
 
     config_provider.register_global_callback(synchronize_global_persona)
-    bot.add_cog(ConfigurationAdminCog(settings, repository, config_provider))
     all_bundles = [await config_provider.get(guild_id) for guild_id in guild_ids]
     role_request_bundles = [
         bundle

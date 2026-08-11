@@ -140,7 +140,7 @@ al modelo. Los nombres y descripciones que provienen del código penal o de la g
 hallazgos técnicos de una revisión, permanecen neutrales. Todo se
 validan al importarlos y cada revisión publicada permanece inmutable. Una revisión ausente,
 desconocida o insegura se rechaza antes de publicarse. La asignación por guild y el perfil global se
-administran mediante `/config`. La sincronización modifica el usuario bot; el nombre e icono de la
+administran mediante `$rac`. La sincronización modifica el usuario bot; el nombre e icono de la
 aplicación mostrados en Developer Portal siguen siendo configuración de Discord.
 
 Cada personalidad distingue la voz de conversación de la voz breve usada en el resumen superior
@@ -188,8 +188,8 @@ por guild. La operación registra `bootstrap_env_v1` y una segunda ejecución co
 un no-op; reemplazar una importación diferente exige `--replace`.
 
 Una vez verificado el corte, el runtime ya no consulta las allowlists, modelo ni persona desde env.
-Los cambios se realizan en un borrador privado con `/config` y solo afectan nuevas interacciones al
-publicarlo de forma atómica. La última revisión válida permanece en memoria durante una caída
+Los cambios se realizan con el comando inline owner-gated `$rac` sobre un borrador y solo afectan
+nuevas interacciones al publicarlo de forma atómica. La última revisión válida permanece en memoria durante una caída
 temporal de PostgreSQL; mientras tanto, las mutaciones administrativas quedan bloqueadas.
 
 El proceso expone `GET /health` en el puerto 8080. Devuelve `200` cuando Discord, PostgreSQL y las
@@ -263,10 +263,11 @@ Comandos disponibles:
 - `/solicitar-roles`: abre un formulario privado para solicitar hasta diez altas y diez bajas;
   publica un expediente en el canal de origen para aprobación completa, parcial o rechazo.
 - `/info-roles`: publica una explicación breve sobre el uso y los resultados de las solicitudes.
-- `/config …`: grupo privado para owners o roles `config_admin_roles`; permite inspeccionar la
-  revisión activa, crear/descartar borradores, editar accesos, agente, módulos y personas, publicar,
-  hacer rollback y seleccionar el perfil global. Todas sus respuestas son efímeras y sus mutaciones
-  quedan auditadas.
+- `$rac …`: comando inline no visible en el selector slash, reservado a owners o roles
+  `config_admin_roles`; permite inspeccionar la revisión activa, crear/descartar borradores, editar
+  accesos, agente, módulos y personas, publicar, hacer rollback y seleccionar el perfil global. Sus
+  respuestas son embeds públicos y sus mutaciones quedan auditadas. Los intentos no autorizados usan
+  un pool de mensajes de la personalidad activa y nunca llegan al agente.
 
 Los comandos de guía, cargos, FAQ, vergüenza, honor, roles y consultas personales son deterministas:
 no ejecutan el runner ni consumen OpenAI. Los comandos personales consultan un máximo acotado del historial de los canales
@@ -292,7 +293,7 @@ el contenido exacto del FAQ.
 | `PERSONA_ASSET_REGION` | `auto` | Región S3 usada para firmar solicitudes. |
 | `PERSONA_ASSET_ACCESS_KEY_ID` | obligatorio | Credencial S3; secreto de proceso. |
 | `PERSONA_ASSET_SECRET_ACCESS_KEY` | obligatorio | Credencial S3; secreto de proceso. |
-| `CONFIG_OWNER_USER_IDS` | vacío | Owners de emergencia autorizados para `/config`; no se almacena en DB. |
+| `CONFIG_OWNER_USER_IDS` | vacío | Owners de emergencia autorizados para `$rac`; no se almacena en DB. |
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
 | `REPORT_CHANNEL_IDS` | `*` | Canales usados por búsquedas, resúmenes, rankings, supervisión y ayuda; no restringe menciones. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` quedan como aliases compatibles. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
