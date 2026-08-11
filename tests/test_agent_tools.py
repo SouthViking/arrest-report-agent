@@ -36,6 +36,7 @@ class FakePublisher:
         self.publications = []
         self.messages: list[str] = []
         self.routes: list[ConversationResponseRoute] = []
+        self.reactions: list[tuple[int, str]] = []
 
     async def mark_review_started(self) -> None:
         self.markers += 1
@@ -51,6 +52,10 @@ class FakePublisher:
         self.messages.append(content)
         self.routes.append(response_route)
         return response_route
+
+    async def set_message_reaction(self, message_id: int, emoji: str) -> str:
+        self.reactions.append((message_id, emoji))
+        return "replaced"
 
     async def publish_failure(self, public_message) -> None:
         raise AssertionError("not expected")
@@ -137,6 +142,23 @@ def test_conversation_tools_only_expose_safe_response_routes() -> None:
         assert properties["response_route"]["enum"] == ["reply", "thread"]
         assert set(properties) == {"content", "response_route"}
         assert "<@USER_ID>" in properties["content"]["description"]
+
+
+def test_reaction_tool_exposes_only_message_id_and_emoji() -> None:
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+        )
+    }
+    schema = tools["set_message_reaction"].params_json_schema
+    properties = schema["properties"]
+
+    assert set(properties) == {"message_id", "emoji"}
+    assert properties["message_id"]["pattern"] == r"^[1-9][0-9]{16,19}$"
+    assert properties["emoji"]["minLength"] == 1
+    assert properties["emoji"]["maxLength"] == 100
 
 
 def test_member_tool_exposes_bounded_projection_without_guild_argument() -> None:
@@ -881,6 +903,52 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
         "review_scope": "full",
         "verdict": "approved",
     }
+
+
+@pytest.mark.asyncio
+async def test_reaction_tool_updates_discord_immediately_without_finishing() -> None:
+    publisher = FakePublisher()
+    root_message_id = 33333333333333333
+    case = ReviewCase(
+        guild_id=11111111111111111,
+        parent_channel_id=22222222222222222,
+        channel_id=22222222222222222,
+        root_message_id=root_message_id,
+        trigger_message_id=44444444444444444,
+        requester_user_id=55555555555555555,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(case=case, publisher=publisher, attempt=1)
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+    arguments = json.dumps({"message_id": str(root_message_id), "emoji": "✅"})
+
+    result = await tools["set_message_reaction"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="set_message_reaction",
+            tool_call_id="call-reaction",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert publisher.reactions == [(root_message_id, "✅")]
+    assert result == {
+        "ok": True,
+        "message_id": str(root_message_id),
+        "emoji": "✅",
+        "outcome": "replaced",
+        "reaction_updates": 1,
+        "interaction_complete": False,
+    }
+    assert run_context.reactions_updated_count == 1
+    assert not run_context.interaction_completed
+    assert not run_context.published
 
 
 @pytest.mark.asyncio

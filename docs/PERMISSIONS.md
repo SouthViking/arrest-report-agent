@@ -57,5 +57,6 @@ Los permisos deben ser efectivos en ambos canales y sus overrides:
 Un rol puede tener permisos globales y perder `Send Messages` por un override específico. Revisa
 los permisos efectivos del miembro del bot en ambos canales desde la configuración de Discord.
 
-El bot elimina únicamente sus propias reacciones de estado. Nunca elimina reacciones humanas. Solo
+El bot elimina únicamente sus propias reacciones de estado. La tool agéntica de reacción también
+queda limitada al mensaje raíz y al canal o hilo activo; nunca elimina reacciones humanas. Solo
 archiva y bloquea automáticamente hilos creados por la propia cuenta del bot.

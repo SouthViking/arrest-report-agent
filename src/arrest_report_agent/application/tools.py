@@ -59,6 +59,10 @@ type DiscordAttachmentId = Annotated[
     str,
     Field(pattern=r"^[1-9][0-9]{16,19}$"),
 ]
+type DiscordReactionEmoji = Annotated[
+    str,
+    Field(min_length=1, max_length=100),
+]
 type MessageDirection = Literal["exact", "before", "after", "around", "latest"]
 type MessageAuthorType = Literal["any", "human", "bot"]
 type MessageField = Literal[
@@ -440,6 +444,47 @@ def build_agent_tools(
         return [ToolOutputText(text=_compact_json(metadata)), *outputs]
 
     @function_tool(failure_error_function=None)
+    async def set_message_reaction(
+        ctx: RunContextWrapper[ReviewRunContext],
+        message_id: DiscordMessageId,
+        emoji: DiscordReactionEmoji,
+    ) -> dict[str, object]:
+        """Immediately set the bot's reaction on a message in the active Discord conversation.
+
+        Use this for operational requests to mark or update a message status, even when the user
+        phrases the instruction indirectly. The message ID must come from the conversation input or
+        `get_messages`; never guess it. For status emojis (⏳, ✅, ❌ or ⚠️), this replaces the
+        bot's previous status reaction on that message. Other emojis are added without clearing a
+        status. This tool does not publish a review or finish the interaction.
+
+        Args:
+            message_id: Discord message ID from the active channel, thread or report root.
+            emoji: Unicode or custom Discord emoji to apply.
+        """
+
+        run_context = ctx.context
+        if run_context.published:
+            return {"ok": True, "already_completed": "publish_review"}
+        if run_context.interaction_completed:
+            return {"ok": True, "already_completed": "finish_interaction"}
+        normalized_emoji = emoji.strip()
+        if not normalized_emoji:
+            return {"ok": False, "error": "invalid_emoji"}
+        outcome = await run_context.publisher.set_message_reaction(
+            int(message_id),
+            normalized_emoji,
+        )
+        run_context.reactions_updated_count += 1
+        return {
+            "ok": True,
+            "message_id": message_id,
+            "emoji": normalized_emoji,
+            "outcome": outcome,
+            "reaction_updates": run_context.reactions_updated_count,
+            "interaction_complete": False,
+        }
+
+    @function_tool(failure_error_function=None)
     async def publish_review(
         ctx: RunContextWrapper[ReviewRunContext], publication: ReviewPublication
     ) -> dict[str, object]:
@@ -548,6 +593,7 @@ def build_agent_tools(
         get_guild_members,
         get_messages,
         get_message_attachments,
+        set_message_reaction,
         send_message,
         finish_interaction,
         publish_review,

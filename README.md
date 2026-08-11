@@ -101,8 +101,9 @@ base de datos ni IA: el mensaje versionado de Discord conserva la solicitud y su
 persistentes. `/info-roles` permanece disponible en cualquier canal o hilo de una guild habilitada.
 
 La política previa valida guild, autor y usuario antes de leer contexto o iniciar el Runner. Las
-tools de escritura no reciben IDs de destino libres: operan exclusivamente sobre el mensaje y el
-hilo ya autorizados. Las consultas de mensajes o adjuntos quedan fijadas a la guild y a los permisos
+tools de escritura operan exclusivamente dentro de la conversación autorizada. La tool de reacción
+acepta un ID presente en ese contexto, pero no una guild o canal libre y no puede salir del mensaje
+raíz, canal o hilo activo. Las consultas de mensajes o adjuntos quedan fijadas a la guild y a los permisos
 de lectura del solicitante. El agente solo puede escoger `reply` o `thread` para una mención nueva;
 una revisión estructurada se publica en hilo y la primera respuesta fija la ruta de toda esa ejecución.
 

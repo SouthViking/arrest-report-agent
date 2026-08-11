@@ -23,10 +23,12 @@ from arrest_report_agent.infrastructure.discord.publisher import (
 
 class FakeThread:
     def __init__(self, owner_id: int) -> None:
+        self.id = 30
         self.owner_id = owner_id
         self.archived = False
         self.sent = []
         self.edits = []
+        self.messages = {}
 
     async def send(self, **kwargs):
         self.sent.append(kwargs)
@@ -34,6 +36,9 @@ class FakeThread:
     async def edit(self, **kwargs):
         self.edits.append(kwargs)
         self.archived = kwargs.get("archived", self.archived)
+
+    async def fetch_message(self, message_id):
+        return self.messages[message_id]
 
 
 class FakeRoot:
@@ -46,6 +51,8 @@ class FakeRoot:
         self.removed = []
         self.created = 0
         self.replies = []
+        self.reactions = []
+        self.author = SimpleNamespace(id=123)
         self.channel = SimpleNamespace(sent=[])
 
         async def send(**kwargs):
@@ -66,6 +73,12 @@ class FakeRoot:
 
     async def reply(self, **kwargs):
         self.replies.append(kwargs)
+
+
+class FakeReaction:
+    def __init__(self, emoji: str, *, mine: bool) -> None:
+        self.emoji = emoji
+        self.me = mine
 
 
 def publication(verdict: str) -> ReviewPublication:
@@ -447,6 +460,96 @@ async def test_natural_reply_allows_explicit_user_mentions_only(settings, person
     sent = root.replies[0]
     assert sent["content"] == "Que lo revise <@12345678901234567>, por favor."
     assert sent["allowed_mentions"].to_dict() == {"parse": ["users"]}
+
+
+@pytest.mark.asyncio
+async def test_status_reaction_replaces_only_the_bots_previous_status(settings, persona) -> None:
+    guild = SimpleNamespace(id=10)
+    root = FakeRoot(guild=guild)
+    root.reactions = [
+        FakeReaction("❌", mine=True),
+        FakeReaction("✅", mine=False),
+        FakeReaction("📌", mine=True),
+    ]
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(id=20),
+        thread=None,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
+
+    outcome = await publisher.set_message_reaction(root.id, "✅")
+
+    assert outcome == "replaced"
+    assert root.removed == [("❌", 999)]
+    assert root.added == ["✅"]
+
+
+@pytest.mark.asyncio
+async def test_existing_bot_reaction_is_idempotent(settings, persona) -> None:
+    root = FakeRoot(guild=SimpleNamespace(id=10))
+    root.reactions = [FakeReaction("✅", mine=True)]
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(id=20),
+        thread=None,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
+
+    outcome = await publisher.set_message_reaction(root.id, "✅")
+
+    assert outcome == "unchanged"
+    assert root.removed == []
+    assert root.added == []
+
+
+@pytest.mark.asyncio
+async def test_non_status_reaction_does_not_clear_review_status(settings, persona) -> None:
+    root = FakeRoot(guild=SimpleNamespace(id=10))
+    root.reactions = [FakeReaction("❌", mine=True)]
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(id=20),
+        thread=None,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
+
+    outcome = await publisher.set_message_reaction(root.id, "👀")
+
+    assert outcome == "added"
+    assert root.removed == []
+    assert root.added == ["👀"]
+
+
+@pytest.mark.asyncio
+async def test_reaction_can_target_another_message_in_the_active_thread(settings, persona) -> None:
+    guild = SimpleNamespace(id=10)
+    root = FakeRoot(guild=guild)
+    thread = FakeThread(owner_id=999)
+    thread_message = FakeRoot(guild=guild)
+    thread_message.id = 77
+    thread.messages[thread_message.id] = thread_message
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(id=20),
+        thread=thread,
+        response_route=DiscordResponseRoute.THREAD,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
+
+    outcome = await publisher.set_message_reaction(thread_message.id, "📌")
+
+    assert outcome == "added"
+    assert root.added == []
+    assert thread_message.added == ["📌"]
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from arrest_report_agent.config import BotPersona
 
-PROMPT_VERSION = "2026-08-06.3"
+PROMPT_VERSION = "2026-08-11.1"
 
 
 def build_agent_instructions(persona: BotPersona) -> str:
@@ -97,6 +97,7 @@ del servidor de roleplay.
 - Consultar metadata pública acotada de miembros del mismo servidor cuando resulte pertinente.
 - Inspeccionar ventanas acotadas de mensajes que el solicitante pueda leer dentro del servidor.
 - Acompañar conversaciones y re-revisiones relacionadas con un expediente.
+- Aplicar actualizaciones operativas solicitadas sobre mensajes y reacciones del expediente.
 
 Responde a la intención concreta del usuario. No asumas que toda mención solicita una revisión.
 </mission>
@@ -104,6 +105,12 @@ Responde a la intención concreta del usuario. No asumas que toda mención solic
 <workflow>
 **Decisión:**
 - Prioriza `SOLICITUD_ACTUAL`; utiliza los demás mensajes solo como contexto.
+- Distingue una actualización operativa de una revisión. Peticiones como «déjalo como OK», «cambia
+  la cruz por un check» o «márcalo pendiente» solicitan modificar la reacción del mensaje, aunque
+  estén formuladas indirectamente; no exigen volver a revisar ni recibir una versión nueva.
+- Si la solicitud actual corrige una indicación o decisión conversacional anterior, adopta el nuevo
+  criterio dentro del alcance permitido y actúa; no te aferres a tu respuesta previa ni exijas que
+  el usuario repita la orden con una fórmula exacta.
 - Si recibe un archivo en `SOLICITUD_ACTUAL`, su contenido prevalece sobre versiones anteriores del
   mismo material presentes en imágenes, archivos o mensajes del hilo.
 - Revisa solo ante una petición expresa o un expediente presentado inequívocamente para revisión.
@@ -148,6 +155,12 @@ Responde a la intención concreta del usuario. No asumas que toda mención solic
 - Amplía campos, usa `any` o `fuzzy` solo si hace falta y valida después por ID; los códigos no son únicos.
 
 **Cierre:**
+- Para marcar o actualizar una reacción usa `set_message_reaction` con un ID presente en el contexto
+  o recuperado mediante `get_messages`; nunca inventes IDs ni simules la acción en texto. Usa el
+  mensaje `REPORTE_RAIZ` cuando la petición se refiera al estado general del expediente. Interpreta
+  OK o aprobado como ✅, correcciones como ❌, en revisión o pendiente como ⏳ y derivación como ⚠️.
+- Una instrucción operativa inequívoca del usuario actual puede corregir el estado previo sin
+  material nuevo. Después de ejecutarla, confirma brevemente con `finish_interaction`.
 - Usa `send_message` únicamente para avances útiles. En conversaciones iniciadas por mención, elige
   `reply` para intercambios breves y visibles, o `thread` cuando esperes continuidad o contenido
   extenso. No intentes elegir canales ni mensajes.

@@ -30,6 +30,7 @@ pytestmark = [pytest.mark.ai_eval, pytest.mark.asyncio(loop_scope="module")]
 
 _REQUESTER_ID = 1001
 _BOT_ID = 2001
+_BASE_MESSAGE_ID = 1535817965260378142
 _BASE_TIME = datetime(2026, 8, 5, 12, 0, tzinfo=UTC)
 
 
@@ -41,6 +42,7 @@ class InMemoryPublisher:
         self.publications: list[ReviewPublication] = []
         self.messages: list[str] = []
         self.failures: list[str] = []
+        self.reactions: list[tuple[int, str]] = []
 
     async def mark_review_started(self) -> None:
         self.review_started += 1
@@ -55,6 +57,10 @@ class InMemoryPublisher:
     ) -> ConversationResponseRoute:
         self.messages.append(content)
         return response_route
+
+    async def set_message_reaction(self, message_id: int, emoji: str) -> str:
+        self.reactions.append((message_id, emoji))
+        return "replaced"
 
     async def publish_failure(self, public_message: str) -> None:
         self.failures.append(public_message)
@@ -119,7 +125,7 @@ def _case(*turns: tuple[str, str]) -> ReviewCase:
         is_assistant = role == "assistant"
         messages.append(
             ConversationMessage(
-                id=3001 + index,
+                id=_BASE_MESSAGE_ID + index,
                 author_id=_BOT_ID if is_assistant else _REQUESTER_ID,
                 author_display="Sgt. Vigil" if is_assistant else "Ayudante Torres",
                 author_is_bot=is_assistant,
@@ -487,6 +493,32 @@ async def test_answers_manual_question_without_publishing_a_review(
     assert publisher.messages
     assert any(term in response for term in ("cuándo", "fecha", "hora"))
     assert any(term in response for term in ("dónde", "ubicación", "lugar"))
+
+
+async def test_indirect_status_override_updates_root_reaction_without_re_review(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            "El reporte de Antonio Caruso quedó con una corrección menor de ortografía.",
+        ),
+        (
+            "assistant",
+            "El expediente queda con correcciones requeridas por ese detalle de redacción.",
+        ),
+        (
+            "user",
+            "Déjalo marcado como OK; vamos a omitir ese detalle menor.",
+        ),
+    )
+
+    context, publisher = await _run_agent(ai_eval_settings, case)
+
+    assert publisher.reactions == [(case.root_message_id, "✅")]
+    assert publisher.publications == []
+    assert context.interaction_completed
+    assert publisher.messages
 
 
 async def test_re_review_uses_latest_corrected_version(

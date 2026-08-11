@@ -150,6 +150,13 @@ class ReviewPublisher(Protocol):
     ) -> ConversationResponseRoute:
         """Send a message through a safe route and return the effective route."""
 
+    async def set_message_reaction(
+        self,
+        message_id: int,
+        emoji: str,
+    ) -> Literal["added", "unchanged", "replaced"]:
+        """Set one bot reaction on a message in the active Discord conversation."""
+
     async def publish_failure(
         self,
         public_message: str,

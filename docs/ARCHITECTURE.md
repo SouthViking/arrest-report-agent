@@ -54,9 +54,10 @@ texto de la solicitud actual y señales compactas de contexto. Es bloqueante
 bloquea solicitudes inequívocamente ajenas; saludos, peticiones ambiguas y conversaciones vinculadas
 al expediente continúan hacia el agente principal.
 
-Las tools de publicación reciben un `ReviewTarget` derivado del evento aprobado y no aceptan guilds,
-canales o mensajes arbitrarios como argumentos. Por ello sus reacciones, hilos y mensajes quedan
-acotados al objetivo que atravesó la política. El mensaje raíz es la unidad de exclusión mutua: dos
+Las tools de publicación reciben un `ReviewTarget` derivado del evento aprobado y no aceptan guilds
+o canales arbitrarios. `set_message_reaction` recibe un ID, pero el adaptador solo lo resuelve como
+raíz, trigger o mensaje del canal/hilo activo. Por ello sus reacciones, hilos y mensajes quedan
+acotados a la conversación que atravesó la política. El mensaje raíz es la unidad de exclusión mutua: dos
 invocaciones simultáneas para el mismo reporte no generan dos runs.
 
 Ante una revisión inconclusa o una falla técnica, el adaptador resuelve
@@ -70,8 +71,9 @@ una mención nueva en un canal padre, el modelo puede escoger únicamente `reply
 para una respuesta breve y visible, e hilo cuando espera continuidad o contenido extenso. La primera
 publicación conversacional fija la ruta durante toda la ejecución. Un reply al bot fuerza
 `inline_reply`, dentro de un hilo siempre se reutiliza ese hilo y `publish_review` lleva una revisión
-nueva al hilo. El modelo nunca recibe IDs de destino. El hilo se crea de forma perezosa, por lo que
-un guardrail bloqueado no deja hilos vacíos.
+nueva al hilo. El hilo se crea de forma perezosa, por lo que un guardrail bloqueado no deja hilos
+vacíos. Los IDs de mensajes visibles se incluyen para consultas y reacciones acotadas, pero el
+modelo no puede escoger una guild ni un canal de publicación.
 
 ## Capas
 
@@ -208,12 +210,15 @@ El nickname es opcional y `null` significa que no se administra por guild.
 - `finish_interaction(content, response_route)`: envía la respuesta conversacional final y termina
   explícitamente la ejecución; también sirve para devolver el turno al usuario mediante una
   pregunta aclaratoria. `response_route` solo admite `reply` o `thread` y no puede vencer una ruta
-  ya fijada por un reply, un hilo existente o un envío anterior.
+ya fijada por un reply, un hilo existente o un envío anterior.
+- `set_message_reaction(message_id, emoji)`: aplica inmediatamente una reacción a un mensaje de la
+  conversación activa. Para `⏳`, `✅`, `❌` y `⚠️` reemplaza solamente los marcadores de estado
+  puestos por el bot; cualquier otro emoji es aditivo y nunca elimina reacciones humanas.
 - `publish_review(publication)`: tool terminal que ejecuta inmediatamente el veredicto en Discord.
 
 `parallel_tool_calls` permanece deshabilitado para mantener un orden determinista en efectos
-externos. Solo `finish_interaction` y `publish_review` detienen el runner; `send_message` puede
-ejecutarse varias veces antes del cierre. El agente conserva `tool_choice=required` durante todas las
+externos. Solo `finish_interaction` y `publish_review` detienen el runner; `send_message` y
+`set_message_reaction` pueden ejecutarse antes del cierre. El agente conserva `tool_choice=required` durante todas las
 rondas: después de consultar conocimiento o enviar un avance debe escoger una tool siguiente y no
 puede finalizar con texto suelto o un mensaje vacío. Las tools locales de conocimiento pueden usarse
 también para responder dudas.
@@ -317,6 +322,10 @@ mensaje para usar URLs vigentes de Discord y entrega el contenido al SDK como `T
 no puede suministrar una URL, cambiar de guild ni exceder los límites globales de la revisión. El
 contexto de ejecución contabiliza lo que ya venía en el input para evitar cargarlo o cobrarlo dos
 veces durante el mismo run.
+
+`set_message_reaction` no reutiliza un destino entregado libremente por el modelo: el publisher
+resuelve el ID contra el mensaje raíz, la solicitud actual o el canal/hilo de la conversación. Los
+estados son idempotentes y mutuamente excluyentes únicamente para las reacciones propias del bot.
 
 Los límites de mensajes, caracteres, imágenes, archivos y tamaño combinado se aplican antes del
 runner. El reporte raíz y la solicitud actual se protegen al recortar; el resto conserva los

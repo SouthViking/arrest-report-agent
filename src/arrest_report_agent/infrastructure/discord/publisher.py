@@ -122,6 +122,77 @@ class DiscordReviewPublisher:
         except (discord.Forbidden, discord.HTTPException) as error:
             raise PublicationError("Unable to publish agent response") from error
 
+    async def set_message_reaction(
+        self,
+        message_id: int,
+        emoji: str,
+    ) -> str:
+        """Apply one reaction within the active conversation and replace bot status markers."""
+
+        message = await self._resolve_reaction_message(message_id)
+        bot_user = self.bot.user
+        if bot_user is None:
+            raise PublicationError("Unable to resolve the bot user for a reaction")
+
+        rendered_reactions = {
+            str(reaction.emoji): reaction
+            for reaction in message.reactions
+            if reaction.me
+        }
+        removed_status = False
+        try:
+            if emoji in STATUS_EMOJIS:
+                for current_emoji, reaction in rendered_reactions.items():
+                    if current_emoji in STATUS_EMOJIS and current_emoji != emoji:
+                        await message.remove_reaction(reaction.emoji, bot_user)
+                        removed_status = True
+            already_present = emoji in rendered_reactions
+            if not already_present:
+                await message.add_reaction(emoji)
+        except (
+            discord.NotFound,
+            discord.Forbidden,
+            discord.HTTPException,
+            discord.InvalidArgument,
+            TypeError,
+        ) as error:
+            raise PublicationError("Unable to update the requested Discord reaction") from error
+
+        outcome = "replaced" if removed_status else "unchanged" if already_present else "added"
+        log_event(
+            LOGGER,
+            "info",
+            "agent_message_reaction_updated",
+            guild_id=self.target.root.guild.id,
+            parent_channel_id=self.target.parent.id,
+            thread_id=self.target.thread.id if self.target.thread is not None else "none",
+            root_message_id=self.target.root.id,
+            trigger_message_id=self.target.trigger.id,
+            target_message_id=message.id,
+            requester_user_id=self.target.trigger.author.id,
+            emoji=emoji,
+            outcome=outcome,
+        )
+        return outcome
+
+    async def _resolve_reaction_message(self, message_id: int) -> discord.Message:
+        if message_id == self.target.root.id:
+            return self.target.root
+        if message_id == self.target.trigger.id:
+            return self.target.trigger
+
+        channel: discord.TextChannel | discord.Thread = (
+            self.target.thread if self.target.thread is not None else self.target.parent
+        )
+        try:
+            return await channel.fetch_message(message_id)
+        except discord.NotFound as error:
+            raise PublicationError(
+                "Reaction target is not part of the active Discord conversation"
+            ) from error
+        except (discord.Forbidden, discord.HTTPException) as error:
+            raise PublicationError("Unable to resolve the requested reaction target") from error
+
     def _conversation_route(
         self,
         requested_route: ConversationResponseRoute,

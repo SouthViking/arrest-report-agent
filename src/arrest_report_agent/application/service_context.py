@@ -37,6 +37,7 @@ class ReviewRunContext:
     published: bool = False
     message_sent: bool = False
     messages_sent_count: int = 0
+    reactions_updated_count: int = 0
     selected_response_route: ConversationResponseRoute | None = None
     interaction_completed: bool = False
     publication: ReviewPublication | None = None
