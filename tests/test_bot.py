@@ -12,6 +12,7 @@ async def test_restricted_guilds_scope_slash_commands_to_configured_guilds(
     bot = create_bot(settings, persona)
 
     assert bot.debug_guilds == sorted(settings.discord_guild_ids or ())
+    assert bot.intents.members is True
 
 
 @pytest.mark.asyncio

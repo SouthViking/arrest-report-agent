@@ -6,6 +6,11 @@ from types import SimpleNamespace
 import discord
 import pytest
 
+from arrest_report_agent.application.ports import (
+    ChannelMemberSearchQuery,
+    GuildMemberSearchQuery,
+    GuildRoleSearchQuery,
+)
 from arrest_report_agent.infrastructure.discord.member_directory import (
     DiscordGuildMemberDirectory,
     compact_role_names,
@@ -29,21 +34,48 @@ def _role(
     )
 
 
-def _member(user_id: int, display_name: str) -> SimpleNamespace:
+def _member(
+    user_id: int,
+    display_name: str,
+    *,
+    roles: list[SimpleNamespace] | None = None,
+    joined_at: datetime | None = None,
+    bot: bool = False,
+) -> SimpleNamespace:
     return SimpleNamespace(
         id=user_id,
         display_name=display_name,
         name=display_name.casefold().replace(" ", "_"),
-        roles=[
+        roles=roles
+        or [
             _role(1, "@everyone", 0, default=True),
             _role(2, "GNT", 2),
             _role(3, "Deputy Sheriff", 3),
             _role(4, "Integration", 4, managed=True),
         ],
-        joined_at=datetime(2026, 1, 2, tzinfo=UTC),
+        joined_at=joined_at or datetime(2026, 1, 2, tzinfo=UTC),
         created_at=datetime(2025, 1, 2, tzinfo=UTC),
-        bot=False,
+        bot=bot,
     )
+
+
+def _member_query(**updates: object) -> GuildMemberSearchQuery:
+    values: dict[str, object] = {
+        "query": None,
+        "user_ids": (),
+        "role_ids_any": (),
+        "role_ids_all": (),
+        "role_ids_none": (),
+        "is_bot": None,
+        "joined_after": None,
+        "joined_before": None,
+        "sort_by": "display_name",
+        "sort_direction": "asc",
+        "limit": 20,
+        "cursor": None,
+    }
+    values.update(updates)
+    return GuildMemberSearchQuery(**values)  # type: ignore[arg-type]
 
 
 def test_compact_role_names_orders_roles_and_omits_managed_defaults() -> None:
@@ -128,3 +160,225 @@ async def test_member_directory_preserves_partial_not_found_and_unavailable_resu
     assert set(result.members) == {found_id}
     assert result.not_found == frozenset({missing_id})
     assert result.unavailable == frozenset({unavailable_id})
+
+
+@pytest.mark.asyncio
+async def test_member_directory_filters_sorts_and_paginates_complete_guild() -> None:
+    fto_role = _role(22222222222222222, "Field Training Officer", 5)
+    gnt_role = _role(33333333333333333, "GNT", 4)
+    everyone = _role(11111111111111111, "@everyone", 0, default=True)
+    adriel = _member(
+        44444444444444444,
+        "Adriel Beltrán",
+        roles=[everyone, fto_role, gnt_role],
+    )
+    alvaro = _member(
+        55555555555555555,
+        "Álvaro Beltrán",
+        roles=[everyone, fto_role],
+    )
+    outsider = _member(
+        66666666666666666,
+        "Other Member",
+        roles=[everyone, gnt_role],
+    )
+    guild = SimpleNamespace(
+        id=99,
+        chunked=True,
+        members=[outsider, alvaro, adriel],
+        roles=[everyone, gnt_role, fto_role],
+    )
+    bot = SimpleNamespace(get_guild=lambda guild_id: guild if guild_id == 99 else None)
+    directory = DiscordGuildMemberDirectory(bot)
+    query = _member_query(
+        query="beltran",
+        role_ids_all=(fto_role.id,),
+        role_ids_none=(gnt_role.id,),
+        limit=1,
+    )
+
+    first = await directory.search_members(99, query)
+
+    assert first.error is None
+    assert [member.display_name for member in first.members] == ["Álvaro Beltrán"]
+    assert first.next_cursor is None
+
+    paged_query = _member_query(
+        query="beltran",
+        role_ids_any=(fto_role.id,),
+        limit=1,
+    )
+    first_page = await directory.search_members(99, paged_query)
+    assert [member.display_name for member in first_page.members] == ["Adriel Beltrán"]
+    assert first_page.next_cursor is not None
+
+    second_page = await directory.search_members(
+        99,
+        _member_query(
+            query="beltran",
+            role_ids_any=(fto_role.id,),
+            limit=1,
+            cursor=first_page.next_cursor,
+        ),
+    )
+    assert [member.display_name for member in second_page.members] == ["Álvaro Beltrán"]
+    assert second_page.next_cursor is None
+
+    invalid = await directory.search_members(
+        99,
+        _member_query(query="different", cursor=first_page.next_cursor),
+    )
+    assert invalid.error == "invalid_cursor"
+
+    conflicting = await directory.search_members(
+        99,
+        _member_query(
+            role_ids_any=(fto_role.id,),
+            role_ids_none=(fto_role.id,),
+        ),
+    )
+    assert conflicting.error == "invalid_member_filters"
+
+
+@pytest.mark.asyncio
+async def test_member_directory_lists_roles_with_counts_and_filters() -> None:
+    fto_role = _role(22222222222222222, "Field Training Officer", 5)
+    gnt_role = _role(33333333333333333, "GNT", 4)
+    managed = _role(44444444444444444, "Integration", 6, managed=True)
+    everyone = _role(11111111111111111, "@everyone", 0, default=True)
+    guild = SimpleNamespace(
+        id=99,
+        chunked=True,
+        roles=[everyone, gnt_role, fto_role, managed],
+        members=[
+            _member(55555555555555555, "One", roles=[everyone, fto_role]),
+            _member(
+                66666666666666666,
+                "Two",
+                roles=[everyone, fto_role, gnt_role, managed],
+            ),
+        ],
+    )
+    directory = DiscordGuildMemberDirectory(
+        SimpleNamespace(get_guild=lambda guild_id: guild if guild_id == 99 else None)
+    )
+
+    result = await directory.search_roles(
+        99,
+        GuildRoleSearchQuery(
+            query="training",
+            role_ids=(),
+            include_managed=False,
+            sort_by="member_count",
+            sort_direction="desc",
+            limit=25,
+            cursor=None,
+        ),
+    )
+
+    assert result.error is None
+    assert [(role.name, role.member_count) for role in result.roles] == [
+        ("Field Training Officer", 2)
+    ]
+
+    managed_result = await directory.search_roles(
+        99,
+        GuildRoleSearchQuery(
+            query=None,
+            role_ids=(managed.id,),
+            include_managed=True,
+            sort_by="position",
+            sort_direction="desc",
+            limit=25,
+            cursor=None,
+        ),
+    )
+    assert [(role.name, role.member_count) for role in managed_result.roles] == [
+        ("Integration", 1)
+    ]
+
+
+class FakeTextChannel:
+    def __init__(self, channel_id: int, guild: object) -> None:
+        self.id = channel_id
+        self.guild = guild
+        self.messages: list[SimpleNamespace] = []
+
+    def permissions_for(self, member: object) -> SimpleNamespace:
+        return SimpleNamespace(view_channel=True, read_message_history=True)
+
+    async def history(self, **kwargs):
+        for message in self.messages[: int(kwargs["limit"])]:
+            yield message
+
+
+@pytest.mark.asyncio
+async def test_channel_member_search_uses_active_guild_and_recent_authors(monkeypatch) -> None:
+    guild_placeholder = SimpleNamespace(id=99)
+    channel = FakeTextChannel(77777777777777777, guild_placeholder)
+    requester = _member(88888888888888888, "Requester")
+    participant = _member(99999999999999999, "Participant")
+    guild = SimpleNamespace(
+        id=99,
+        chunked=True,
+        members=[requester, participant],
+        get_member=lambda user_id: {
+            requester.id: requester,
+            participant.id: participant,
+        }.get(user_id),
+        get_channel_or_thread=lambda channel_id: channel if channel_id == channel.id else None,
+    )
+    channel.guild = guild
+    channel.messages = [SimpleNamespace(author=participant)]
+    bot = SimpleNamespace(get_guild=lambda guild_id: guild if guild_id == 99 else None)
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.member_directory.discord.TextChannel",
+        FakeTextChannel,
+    )
+    directory = DiscordGuildMemberDirectory(bot)
+
+    result = await directory.search_channel_members(
+        guild_id=99,
+        requester_user_id=requester.id,
+        current_channel_id=channel.id,
+        query=ChannelMemberSearchQuery(
+            channel_id=channel.id,
+            membership="recent_participants",
+            message_limit=50,
+            members=_member_query(),
+        ),
+    )
+
+    assert result.error is None
+    assert [member.user_id for member in result.members] == [participant.id]
+
+
+@pytest.mark.asyncio
+async def test_channel_member_search_rejects_channel_from_another_guild() -> None:
+    requester = _member(88888888888888888, "Requester")
+    foreign_channel = SimpleNamespace(
+        id=77777777777777777,
+        guild=SimpleNamespace(id=100),
+    )
+    guild = SimpleNamespace(
+        id=99,
+        get_member=lambda user_id: requester,
+        get_channel_or_thread=lambda channel_id: foreign_channel,
+    )
+    directory = DiscordGuildMemberDirectory(
+        SimpleNamespace(get_guild=lambda guild_id: guild if guild_id == 99 else None)
+    )
+
+    result = await directory.search_channel_members(
+        guild_id=99,
+        requester_user_id=requester.id,
+        current_channel_id=foreign_channel.id,
+        query=ChannelMemberSearchQuery(
+            channel_id=foreign_channel.id,
+            membership="can_view",
+            message_limit=1,
+            members=_member_query(),
+        ),
+    )
+
+    assert result.error == "channel_outside_guild"

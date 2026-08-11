@@ -15,6 +15,7 @@ def create_bot(settings: AppSettings, persona: BotPersona) -> discord.Bot:
     intents.guilds = True
     intents.messages = True
     intents.message_content = True
+    intents.members = True
     return discord.Bot(
         intents=intents,
         description=f"{persona.identity.display_name} · Revisión de reportes de arresto",

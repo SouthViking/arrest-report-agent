@@ -195,9 +195,18 @@ El nickname es opcional y `null` significa que no se administra por guild.
   resultados compactos. Permite exigir todos/cualquiera de los términos y tolerar typos de forma
   explícita; no acepta expresiones regulares.
 - `get_charge_details(charge_ids)`: devuelve hasta diez delitos por ID único.
+- `list_guild_roles(query, role_ids, include_managed, fields, sort_by, sort_direction, limit,
+  cursor)`: descubre roles de la guild actual, admite proyección y paginación opaca y retorna IDs
+  utilizables por los filtros de miembros.
+- `find_guild_members(filters, fields, sort_by, sort_direction, limit, cursor)`: combina búsqueda por
+  nombre, IDs, roles con semántica any/all/none, bots y fechas de ingreso. La guild se deriva del
+  mensaje y cada página contiene como máximo 25 miembros.
+- `find_channel_members(channel_id, membership, message_limit, filters, fields, sort_by,
+  sort_direction, limit, cursor)`: busca quién puede ver un canal, quién participó recientemente,
+  quién pertenece a un hilo o quién está conectado a voz, siempre verificando guild y permisos.
 - `get_guild_members(user_ids, fields)`: consulta uno a diez miembros exclusivamente dentro de la
   guild de la conversación. Proyecta los campos solicitados y usa nombre visible y roles por
-  defecto; no admite un `guild_id` ni permite enumerar miembros.
+  defecto; no admite un `guild_id` y amplía IDs concretos descubiertos previamente.
 - `get_messages(channel_id, message_id, direction, limit, author_ids, author_type, has_attachments,
   fields)`: lee hasta veinte mensajes de un canal o hilo elegido dentro de la guild actual. Admite
   lectura exacta, anterior, posterior, alrededor de un ancla o de los mensajes más recientes, con
@@ -306,9 +315,16 @@ Estos turnos se etiquetan como contexto ambiental para resolver referencias conv
 consideran parte del expediente actual y sus adjuntos no se envían al runner. El modelo recibe solo
 una descripción compacta con cantidad, tipo y nombres de archivo, sin contenido ni URLs.
 
-`get_guild_members` recibe hasta diez IDs y proyecta únicamente los campos solicitados. El adaptador
-usa siempre `ReviewCase.guild_id`, consulta primero la caché de Pycord y recurre a `fetch_member`
-solo ante misses; el modelo no puede seleccionar otra guild ni enumerar el directorio completo.
+Las tools `list_guild_roles`, `find_guild_members` y `find_channel_members` usan siempre
+`ReviewCase.guild_id`; no incluyen un argumento de guild. El directorio completa la caché de Pycord
+con `Server Members Intent`, aplica filtros antes de proyectar y limita cada página a 25 resultados.
+Los cursores incluyen versión, tipo de consulta y huella de filtros, por lo que no pueden reutilizarse
+para cambiar silenciosamente el alcance. Un canal seleccionado se resuelve exclusivamente desde la
+guild activa, exige acceso del solicitante y rechaza hilos privados ajenos al contexto.
+
+`get_guild_members` conserva el camino eficiente para hasta diez IDs concretos: consulta primero la
+caché y recurre a `fetch_member` solo ante misses. Los roles de integración y `@everyone` se omiten de
+las proyecciones de miembros para reducir ruido.
 
 `get_messages` también queda fijada a `ReviewCase.guild_id`, pero permite al agente escoger un canal
 o hilo, mensaje ancla y ventana. El adaptador verifica pertenencia a la guild, permisos de

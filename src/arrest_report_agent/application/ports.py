@@ -29,6 +29,7 @@ class GuildMemberProfile:
     joined_at: datetime | None
     created_at: datetime
     is_bot: bool
+    role_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,67 @@ class GuildMemberLookupResult:
     unavailable: frozenset[int]
 
 
+@dataclass(frozen=True)
+class GuildRoleProfile:
+    """Compact public role metadata used for member discovery."""
+
+    role_id: int
+    name: str
+    position: int
+    managed: bool
+    member_count: int
+
+
+@dataclass(frozen=True)
+class GuildRoleSearchQuery:
+    query: str | None
+    role_ids: tuple[int, ...]
+    include_managed: bool
+    sort_by: str
+    sort_direction: str
+    limit: int
+    cursor: str | None
+    include_member_count: bool = True
+
+
+@dataclass(frozen=True)
+class GuildRoleSearchResult:
+    roles: tuple[GuildRoleProfile, ...]
+    next_cursor: str | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class GuildMemberSearchQuery:
+    query: str | None
+    user_ids: tuple[int, ...]
+    role_ids_any: tuple[int, ...]
+    role_ids_all: tuple[int, ...]
+    role_ids_none: tuple[int, ...]
+    is_bot: bool | None
+    joined_after: datetime | None
+    joined_before: datetime | None
+    sort_by: str
+    sort_direction: str
+    limit: int
+    cursor: str | None
+
+
+@dataclass(frozen=True)
+class GuildMemberSearchResult:
+    members: tuple[GuildMemberProfile, ...]
+    next_cursor: str | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class ChannelMemberSearchQuery:
+    channel_id: int
+    membership: str
+    message_limit: int
+    members: GuildMemberSearchQuery
+
+
 class GuildMemberDirectory(Protocol):
     async def lookup_members(
         self,
@@ -47,6 +109,29 @@ class GuildMemberDirectory(Protocol):
         user_ids: tuple[int, ...],
     ) -> GuildMemberLookupResult:
         """Resolve members only within the deterministic guild supplied by the run."""
+
+    async def search_roles(
+        self,
+        guild_id: int,
+        query: GuildRoleSearchQuery,
+    ) -> GuildRoleSearchResult:
+        """Search roles only inside the deterministic guild supplied by the run."""
+
+    async def search_members(
+        self,
+        guild_id: int,
+        query: GuildMemberSearchQuery,
+    ) -> GuildMemberSearchResult:
+        """Search members only inside the deterministic guild supplied by the run."""
+
+    async def search_channel_members(
+        self,
+        guild_id: int,
+        requester_user_id: int,
+        current_channel_id: int,
+        query: ChannelMemberSearchQuery,
+    ) -> GuildMemberSearchResult:
+        """Search a permission-checked channel audience inside the deterministic guild."""
 
 
 @dataclass(frozen=True)

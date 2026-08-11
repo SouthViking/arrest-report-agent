@@ -8,9 +8,15 @@ from agents import ToolOutputFileContent, ToolOutputImage, ToolOutputText
 from agents.tool_context import ToolContext
 
 from arrest_report_agent.application.ports import (
+    ChannelMemberSearchQuery,
     GuildMemberLookupResult,
     GuildMemberProfile,
+    GuildMemberSearchQuery,
+    GuildMemberSearchResult,
     GuildMessageProfile,
+    GuildRoleProfile,
+    GuildRoleSearchQuery,
+    GuildRoleSearchResult,
     MessageAttachmentLookupResult,
     MessageAttachmentProfile,
     MessageLookupQuery,
@@ -81,6 +87,57 @@ class FakeMemberDirectory:
     ) -> GuildMemberLookupResult:
         self.calls.append((guild_id, user_ids))
         return self.result
+
+
+class FakeDiscoveryDirectory(FakeMemberDirectory):
+    def __init__(
+        self,
+        *,
+        role_result: GuildRoleSearchResult | None = None,
+        member_result: GuildMemberSearchResult | None = None,
+    ) -> None:
+        super().__init__(
+            GuildMemberLookupResult(
+                members={},
+                not_found=frozenset(),
+                unavailable=frozenset(),
+            )
+        )
+        self.role_result = role_result or GuildRoleSearchResult(roles=())
+        self.member_result = member_result or GuildMemberSearchResult(members=())
+        self.role_calls: list[tuple[int, GuildRoleSearchQuery]] = []
+        self.member_calls: list[tuple[int, GuildMemberSearchQuery]] = []
+        self.channel_member_calls: list[
+            tuple[int, int, int, ChannelMemberSearchQuery]
+        ] = []
+
+    async def search_roles(
+        self,
+        guild_id: int,
+        query: GuildRoleSearchQuery,
+    ) -> GuildRoleSearchResult:
+        self.role_calls.append((guild_id, query))
+        return self.role_result
+
+    async def search_members(
+        self,
+        guild_id: int,
+        query: GuildMemberSearchQuery,
+    ) -> GuildMemberSearchResult:
+        self.member_calls.append((guild_id, query))
+        return self.member_result
+
+    async def search_channel_members(
+        self,
+        guild_id: int,
+        requester_user_id: int,
+        current_channel_id: int,
+        query: ChannelMemberSearchQuery,
+    ) -> GuildMemberSearchResult:
+        self.channel_member_calls.append(
+            (guild_id, requester_user_id, current_channel_id, query)
+        )
+        return self.member_result
 
 
 class FakeMessageDirectory:
@@ -182,6 +239,51 @@ def test_member_tool_exposes_bounded_projection_without_guild_argument() -> None
         "joined_at",
         "created_at",
         "is_bot",
+        "role_ids",
+    ]
+
+
+def test_member_discovery_tools_are_configurable_and_never_expose_guild_id() -> None:
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+        )
+    }
+
+    role_schema = tools["list_guild_roles"].params_json_schema
+    assert "guild_id" not in role_schema["properties"]
+    assert role_schema["properties"]["limit"]["maximum"] == 25
+    assert role_schema["$defs"]["GuildRoleSort"]["enum"] == [
+        "position",
+        "name",
+        "member_count",
+    ]
+
+    member_schema = tools["find_guild_members"].params_json_schema
+    assert "guild_id" not in member_schema["properties"]
+    assert member_schema["properties"]["limit"]["maximum"] == 25
+    filters = member_schema["$defs"]["GuildMemberFilters"]["properties"]
+    assert set(filters) == {
+        "query",
+        "user_ids",
+        "role_ids_any",
+        "role_ids_all",
+        "role_ids_none",
+        "is_bot",
+        "joined_after",
+        "joined_before",
+    }
+
+    channel_schema = tools["find_channel_members"].params_json_schema
+    assert "guild_id" not in channel_schema["properties"]
+    assert channel_schema["properties"]["message_limit"]["maximum"] == 200
+    assert channel_schema["$defs"]["ChannelMembership"]["enum"] == [
+        "can_view",
+        "recent_participants",
+        "thread_members",
+        "voice_connected",
     ]
 
 
@@ -293,6 +395,177 @@ async def test_member_tool_uses_case_guild_deduplicates_and_projects_fields() ->
             }
         ],
     }
+
+
+@pytest.mark.asyncio
+async def test_member_discovery_tools_bind_guild_and_channel_to_active_case() -> None:
+    guild_id = 98765432109876543
+    channel_id = 11111111111111111
+    requester_id = 22222222222222222
+    user_id = 33333333333333333
+    role_id = 44444444444444444
+    profile = GuildMemberProfile(
+        user_id=user_id,
+        display_name="Adriel Beltrán",
+        username="adriel",
+        roles=("Field Training Officer",),
+        joined_at=datetime(2026, 1, 2, 3, 4, tzinfo=UTC),
+        created_at=datetime(2025, 2, 3, 4, 5, tzinfo=UTC),
+        is_bot=False,
+        role_ids=(role_id,),
+    )
+    directory = FakeDiscoveryDirectory(
+        role_result=GuildRoleSearchResult(
+            roles=(
+                GuildRoleProfile(
+                    role_id=role_id,
+                    name="Field Training Officer",
+                    position=12,
+                    managed=False,
+                    member_count=4,
+                ),
+            ),
+            next_cursor="roles-next",
+        ),
+        member_result=GuildMemberSearchResult(
+            members=(profile,),
+            next_cursor="members-next",
+        ),
+    )
+    case = ReviewCase(
+        guild_id=guild_id,
+        parent_channel_id=channel_id,
+        channel_id=channel_id,
+        root_message_id=3,
+        trigger_message_id=3,
+        requester_user_id=requester_id,
+        interaction_mode=InteractionMode.INITIAL_REVIEW,
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=FakePublisher(),
+        attempt=1,
+        member_directory=directory,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+
+    role_arguments = json.dumps(
+        {
+            "query": "training",
+            "role_ids": None,
+            "include_managed": False,
+            "fields": ["name", "member_count"],
+            "sort_by": "member_count",
+            "sort_direction": "desc",
+            "limit": 5,
+            "cursor": None,
+        }
+    )
+    role_output = await tools["list_guild_roles"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="list_guild_roles",
+            tool_call_id="call-roles",
+            tool_arguments=role_arguments,
+        ),
+        role_arguments,
+    )
+
+    assert directory.role_calls[0][0] == guild_id
+    assert directory.role_calls[0][1].query == "training"
+    assert role_output == {
+        "ok": True,
+        "fields": ["name", "member_count"],
+        "roles": [
+            {
+                "role_id": str(role_id),
+                "name": "Field Training Officer",
+                "member_count": 4,
+            }
+        ],
+        "next_cursor": "roles-next",
+    }
+
+    filters = {
+        "query": "adriel",
+        "user_ids": None,
+        "role_ids_any": [str(role_id)],
+        "role_ids_all": None,
+        "role_ids_none": None,
+        "is_bot": False,
+        "joined_after": None,
+        "joined_before": None,
+    }
+    member_arguments = json.dumps(
+        {
+            "filters": filters,
+            "fields": ["display_name", "roles", "role_ids"],
+            "sort_by": "display_name",
+            "sort_direction": "asc",
+            "limit": 10,
+            "cursor": None,
+        }
+    )
+    member_output = await tools["find_guild_members"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="find_guild_members",
+            tool_call_id="call-guild-members",
+            tool_arguments=member_arguments,
+        ),
+        member_arguments,
+    )
+
+    assert directory.member_calls[0][0] == guild_id
+    assert directory.member_calls[0][1].role_ids_any == (role_id,)
+    assert member_output == {
+        "ok": True,
+        "fields": ["display_name", "roles", "role_ids"],
+        "members": [
+            {
+                "user_id": str(user_id),
+                "display_name": "Adriel Beltrán",
+                "roles": ["Field Training Officer"],
+                "role_ids": [str(role_id)],
+            }
+        ],
+        "next_cursor": "members-next",
+    }
+
+    channel_arguments = json.dumps(
+        {
+            "channel_id": None,
+            "membership": "recent_participants",
+            "message_limit": 50,
+            "filters": filters,
+            "fields": ["display_name", "roles"],
+            "sort_by": "display_name",
+            "sort_direction": "asc",
+            "limit": 10,
+            "cursor": None,
+        }
+    )
+    channel_output = await tools["find_channel_members"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="find_channel_members",
+            tool_call_id="call-channel-members",
+            tool_arguments=channel_arguments,
+        ),
+        channel_arguments,
+    )
+
+    call = directory.channel_member_calls[0]
+    assert call[:3] == (guild_id, requester_id, channel_id)
+    assert call[3].channel_id == channel_id
+    assert call[3].membership == "recent_participants"
+    assert channel_output["channel_id"] == str(channel_id)
+    assert channel_output["membership"] == "recent_participants"
 
 
 def test_message_tool_exposes_selection_filters_without_guild_argument() -> None:

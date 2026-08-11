@@ -107,6 +107,12 @@ raíz, canal o hilo activo. Las consultas de mensajes o adjuntos quedan fijadas 
 de lectura del solicitante. El agente solo puede escoger `reply` o `thread` para una mención nueva;
 una revisión estructurada se publica en hilo y la primera respuesta fija la ruta de toda esa ejecución.
 
+El directorio agéntico de Discord tampoco acepta `guild_id`: puede descubrir roles, buscar miembros
+con filtros combinables y consultar audiencia o participantes de un canal, pero siempre dentro de la
+guild del mensaje. Los canales elegidos deben pertenecer a ella y ser visibles para el solicitante.
+Cada llamada proyecta solo los campos solicitados, devuelve como máximo 25 resultados y pagina con
+un cursor opaco para evitar volcar directorios completos al modelo.
+
 El modelo y el nivel de razonamiento son la única selección de modelo requerida en el entorno. El
 detalle de imagen, verbosity, límite de salida, service tier, capacidades admitidas y precios se
 resuelven al iniciar desde el catálogo JSON interno. Una combinación desconocida detiene el arranque

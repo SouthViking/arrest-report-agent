@@ -12,10 +12,12 @@ Si la solicitud está dentro de alcance o es ambigua, el agente principal recibe
 reporte/hilo, las imágenes y documentos seleccionados, los nombres visibles de sus participantes y
 hasta ocho nombres de roles relevantes por persona. También recibe un registro acotado con los IDs
 de hasta diez participantes visibles para poder consultar su metadata mediante `get_guild_members`.
-No envía IDs de roles. La tool queda fijada a la guild de la conversación, admite como máximo diez
-IDs y devuelve solo la proyección solicitada; no permite enumerar miembros ni seleccionar otra
-guild. Los datos se usan para responder dentro del ámbito o emitir el veredicto solicitado mediante
-mención explícita.
+No envía IDs de roles en el input inicial. Las tools `list_guild_roles`, `find_guild_members` y
+`find_channel_members` pueden descubrirlos bajo demanda, pero quedan fijadas a la guild de la
+conversación, aplican filtros y proyección antes de responder y retornan un máximo de 25 elementos por
+página. Los canales elegidos deben pertenecer a esa guild y ser visibles para el solicitante.
+`get_guild_members` amplía hasta diez IDs concretos. Los datos se usan para responder dentro del
+ámbito o emitir el veredicto solicitado mediante mención explícita.
 
 `get_messages` puede leer una ventana máxima de veinte mensajes en otro canal de la misma guild solo
 si el solicitante también posee `view_channel` y `read_message_history`. El agente puede seleccionar

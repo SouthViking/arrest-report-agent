@@ -13,7 +13,7 @@ from agents import (
     ToolOutputText,
     function_tool,
 )
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from arrest_report_agent.domain import (
     AgentActivity,
@@ -28,8 +28,13 @@ from arrest_report_agent.knowledge import (
 )
 
 from .ports import (
+    ChannelMemberSearchQuery,
     GuildMemberProfile,
+    GuildMemberSearchQuery,
+    GuildMemberSearchResult,
     GuildMessageProfile,
+    GuildRoleProfile,
+    GuildRoleSearchQuery,
     MessageAttachmentProfile,
     MessageLookupQuery,
 )
@@ -42,12 +47,27 @@ type GuildMemberField = Literal[
     "joined_at",
     "created_at",
     "is_bot",
+    "role_ids",
+]
+type GuildRoleField = Literal["name", "position", "managed", "member_count"]
+type GuildMemberSort = Literal["display_name", "joined_at", "created_at"]
+type GuildRoleSort = Literal["position", "name", "member_count"]
+type SortDirection = Literal["asc", "desc"]
+type ChannelMembership = Literal[
+    "can_view",
+    "recent_participants",
+    "thread_members",
+    "voice_connected",
 ]
 type DiscordUserId = Annotated[
     str,
     Field(pattern=r"^[1-9][0-9]{16,19}$"),
 ]
 type DiscordChannelId = Annotated[
+    str,
+    Field(pattern=r"^[1-9][0-9]{16,19}$"),
+]
+type DiscordRoleId = Annotated[
     str,
     Field(pattern=r"^[1-9][0-9]{16,19}$"),
 ]
@@ -78,6 +98,11 @@ DEFAULT_GUILD_MEMBER_FIELDS: tuple[GuildMemberField, ...] = (
     "display_name",
     "roles",
 )
+DEFAULT_GUILD_ROLE_FIELDS: tuple[GuildRoleField, ...] = (
+    "name",
+    "position",
+    "member_count",
+)
 DEFAULT_MESSAGE_FIELDS: tuple[MessageField, ...] = (
     "content",
     "author",
@@ -87,6 +112,33 @@ DEFAULT_MESSAGE_FIELDS: tuple[MessageField, ...] = (
 MESSAGE_TOOL_TEXT_BUDGET = 20_000
 MAX_ATTACHMENT_IDS_PER_CALL = 10
 type NativeAttachmentOutput = ToolOutputText | ToolOutputImage | ToolOutputFileContent
+
+
+class GuildMemberFilters(BaseModel):
+    """Composable member filters shared by guild and channel discovery tools."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    query: Annotated[str | None, Field(min_length=1, max_length=100)] = None
+    user_ids: Annotated[
+        list[DiscordUserId] | None,
+        Field(min_length=1, max_length=25),
+    ] = None
+    role_ids_any: Annotated[
+        list[DiscordRoleId] | None,
+        Field(min_length=1, max_length=25),
+    ] = None
+    role_ids_all: Annotated[
+        list[DiscordRoleId] | None,
+        Field(min_length=1, max_length=25),
+    ] = None
+    role_ids_none: Annotated[
+        list[DiscordRoleId] | None,
+        Field(min_length=1, max_length=25),
+    ] = None
+    is_bot: bool | None = None
+    joined_after: datetime | None = None
+    joined_before: datetime | None = None
 
 
 def build_agent_tools(
@@ -166,6 +218,177 @@ def build_agent_tools(
         return catalog.get_details(charge_ids)
 
     @function_tool
+    async def list_guild_roles(
+        ctx: RunContextWrapper[ReviewRunContext],
+        query: Annotated[str | None, Field(min_length=1, max_length=100)] = None,
+        role_ids: Annotated[
+            list[DiscordRoleId] | None,
+            Field(min_length=1, max_length=25),
+        ] = None,
+        include_managed: bool = False,
+        fields: Annotated[
+            list[GuildRoleField] | None,
+            Field(min_length=1, max_length=4),
+        ] = None,
+        sort_by: GuildRoleSort = "position",
+        sort_direction: SortDirection = "desc",
+        limit: Annotated[int, Field(ge=1, le=25)] = 20,
+        cursor: Annotated[str | None, Field(min_length=1, max_length=512)] = None,
+    ) -> dict[str, object]:
+        """Discover roles in the current Discord server with filters and cursor pagination.
+
+        The server is fixed by the active conversation and cannot be selected. Use returned role
+        IDs with member filters. Prefer a query or explicit IDs over paging through every role.
+
+        Args:
+            query: Optional accent-insensitive substring matched against role names.
+            role_ids: Optional exact role IDs to select.
+            include_managed: Include integration-managed roles; false omits them and @everyone.
+            fields: Optional projection; defaults to name, position and member_count.
+            sort_by: Sort roles by hierarchy position, name or member count.
+            sort_direction: Ascending or descending order.
+            limit: Maximum roles returned, from one to twenty-five.
+            cursor: Opaque next_cursor from a previous call using identical filters and sorting.
+        """
+
+        await _mark_knowledge_activity(ctx.context)
+        directory = ctx.context.member_directory
+        if directory is None:
+            return _directory_error("member_directory_unavailable", "roles")
+        selected_fields = tuple(dict.fromkeys(fields or DEFAULT_GUILD_ROLE_FIELDS))
+        lookup = await directory.search_roles(
+            ctx.context.case.guild_id,
+            GuildRoleSearchQuery(
+                query=query,
+                role_ids=_snowflake_tuple(role_ids),
+                include_managed=include_managed,
+                sort_by=sort_by,
+                sort_direction=sort_direction,
+                limit=limit,
+                cursor=cursor,
+                include_member_count=(
+                    "member_count" in selected_fields or sort_by == "member_count"
+                ),
+            ),
+        )
+        if lookup.error is not None:
+            return _directory_error(lookup.error, "roles")
+        return {
+            "ok": True,
+            "fields": list(selected_fields),
+            "roles": [_project_role(role, selected_fields) for role in lookup.roles],
+            "next_cursor": lookup.next_cursor,
+        }
+
+    @function_tool
+    async def find_guild_members(
+        ctx: RunContextWrapper[ReviewRunContext],
+        filters: GuildMemberFilters | None = None,
+        fields: Annotated[
+            list[GuildMemberField] | None,
+            Field(min_length=1, max_length=7),
+        ] = None,
+        sort_by: GuildMemberSort = "display_name",
+        sort_direction: SortDirection = "asc",
+        limit: Annotated[int, Field(ge=1, le=25)] = 20,
+        cursor: Annotated[str | None, Field(min_length=1, max_length=512)] = None,
+    ) -> dict[str, object]:
+        """Find members of the current Discord server with composable filters and pagination.
+
+        The server is always derived from the active conversation. Filters may be combined to
+        match names, exact users, role membership, bots and join dates. Prefer narrow searches and
+        request only useful fields; returned user IDs can be passed to get_guild_members.
+
+        Args:
+            filters: Optional name, user, role, bot and join-date filters. Role filters support any,
+                all and none semantics and use IDs returned by list_guild_roles.
+            fields: Optional projection; defaults to display_name and roles.
+            sort_by: Sort by display name, server join date or account creation date.
+            sort_direction: Ascending or descending order.
+            limit: Maximum members returned, from one to twenty-five.
+            cursor: Opaque next_cursor from a previous call using identical filters and sorting.
+        """
+
+        await _mark_knowledge_activity(ctx.context)
+        directory = ctx.context.member_directory
+        if directory is None:
+            return _directory_error("member_directory_unavailable", "members")
+        selected_fields = tuple(dict.fromkeys(fields or DEFAULT_GUILD_MEMBER_FIELDS))
+        lookup = await directory.search_members(
+            ctx.context.case.guild_id,
+            _member_search_query(filters, sort_by, sort_direction, limit, cursor),
+        )
+        return _member_search_output(lookup, selected_fields)
+
+    @function_tool
+    async def find_channel_members(
+        ctx: RunContextWrapper[ReviewRunContext],
+        channel_id: DiscordChannelId | None = None,
+        membership: ChannelMembership = "recent_participants",
+        message_limit: Annotated[int, Field(ge=1, le=200)] = 100,
+        filters: GuildMemberFilters | None = None,
+        fields: Annotated[
+            list[GuildMemberField] | None,
+            Field(min_length=1, max_length=7),
+        ] = None,
+        sort_by: GuildMemberSort = "display_name",
+        sort_direction: SortDirection = "asc",
+        limit: Annotated[int, Field(ge=1, le=25)] = 20,
+        cursor: Annotated[str | None, Field(min_length=1, max_length=512)] = None,
+    ) -> dict[str, object]:
+        """Find members related to one readable channel in the current Discord server.
+
+        The channel defaults to the active conversation and must belong to its server. Membership
+        can mean members who can view it, recent message authors, joined thread members or current
+        voice participants. The requester must be able to view the selected channel.
+
+        Args:
+            channel_id: Optional channel or thread ID in the current server.
+            membership: Relationship to inspect: can_view, recent_participants, thread_members or
+                voice_connected. Unsupported combinations return an explicit error.
+            message_limit: Messages inspected only for recent_participants, from one to two hundred.
+            filters: Optional member filters applied after resolving the channel relationship.
+            fields: Optional projection; defaults to display_name and roles.
+            sort_by: Sort by display name, server join date or account creation date.
+            sort_direction: Ascending or descending order.
+            limit: Maximum members returned, from one to twenty-five.
+            cursor: Opaque next_cursor from a previous call using identical filters and sorting.
+        """
+
+        await _mark_knowledge_activity(ctx.context)
+        run_context = ctx.context
+        directory = run_context.member_directory
+        if directory is None:
+            return _directory_error("member_directory_unavailable", "members")
+        selected_fields = tuple(dict.fromkeys(fields or DEFAULT_GUILD_MEMBER_FIELDS))
+        selected_channel_id = (
+            int(channel_id) if channel_id is not None else run_context.case.channel_id
+        )
+        lookup = await directory.search_channel_members(
+            guild_id=run_context.case.guild_id,
+            requester_user_id=run_context.case.requester_user_id,
+            current_channel_id=run_context.case.channel_id,
+            query=ChannelMemberSearchQuery(
+                channel_id=selected_channel_id,
+                membership=membership,
+                message_limit=message_limit,
+                members=_member_search_query(
+                    filters,
+                    sort_by,
+                    sort_direction,
+                    limit,
+                    cursor,
+                ),
+            ),
+        )
+        return _member_search_output(
+            lookup,
+            selected_fields,
+            channel_id=selected_channel_id,
+            membership=membership,
+        )
+
+    @function_tool
     async def get_guild_members(
         ctx: RunContextWrapper[ReviewRunContext],
         user_ids: Annotated[
@@ -174,7 +397,7 @@ def build_agent_tools(
         ],
         fields: Annotated[
             list[GuildMemberField] | None,
-            Field(min_length=1, max_length=6),
+            Field(min_length=1, max_length=7),
         ] = None,
     ) -> dict[str, object]:
         """Get projected public metadata for one to ten users in the current Discord server.
@@ -518,9 +741,8 @@ def build_agent_tools(
             content: Progress or partial information using Discord Markdown when useful: headings,
                 lists, quotes, emphasis, code, links and moderate emojis. You may mention a Discord
                 user with `<@USER_ID>` when useful; use an ID available in the conversation context
-                or obtained with `get_guild_members`. Do not imitate embeds or include mass
-                mentions. This tool does not finish the interaction and may be called more than
-                once.
+                or obtained with a member directory tool. Do not imitate embeds or include mass
+                mentions. This tool does not finish the interaction and may be called more than once.
             response_route: Use reply for a brief, visible exchange or thread for a longer exchange.
                 Existing replies and threads remain in their current route. The first message fixes
                 the route for the rest of this interaction.
@@ -558,8 +780,8 @@ def build_agent_tools(
             content: Complete final Discord message. It may be an answer, a clarification request or
                 a handoff back to the user. Discord Markdown, links and moderate emojis are allowed;
                 you may mention a Discord user with `<@USER_ID>` when useful, using an ID available
-                in the conversation context or obtained with `get_guild_members`. Do not imitate
-                embeds or include mass mentions.
+                in the conversation context or obtained with a member directory tool. Do not
+                imitate embeds or include mass mentions.
             response_route: Use reply for a brief, visible answer or thread when the topic warrants
                 a longer exchange. Existing replies and threads remain in their current route. The
                 first message fixes the route for the rest of this interaction.
@@ -590,6 +812,9 @@ def build_agent_tools(
         get_report_guide,
         list_charge_index,
         get_charge_details,
+        list_guild_roles,
+        find_guild_members,
+        find_channel_members,
         get_guild_members,
         get_messages,
         get_message_attachments,
@@ -694,12 +919,100 @@ async def _send_conversation_message(
     return effective_route
 
 
+def _snowflake_tuple(values: list[str] | None) -> tuple[int, ...]:
+    return tuple(dict.fromkeys(int(value) for value in (values or [])))
+
+
+def _member_search_query(
+    filters: GuildMemberFilters | None,
+    sort_by: GuildMemberSort,
+    sort_direction: SortDirection,
+    limit: int,
+    cursor: str | None,
+) -> GuildMemberSearchQuery:
+    selected = filters or GuildMemberFilters()
+    return GuildMemberSearchQuery(
+        query=selected.query,
+        user_ids=_snowflake_tuple(selected.user_ids),
+        role_ids_any=_snowflake_tuple(selected.role_ids_any),
+        role_ids_all=_snowflake_tuple(selected.role_ids_all),
+        role_ids_none=_snowflake_tuple(selected.role_ids_none),
+        is_bot=selected.is_bot,
+        joined_after=_as_utc(selected.joined_after),
+        joined_before=_as_utc(selected.joined_before),
+        sort_by=sort_by,
+        sort_direction=sort_direction,
+        limit=limit,
+        cursor=cursor,
+    )
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _member_search_output(
+    lookup: GuildMemberSearchResult,
+    fields: tuple[GuildMemberField, ...],
+    *,
+    channel_id: int | None = None,
+    membership: ChannelMembership | None = None,
+) -> dict[str, object]:
+    if lookup.error is not None:
+        result = _directory_error(lookup.error, "members")
+    else:
+        result = {
+            "ok": True,
+            "fields": list(fields),
+            "members": [_project_member(profile, fields) for profile in lookup.members],
+            "next_cursor": lookup.next_cursor,
+        }
+    if channel_id is not None:
+        result["channel_id"] = str(channel_id)
+    if membership is not None:
+        result["membership"] = membership
+    return result
+
+
+def _directory_error(error: str, collection: str) -> dict[str, object]:
+    return {
+        "ok": False,
+        "error": error,
+        collection: [],
+        "next_cursor": None,
+    }
+
+
+def _project_member(
+    profile: GuildMemberProfile,
+    fields: tuple[GuildMemberField, ...],
+) -> dict[str, object]:
+    projected: dict[str, object] = {"user_id": str(profile.user_id)}
+    for field in fields:
+        projected[field] = _member_field_value(profile, field)
+    return projected
+
+
+def _project_role(
+    profile: GuildRoleProfile,
+    fields: tuple[GuildRoleField, ...],
+) -> dict[str, object]:
+    projected: dict[str, object] = {"role_id": str(profile.role_id)}
+    for field in fields:
+        projected[field] = getattr(profile, field)
+    return projected
+
+
 def _member_field_value(profile: GuildMemberProfile, field: GuildMemberField) -> object:
     value = getattr(profile, field)
     if isinstance(value, datetime):
         return _utc_isoformat(value)
     if isinstance(value, tuple):
-        return list(value)
+        return [str(item) for item in value] if field == "role_ids" else list(value)
     return value
 
 

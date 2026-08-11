@@ -2,13 +2,17 @@
 
 ## Intents
 
-En Discord Developer Portal, habilita **Message Content Intent**. El bot solicita únicamente:
+En Discord Developer Portal, habilita **Message Content Intent** y **Server Members Intent**. El bot
+solicita únicamente:
 
 - Guilds
 - Guild Messages
 - Message Content
+- Guild Members
 
-No requiere Server Members Intent ni Presence Intent.
+`Server Members Intent` permite completar el directorio de la guild para las tools de búsqueda de
+miembros, roles y audiencia de canales. Sin ese intent, Discord rechazará la conexión con código
+`4014`. No requiere Presence Intent.
 
 ## Scopes de instalación
 
