@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 14
+PERSONA_SCHEMA_VERSION = 15
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -670,7 +670,7 @@ class PersonaReviewMessages(FrozenPersonaModel):
 
 
 class PersonaCommandMessages(FrozenPersonaModel):
-    """Runtime descriptions shown by Discord for root slash commands."""
+    """Runtime descriptions and compact copy for root slash commands."""
 
     help_description: str = Field(min_length=1, max_length=100)
     guide_description: str = Field(min_length=1, max_length=100)
@@ -684,6 +684,17 @@ class PersonaCommandMessages(FrozenPersonaModel):
     personal_summary_description: str = Field(min_length=1, max_length=100)
     request_roles_description: str = Field(min_length=1, max_length=100)
     info_roles_description: str = Field(min_length=1, max_length=100)
+    teamspeak_description: str = Field(min_length=1, max_length=100)
+    teamspeak_message: str = Field(min_length=1, max_length=300)
+
+    @model_validator(mode="after")
+    def validate_templates(self) -> PersonaCommandMessages:
+        _require_template_fields(
+            self.teamspeak_message,
+            {"address"},
+            "interface.commands.teamspeak_message",
+        )
+        return self
 
 
 class PersonaInterfaceMessages(FrozenPersonaModel):

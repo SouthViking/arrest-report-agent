@@ -1,7 +1,7 @@
 {
-  "schema_version": 14,
+  "schema_version": 15,
   "id": "walter_vigil",
-  "revision": 16,
+  "revision": 17,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -139,7 +139,7 @@
       "personal_commands_title": "🗂️ Consultas privadas",
       "personal_commands": "• `/mis-reportes`: filtra sus publicaciones y abre rápidamente cada expediente.\n• `/mi-resumen`: consulta sus cifras del mes actual.",
       "general_commands_title": "📚 Consultas generales",
-      "general_commands": "• `/guia`: consulta las reglas de redacción y revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo local.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: elige un periodo y publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas de roles.\n• `/info-roles`: explica el procedimiento y sus límites.",
+      "general_commands": "• `/guia`: consulta las reglas de redacción y revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo local.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: elige un periodo y publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/ts3`: publica la dirección oficial del servidor de voz.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas de roles.\n• `/info-roles`: explica el procedimiento y sus límites.",
       "supervision_commands_title": "🛡️ Supervisión",
       "supervision_commands": "• `/pendientes`: localiza expedientes sin estado terminal.\n• `/ranking`: compara actividad y resultados por miembro.\nRequieren un rol de supervisión autorizado.",
       "official_docs_title": "📚 Documentación oficial",
@@ -343,7 +343,9 @@
         "personal_reports_description": "Busca sus reportes y abre sus publicaciones",
         "personal_summary_description": "Muestra su resumen privado del mes actual",
         "request_roles_description": "Solicita altas o bajas de roles para supervisión",
-        "info_roles_description": "Explica cómo funciona la solicitud de roles"
+        "info_roles_description": "Explica cómo funciona la solicitud de roles",
+        "teamspeak_description": "Muestra la dirección oficial de TeamSpeak 3",
+        "teamspeak_message": "La frecuencia de voz está disponible aquí, deputy:\n\n`{address}`"
       }
     }
   }

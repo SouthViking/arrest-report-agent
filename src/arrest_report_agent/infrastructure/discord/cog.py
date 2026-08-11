@@ -56,6 +56,7 @@ from .trigger import DiscordAccessPolicy, TriggerDecision
 LOGGER = logging.getLogger(__name__)
 
 DETERMINISTIC_REPLY_COOLDOWN_SECONDS = 30.0
+TEAMSPEAK_SERVER_ADDRESS = "51.81.49.72:11189"
 
 
 @asynccontextmanager
@@ -161,6 +162,17 @@ def build_help_embed(
     return embed
 
 
+def build_teamspeak_embed(*, persona: BotPersona) -> discord.Embed:
+    """Build the public, persona-aware TeamSpeak connection notice."""
+
+    copy = persona.messages.interface.commands
+    return discord.Embed(
+        title="🎙️ TeamSpeak 3",
+        description=copy.teamspeak_message.format(address=TEAMSPEAK_SERVER_ADDRESS),
+        color=discord.Color.blurple(),
+    )
+
+
 def build_unauthorized_user_message(
     *,
     messages: PersonaAccessMessages,
@@ -202,6 +214,7 @@ class ReviewCog(commands.Cog):
         self.approved_report_honor.description = command_copy.honor_description
         self.personal_reports.description = command_copy.personal_reports_description
         self.personal_summary.description = command_copy.personal_summary_description
+        self.teamspeak_server.description = command_copy.teamspeak_description
         self.profile_synchronizer = profile_synchronizer
         self.access_policy = DiscordAccessPolicy.from_settings(settings)
         self.supervisor_policy = SupervisorRolePolicy.from_settings(settings)
@@ -550,6 +563,25 @@ class ReviewCog(commands.Cog):
             "info",
             "report_guide_opened",
             guild_id=ctx.guild.id if ctx.guild else "direct_message",
+            user_id=ctx.author.id,
+        )
+
+    @discord.slash_command(
+        name="ts3",
+        description="Muestra la dirección oficial de TeamSpeak 3",
+    )
+    async def teamspeak_server(self, ctx: discord.ApplicationContext) -> None:
+        await ctx.respond(
+            embed=build_teamspeak_embed(persona=self.persona),
+            ephemeral=False,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        log_event(
+            LOGGER,
+            "info",
+            "teamspeak_address_shared",
+            guild_id=ctx.guild.id if ctx.guild else "direct_message",
+            channel_id=ctx.channel.id if ctx.channel else "unknown",
             user_id=ctx.author.id,
         )
 

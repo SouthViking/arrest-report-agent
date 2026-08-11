@@ -1,7 +1,7 @@
 # Comandos de Discord
 
 Los comandos se registran directamente en la raíz, sin depender del nombre o personalidad del bot.
-Salvo `/ayuda`, `/info-roles`, los resultados de `/verguenza` y `/honor`, y el expediente publicado
+Salvo `/ayuda`, `/ts3`, `/info-roles`, los resultados de `/verguenza` y `/honor`, y el expediente publicado
 por `/solicitar-roles`, sus respuestas son efímeras: solo las ve quien ejecutó el comando. Los selectores
 de consultas quedan ligados a ese usuario, expiran a los 180 segundos y editan el mensaje existente
 en vez de publicar respuestas adicionales. Los tres botones de una solicitud de roles son la
@@ -19,6 +19,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
 | `/verguenza` | Todos | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/honor` | Todos | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
+| `/ts3` | Todos | Pública | Dirección fija y texto de la persona activa |
 | `/pendientes` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/ranking` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/mis-reportes` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
@@ -68,6 +69,12 @@ Secciones disponibles:
 
 La interfaz no mantiene una copia independiente de las reglas: renderiza las secciones versionadas
 de `report_guide.json` cargadas por el runtime.
+
+## `/ts3`
+
+Publica un embed breve y visible para todo el canal con la dirección `51.81.49.72:11189` del
+servidor TeamSpeak 3. La dirección es determinista y el texto introductorio proviene de la persona
+activa.
 
 ## `/cargos`
 

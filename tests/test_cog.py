@@ -11,6 +11,7 @@ from arrest_report_agent.infrastructure.discord.cog import (
     PROCEDURES_MANUAL_URL,
     ReviewCog,
     build_help_embed,
+    build_teamspeak_embed,
     build_unauthorized_user_message,
     maintain_typing_indicator,
 )
@@ -116,6 +117,7 @@ def test_operational_commands_are_registered_at_the_root() -> None:
         ReviewCog.supervisor_ranking,
         ReviewCog.open_report_shame,
         ReviewCog.approved_report_honor,
+        ReviewCog.teamspeak_server,
         ReviewCog.personal_reports,
         ReviewCog.personal_summary,
     ]
@@ -129,6 +131,7 @@ def test_operational_commands_are_registered_at_the_root() -> None:
         "ranking",
         "verguenza",
         "honor",
+        "ts3",
         "mis-reportes",
         "mi-resumen",
     ]
@@ -166,6 +169,7 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention(persona) -> N
     assert "/faq" in embed.fields[5].value
     assert "/verguenza" in embed.fields[5].value
     assert "/honor" in embed.fields[5].value
+    assert "/ts3" in embed.fields[5].value
     assert "/solicitar-roles" in embed.fields[5].value
     assert "/info-roles" in embed.fields[5].value
     assert "/pendientes" in embed.fields[6].value
@@ -207,8 +211,38 @@ async def test_help_and_command_descriptions_use_selected_persona(settings, pers
     assert cog.approved_report_honor.description == (
         roy.messages.interface.commands.honor_description
     )
+    assert cog.teamspeak_server.description == (
+        roy.messages.interface.commands.teamspeak_description
+    )
 
     ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_teamspeak_command_is_public_and_uses_persona(settings, persona) -> None:
+    responses: list[dict[str, object]] = []
+
+    async def respond(**kwargs) -> None:
+        responses.append(kwargs)
+
+    ctx = SimpleNamespace(
+        respond=respond,
+        guild=SimpleNamespace(id=111),
+        channel=SimpleNamespace(id=222),
+        author=SimpleNamespace(id=333),
+    )
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+
+    await cog.teamspeak_server.callback(cog, ctx)
+
+    assert len(responses) == 1
+    assert responses[0]["ephemeral"] is False
+    embed = responses[0]["embed"]
+    assert isinstance(embed, discord.Embed)
+    assert embed.title == "🎙️ TeamSpeak 3"
+    assert "51.81.49.72:11189" in (embed.description or "")
+    assert embed.description == build_teamspeak_embed(persona=persona).description
 
 
 @pytest.mark.asyncio

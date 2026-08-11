@@ -219,6 +219,7 @@ Comandos disponibles:
   (`⏳`), correcciones (`❌`) e inconclusos (`⚠️`).
 - `/honor`: abre el mismo selector de periodo y publica por estación un top 10 de miembros con al
   menos un reporte aprobado, ordenado por cantidad de ✅, porcentaje de aprobación y volumen.
+- `/ts3`: publica para todo el canal la dirección `51.81.49.72:11189` del servidor TeamSpeak 3.
 - `/pendientes`: consulta de supervisión para expedientes sin estado terminal o en revisión.
 - `/ranking`: ranking de supervisión por volumen, aprobaciones, correcciones o tasa de aprobación.
 - `/mis-reportes`: abre un modal privado para filtrar por periodo, estado y estación; entrega
