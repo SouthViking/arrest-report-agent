@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from uuid import uuid4
 
 import pytest
 from alembic import command
@@ -18,7 +19,10 @@ from arrest_report_agent.config import (
     AccessPolicyMode,
     AccessPolicySnapshot,
     AppSettings,
+    GuildAgentConfig,
+    GuildConfigSnapshot,
     GuildFeatureSnapshot,
+    GuildRuntimeSettings,
     ModelCatalog,
     PackagedPersonaProvider,
 )
@@ -38,6 +42,70 @@ def test_postgres_urls_are_normalized_for_both_drivers() -> None:
 
     assert config.async_url == "postgresql+asyncpg://user:secret@host:5432/database"
     assert config.asyncpg_url == "postgresql://user:secret@host:5432/database"
+
+
+def test_guild_file_limits_cannot_exceed_process_ceiling() -> None:
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        MAX_IMAGES_PER_REVIEW=2,
+        MAX_IMAGE_BYTES=1_000,
+        MAX_FILES_PER_REVIEW=3,
+        MAX_FILE_BYTES=2_000,
+        MAX_TOTAL_FILE_BYTES=5_000,
+    )
+    agent = GuildAgentConfig(
+        model=settings.openai_model,
+        reasoning_effort=settings.openai_reasoning_effort,
+        review_timeout_seconds=settings.review_timeout_seconds,
+        max_agent_turns=settings.max_agent_turns,
+        max_images_per_review=20,
+        max_image_bytes=10_000,
+        max_files_per_review=8,
+        max_file_bytes=20_000,
+        max_total_file_bytes=50_000,
+        thread_context_max_messages=settings.thread_context_max_messages,
+        channel_context_max_messages=settings.channel_context_max_messages,
+        thread_context_max_chars=settings.thread_context_max_chars,
+        thread_context_max_message_chars=settings.thread_context_max_message_chars,
+        thread_context_max_historical_images=settings.thread_context_max_historical_images,
+        thread_context_max_historical_files=settings.thread_context_max_historical_files,
+        thread_auto_archive_minutes=settings.thread_auto_archive_minutes,  # type: ignore[arg-type]
+    )
+    policies = {
+        key: AccessPolicySnapshot(
+            key=key,
+            subject_type=(
+                "channel"
+                if key in {AccessPolicyKey.REPORT_CHANNELS, AccessPolicyKey.ROLE_REQUEST_CHANNELS}
+                else "user"
+                if key is AccessPolicyKey.AGENT_USERS
+                else "role"
+            ),
+            mode=AccessPolicyMode.DISABLED,
+        )
+        for key in AccessPolicyKey
+    }
+    snapshot = GuildConfigSnapshot(
+        guild_id=1,
+        revision_id=uuid4(),
+        revision=1,
+        agent=agent,
+        policies=policies,
+        features={},
+        persona_revision_id=uuid4(),
+        persona_id="walter_vigil",
+        persona_revision=1,
+    )
+
+    runtime = GuildRuntimeSettings(settings, snapshot)
+
+    assert runtime.max_images_per_review == 2
+    assert runtime.max_image_bytes == 1_000
+    assert runtime.max_files_per_review == 3
+    assert runtime.max_file_bytes == 2_000
+    assert runtime.max_total_file_bytes == 5_000
 
 
 @pytest.mark.asyncio

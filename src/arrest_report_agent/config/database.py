@@ -180,6 +180,26 @@ class GuildRuntimeSettings:
         return self.snapshot.agent.reasoning_effort
 
     @property
+    def max_images_per_review(self) -> int:
+        return min(self.snapshot.agent.max_images_per_review, self.process.max_images_per_review)
+
+    @property
+    def max_image_bytes(self) -> int:
+        return min(self.snapshot.agent.max_image_bytes, self.process.max_image_bytes)
+
+    @property
+    def max_files_per_review(self) -> int:
+        return min(self.snapshot.agent.max_files_per_review, self.process.max_files_per_review)
+
+    @property
+    def max_file_bytes(self) -> int:
+        return min(self.snapshot.agent.max_file_bytes, self.process.max_file_bytes)
+
+    @property
+    def max_total_file_bytes(self) -> int:
+        return min(self.snapshot.agent.max_total_file_bytes, self.process.max_total_file_bytes)
+
+    @property
     def teamspeak_address(self) -> str:
         feature = self.snapshot.features.get("teamspeak")
         return str((feature.payload if feature else {}).get("address", "51.81.49.72:11189"))

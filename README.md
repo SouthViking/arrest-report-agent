@@ -309,11 +309,11 @@ el contenido exacto del FAQ.
 | `OPENAI_MAX_RETRIES` | `2` | Reintentos del proveedor. |
 | `REVIEW_TIMEOUT_SECONDS` | `180` | Tiempo total máximo de una revisión. |
 | `MAX_CONCURRENT_REVIEWS` | `2` | Límite global en memoria. |
-| `MAX_IMAGES_PER_REVIEW` | `10` | Máximo multimodal por ejecución. |
-| `MAX_IMAGE_BYTES` | `10485760` | Tamaño máximo de cada imagen enviada al runner. |
-| `MAX_FILES_PER_REVIEW` | `5` | Máximo de documentos compatibles por ejecución. |
-| `MAX_FILE_BYTES` | `10485760` | Tamaño máximo de cada archivo enviado al runner. |
-| `MAX_TOTAL_FILE_BYTES` | `52428800` | Máximo combinado para archivos en una ejecución. |
+| `MAX_IMAGES_PER_REVIEW` | `10` | Techo global de imágenes por ejecución; la configuración de una guild solo puede reducirlo. |
+| `MAX_IMAGE_BYTES` | `10485760` | Techo global para cada imagen enviada al runner. |
+| `MAX_FILES_PER_REVIEW` | `5` | Techo global de documentos compatibles por ejecución. |
+| `MAX_FILE_BYTES` | `10485760` | Techo global para cada archivo enviado al runner. |
+| `MAX_TOTAL_FILE_BYTES` | `52428800` | Techo global combinado de archivos por ejecución. |
 | `CHANNEL_CONTEXT_MAX_MESSAGES` | `5` | Mensajes de texto anteriores del canal usados como contexto ambiental; `0` lo desactiva. |
 | `THREAD_CONTEXT_MAX_MESSAGES` | `20` | Historial reciente reconstruido. |
 | `THREAD_CONTEXT_MAX_HISTORICAL_IMAGES` | `2` | Imágenes previas incluidas inicialmente; las omitidas pueden recuperarse bajo demanda. |
