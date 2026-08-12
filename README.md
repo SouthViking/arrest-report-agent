@@ -245,6 +245,10 @@ Acepta `Deployment.deployed`, `Deployment.failed`, `Deployment.crashed` y
 JSON y exige que los tres IDs coincidan y que el entorno no sea efímero. CORS se habilita únicamente
 para el botón de prueba del dashboard de Railway; no sustituye al secreto.
 
+El manifest también declara la URL confiable del repositorio. Los embeds convierten el SHA corto en
+un enlace al commit únicamente cuando Railway identifica GitHub como origen y el SHA completo tiene
+un formato hexadecimal válido; nunca se acepta una URL proporcionada por el webhook.
+
 Los eventos válidos y las entregas quedan en PostgreSQL. En un despliegue exitoso, la nueva instancia
 solo anuncia el changelog cuando `RAILWAY_GIT_COMMIT_SHA` coincide con el commit del evento. Cada
 canal y versión tiene una clave idempotente, y los errores transitorios de Discord se reintentan con

@@ -286,7 +286,15 @@ def build_deployment_embed(
     if event.branch:
         deployment_lines.append(f"**Rama:** `{event.branch}`")
     if event.commit_hash:
-        deployment_lines.append(f"**Commit:** `{event.commit_hash[:8]}`")
+        short_commit = event.commit_hash[:8]
+        if (
+            (event.source or "").casefold() == "github"
+            and re.fullmatch(r"[0-9a-fA-F]{7,64}", event.commit_hash)
+        ):
+            commit_url = f"{manifest.repository_url}/commit/{event.commit_hash}"
+            deployment_lines.append(f"**Commit:** [{short_commit}]({commit_url})")
+        else:
+            deployment_lines.append(f"**Commit:** `{short_commit}`")
     deployment_lines.append(f"**Hora:** {discord.utils.format_dt(event.timestamp, style='R')}")
     embed.add_field(name="Despliegue", value="\n".join(deployment_lines), inline=False)
     return embed

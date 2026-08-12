@@ -472,7 +472,7 @@ async def _exercise_database(database_url: str) -> None:
                     guild_id=123,
                     channel_id=456,
                     kind="release",
-                    notification_key="release:123:456:0.2.0",
+                    notification_key="release:123:456:0.2.1",
                 ),
             ),
         ) == 1

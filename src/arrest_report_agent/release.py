@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from enum import StrEnum
 from importlib.resources import files
 
@@ -38,6 +39,7 @@ class ReleaseManifest(FrozenReleaseModel):
     )
     title: str = Field(min_length=1, max_length=100)
     summary: str = Field(min_length=1, max_length=500)
+    repository_url: str = Field(min_length=1, max_length=255)
     changes: tuple[ReleaseChange, ...] = Field(min_length=1, max_length=10)
 
     @field_validator("version")
@@ -48,6 +50,16 @@ class ReleaseManifest(FrozenReleaseModel):
             raise ValueError("version must use semantic versioning (MAJOR.MINOR.PATCH)")
         if any(len(part) > 1 and part.startswith("0") for part in parts):
             raise ValueError("semantic version components cannot have leading zeroes")
+        return value
+
+    @field_validator("repository_url")
+    @classmethod
+    def validate_repository_url(cls, value: str) -> str:
+        if re.fullmatch(
+            r"https://github\.com/[A-Za-z0-9.-]+/[A-Za-z0-9_.-]+",
+            value,
+        ) is None:
+            raise ValueError("repository_url must identify a GitHub repository")
         return value
 
     @model_validator(mode="after")

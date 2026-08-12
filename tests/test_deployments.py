@@ -61,8 +61,17 @@ def test_railway_payload_normalizes_supported_events_and_identity() -> None:
 def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     manifest = ReleaseManifest.load_packaged()
 
-    assert manifest.version == "0.2.0"
+    assert manifest.version == "0.2.1"
+    assert manifest.repository_url == "https://github.com/SouthViking/arrest-report-agent"
     assert manifest.changes
+
+
+def test_release_manifest_rejects_non_github_repository() -> None:
+    payload = ReleaseManifest.load_packaged().model_dump(mode="json")
+    payload["repository_url"] = "https://example.com/SouthViking/arrest-report-agent"
+
+    with pytest.raises(ValueError, match="GitHub repository"):
+        ReleaseManifest.model_validate(payload)
 
 
 def test_deployment_embeds_keep_operational_data_and_persona_framing(persona) -> None:
@@ -84,11 +93,39 @@ def test_deployment_embeds_keep_operational_data_and_persona_framing(persona) ->
 
     embed = build_deployment_embed(event, manifest, persona)
 
-    assert embed.title == "🚀 Actualización disponible · v0.2.0"
+    assert embed.title == "🚀 Actualización disponible · v0.2.1"
     assert persona.messages.interface.deployments.release_intro in (embed.description or "")
     assert any(field.name == "Cambios" for field in embed.fields)
-    assert any("abcdef12" in field.value for field in embed.fields)
+    deployment_field = next(field for field in embed.fields if field.name == "Despliegue")
+    assert (
+        "[abcdef12](https://github.com/SouthViking/arrest-report-agent/commit/"
+        "abcdef1234567890)" in deployment_field.value
+    )
     assert embed.colour == discord.Color.green()
+
+
+def test_deployment_embed_does_not_link_untrusted_commit_metadata(persona) -> None:
+    manifest = ReleaseManifest.load_packaged()
+    event = DeploymentEventRecord(
+        id=UUID("00000000-0000-0000-0000-000000000006"),
+        event_type=DeploymentEventType.FAILED,
+        deployment_id="deployment-untrusted",
+        project_id="project",
+        environment_id="production",
+        service_id="bot",
+        source="Manual",
+        branch="main",
+        commit_hash="abcdef1234567890",
+        commit_message=None,
+        severity="ERROR",
+        timestamp=datetime(2026, 8, 12, 12, 34, tzinfo=UTC),
+    )
+
+    embed = build_deployment_embed(event, manifest, persona)
+
+    deployment_field = next(field for field in embed.fields if field.name == "Despliegue")
+    assert "**Commit:** `abcdef12`" in deployment_field.value
+    assert "https://" not in deployment_field.value
 
 
 class FakeReceiver:
@@ -171,7 +208,7 @@ async def test_success_event_waits_for_the_matching_runtime_and_then_targets_cha
 
     assert repository.processed == [event.id]
     assert [target.channel_id for target in repository.targets] == [456, 789]
-    assert all(target.notification_key.endswith(":0.2.0") for target in repository.targets)
+    assert all(target.notification_key.endswith(":0.2.1") for target in repository.targets)
 
 
 async def _async_value(value: object) -> object:
