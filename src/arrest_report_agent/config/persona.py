@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 17
+PERSONA_SCHEMA_VERSION = 18
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -625,6 +625,7 @@ class PersonaPagerMessages(FrozenPersonaModel):
     wrong_channel: str = Field(min_length=1, max_length=500)
     unauthorized_creator: str = Field(min_length=1, max_length=400)
     unauthorized_closer: str = Field(min_length=1, max_length=400)
+    unauthorized_editor: str = Field(min_length=1, max_length=400)
     creator_cannot_respond: str = Field(min_length=1, max_length=400)
     invalid_recipient: str = Field(min_length=1, max_length=400)
     stale: str = Field(min_length=1, max_length=300)

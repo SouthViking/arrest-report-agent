@@ -1,7 +1,7 @@
 {
-  "schema_version": 17,
+  "schema_version": 18,
   "id": "walter_vigil",
-  "revision": 19,
+  "revision": 20,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -311,6 +311,7 @@
         "wrong_channel": "Este canal no está habilitado para operaciones de pager. Utilice uno de los siguientes:\n{channels}",
         "unauthorized_creator": "No tiene un rol autorizado para emitir pagers.",
         "unauthorized_closer": "Solo el emisor o un responsable autorizado puede cerrar este pager.",
+        "unauthorized_editor": "Solo el emisor o un responsable autorizado puede editar este pager.",
         "creator_cannot_respond": "Como emisor del pager, no puede registrarse también como unidad respondiente.",
         "invalid_recipient": "El destinatario seleccionado ya no está disponible o no admite menciones.",
         "stale": "Este pager ya fue cerrado o dejó de estar disponible.",

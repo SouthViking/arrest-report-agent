@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
+import discord
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -28,8 +29,10 @@ from arrest_report_agent.pagers.discord import (
     PagerCog,
     PagerControlsView,
     PagerCreateModal,
+    PagerEditModal,
     PagerService,
     PagerValidationError,
+    _recipient_header,
 )
 from arrest_report_agent.pagers.models import Pager, PagerResponder, PagerStatus, UserPager
 from arrest_report_agent.pagers.repository import PagerRepository
@@ -103,7 +106,7 @@ def _snapshot(settings: AppSettings, *, enabled: bool) -> GuildConfigSnapshot:
         },
         persona_revision_id=uuid4(),
         persona_id="walter_vigil",
-        persona_revision=19,
+        persona_revision=20,
     )
 
 
@@ -161,12 +164,13 @@ async def test_pager_embed_and_persistent_controls_are_deterministic(
 
     assert active.title == "📟 Pager #00092"
     assert active.description == "📻 Activo"
-    recipients = next(field for field in active.fields if field.name == "Destinatarios")
-    assert recipients.value == "<@&300> <@&301>"
+    assert all(field.name != "Destinatarios" for field in active.fields)
+    assert _recipient_header(_pager()) == ("📣 **Pager dirigido a**\n> <@&300> · <@&301>\n\n\u200b")
     assert any(field.name == "Unidades que responden · 1" for field in active.fields)
     assert {child.custom_id for child in terminal.children} == {
         "pager:v1:respond",
         "pager:v1:withdraw",
+        "pager:v1:edit",
         "pager:v1:conclude",
         "pager:v1:cancel",
     }
@@ -204,6 +208,23 @@ async def test_pager_modal_accepts_multiple_recipients(settings: AppSettings, pe
 
     assert modal.recipient.min_values == 1
     assert modal.recipient.max_values == 2
+
+
+@pytest.mark.asyncio
+async def test_pager_edit_modal_is_prepopulated(settings: AppSettings, persona) -> None:
+    runtime = GuildRuntimeSettings(settings, _snapshot(settings, enabled=True))
+    service = PagerService(SimpleNamespace(), SimpleNamespace(), runtime, persona, enabled=True)
+    roles = {role_id: SimpleNamespace(id=role_id, name=f"Role {role_id}") for role_id in (300, 301)}
+    guild = SimpleNamespace(get_role=roles.get)
+    member = SimpleNamespace(id=10, guild=guild)
+    pager = _pager()
+
+    modal = PagerEditModal(service, pager, member, SimpleNamespace())
+
+    assert modal.callsign.value == pager.creator_callsign
+    assert modal.location.value == pager.location
+    assert modal.situation.value == pager.situation
+    assert {int(option.value) for option in modal.recipient.options if option.default} == {300, 301}
 
 
 def test_pager_recipient_requires_role_or_effective_mention_permission(
@@ -281,18 +302,18 @@ async def test_successful_pager_response_only_updates_public_message(
 ) -> None:
     deferred: list[bool] = []
     followups: list[dict[str, object]] = []
-    deleted = False
+    original_response_deletions = 0
     pager = _pager()
 
-    async def defer(*, ephemeral: bool) -> None:
-        deferred.append(ephemeral)
+    async def defer() -> None:
+        deferred.append(False)
 
     async def send(**kwargs: object) -> None:
         followups.append(kwargs)
 
     async def delete_original_response() -> None:
-        nonlocal deleted
-        deleted = True
+        nonlocal original_response_deletions
+        original_response_deletions += 1
 
     async def get(_pager_id):
         return pager
@@ -324,9 +345,165 @@ async def test_successful_pager_response_only_updates_public_message(
 
     await service.respond(interaction, pager.id, "242WS")
 
-    assert deferred == [True]
-    assert deleted
+    assert deferred == [False]
     assert followups == []
+    assert original_response_deletions == 0
+
+
+@pytest.mark.asyncio
+async def test_editing_pager_updates_public_message_without_confirmation(
+    settings: AppSettings,
+    persona,
+) -> None:
+    deferred = 0
+    followups: list[dict[str, object]] = []
+    refreshed: list[Pager] = []
+    active = _pager()
+    edited = active.model_copy(
+        update={
+            "creator_callsign": "245WS",
+            "recipient_role_ids": (301,),
+            "location": "Dillimore",
+            "situation": "Apoyo vial requerido.",
+        }
+    )
+
+    async def defer() -> None:
+        nonlocal deferred
+        deferred += 1
+
+    async def send(**kwargs: object) -> None:
+        followups.append(kwargs)
+
+    async def get(_pager_id):
+        return active
+
+    async def update_active(_pager_id, **kwargs):
+        assert kwargs == {
+            "creator_callsign": "245WS",
+            "recipient_role_ids": (301,),
+            "location": "Dillimore",
+            "situation": "Apoyo vial requerido.",
+        }
+        return edited
+
+    async def refresh_message(pager: Pager) -> None:
+        refreshed.append(pager)
+
+    member = discord.Member(
+        data={"user": {"id": str(active.creator_user_id)}, "roles": []},
+        guild=SimpleNamespace(),
+        state=SimpleNamespace(store_user=lambda data: SimpleNamespace(id=int(data["id"]))),
+    )
+    roles = {role_id: SimpleNamespace(id=role_id, mentionable=True) for role_id in active.recipient_role_ids}
+    channel = SimpleNamespace(guild=SimpleNamespace(get_role=roles.get))
+    interaction = SimpleNamespace(
+        user=member,
+        response=SimpleNamespace(defer=defer),
+        followup=SimpleNamespace(send=send),
+        guild_id=active.guild_id,
+        channel_id=active.channel_id,
+        message=None,
+    )
+    runtime = GuildRuntimeSettings(settings, _snapshot(settings, enabled=True))
+    service = PagerService(
+        SimpleNamespace(),
+        SimpleNamespace(get=get, update_active=update_active),
+        runtime,
+        persona,
+        enabled=True,
+    )
+    service.refresh_message = refresh_message  # type: ignore[method-assign]
+
+    await service.edit(
+        interaction,
+        active.id,
+        channel=channel,
+        callsign="245WS",
+        recipient_role_ids=(301,),
+        location="Dillimore",
+        situation="Apoyo vial requerido.",
+    )
+
+    assert deferred == 1
+    assert refreshed == [edited]
+    assert followups == []
+
+
+@pytest.mark.asyncio
+async def test_closing_pager_edits_public_message_without_deleting_it(
+    settings: AppSettings,
+    persona,
+) -> None:
+    deferred = 0
+    followups: list[dict[str, object]] = []
+    refreshed: list[Pager] = []
+    original_response_deletions = 0
+    active = _pager()
+    concluded = active.model_copy(
+        update={
+            "status": PagerStatus.CONCLUDED,
+            "resolution": "Situación controlada.",
+            "closed_by_user_id": active.creator_user_id,
+            "closed_at": datetime.now(UTC),
+        }
+    )
+
+    async def defer() -> None:
+        nonlocal deferred
+        deferred += 1
+
+    async def send(**kwargs: object) -> None:
+        followups.append(kwargs)
+
+    async def delete_original_response() -> None:
+        nonlocal original_response_deletions
+        original_response_deletions += 1
+
+    async def get(_pager_id):
+        return active
+
+    async def close(_pager_id, **_kwargs):
+        return concluded, True
+
+    async def refresh_message(pager: Pager) -> None:
+        refreshed.append(pager)
+
+    member = discord.Member(
+        data={"user": {"id": str(active.creator_user_id)}, "roles": []},
+        guild=SimpleNamespace(),
+        state=SimpleNamespace(store_user=lambda data: SimpleNamespace(id=int(data["id"]))),
+    )
+    interaction = SimpleNamespace(
+        user=member,
+        response=SimpleNamespace(defer=defer),
+        followup=SimpleNamespace(send=send),
+        delete_original_response=delete_original_response,
+        guild_id=active.guild_id,
+        channel_id=active.channel_id,
+        message=None,
+    )
+    runtime = GuildRuntimeSettings(settings, _snapshot(settings, enabled=True))
+    service = PagerService(
+        SimpleNamespace(),
+        SimpleNamespace(get=get, close=close),
+        runtime,
+        persona,
+        enabled=True,
+    )
+    service.refresh_message = refresh_message  # type: ignore[method-assign]
+
+    await service.close(
+        interaction,
+        active.id,
+        status=PagerStatus.CONCLUDED,
+        resolution="Situación controlada.",
+    )
+
+    assert deferred == 1
+    assert refreshed == [concluded]
+    assert followups == []
+    assert original_response_deletions == 0
 
 
 def test_pager_commands_are_root_commands() -> None:
@@ -388,6 +565,17 @@ async def test_pager_repository_persists_responses_and_idempotent_close(
         assert pager.number == 92
         assert pager.recipient_role_ids == (300, 301)
         pager = await repository.publish(pager.id, 500)
+        pager = await repository.update_active(
+            pager.id,
+            creator_callsign="245WS",
+            recipient_role_ids=(301,),
+            location="Dillimore",
+            situation="Apoyo vial requerido.",
+        )
+        assert pager.creator_callsign == "245WS"
+        assert pager.recipient_role_ids == (301,)
+        assert pager.location == "Dillimore"
+        assert pager.situation == "Apoyo vial requerido."
         with pytest.raises(ValueError, match="creator"):
             await repository.upsert_responder(pager.id, 10, "241WS")
         pager = await repository.upsert_responder(pager.id, 11, "242WS")

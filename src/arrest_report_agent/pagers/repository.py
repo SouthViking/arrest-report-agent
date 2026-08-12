@@ -129,6 +129,51 @@ class PagerRepository:
         async with self.client.connection() as connection:
             return await self._get(pager_id, connection)
 
+    async def update_active(
+        self,
+        pager_id: UUID,
+        *,
+        creator_callsign: str,
+        recipient_role_ids: tuple[int, ...],
+        location: str,
+        situation: str,
+    ) -> Pager:
+        """Replace the editable fields of an active pager atomically."""
+
+        if not recipient_role_ids or len(recipient_role_ids) > 25:
+            raise ValueError("A pager requires between 1 and 25 recipient roles")
+        if len(recipient_role_ids) != len(set(recipient_role_ids)):
+            raise ValueError("Pager recipient roles must be unique")
+        async with self.client.transaction() as tx:
+            pager = await self._get_for_update(pager_id, tx)
+            self._require_active(pager)
+            await tx.execute(
+                pagers.update()
+                .where(pagers.c.id == pager_id)
+                .values(
+                    creator_callsign=creator_callsign,
+                    location=location,
+                    situation=situation,
+                    updated_at=datetime.now(UTC),
+                )
+            )
+            await tx.execute(
+                pager_recipient_roles.delete().where(pager_recipient_roles.c.pager_id == pager_id)
+            )
+            await tx.execute(
+                pager_recipient_roles.insert(),
+                [
+                    {
+                        "id": uuid.uuid4(),
+                        "pager_id": pager_id,
+                        "role_id": role_id,
+                        "position": position,
+                    }
+                    for position, role_id in enumerate(recipient_role_ids)
+                ],
+            )
+            return await self._get(pager_id, tx)
+
     async def upsert_responder(self, pager_id: UUID, user_id: int, callsign: str) -> Pager:
         async with self.client.transaction() as tx:
             pager = await self._get_for_update(pager_id, tx)

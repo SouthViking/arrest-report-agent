@@ -110,7 +110,7 @@ El módulo determinista de pagers persiste sus avisos, múltiples roles destinat
 en PostgreSQL. `/pager` emite el aviso en el canal autorizado, `/pager-activos` enlaza los avisos
 abiertos, `/mis-pagers` entrega el historial privado del usuario y `/info-pager` publica una guía breve.
 El emisor no puede registrarse además como respondiente. Los controles persistentes
-permiten responder, retirarse, concluir o cancelar incluso después de reiniciar el proceso.
+permiten responder, retirarse, editar, concluir o cancelar incluso después de reiniciar el proceso.
 
 La política previa valida guild, autor y usuario antes de leer contexto o iniciar el Runner. Las
 tools de escritura operan exclusivamente dentro de la conversación autorizada. La tool de reacción

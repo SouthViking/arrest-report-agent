@@ -257,8 +257,10 @@ inicializa en `92`.
 `/pager` solicita callsign, uno o más destinatarios, ubicación y situación mediante un modal. Publica
 una única notificación para todos los roles seleccionados y un embed que se actualiza con las unidades
 respondientes. El emisor no puede registrarse también como respondiente. Sus botones permiten registrar
-o actualizar callsign, retirarse, concluir con resultado o cancelar con motivo; las operaciones exitosas
-se reflejan directamente en el mensaje sin confirmaciones efímeras adicionales.
+o actualizar callsign, retirarse, editar sus datos, concluir con resultado o cancelar con motivo. Solo el
+emisor y los responsables de cierre pueden editar; los cambios de destinatarios no generan otra
+notificación. Las operaciones exitosas se reflejan directamente en el mensaje sin confirmaciones
+efímeras adicionales.
 
 `/pager-activos` publica cinco avisos por página con enlaces directos. `/mis-pagers` presenta de forma
 privada los avisos emitidos o respondidos por el usuario. `/info-pager` explica públicamente el flujo y

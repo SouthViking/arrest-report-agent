@@ -82,15 +82,15 @@ def _install_persona_revisions(connection: sa.Connection) -> None:
     if not persona_dir.exists():
         return
     for slug, expected_revision in PERSONA_REVISIONS:
-        payload = json.loads((persona_dir / f"{slug}.json").read_text(encoding="utf-8"))
-        if payload["revision"] != expected_revision:
-            raise RuntimeError(f"Unexpected packaged revision for {slug}")
         persona = (
             connection.execute(sa.text("SELECT id FROM personas WHERE slug = :slug"), {"slug": slug})
             .mappings()
             .one_or_none()
         )
         if persona is None:
+            continue
+        payload = json.loads((persona_dir / f"{slug}.json").read_text(encoding="utf-8"))
+        if payload["revision"] != expected_revision:
             continue
         existing = (
             connection.execute(

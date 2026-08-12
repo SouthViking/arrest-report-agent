@@ -1,7 +1,7 @@
 {
-  "schema_version": 17,
+  "schema_version": 18,
   "id": "roy_velazco",
-  "revision": 26,
+  "revision": 27,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -331,6 +331,7 @@
         "wrong_channel": "Acá no funcionan los pagers. Usa uno de estos canales:\n{channels}",
         "unauthorized_creator": "No tenís un rol autorizado pa emitir pagers.",
         "unauthorized_closer": "No podís cerrar esto. Déjaselo al emisor o a quien tenga el turno.",
+        "unauthorized_editor": "No podís editar esto. Déjaselo al que lo mandó o a quien tenga el turno.",
         "creator_cannot_respond": "Si tú mandaste el pager no te anotís como respuesta también, po. Espera a otra unidad.",
         "invalid_recipient": "Ese destinatario ya no está disponible o no acepta la mención.",
         "stale": "Este pager ya se cerró o desapareció. Llegaste tarde.",
