@@ -19,6 +19,11 @@ miembros, roles y audiencia de canales. Sin ese intent, Discord rechazará la co
 - `bot`
 - `applications.commands`
 
+El módulo de pagers requiere que el bot pueda ver el canal, enviar mensajes, insertar enlaces,
+adjuntar embeds, leer historial y mencionar únicamente los roles destinatarios configurados. Para
+mantener permisos mínimos, esos roles deben estar marcados como mencionables; no se necesita
+`Mention @everyone, @here, and All Roles`.
+
 ## Permisos mínimos por canal
 
 - View Channel

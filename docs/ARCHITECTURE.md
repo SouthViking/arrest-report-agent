@@ -89,6 +89,8 @@ modelo no puede escoger una guild ni un canal de publicación.
 - `infrastructure/postgres`: cliente async, esquema SQLAlchemy, repositorios y caché dinámica.
 - `infrastructure/storage`: contrato de objetos y adaptador S3 para Railway Bucket.
 - `role_requests`: modelos, codec, política, servicio, modales y vistas persistentes del subsistema
+- `pagers`: modelos, repositorio PostgreSQL, servicio, modales, listados y controles persistentes
+  del subsistema de avisos operativos; no depende del agente ni de OpenAI.
   determinista de solicitudes de roles; no depende del runner ni de `infrastructure/discord`.
 
 Los comandos personales `/mis-reportes` y `/mi-resumen` siguen una ruta determinista separada

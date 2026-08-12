@@ -106,6 +106,11 @@ IA ni persiste la solicitud en PostgreSQL: el mensaje versionado de Discord cons
 sus botones persistentes. PostgreSQL solo aporta su configuración dinámica. `/info-roles` permanece
 disponible en cualquier canal o hilo de una guild habilitada.
 
+El módulo determinista de pagers persiste sus avisos y respondientes en PostgreSQL. `/pager` emite
+el aviso en el canal autorizado, `/pager-activos` enlaza los avisos abiertos, `/mis-pagers` entrega
+el historial privado del usuario y `/info-pager` publica una guía breve. Los controles persistentes
+permiten responder, retirarse, concluir o cancelar incluso después de reiniciar el proceso.
+
 La política previa valida guild, autor y usuario antes de leer contexto o iniciar el Runner. Las
 tools de escritura operan exclusivamente dentro de la conversación autorizada. La tool de reacción
 acepta un ID presente en ese contexto, pero no una guild o canal libre y no puede salir del mensaje
@@ -263,6 +268,10 @@ Comandos disponibles:
 - `/solicitar-roles`: abre un formulario privado para solicitar hasta diez altas y diez bajas;
   publica un expediente en el canal de origen para aprobación completa, parcial o rechazo.
 - `/info-roles`: publica una explicación breve sobre el uso y los resultados de las solicitudes.
+- `/pager`: abre un formulario privado y emite un pager en el canal actual.
+- `/pager-activos`: publica los pagers abiertos con enlaces directos.
+- `/mis-pagers`: consulta de forma privada los pagers creados o respondidos.
+- `/info-pager`: publica una explicación breve del sistema.
 - `/config`: abre un panel efímero sin argumentos, reservado a owners o roles `config_admin_roles`;
   permite inspeccionar la revisión activa y administrar borradores, accesos, agente, módulos,
   personas, publicación y rollback mediante botones y formularios. Los intentos no autorizados

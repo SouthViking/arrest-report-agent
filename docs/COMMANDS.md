@@ -47,6 +47,10 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/mi-resumen` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
 | `/solicitar-roles` | Todos en guild y canal habilitados | Modal privado; solicitud pública en el canal | Mensaje versionado de Discord |
 | `/info-roles` | Todos en una guild habilitada | Pública | Persona y configuración actuales |
+| `/pager` | Roles emisores, en canales habilitados | Modal privado; pager público | PostgreSQL y Discord |
+| `/pager-activos` | Todos en canales de pager | Pública y paginada | PostgreSQL |
+| `/mis-pagers` | Todos en canales de pager | Efímera y paginada | PostgreSQL |
+| `/info-pager` | Todos en una guild configurada | Pública | Persona y configuración actuales |
 
 Los comandos generales no aplican `AUTHORIZED_USER_IDS`; están destinados a todos los miembros que
 puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists centrales antes de
@@ -241,3 +245,19 @@ Los errores de consultas deterministas se registran con identificadores de guild
 usuario cuando están disponibles. Discord recibe un mensaje contextual sin stacktrace ni detalles
 técnicos. La búsqueda de cargos registra la categoría, longitud de la consulta y cantidad de
 resultados, pero no el texto introducido por el usuario.
+
+## Pagers
+
+El módulo se configura sin redeploy desde `/config`: crea un borrador, deja como restringidas las
+políticas **Canales de pagers**, **Emisores de pagers**, **Destinatarios de pagers** y
+**Responsables de cierre de pagers**, habilita el módulo **Pagers** y publica. La opción
+`starting_number` fija el primer correlativo cuando la guild todavía no tiene registros; LSSD se
+inicializa en `92`.
+
+`/pager` solicita callsign, destinatario, ubicación y situación mediante un modal. Publica una sola
+mención al rol destinatario y un embed que se actualiza con las unidades respondientes. Sus botones
+permiten registrar o actualizar callsign, retirarse, concluir con resultado o cancelar con motivo.
+
+`/pager-activos` publica cinco avisos por página con enlaces directos. `/mis-pagers` presenta de forma
+privada los avisos emitidos o respondidos por el usuario. `/info-pager` explica públicamente el flujo y
+los canales habilitados sin mostrar IDs ni configuración interna.
