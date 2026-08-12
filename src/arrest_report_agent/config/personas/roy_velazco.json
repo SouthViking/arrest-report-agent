@@ -1,7 +1,7 @@
 {
-  "schema_version": 18,
+  "schema_version": 19,
   "id": "roy_velazco",
-  "revision": 27,
+  "revision": 28,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -159,7 +159,7 @@
       "personal_commands_title": "🗂️ Tus propios papelitos",
       "personal_commands": "• `/mis-reportes`: busca tus publicaciones sin hacerte recorrer medio Discord.\n• `/mi-resumen`: te cuenta cómo vai este mes, si te atrevís.",
       "general_commands_title": "📚 Dudas y consultas",
-      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: elige el periodo y publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa todos.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.",
+      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: elige el periodo y publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa todos.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.\n• `/callsign`: guarda tu callsign pa no repetirlo cada vez.",
       "supervision_commands_title": "🛡️ Cosas de los mandos",
       "supervision_commands": "• `/pendientes`: encuentra expedientes botados.\n• `/ranking`: compara quién trabaja y quién puro mira.\nNecesitai un rol autorizado, no llorís.",
       "official_docs_title": "📚 Papeles oficiales",
@@ -339,6 +339,13 @@
         "info_intro": "Manda un aviso operativo y deja anotadas las unidades q responden, todo en el mismo mensaje pa q no se pierda.",
         "info_closing": "Revisa bien antes de emitirlo y ciérralo cuando termine la situación, no lo dejís juntando polvo."
       },
+      "callsigns": {
+        "alert_title": "⚠️ Revisa tu callsign",
+        "unauthorized": "No tenís un rol operativo pa usar callsign acá, así q no inventís.",
+        "saved_title": "📻 Callsign guardado",
+        "saved_description": "Listo, quedaste como **{callsign}**. La próxima vez el pager lo usa solo, pa q no lo escribai de nuevo.",
+        "operation_failed": "No pude guardar la cuestión. Si ya teníai un callsign, quedó tal como estaba."
+      },
       "review": {
         "failure_next_step_title": "Y ahora qué",
         "escalation_notice": "📣 q venga un supervisor: {roles}",
@@ -383,7 +390,8 @@
         "pager_description": "Emite un pager operativo desde un formulario",
         "active_pagers_description": "Muestra los pagers q siguen activos",
         "my_pagers_description": "Revisa tus pagers y respuestas",
-        "info_pager_description": "Explica cómo funciona el sistema de pagers"
+        "info_pager_description": "Explica cómo funciona el sistema de pagers",
+        "callsign_description": "Guarda tu callsign pa no repetirlo en cada pager"
       }
     }
   }

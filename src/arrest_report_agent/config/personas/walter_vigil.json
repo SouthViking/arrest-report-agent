@@ -1,7 +1,7 @@
 {
-  "schema_version": 18,
+  "schema_version": 19,
   "id": "walter_vigil",
-  "revision": 20,
+  "revision": 21,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -139,7 +139,7 @@
       "personal_commands_title": "🗂️ Consultas privadas",
       "personal_commands": "• `/mis-reportes`: filtra sus publicaciones y abre rápidamente cada expediente.\n• `/mi-resumen`: consulta sus cifras del mes actual.",
       "general_commands_title": "📚 Consultas generales",
-      "general_commands": "• `/guia`: consulta las reglas de redacción y revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo local.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: elige un periodo y publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/ts3`: publica la dirección oficial del servidor de voz.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas de roles.\n• `/info-roles`: explica el procedimiento y sus límites.\n• `/pager`: emite un aviso operativo.\n• `/pager-activos`: consulta avisos todavía abiertos.\n• `/mis-pagers`: revisa en privado sus avisos y respuestas.\n• `/info-pager`: explica brevemente el sistema.",
+      "general_commands": "• `/guia`: consulta las reglas de redacción y revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo local.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: elige un periodo y publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/ts3`: publica la dirección oficial del servidor de voz.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas de roles.\n• `/info-roles`: explica el procedimiento y sus límites.\n• `/pager`: emite un aviso operativo.\n• `/pager-activos`: consulta avisos todavía abiertos.\n• `/mis-pagers`: revisa en privado sus avisos y respuestas.\n• `/info-pager`: explica brevemente el sistema.\n• `/callsign`: registra o actualiza su callsign operativo.",
       "supervision_commands_title": "🛡️ Supervisión",
       "supervision_commands": "• `/pendientes`: localiza expedientes sin estado terminal.\n• `/ranking`: compara actividad y resultados por miembro.\nRequieren un rol de supervisión autorizado.",
       "official_docs_title": "📚 Documentación oficial",
@@ -319,6 +319,13 @@
         "info_intro": "Emita avisos operativos y coordine las unidades que responderán, manteniendo toda la actualización en un único mensaje.",
         "info_closing": "Revise los datos antes de emitir el aviso y cierre el pager cuando la situación haya terminado."
       },
+      "callsigns": {
+        "alert_title": "⚠️ Callsign no disponible",
+        "unauthorized": "Solo el personal operativo autorizado puede registrar o utilizar un callsign.",
+        "saved_title": "📻 Callsign actualizado",
+        "saved_description": "Quedó registrado como **{callsign}** para las operaciones de este servidor.",
+        "operation_failed": "No pude guardar el callsign. El registro anterior, si existía, permanece sin cambios."
+      },
       "review": {
         "failure_next_step_title": "Siguiente paso",
         "escalation_notice": "📣 Se requiere supervisión: {roles}",
@@ -363,7 +370,8 @@
         "pager_description": "Emite un pager operativo desde un formulario",
         "active_pagers_description": "Muestra los pagers que siguen activos",
         "my_pagers_description": "Consulta sus pagers y respuestas",
-        "info_pager_description": "Explica brevemente cómo funciona el pager"
+        "info_pager_description": "Explica brevemente cómo funciona el pager",
+        "callsign_description": "Registra o actualiza su callsign operativo"
       }
     }
   }

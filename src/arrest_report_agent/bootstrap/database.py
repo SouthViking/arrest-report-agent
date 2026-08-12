@@ -340,6 +340,13 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 subject_type="role",
                 mode=AccessPolicyMode.DISABLED,
             ),
+            policy(
+                AccessPolicyKey.OPERATIONAL_STAFF_ROLES,
+                "role",
+                False,
+                supervisor_roles[guild_id],
+                empty_means_disabled=True,
+            ),
         )
         guilds.append(
             BootstrapGuild(

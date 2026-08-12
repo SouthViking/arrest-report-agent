@@ -244,6 +244,24 @@ data_migrations = sa.Table(
     sa.Column("executed_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
 )
 
+guild_member_profiles = sa.Table(
+    "guild_member_profiles",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("user_id", sa.BigInteger, nullable=False),
+    sa.Column("callsign", sa.String(40), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.UniqueConstraint("guild_id", "user_id", name="uq_guild_member_profile"),
+    sa.Index("ix_guild_member_profile_callsign", "guild_id", "callsign"),
+)
+
 pagers = sa.Table(
     "pagers",
     metadata,

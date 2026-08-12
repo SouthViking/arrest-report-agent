@@ -19,6 +19,7 @@ from arrest_report_agent.config import (
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
+from arrest_report_agent.operational_profiles import MemberProfileRepository
 
 from .models import Pager, PagerCreatorCannotRespondError, PagerStatus, UserPager
 from .repository import PagerRepository
@@ -43,10 +44,12 @@ class PagerServiceRegistry:
         bot: discord.Bot,
         provider: DatabaseConfigProvider,
         repository: PagerRepository,
+        member_profiles: MemberProfileRepository,
     ) -> None:
         self.bot = bot
         self.provider = provider
         self.repository = repository
+        self.member_profiles = member_profiles
         self._services: dict[UUID, PagerService] = {}
 
     async def get(self, guild_id: int, *, require_enabled: bool = True) -> PagerService:
@@ -64,6 +67,7 @@ class PagerServiceRegistry:
                 bundle.settings,
                 bundle.persona.profile,
                 enabled=enabled,
+                member_profiles=self.member_profiles,
             )
             self._services[key] = service
         return service
@@ -78,13 +82,16 @@ class PagerService:
         persona: BotPersona,
         *,
         enabled: bool,
+        member_profiles: MemberProfileRepository | None = None,
     ) -> None:
         self.bot = bot
         self.repository = repository
         self.settings = settings
         self.persona = persona
         self.ui = persona.messages.interface.pagers
+        self.callsign_ui = persona.messages.interface.callsigns
         self.enabled = enabled
+        self.member_profiles = member_profiles
         self._locks: dict[UUID, asyncio.Lock] = {}
         self._lock_users: dict[UUID, int] = {}
 
@@ -106,6 +113,14 @@ class PagerService:
 
     def can_edit(self, member: discord.Member, pager: Pager) -> bool:
         return self.can_close(member, pager)
+
+    def can_respond(self, member: object) -> bool:
+        return _has_any_role(member, self.settings.operational_staff_role_ids)
+
+    async def saved_callsign(self, member: discord.Member) -> str | None:
+        if self.member_profiles is None:
+            return None
+        return await self.member_profiles.get_callsign(member.guild.id, member.id)
 
     def recipient_roles(self, guild: discord.Guild) -> tuple[discord.Role, ...]:
         result = []
@@ -260,8 +275,22 @@ class PagerService:
             raise PagerValidationError(self.ui.stale)
         return pager
 
-    async def respond(self, interaction: discord.Interaction, pager_id: UUID, callsign: str) -> None:
-        if not callsign.strip():
+    async def respond(
+        self,
+        interaction: discord.Interaction,
+        pager_id: UUID,
+        callsign: str,
+        *,
+        remember: bool = False,
+    ) -> None:
+        if not self.can_respond(interaction.user):
+            await interaction.response.send_message(
+                embed=self.alert(self.callsign_ui.unauthorized),
+                ephemeral=True,
+            )
+            return
+        resolved_callsign = callsign.strip() if remember else callsign
+        if remember and not resolved_callsign:
             await interaction.response.send_message(
                 embed=self.alert("Indica un callsign válido."),
                 ephemeral=True,
@@ -284,10 +313,18 @@ class PagerService:
         await interaction.response.defer()
         try:
             async with self.lock(pager_id):
+                if remember:
+                    if self.member_profiles is None or interaction.guild_id is None:
+                        raise RuntimeError("Operational member profile repository is unavailable")
+                    await self.member_profiles.upsert_callsign(
+                        interaction.guild_id,
+                        interaction.user.id,
+                        resolved_callsign,
+                    )
                 pager = await self.repository.upsert_responder(
                     pager_id,
                     interaction.user.id,
-                    callsign.strip(),
+                    resolved_callsign,
                 )
                 await self.refresh_message(pager)
             self._log_transition("pager_responder_upserted", pager, interaction.user.id, "responded")
@@ -584,6 +621,12 @@ class PagerControlsView(discord.ui.View):
                 ephemeral=True,
             )
             return
+        if not isinstance(interaction.user, discord.Member) or not service.can_respond(interaction.user):
+            await interaction.response.send_message(
+                embed=service.alert(service.callsign_ui.unauthorized),
+                ephemeral=True,
+            )
+            return
         try:
             pager = await service.resolve_interaction_pager(interaction)
         except PagerValidationError as error:
@@ -596,6 +639,18 @@ class PagerControlsView(discord.ui.View):
             await interaction.response.send_message(
                 embed=service.alert(service.ui.creator_cannot_respond), ephemeral=True
             )
+            return
+        try:
+            callsign = await service.saved_callsign(interaction.user)
+        except Exception as error:
+            await interaction.response.send_message(
+                embed=service.alert(service.callsign_ui.operation_failed),
+                ephemeral=True,
+            )
+            service._log_error("pager_callsign_lookup_failed", error, pager.id, interaction)
+            return
+        if callsign is not None:
+            await service.respond(interaction, pager.id, callsign)
             return
         await interaction.response.send_modal(PagerResponseModal(service, pager.id))
 
@@ -780,7 +835,12 @@ class PagerResponseModal(discord.ui.DesignerModal):
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        await self.service.respond(interaction, self.pager_id, self.callsign.value)
+        await self.service.respond(
+            interaction,
+            self.pager_id,
+            self.callsign.value,
+            remember=True,
+        )
 
 
 class PagerEditModal(discord.ui.DesignerModal):
@@ -1065,7 +1125,8 @@ class PagerCog(commands.Cog):
         embed.add_field(
             name="Responder y gestionar",
             value=(
-                "Pulsa **Responder / actualizar** e indica tu callsign; puedes retirarte después. "
+                "Pulsa **Responder / actualizar**; si registraste `/callsign`, se reutiliza automáticamente. "
+                "Si todavía no tienes uno, se solicitará y quedará guardado. Puedes retirarte después. "
                 "El emisor o los responsables autorizados pueden editarlo, concluirlo o cancelarlo."
             ),
             inline=False,
@@ -1145,9 +1206,9 @@ def _personal_list_embed(entries: Iterable[UserPager], total: int, page: int) ->
     return embed
 
 
-def _has_any_role(member: discord.Member, role_ids: tuple[int, ...]) -> bool:
+def _has_any_role(member: object, role_ids: tuple[int, ...]) -> bool:
     allowed = frozenset(role_ids)
-    return any(role.id in allowed for role in member.roles)
+    return any(getattr(role, "id", None) in allowed for role in getattr(member, "roles", ()))
 
 
 def _status_label(status: PagerStatus) -> str:

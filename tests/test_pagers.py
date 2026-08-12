@@ -25,6 +25,7 @@ from arrest_report_agent.config import (
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
 from arrest_report_agent.infrastructure.postgres import PostgresClient, PostgresClientConfig
 from arrest_report_agent.infrastructure.postgres.schema import discord_guilds
+from arrest_report_agent.operational_profiles import MemberProfileRepository
 from arrest_report_agent.pagers.discord import (
     PagerCog,
     PagerControlsView,
@@ -52,6 +53,7 @@ def _snapshot(settings: AppSettings, *, enabled: bool) -> GuildConfigSnapshot:
                     AccessPolicyKey.PAGER_CREATOR_ROLES,
                     AccessPolicyKey.PAGER_RECIPIENT_ROLES,
                     AccessPolicyKey.PAGER_CLOSER_ROLES,
+                    AccessPolicyKey.OPERATIONAL_STAFF_ROLES,
                 }
                 else AccessPolicyMode.DISABLED
             ),
@@ -64,6 +66,7 @@ def _snapshot(settings: AppSettings, *, enabled: bool) -> GuildConfigSnapshot:
                 in {
                     AccessPolicyKey.PAGER_CREATOR_ROLES,
                     AccessPolicyKey.PAGER_CLOSER_ROLES,
+                    AccessPolicyKey.OPERATIONAL_STAFF_ROLES,
                 }
                 else (300, 301)
                 if enabled and key is AccessPolicyKey.PAGER_RECIPIENT_ROLES
@@ -106,7 +109,7 @@ def _snapshot(settings: AppSettings, *, enabled: bool) -> GuildConfigSnapshot:
         },
         persona_revision_id=uuid4(),
         persona_id="walter_vigil",
-        persona_revision=20,
+        persona_revision=21,
     )
 
 
@@ -272,7 +275,7 @@ async def test_pager_emitter_cannot_register_as_responder(
         return _pager()
 
     interaction = SimpleNamespace(
-        user=SimpleNamespace(id=10),
+        user=SimpleNamespace(id=10, roles=[SimpleNamespace(id=200)]),
         response=SimpleNamespace(send_message=send_message),
         followup=SimpleNamespace(send=send_message),
         guild_id=1,
@@ -325,8 +328,8 @@ async def test_successful_pager_response_only_updates_public_message(
         return None
 
     interaction = SimpleNamespace(
-        user=SimpleNamespace(id=11),
-        response=SimpleNamespace(defer=defer),
+        user=SimpleNamespace(id=11, roles=[SimpleNamespace(id=200)]),
+        response=SimpleNamespace(defer=defer, send_message=send),
         followup=SimpleNamespace(send=send),
         delete_original_response=delete_original_response,
         guild_id=1,
@@ -348,6 +351,118 @@ async def test_successful_pager_response_only_updates_public_message(
     assert deferred == [False]
     assert followups == []
     assert original_response_deletions == 0
+
+
+@pytest.mark.asyncio
+async def test_first_pager_response_stores_callsign_for_future_use(
+    settings: AppSettings,
+    persona,
+) -> None:
+    pager = _pager()
+    saved: list[tuple[int, int, str]] = []
+    responder_callsigns: list[str] = []
+
+    async def defer() -> None:
+        return None
+
+    async def send(**_kwargs: object) -> None:
+        return None
+
+    async def get(_pager_id):
+        return pager
+
+    async def upsert_responder(_pager_id, _user_id, callsign):
+        responder_callsigns.append(callsign)
+        return pager
+
+    async def upsert_callsign(guild_id, user_id, callsign):
+        saved.append((guild_id, user_id, callsign))
+
+    interaction = SimpleNamespace(
+        user=SimpleNamespace(id=11, roles=[SimpleNamespace(id=200)]),
+        response=SimpleNamespace(defer=defer, send_message=send),
+        followup=SimpleNamespace(send=send),
+        guild_id=1,
+        channel_id=100,
+        message=None,
+    )
+    runtime = GuildRuntimeSettings(settings, _snapshot(settings, enabled=True))
+    service = PagerService(
+        SimpleNamespace(),
+        SimpleNamespace(get=get, upsert_responder=upsert_responder),
+        runtime,
+        persona,
+        enabled=True,
+        member_profiles=SimpleNamespace(upsert_callsign=upsert_callsign),
+    )
+
+    async def refresh_message(_pager: Pager) -> None:
+        return None
+
+    service.refresh_message = refresh_message  # type: ignore[method-assign]
+
+    await service.respond(interaction, pager.id, " 242WS ", remember=True)
+
+    assert saved == [(1, 11, "242WS")]
+    assert responder_callsigns == ["242WS"]
+
+
+@pytest.mark.asyncio
+async def test_saved_callsign_is_used_without_revalidation_or_rewrite(
+    settings: AppSettings,
+    persona,
+) -> None:
+    pager = _pager()
+    responder_callsigns: list[str] = []
+
+    async def defer() -> None:
+        return None
+
+    async def send(**_kwargs: object) -> None:
+        return None
+
+    async def get(_pager_id):
+        return pager
+
+    async def get_callsign(_guild_id, _user_id):
+        return "242WS"
+
+    async def upsert_callsign(*_args):
+        raise AssertionError("an existing callsign must not be rewritten")
+
+    async def upsert_responder(_pager_id, _user_id, callsign):
+        responder_callsigns.append(callsign)
+        return pager
+
+    member = SimpleNamespace(id=11, roles=[SimpleNamespace(id=200)], guild=SimpleNamespace(id=1))
+    profiles = SimpleNamespace(get_callsign=get_callsign, upsert_callsign=upsert_callsign)
+    runtime = GuildRuntimeSettings(settings, _snapshot(settings, enabled=True))
+    service = PagerService(
+        SimpleNamespace(),
+        SimpleNamespace(get=get, upsert_responder=upsert_responder),
+        runtime,
+        persona,
+        enabled=True,
+        member_profiles=profiles,
+    )
+
+    async def refresh_message(_pager: Pager) -> None:
+        return None
+
+    service.refresh_message = refresh_message  # type: ignore[method-assign]
+    interaction = SimpleNamespace(
+        user=member,
+        response=SimpleNamespace(defer=defer, send_message=send),
+        followup=SimpleNamespace(send=send),
+        guild_id=1,
+        channel_id=100,
+        message=None,
+    )
+
+    existing = await service.saved_callsign(member)
+    await service.respond(interaction, pager.id, existing or "")
+
+    assert responder_callsigns == ["242WS"]
 
 
 @pytest.mark.asyncio
@@ -552,6 +667,11 @@ async def test_pager_repository_persists_responses_and_idempotent_close(
         await client.execute(discord_guilds.delete().where(discord_guilds.c.discord_id == guild_id))
         await client.execute(discord_guilds.insert().values(discord_id=guild_id, name="Pager QA"))
         repository = PagerRepository(client)
+        profiles = MemberProfileRepository(client)
+        profile = await profiles.upsert_callsign(guild_id, 11, "242WS")
+        assert profile.callsign == "242WS"
+        updated_profile = await profiles.upsert_callsign(guild_id, 11, "243WS")
+        assert updated_profile.callsign == "243WS"
         pager = await repository.create_publishing(
             guild_id=guild_id,
             channel_id=100,

@@ -278,6 +278,8 @@ Comandos disponibles:
 - `/pager-activos`: publica los pagers abiertos con enlaces directos.
 - `/mis-pagers`: consulta de forma privada los pagers creados o respondidos.
 - `/info-pager`: publica una explicación breve del sistema.
+- `/callsign`: registra o reemplaza de forma privada el callsign operativo del miembro; requiere un
+  rol configurado como personal operativo.
 - `/config`: abre un panel efímero sin argumentos, reservado a owners o roles `config_admin_roles`;
   permite inspeccionar la revisión activa y administrar borradores, accesos, agente, módulos,
   personas, publicación y rollback mediante botones y formularios. Los intentos no autorizados
@@ -372,6 +374,8 @@ en el entorno o en `.env` y se habilita de forma explícita:
 
 - PostgreSQL persiste configuración, revisiones, personalidades y auditoría; intentos y locks
   operativos siguen siendo efímeros y se pierden al reiniciar.
+- Los callsigns se conservan por servidor y miembro. Al responder un pager se reutiliza el valor
+  guardado; si todavía no existe, se solicita una vez y queda disponible para respuestas futuras.
 - Las consultas personales reconstruyen un snapshot desde mensajes y reacciones conservados en
   Discord; no pueden recuperar publicaciones eliminadas ni recordar correcciones anteriores.
 - Los cambios de configuración se administran como snapshots completos por guild; no hay edición

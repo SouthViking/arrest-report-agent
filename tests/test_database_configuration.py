@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import uuid
 from uuid import uuid4
 
 import pytest
+import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 
@@ -143,12 +145,14 @@ async def test_legacy_import_partitions_ids_and_disables_empty_restricted_scopes
     assert first_policies[AccessPolicyKey.REPORT_CHANNELS].ids == (10,)
     assert first_policies[AccessPolicyKey.AGENT_USERS].ids == (99,)
     assert first_policies[AccessPolicyKey.REPORT_ANALYTICS_ROLES].ids == (20,)
+    assert first_policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES].ids == (20,)
     assert first_policies[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].ids == (22,)
     assert first.features[0].enabled is True
     assert second.guild_id == 2
     assert second_policies[AccessPolicyKey.REPORT_CHANNELS].mode is AccessPolicyMode.DISABLED
     assert second_policies[AccessPolicyKey.SUPERVISOR_ROLES].mode is AccessPolicyMode.DISABLED
     assert second_policies[AccessPolicyKey.REPORT_ANALYTICS_ROLES].mode is AccessPolicyMode.DISABLED
+    assert second_policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES].mode is AccessPolicyMode.DISABLED
     assert second_policies[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].mode is AccessPolicyMode.DISABLED
     assert second.features[0].enabled is False
 
@@ -170,6 +174,184 @@ def test_database_migrations_and_versioned_configuration_round_trip() -> None:
             os.environ.pop("DATABASE_URL", None)
         else:
             os.environ["DATABASE_URL"] = previous
+
+
+def test_callsign_migration_copies_staff_roles_and_publishes_persona() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = database_url
+    alembic = Config("alembic.ini")
+    try:
+        command.downgrade(alembic, "base")
+        command.upgrade(alembic, "20260812_0005")
+        identifiers = asyncio.run(_seed_pre_callsign_configuration(database_url))
+        command.upgrade(alembic, "head")
+        asyncio.run(_assert_callsign_migration(database_url, identifiers))
+    finally:
+        command.downgrade(alembic, "base")
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
+
+
+async def _seed_pre_callsign_configuration(database_url: str) -> dict[str, object]:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    identifiers: dict[str, object] = {
+        "guild_id": 123,
+        "persona_id": uuid.uuid4(),
+        "persona_revision_id": uuid.uuid4(),
+        "config_revision_id": uuid.uuid4(),
+    }
+    try:
+        async with client.transaction() as tx:
+            await tx.execute(
+                sa.text("INSERT INTO discord_guilds (discord_id, name) VALUES (:guild_id, 'QA')"),
+                {"guild_id": identifiers["guild_id"]},
+            )
+            await tx.execute(
+                sa.text("INSERT INTO personas (id, slug) VALUES (:id, 'walter_vigil')"),
+                {"id": identifiers["persona_id"]},
+            )
+            await tx.execute(
+                sa.text(
+                    "INSERT INTO persona_revisions "
+                    "(id, persona_id, revision, schema_version, status, payload, checksum, published_at) "
+                    "VALUES (:id, :persona_id, 20, 18, 'published', '{}'::jsonb, :checksum, now())"
+                ),
+                {
+                    "id": identifiers["persona_revision_id"],
+                    "persona_id": identifiers["persona_id"],
+                    "checksum": "a" * 64,
+                },
+            )
+            await tx.execute(
+                sa.text(
+                    "INSERT INTO persona_assets "
+                    "(id, persona_revision_id, kind, object_key, sha256, content_type, size_bytes) "
+                    "VALUES (:id, :revision_id, 'avatar', 'qa/avatar.png', :checksum, 'image/png', 1)"
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "revision_id": identifiers["persona_revision_id"],
+                    "checksum": "b" * 64,
+                },
+            )
+            await tx.execute(
+                sa.text(
+                    "INSERT INTO guild_config_revisions (id, guild_id, revision, status, published_at) "
+                    "VALUES (:id, :guild_id, 1, 'published', now())"
+                ),
+                {
+                    "id": identifiers["config_revision_id"],
+                    "guild_id": identifiers["guild_id"],
+                },
+            )
+            await tx.execute(
+                sa.text(
+                    "UPDATE discord_guilds SET active_config_revision_id = :revision_id "
+                    "WHERE discord_id = :guild_id"
+                ),
+                {
+                    "revision_id": identifiers["config_revision_id"],
+                    "guild_id": identifiers["guild_id"],
+                },
+            )
+            await tx.execute(
+                sa.text(
+                    "INSERT INTO guild_persona_assignments "
+                    "(config_revision_id, persona_revision_id) VALUES (:config_id, :persona_id)"
+                ),
+                {
+                    "config_id": identifiers["config_revision_id"],
+                    "persona_id": identifiers["persona_revision_id"],
+                },
+            )
+            await tx.execute(
+                sa.text(
+                    "INSERT INTO bot_application_profile (singleton_id, persona_revision_id) "
+                    "VALUES (1, :persona_id)"
+                ),
+                {"persona_id": identifiers["persona_revision_id"]},
+            )
+            for policy_key, role_ids in (
+                ("pager_creator_roles", (101, 102, 103)),
+                ("supervisor_roles", (104,)),
+            ):
+                policy_id = uuid.uuid4()
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO guild_access_policies "
+                        "(id, config_revision_id, policy_key, subject_type, mode) "
+                        "VALUES (:id, :revision_id, :key, 'role', 'restricted')"
+                    ),
+                    {
+                        "id": policy_id,
+                        "revision_id": identifiers["config_revision_id"],
+                        "key": policy_key,
+                    },
+                )
+                for position, role_id in enumerate(role_ids):
+                    await tx.execute(
+                        sa.text(
+                            "INSERT INTO guild_access_policy_members "
+                            "(id, policy_id, snowflake_id, position) "
+                            "VALUES (:id, :policy_id, :role_id, :position)"
+                        ),
+                        {
+                            "id": uuid.uuid4(),
+                            "policy_id": policy_id,
+                            "role_id": role_id,
+                            "position": position,
+                        },
+                    )
+    finally:
+        await client.close()
+    return identifiers
+
+
+async def _assert_callsign_migration(
+    database_url: str,
+    identifiers: dict[str, object],
+) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        members = await client.fetch_all(
+            sa.text(
+                "SELECT member.snowflake_id "
+                "FROM guild_access_policies policy "
+                "JOIN guild_access_policy_members member ON member.policy_id = policy.id "
+                "WHERE policy.config_revision_id = :revision_id "
+                "AND policy.policy_key = 'operational_staff_roles' "
+                "ORDER BY member.snowflake_id"
+            ),
+            {"revision_id": identifiers["config_revision_id"]},
+        )
+        assert [int(row["snowflake_id"]) for row in members] == [101, 102, 103, 104]
+        persona = await client.fetch_one(
+            sa.text(
+                "SELECT pr.revision, pr.schema_version, pr.payload "
+                "FROM persona_revisions pr "
+                "JOIN guild_persona_assignments assignment ON assignment.persona_revision_id = pr.id "
+                "WHERE assignment.config_revision_id = :revision_id"
+            ),
+            {"revision_id": identifiers["config_revision_id"]},
+        )
+        assert persona is not None
+        assert persona["revision"] == 21
+        assert persona["schema_version"] == 19
+        assert persona["payload"]["messages"]["interface"]["callsigns"]["saved_title"]
+        table = await client.fetch_one(
+            sa.text("SELECT to_regclass('public.guild_member_profiles') AS name")
+        )
+        assert table is not None and table["name"] == "guild_member_profiles"
+    finally:
+        await client.close()
 
 
 async def _exercise_database(database_url: str) -> None:

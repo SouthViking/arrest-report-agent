@@ -35,6 +35,7 @@ class AccessPolicyKey(StrEnum):
     PAGER_CREATOR_ROLES = "pager_creator_roles"
     PAGER_RECIPIENT_ROLES = "pager_recipient_roles"
     PAGER_CLOSER_ROLES = "pager_closer_roles"
+    OPERATIONAL_STAFF_ROLES = "operational_staff_roles"
 
 
 POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] = {
@@ -51,6 +52,7 @@ POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] 
     AccessPolicyKey.PAGER_CREATOR_ROLES: "role",
     AccessPolicyKey.PAGER_RECIPIENT_ROLES: "role",
     AccessPolicyKey.PAGER_CLOSER_ROLES: "role",
+    AccessPolicyKey.OPERATIONAL_STAFF_ROLES: "role",
 }
 
 
@@ -140,6 +142,7 @@ class GuildConfigSnapshot(FrozenConfigModel):
                 AccessPolicyKey.PAGER_CREATOR_ROLES,
                 AccessPolicyKey.PAGER_RECIPIENT_ROLES,
                 AccessPolicyKey.PAGER_CLOSER_ROLES,
+                AccessPolicyKey.OPERATIONAL_STAFF_ROLES,
             )
             for key in required:
                 policy = self.policies[key]
@@ -223,6 +226,11 @@ class GuildRuntimeSettings:
     @property
     def pager_closer_role_ids(self) -> tuple[int, ...]:
         return self.snapshot.policy(AccessPolicyKey.PAGER_CLOSER_ROLES).ids
+
+    @property
+    def operational_staff_role_ids(self) -> tuple[int, ...]:
+        policy = self.snapshot.policy(AccessPolicyKey.OPERATIONAL_STAFF_ROLES)
+        return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
 
     @property
     def pager_starting_number(self) -> int:

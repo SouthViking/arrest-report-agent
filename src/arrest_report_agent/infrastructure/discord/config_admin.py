@@ -42,6 +42,7 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
     AccessPolicyKey.PAGER_CREATOR_ROLES: "Emisores de pagers",
     AccessPolicyKey.PAGER_RECIPIENT_ROLES: "Destinatarios de pagers",
     AccessPolicyKey.PAGER_CLOSER_ROLES: "Responsables de cierre de pagers",
+    AccessPolicyKey.OPERATIONAL_STAFF_ROLES: "Personal operativo con callsign",
 }
 FEATURE_LABELS = {
     "role_requests": "Solicitudes de roles",

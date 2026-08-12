@@ -51,6 +51,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/pager-activos` | Todos en canales de pager | Pública y paginada | PostgreSQL |
 | `/mis-pagers` | Todos en canales de pager | Efímera y paginada | PostgreSQL |
 | `/info-pager` | Todos en una guild configurada | Pública | Persona y configuración actuales |
+| `/callsign` | Roles de personal operativo | Efímera | PostgreSQL |
 
 Los comandos generales no aplican `AUTHORIZED_USER_IDS`; están destinados a todos los miembros que
 puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists centrales antes de
@@ -255,18 +256,25 @@ resultados, pero no el texto introducido por el usuario.
 ## Pagers
 
 El módulo se configura sin redeploy desde `/config`: crea un borrador, deja como restringidas las
-políticas **Canales de pagers**, **Emisores de pagers**, **Destinatarios de pagers** y
-**Responsables de cierre de pagers**, habilita el módulo **Pagers** y publica. La opción
+políticas **Canales de pagers**, **Emisores de pagers**, **Destinatarios de pagers**,
+**Responsables de cierre de pagers** y **Personal operativo con callsign**, habilita el módulo
+**Pagers** y publica. La opción
 `starting_number` fija el primer correlativo cuando la guild todavía no tiene registros; LSSD se
 inicializa en `92`.
 
 `/pager` solicita callsign, uno o más destinatarios, ubicación y situación mediante un modal. Publica
 una única notificación para todos los roles seleccionados y un embed que se actualiza con las unidades
 respondientes. El emisor no puede registrarse también como respondiente. Sus botones permiten registrar
-o actualizar callsign, retirarse, editar sus datos, concluir con resultado o cancelar con motivo. Solo el
+o actualizar una respuesta, retirarse, editar sus datos, concluir con resultado o cancelar con motivo. Solo el
 emisor y los responsables de cierre pueden editar; los cambios de destinatarios no generan otra
 notificación. Las operaciones exitosas se reflejan directamente en el mensaje sin confirmaciones
 efímeras adicionales.
+
+Al usar **Responder / actualizar**, primero se exige uno de los roles de
+`operational_staff_roles`. Si el miembro ya registró `/callsign`, ese valor se utiliza directamente
+y no se abre un formulario. Si todavía no existe, el pager lo solicita una vez y lo conserva para
+respuestas posteriores. `/callsign` permite registrarlo o reemplazarlo con un modal; tanto el
+resultado como los errores son efímeros y usan la personalidad activa.
 
 `/pager-activos` publica cinco avisos por página con enlaces directos. `/mis-pagers` presenta de forma
 privada los avisos emitidos o respondidos por el usuario. `/info-pager` explica públicamente el flujo y

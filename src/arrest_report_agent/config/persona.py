@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 18
+PERSONA_SCHEMA_VERSION = 19
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -642,6 +642,25 @@ class PersonaPagerMessages(FrozenPersonaModel):
         return self
 
 
+class PersonaCallsignMessages(FrozenPersonaModel):
+    """Personality-aware responses for operational member callsigns."""
+
+    alert_title: str = Field(min_length=1, max_length=256)
+    unauthorized: str = Field(min_length=1, max_length=400)
+    saved_title: str = Field(min_length=1, max_length=256)
+    saved_description: str = Field(min_length=1, max_length=400)
+    operation_failed: str = Field(min_length=1, max_length=300)
+
+    @model_validator(mode="after")
+    def validate_templates(self) -> PersonaCallsignMessages:
+        _require_template_fields(
+            self.saved_description,
+            {"callsign"},
+            "interface.callsigns.saved_description",
+        )
+        return self
+
+
 class PersonaReviewMessages(FrozenPersonaModel):
     """Personality-aware framing around formal structured review data."""
 
@@ -715,6 +734,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     active_pagers_description: str = Field(min_length=1, max_length=100)
     my_pagers_description: str = Field(min_length=1, max_length=100)
     info_pager_description: str = Field(min_length=1, max_length=100)
+    callsign_description: str = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaCommandMessages:
@@ -735,6 +755,7 @@ class PersonaInterfaceMessages(FrozenPersonaModel):
     supervision: PersonaSupervisionMessages
     role_requests: PersonaRoleRequestMessages
     pagers: PersonaPagerMessages
+    callsigns: PersonaCallsignMessages
     review: PersonaReviewMessages
     commands: PersonaCommandMessages
 

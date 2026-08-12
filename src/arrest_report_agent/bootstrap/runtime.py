@@ -29,6 +29,7 @@ from arrest_report_agent.infrastructure.postgres import (
     PostgresClient,
 )
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+from arrest_report_agent.operational_profiles import CallsignCog, MemberProfileRepository
 from arrest_report_agent.pagers import (
     PagerCog,
     PagerControlsView,
@@ -192,10 +193,17 @@ async def build_runtime(
         if (feature := bundle.snapshot.features.get("pagers")) is not None and feature.enabled
     ]
     pager_repository = PagerRepository(postgres)
-    pager_registry = PagerServiceRegistry(bot, config_provider, pager_repository)
+    member_profile_repository = MemberProfileRepository(postgres)
+    pager_registry = PagerServiceRegistry(
+        bot,
+        config_provider,
+        pager_repository,
+        member_profile_repository,
+    )
     bot.pager_registry = pager_registry  # type: ignore[attr-defined]
     bot.add_view(PagerControlsView())
     bot.add_cog(PagerCog(pager_registry, persona.profile))
+    bot.add_cog(CallsignCog(config_provider, member_profile_repository, persona.profile))
     pagers_enabled = bool(pager_bundles)
     log_event(
         LOGGER,
