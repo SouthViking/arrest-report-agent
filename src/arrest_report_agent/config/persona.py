@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 19
+PERSONA_SCHEMA_VERSION = 20
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -197,7 +197,7 @@ class PersonaHelpMessages(FrozenPersonaModel):
     personal_commands_title: str = Field(min_length=1, max_length=256)
     personal_commands: str = Field(min_length=1, max_length=900)
     general_commands_title: str = Field(min_length=1, max_length=256)
-    general_commands: str = Field(min_length=1, max_length=900)
+    general_commands: str = Field(min_length=1, max_length=1024)
     supervision_commands_title: str = Field(min_length=1, max_length=256)
     supervision_commands: str = Field(min_length=1, max_length=900)
     official_docs_title: str = Field(min_length=1, max_length=256)
@@ -650,6 +650,11 @@ class PersonaCallsignMessages(FrozenPersonaModel):
     saved_title: str = Field(min_length=1, max_length=256)
     saved_description: str = Field(min_length=1, max_length=400)
     operation_failed: str = Field(min_length=1, max_length=300)
+    directory_intro: str = Field(min_length=1, max_length=500)
+    directory_empty: str = Field(min_length=1, max_length=300)
+    navigation_owner_only: str = Field(min_length=1, max_length=300)
+    info_intro: str = Field(min_length=1, max_length=500)
+    info_closing: str = Field(min_length=1, max_length=400)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaCallsignMessages:
@@ -735,6 +740,8 @@ class PersonaCommandMessages(FrozenPersonaModel):
     my_pagers_description: str = Field(min_length=1, max_length=100)
     info_pager_description: str = Field(min_length=1, max_length=100)
     callsign_description: str = Field(min_length=1, max_length=100)
+    callsigns_description: str = Field(min_length=1, max_length=100)
+    info_callsigns_description: str = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaCommandMessages:

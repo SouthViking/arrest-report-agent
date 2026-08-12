@@ -343,9 +343,10 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 21
-        assert persona["schema_version"] == 19
+        assert persona["revision"] == 22
+        assert persona["schema_version"] == 20
         assert persona["payload"]["messages"]["interface"]["callsigns"]["saved_title"]
+        assert persona["payload"]["messages"]["interface"]["callsigns"]["directory_intro"]
         table = await client.fetch_one(
             sa.text("SELECT to_regclass('public.guild_member_profiles') AS name")
         )

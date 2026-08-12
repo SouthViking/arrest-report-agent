@@ -1,7 +1,7 @@
 {
-  "schema_version": 19,
+  "schema_version": 20,
   "id": "walter_vigil",
-  "revision": 21,
+  "revision": 22,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -139,7 +139,7 @@
       "personal_commands_title": "🗂️ Consultas privadas",
       "personal_commands": "• `/mis-reportes`: filtra sus publicaciones y abre rápidamente cada expediente.\n• `/mi-resumen`: consulta sus cifras del mes actual.",
       "general_commands_title": "📚 Consultas generales",
-      "general_commands": "• `/guia`: consulta las reglas de redacción y revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo local.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: elige un periodo y publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/ts3`: publica la dirección oficial del servidor de voz.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas de roles.\n• `/info-roles`: explica el procedimiento y sus límites.\n• `/pager`: emite un aviso operativo.\n• `/pager-activos`: consulta avisos todavía abiertos.\n• `/mis-pagers`: revisa en privado sus avisos y respuestas.\n• `/info-pager`: explica brevemente el sistema.\n• `/callsign`: registra o actualiza su callsign operativo.",
+      "general_commands": "• `/guia`: consulta las reglas de redacción y revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo local.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: elige un periodo y publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/ts3`: publica la dirección oficial del servidor de voz.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas de roles.\n• `/info-roles`: explica el procedimiento y sus límites.\n• `/pager`: emite un aviso operativo.\n• `/pager-activos`: consulta avisos todavía abiertos.\n• `/mis-pagers`: revisa en privado sus avisos y respuestas.\n• `/info-pager`: explica brevemente el sistema.\n• `/callsign`: registra o actualiza su callsign operativo.\n• `/callsigns`: publica el directorio de callsigns del personal.\n• `/info-callsigns`: explica cómo registrar y consultar callsigns.",
       "supervision_commands_title": "🛡️ Supervisión",
       "supervision_commands": "• `/pendientes`: localiza expedientes sin estado terminal.\n• `/ranking`: compara actividad y resultados por miembro.\nRequieren un rol de supervisión autorizado.",
       "official_docs_title": "📚 Documentación oficial",
@@ -324,7 +324,12 @@
         "unauthorized": "Solo el personal operativo autorizado puede registrar o utilizar un callsign.",
         "saved_title": "📻 Callsign actualizado",
         "saved_description": "Quedó registrado como **{callsign}** para las operaciones de este servidor.",
-        "operation_failed": "No pude guardar el callsign. El registro anterior, si existía, permanece sin cambios."
+        "operation_failed": "No pude completar la operación de callsigns. El registro anterior, si existía, permanece sin cambios.",
+        "directory_intro": "Directorio operativo del personal que mantiene un callsign registrado en este servidor.",
+        "directory_empty": "Todavía no hay callsigns registrados para miembros activos del servidor.",
+        "navigation_owner_only": "Solo quien abrió el directorio puede cambiar de página.",
+        "info_intro": "Registre su identificador una vez y consúltelo junto al resto del personal cuando necesite coordinar una operación.",
+        "info_closing": "Ambos comandos están reservados al personal operativo autorizado."
       },
       "review": {
         "failure_next_step_title": "Siguiente paso",
@@ -371,7 +376,9 @@
         "active_pagers_description": "Muestra los pagers que siguen activos",
         "my_pagers_description": "Consulta sus pagers y respuestas",
         "info_pager_description": "Explica brevemente cómo funciona el pager",
-        "callsign_description": "Registra o actualiza su callsign operativo"
+        "callsign_description": "Registra o actualiza su callsign operativo",
+        "callsigns_description": "Muestra el directorio operativo de callsigns",
+        "info_callsigns_description": "Explica cómo registrar y consultar callsigns"
       }
     }
   }

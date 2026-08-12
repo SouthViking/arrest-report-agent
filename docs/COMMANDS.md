@@ -52,6 +52,8 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/mis-pagers` | Todos en canales de pager | Efímera y paginada | PostgreSQL |
 | `/info-pager` | Todos en una guild configurada | Pública | Persona y configuración actuales |
 | `/callsign` | Roles de personal operativo | Efímera | PostgreSQL |
+| `/callsigns` | Roles de personal operativo | Pública y paginada | PostgreSQL y miembros actuales de Discord |
+| `/info-callsigns` | Todos en una guild configurada | Pública | Persona y configuración actuales |
 
 Los comandos generales no aplican `AUTHORIZED_USER_IDS`; están destinados a todos los miembros que
 puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists centrales antes de
@@ -274,7 +276,10 @@ Al usar **Responder / actualizar**, primero se exige uno de los roles de
 `operational_staff_roles`. Si el miembro ya registró `/callsign`, ese valor se utiliza directamente
 y no se abre un formulario. Si todavía no existe, el pager lo solicita una vez y lo conserva para
 respuestas posteriores. `/callsign` permite registrarlo o reemplazarlo con un modal; tanto el
-resultado como los errores son efímeros y usan la personalidad activa.
+resultado como los errores son efímeros y usan la personalidad activa. `/callsigns` publica para el
+personal operativo un directorio paginado, agrupado por callsign y limitado a miembros que todavía
+pertenecen a la guild. Las referencias no generan notificaciones. `/info-callsigns` explica ambos
+comandos públicamente y de forma breve.
 
 `/pager-activos` publica cinco avisos por página con enlaces directos. `/mis-pagers` presenta de forma
 privada los avisos emitidos o respondidos por el usuario. `/info-pager` explica públicamente el flujo y

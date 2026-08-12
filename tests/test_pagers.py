@@ -109,7 +109,7 @@ def _snapshot(settings: AppSettings, *, enabled: bool) -> GuildConfigSnapshot:
         },
         persona_revision_id=uuid4(),
         persona_id="walter_vigil",
-        persona_revision=21,
+        persona_revision=22,
     )
 
 
@@ -672,6 +672,12 @@ async def test_pager_repository_persists_responses_and_idempotent_close(
         assert profile.callsign == "242WS"
         updated_profile = await profiles.upsert_callsign(guild_id, 11, "243WS")
         assert updated_profile.callsign == "243WS"
+        await profiles.upsert_callsign(guild_id, 12, "241WS")
+        stored_profiles = await profiles.list_for_guild(guild_id)
+        assert [(item.user_id, item.callsign) for item in stored_profiles] == [
+            (12, "241WS"),
+            (11, "243WS"),
+        ]
         pager = await repository.create_publishing(
             guild_id=guild_id,
             channel_id=100,

@@ -20,6 +20,15 @@ depends_on: str | Sequence[str] | None = None
 POLICY_KEY = "operational_staff_roles"
 SOURCE_POLICIES = ("pager_creator_roles", "supervisor_roles")
 PERSONA_REVISIONS = (("walter_vigil", 21), ("roy_velazco", 28))
+PERSONA_SCHEMA_VERSION = 19
+NEW_CALLSIGN_FIELDS = {
+    "directory_intro",
+    "directory_empty",
+    "navigation_owner_only",
+    "info_intro",
+    "info_closing",
+}
+NEW_COMMAND_FIELDS = {"callsigns_description", "info_callsigns_description"}
 
 
 def upgrade() -> None:
@@ -122,9 +131,10 @@ def _install_persona_revisions(connection: sa.Connection) -> None:
         )
         if persona is None:
             continue
-        payload = json.loads((persona_dir / f"{slug}.json").read_text(encoding="utf-8"))
-        if payload["revision"] != expected_revision:
-            raise RuntimeError(f"Unexpected packaged revision for {slug}")
+        payload = _historical_payload(
+            json.loads((persona_dir / f"{slug}.json").read_text(encoding="utf-8")),
+            expected_revision,
+        )
         existing = (
             connection.execute(
                 sa.text(
@@ -203,6 +213,37 @@ def _install_persona_revisions(connection: sa.Connection) -> None:
             ),
             {"revision_id": revision_id, "persona_id": persona["id"]},
         )
+
+
+def _historical_payload(payload: dict[str, object], expected_revision: int) -> dict[str, object]:
+    current_revision = int(payload["revision"])
+    if current_revision < expected_revision:
+        raise RuntimeError("Packaged persona revision predates the callsign migration")
+    payload["revision"] = expected_revision
+    payload["schema_version"] = PERSONA_SCHEMA_VERSION
+    messages = payload["messages"]
+    if not isinstance(messages, dict):
+        raise RuntimeError("Packaged persona messages are invalid")
+    interface = messages["interface"]
+    help_messages = messages["help"]
+    if not isinstance(interface, dict) or not isinstance(help_messages, dict):
+        raise RuntimeError("Packaged persona interface is invalid")
+    callsigns = interface["callsigns"]
+    commands = interface["commands"]
+    if not isinstance(callsigns, dict) or not isinstance(commands, dict):
+        raise RuntimeError("Packaged persona callsign copy is invalid")
+    for field in NEW_CALLSIGN_FIELDS:
+        callsigns.pop(field, None)
+    for field in NEW_COMMAND_FIELDS:
+        commands.pop(field, None)
+    general_commands = help_messages.get("general_commands")
+    if isinstance(general_commands, str):
+        help_messages["general_commands"] = "\n".join(
+            line
+            for line in general_commands.splitlines()
+            if "`/callsigns`" not in line and "`/info-callsigns`" not in line
+        )
+    return payload
 
 
 def _downgrade_personas(connection: sa.Connection) -> None:

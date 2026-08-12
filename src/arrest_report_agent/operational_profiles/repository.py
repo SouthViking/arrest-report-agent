@@ -41,6 +41,26 @@ class MemberProfileRepository:
         profile = await self.get(guild_id, user_id)
         return profile.callsign if profile is not None else None
 
+    async def list_for_guild(self, guild_id: int) -> tuple[MemberProfile, ...]:
+        rows = await self.client.fetch_all(
+            sa.select(guild_member_profiles)
+            .where(guild_member_profiles.c.guild_id == guild_id)
+            .order_by(
+                sa.func.lower(guild_member_profiles.c.callsign),
+                guild_member_profiles.c.user_id,
+            )
+        )
+        return tuple(
+            MemberProfile(
+                guild_id=int(row["guild_id"]),
+                user_id=int(row["user_id"]),
+                callsign=str(row["callsign"]),
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
+            for row in rows
+        )
+
     async def upsert_callsign(self, guild_id: int, user_id: int, callsign: str) -> MemberProfile:
         value = callsign.strip()
         if not value or len(value) > 40:

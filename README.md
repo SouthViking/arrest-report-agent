@@ -280,6 +280,9 @@ Comandos disponibles:
 - `/info-pager`: publica una explicación breve del sistema.
 - `/callsign`: registra o reemplaza de forma privada el callsign operativo del miembro; requiere un
   rol configurado como personal operativo.
+- `/callsigns`: publica para el personal operativo el directorio paginado, agrupado por callsign y
+  sin notificar a los miembros referenciados.
+- `/info-callsigns`: explica públicamente y de forma breve cómo registrar y consultar callsigns.
 - `/config`: abre un panel efímero sin argumentos, reservado a owners o roles `config_admin_roles`;
   permite inspeccionar la revisión activa y administrar borradores, accesos, agente, módulos,
   personas, publicación y rollback mediante botones y formularios. Los intentos no autorizados

@@ -1,7 +1,7 @@
 {
-  "schema_version": 19,
+  "schema_version": 20,
   "id": "roy_velazco",
-  "revision": 28,
+  "revision": 29,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -159,7 +159,7 @@
       "personal_commands_title": "🗂️ Tus propios papelitos",
       "personal_commands": "• `/mis-reportes`: busca tus publicaciones sin hacerte recorrer medio Discord.\n• `/mi-resumen`: te cuenta cómo vai este mes, si te atrevís.",
       "general_commands_title": "📚 Dudas y consultas",
-      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: elige el periodo y publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa todos.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.\n• `/callsign`: guarda tu callsign pa no repetirlo cada vez.",
+      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: elige el periodo y publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa todos.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.\n• `/callsign`: guarda tu callsign pa no repetirlo cada vez.\n• `/callsigns`: muestra quién usa cada callsign.\n• `/info-callsigns`: explica cómo guardar y revisar callsigns.",
       "supervision_commands_title": "🛡️ Cosas de los mandos",
       "supervision_commands": "• `/pendientes`: encuentra expedientes botados.\n• `/ranking`: compara quién trabaja y quién puro mira.\nNecesitai un rol autorizado, no llorís.",
       "official_docs_title": "📚 Papeles oficiales",
@@ -344,7 +344,12 @@
         "unauthorized": "No tenís un rol operativo pa usar callsign acá, así q no inventís.",
         "saved_title": "📻 Callsign guardado",
         "saved_description": "Listo, quedaste como **{callsign}**. La próxima vez el pager lo usa solo, pa q no lo escribai de nuevo.",
-        "operation_failed": "No pude guardar la cuestión. Si ya teníai un callsign, quedó tal como estaba."
+        "operation_failed": "No pude completar la cuestión de los callsigns. Si ya teníai uno, quedó tal como estaba.",
+        "directory_intro": "Acá está el personal q hizo la pega y dejó su callsign guardado, ordenado pa encontrarlo sin dar vueltas.",
+        "directory_empty": "No hay ni un callsign registrado entre los miembros activos. Excelente coordinación.",
+        "navigation_owner_only": "No te metai con los botones ajenos; solo quien abrió esto puede cambiar la página.",
+        "info_intro": "Guarda el callsign una vez y después búscalo en el directorio, así nadie anda preguntando lo mismo veinte veces.",
+        "info_closing": "Esto es pa personal operativo autorizado, no pa cualquiera q pase mirando."
       },
       "review": {
         "failure_next_step_title": "Y ahora qué",
@@ -391,7 +396,9 @@
         "active_pagers_description": "Muestra los pagers q siguen activos",
         "my_pagers_description": "Revisa tus pagers y respuestas",
         "info_pager_description": "Explica cómo funciona el sistema de pagers",
-        "callsign_description": "Guarda tu callsign pa no repetirlo en cada pager"
+        "callsign_description": "Guarda tu callsign pa no repetirlo en cada pager",
+        "callsigns_description": "Muestra quién usa cada callsign operativo",
+        "info_callsigns_description": "Explica cómo guardar y consultar callsigns"
       }
     }
   }
