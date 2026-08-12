@@ -1,7 +1,7 @@
 {
-  "schema_version": 15,
+  "schema_version": 16,
   "id": "walter_vigil",
-  "revision": 17,
+  "revision": 18,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -139,7 +139,7 @@
       "personal_commands_title": "🗂️ Consultas privadas",
       "personal_commands": "• `/mis-reportes`: filtra sus publicaciones y abre rápidamente cada expediente.\n• `/mi-resumen`: consulta sus cifras del mes actual.",
       "general_commands_title": "📚 Consultas generales",
-      "general_commands": "• `/guia`: consulta las reglas de redacción y revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo local.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: elige un periodo y publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/ts3`: publica la dirección oficial del servidor de voz.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas de roles.\n• `/info-roles`: explica el procedimiento y sus límites.",
+      "general_commands": "• `/guia`: consulta las reglas de redacción y revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo local.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: elige un periodo y publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/ts3`: publica la dirección oficial del servidor de voz.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas de roles.\n• `/info-roles`: explica el procedimiento y sus límites.\n• `/pager`: emite un aviso operativo.\n• `/pager-activos`: consulta avisos todavía abiertos.\n• `/mis-pagers`: revisa en privado sus avisos y respuestas.\n• `/info-pager`: explica brevemente el sistema.",
       "supervision_commands_title": "🛡️ Supervisión",
       "supervision_commands": "• `/pendientes`: localiza expedientes sin estado terminal.\n• `/ranking`: compara actividad y resultados por miembro.\nRequieren un rol de supervisión autorizado.",
       "official_docs_title": "📚 Documentación oficial",
@@ -305,6 +305,23 @@
         "info_outcomes_title": "Resultados posibles",
         "info_outcomes": "✅ Aprobada · 🟡 Parcial · ❌ Rechazada"
       },
+      "pagers": {
+        "alert_title": "⚠️ Pager no disponible",
+        "created_confirmation": "📻 Pager emitido correctamente: [abrir aviso]({jump_url}).",
+        "response_confirmation": "📻 Su unidad quedó registrada en el pager.",
+        "withdrawn_confirmation": "↩️ Su unidad fue retirada del pager.",
+        "concluded_confirmation": "✅ Pager concluido y archivado.",
+        "cancelled_confirmation": "❌ Pager cancelado y archivado.",
+        "unavailable": "El sistema de pagers no está disponible con la configuración actual.",
+        "wrong_channel": "Este canal no está habilitado para operaciones de pager. Utilice uno de los siguientes:\n{channels}",
+        "unauthorized_creator": "No tiene un rol autorizado para emitir pagers.",
+        "unauthorized_closer": "Solo el emisor o un responsable autorizado puede cerrar este pager.",
+        "invalid_recipient": "El destinatario seleccionado ya no está disponible o no admite menciones.",
+        "stale": "Este pager ya fue cerrado o dejó de estar disponible.",
+        "operation_failed": "No pude completar la operación. El pager conserva su estado anterior.",
+        "info_intro": "Emita avisos operativos y coordine las unidades que responderán, manteniendo toda la actualización en un único mensaje.",
+        "info_closing": "Revise los datos antes de emitir el aviso y cierre el pager cuando la situación haya terminado."
+      },
       "review": {
         "failure_next_step_title": "Siguiente paso",
         "escalation_notice": "📣 Se requiere supervisión: {roles}",
@@ -345,7 +362,11 @@
         "request_roles_description": "Solicita altas o bajas de roles para supervisión",
         "info_roles_description": "Explica cómo funciona la solicitud de roles",
         "teamspeak_description": "Muestra la dirección oficial de TeamSpeak 3",
-        "teamspeak_message": "La frecuencia de voz está disponible aquí, deputy:\n\n`{address}`"
+        "teamspeak_message": "La frecuencia de voz está disponible aquí, deputy:\n\n`{address}`",
+        "pager_description": "Emite un pager operativo desde un formulario",
+        "active_pagers_description": "Muestra los pagers que siguen activos",
+        "my_pagers_description": "Consulta sus pagers y respuestas",
+        "info_pager_description": "Explica brevemente cómo funciona el pager"
       }
     }
   }

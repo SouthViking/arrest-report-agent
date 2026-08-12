@@ -30,6 +30,10 @@ class AccessPolicyKey(StrEnum):
     ROLE_REQUEST_ALLOWED_ROLES = "role_request_allowed_roles"
     ROLE_REQUEST_REVIEWER_ROLES = "role_request_reviewer_roles"
     CONFIG_ADMIN_ROLES = "config_admin_roles"
+    PAGER_CHANNELS = "pager_channels"
+    PAGER_CREATOR_ROLES = "pager_creator_roles"
+    PAGER_RECIPIENT_ROLES = "pager_recipient_roles"
+    PAGER_CLOSER_ROLES = "pager_closer_roles"
 
 
 POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] = {
@@ -41,6 +45,10 @@ POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] 
     AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES: "role",
     AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES: "role",
     AccessPolicyKey.CONFIG_ADMIN_ROLES: "role",
+    AccessPolicyKey.PAGER_CHANNELS: "channel",
+    AccessPolicyKey.PAGER_CREATOR_ROLES: "role",
+    AccessPolicyKey.PAGER_RECIPIENT_ROLES: "role",
+    AccessPolicyKey.PAGER_CLOSER_ROLES: "role",
 }
 
 
@@ -114,6 +122,29 @@ class GuildConfigSnapshot(FrozenConfigModel):
                 "guild configuration is missing policies: "
                 + ", ".join(sorted(item.value for item in missing))
             )
+        feature = self.features.get("pagers")
+        if feature is not None and feature.enabled:
+            if feature.schema_version != 1:
+                raise ValueError("pagers requires feature schema version 1")
+            starting_number = feature.payload.get("starting_number")
+            if (
+                isinstance(starting_number, bool)
+                or not isinstance(starting_number, int)
+                or not 1 <= starting_number <= 99_999
+            ):
+                raise ValueError("pagers requires starting_number between 1 and 99999")
+            required = (
+                AccessPolicyKey.PAGER_CHANNELS,
+                AccessPolicyKey.PAGER_CREATOR_ROLES,
+                AccessPolicyKey.PAGER_RECIPIENT_ROLES,
+                AccessPolicyKey.PAGER_CLOSER_ROLES,
+            )
+            for key in required:
+                policy = self.policies[key]
+                if policy.mode is not AccessPolicyMode.RESTRICTED:
+                    raise ValueError(f"enabled pagers requires restricted policy {key.value}")
+            if len(self.policies[AccessPolicyKey.PAGER_RECIPIENT_ROLES].ids) > 25:
+                raise ValueError("pagers supports at most 25 recipient roles")
         return self
 
     def policy(self, key: AccessPolicyKey) -> AccessPolicySnapshot:
@@ -170,6 +201,30 @@ class GuildRuntimeSettings:
     def role_request_reviewer_role_ids(self) -> tuple[int, ...]:
         policy = self.snapshot.policy(AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES)
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
+    def pager_channel_allowlist(self) -> SnowflakeAllowlist:
+        return self.snapshot.policy(AccessPolicyKey.PAGER_CHANNELS).as_allowlist()
+
+    @property
+    def pager_creator_role_ids(self) -> tuple[int, ...]:
+        return self.snapshot.policy(AccessPolicyKey.PAGER_CREATOR_ROLES).ids
+
+    @property
+    def pager_recipient_role_ids(self) -> tuple[int, ...]:
+        return self.snapshot.policy(AccessPolicyKey.PAGER_RECIPIENT_ROLES).ids
+
+    @property
+    def pager_closer_role_ids(self) -> tuple[int, ...]:
+        return self.snapshot.policy(AccessPolicyKey.PAGER_CLOSER_ROLES).ids
+
+    @property
+    def pager_starting_number(self) -> int:
+        feature = self.snapshot.features.get("pagers")
+        if feature is None:
+            return 1
+        value = feature.payload.get("starting_number", 1)
+        return int(value)
 
     @property
     def openai_model(self) -> str:

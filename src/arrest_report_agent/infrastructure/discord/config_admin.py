@@ -27,6 +27,31 @@ from arrest_report_agent.infrastructure.postgres import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+POLICY_LABELS: dict[AccessPolicyKey, str] = {
+    AccessPolicyKey.REPORT_CHANNELS: "Canales del agente",
+    AccessPolicyKey.AGENT_USERS: "Usuarios del agente",
+    AccessPolicyKey.SUPERVISOR_ROLES: "Roles de supervisión",
+    AccessPolicyKey.REVIEW_ESCALATION_ROLES: "Roles de derivación",
+    AccessPolicyKey.ROLE_REQUEST_CHANNELS: "Canales de solicitudes de roles",
+    AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES: "Roles solicitables",
+    AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES: "Revisores de roles",
+    AccessPolicyKey.CONFIG_ADMIN_ROLES: "Administradores de configuración",
+    AccessPolicyKey.PAGER_CHANNELS: "Canales de pagers",
+    AccessPolicyKey.PAGER_CREATOR_ROLES: "Emisores de pagers",
+    AccessPolicyKey.PAGER_RECIPIENT_ROLES: "Destinatarios de pagers",
+    AccessPolicyKey.PAGER_CLOSER_ROLES: "Responsables de cierre de pagers",
+}
+FEATURE_LABELS = {
+    "role_requests": "Solicitudes de roles",
+    "pagers": "Pagers",
+    "teamspeak": "TeamSpeak",
+}
+MODE_LABELS = {
+    AccessPolicyMode.OPEN: "abierta",
+    AccessPolicyMode.RESTRICTED: "restringida",
+    AccessPolicyMode.DISABLED: "deshabilitada",
+}
 CONFIG_PANEL_TIMEOUT_SECONDS = 900
 MAX_PERSONA_JSON_BYTES = 1_000_000
 MAX_PERSONA_AVATAR_BYTES = 10_485_760
@@ -55,9 +80,13 @@ def build_config_panel_embed(snapshot: object, draft_id: object | None) -> disco
     """Render the current immutable configuration and draft status."""
 
     policies = "\n".join(
-        f"• `{key.value}`: **{policy.mode.value}** ({len(policy.ids)})"
+        f"• **{POLICY_LABELS[key]}:** {MODE_LABELS[policy.mode]} ({len(policy.ids)})"
         for key, policy in sorted(snapshot.policies.items(), key=lambda item: item[0].value)
     )
+    features = "\n".join(
+        f"• **{FEATURE_LABELS.get(key, key)}:** {'habilitado' if feature.enabled else 'deshabilitado'}"
+        for key, feature in sorted(getattr(snapshot, "features", {}).items())
+    ) or "No hay módulos configurados."
     embed = discord.Embed(
         title="⚙️ Panel de configuración",
         description=(
@@ -81,6 +110,7 @@ def build_config_panel_embed(snapshot: object, draft_id: object | None) -> disco
         inline=False,
     )
     embed.add_field(name="Políticas", value=policies, inline=False)
+    embed.add_field(name="Módulos", value=features, inline=False)
     embed.set_footer(text="Panel privado · expira tras 15 minutos")
     return embed
 
@@ -576,7 +606,7 @@ class AccessPolicyModal(BaseConfigurationModal):
             placeholder="Selecciona una política",
             options=[
                 discord.SelectOption(
-                    label=key.value.replace("_", " ").title()[:100],
+                    label=POLICY_LABELS[key][:100],
                     value=key.value,
                 )
                 for key in AccessPolicyKey
@@ -759,11 +789,14 @@ class AgentConfigurationModal(BaseConfigurationModal):
 
 class FeatureConfigurationModal(BaseConfigurationModal):
     def __init__(self, cog: ConfigurationAdminCog, requester_id: int) -> None:
-        self.key = discord.ui.InputText(
+        self.key = discord.ui.StringSelect(
             custom_id="config:v2:feature:key",
-            placeholder="Ejemplo: role_requests",
-            min_length=2,
-            max_length=80,
+            placeholder="Selecciona un módulo",
+            options=[
+                discord.SelectOption(label="Solicitudes de roles", value="role_requests"),
+                discord.SelectOption(label="Pagers", value="pagers"),
+                discord.SelectOption(label="TeamSpeak", value="teamspeak"),
+            ],
         )
         self.enabled = discord.ui.StringSelect(
             custom_id="config:v2:feature:enabled",
@@ -795,8 +828,20 @@ class FeatureConfigurationModal(BaseConfigurationModal):
             payload = json.loads(self.options.value)
             if not isinstance(payload, dict):
                 raise ValueError("Las opciones deben ser un objeto JSON.")
+            key = self.key.values[0]
+            draft_id = await self.cog.repository.draft_revision_id(interaction.guild.id)
+            if draft_id is None:
+                raise LookupError("Crea un borrador antes de configurar módulos.")
+            current_snapshot = await self.cog.repository.snapshot_for_revision(
+                interaction.guild.id,
+                draft_id,
+            )
+            current = current_snapshot.features.get(key)
+            payload = {**(current.payload if current is not None else {}), **payload}
+            if key == "pagers" and "starting_number" not in payload:
+                payload["starting_number"] = 1
             feature = GuildFeatureSnapshot(
-                key=self.key.value.strip().lower(),
+                key=key,
                 enabled=self.enabled.values[0] == "true",
                 schema_version=1,
                 payload=payload,

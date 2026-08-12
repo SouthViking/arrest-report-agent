@@ -314,6 +314,26 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 subject_type="role",
                 mode=AccessPolicyMode.DISABLED,
             ),
+            AccessPolicySnapshot(
+                key=AccessPolicyKey.PAGER_CHANNELS,
+                subject_type="channel",
+                mode=AccessPolicyMode.DISABLED,
+            ),
+            AccessPolicySnapshot(
+                key=AccessPolicyKey.PAGER_CREATOR_ROLES,
+                subject_type="role",
+                mode=AccessPolicyMode.DISABLED,
+            ),
+            AccessPolicySnapshot(
+                key=AccessPolicyKey.PAGER_RECIPIENT_ROLES,
+                subject_type="role",
+                mode=AccessPolicyMode.DISABLED,
+            ),
+            AccessPolicySnapshot(
+                key=AccessPolicyKey.PAGER_CLOSER_ROLES,
+                subject_type="role",
+                mode=AccessPolicyMode.DISABLED,
+            ),
         )
         guilds.append(
             BootstrapGuild(
@@ -333,6 +353,16 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         enabled=True,
                         schema_version=1,
                         payload={"address": "51.81.49.72:11189"},
+                    ),
+                    GuildFeatureSnapshot(
+                        key="pagers",
+                        enabled=False,
+                        schema_version=1,
+                        payload={
+                            "starting_number": 92
+                            if guild_id == 1234674521416663070
+                            else 1
+                        },
                     ),
                 ),
                 persona_revision_id=placeholder_persona_revision,

@@ -29,6 +29,12 @@ from arrest_report_agent.infrastructure.postgres import (
     PostgresClient,
 )
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+from arrest_report_agent.pagers import (
+    PagerCog,
+    PagerControlsView,
+    PagerRepository,
+    PagerServiceRegistry,
+)
 from arrest_report_agent.role_requests import (
     RoleRequestCog,
     RoleRequestDecisionView,
@@ -49,6 +55,7 @@ class Runtime:
     model: ResolvedModel
     persona: LoadedPersona
     role_requests_enabled: bool
+    pagers_enabled: bool
     postgres: PostgresClient
     config_provider: DatabaseConfigProvider
 
@@ -68,6 +75,7 @@ class Runtime:
             "persona": self.persona.profile.id,
             "persona_revision": self.persona.profile.revision,
             "role_requests": self.role_requests_enabled,
+            "pagers": self.pagers_enabled,
         }
 
     async def close(self) -> None:
@@ -178,6 +186,23 @@ async def build_runtime(
         "role_request_subsystem_registered",
         configured_guilds=len(role_request_bundles),
     )
+    pager_bundles = [
+        bundle
+        for bundle in all_bundles
+        if (feature := bundle.snapshot.features.get("pagers")) is not None and feature.enabled
+    ]
+    pager_repository = PagerRepository(postgres)
+    pager_registry = PagerServiceRegistry(bot, config_provider, pager_repository)
+    bot.pager_registry = pager_registry  # type: ignore[attr-defined]
+    bot.add_view(PagerControlsView())
+    bot.add_cog(PagerCog(pager_registry, persona.profile))
+    pagers_enabled = bool(pager_bundles)
+    log_event(
+        LOGGER,
+        "info",
+        "pager_subsystem_registered",
+        configured_guilds=len(pager_bundles),
+    )
     return Runtime(
         bot=bot,
         catalog=catalog,
@@ -185,6 +210,7 @@ async def build_runtime(
         model=model,
         persona=persona,
         role_requests_enabled=role_requests_enabled,
+        pagers_enabled=pagers_enabled,
         postgres=postgres,
         config_provider=config_provider,
     )

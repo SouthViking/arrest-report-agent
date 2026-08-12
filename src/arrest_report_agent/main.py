@@ -54,6 +54,7 @@ async def run() -> None:
         configuration_source="postgresql",
         configured_guilds=len(guild_ids),
         role_request_subsystem_enabled=runtime.role_requests_enabled,
+        pager_subsystem_enabled=runtime.pagers_enabled,
     )
     stop_requested = asyncio.Event()
     loop = asyncio.get_running_loop()

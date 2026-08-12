@@ -26,6 +26,7 @@ from arrest_report_agent.config import (
     ModelCatalog,
     PackagedPersonaProvider,
 )
+from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
 from arrest_report_agent.infrastructure.postgres import (
     ConfigurationRepository,
     PostgresClient,
@@ -76,13 +77,7 @@ def test_guild_file_limits_cannot_exceed_process_ceiling() -> None:
     policies = {
         key: AccessPolicySnapshot(
             key=key,
-            subject_type=(
-                "channel"
-                if key in {AccessPolicyKey.REPORT_CHANNELS, AccessPolicyKey.ROLE_REQUEST_CHANNELS}
-                else "user"
-                if key is AccessPolicyKey.AGENT_USERS
-                else "role"
-            ),
+            subject_type=POLICY_SUBJECT_TYPES[key],
             mode=AccessPolicyMode.DISABLED,
         )
         for key in AccessPolicyKey
@@ -196,7 +191,12 @@ async def _exercise_database(database_url: str) -> None:
                 key=key,
                 subject_type=(
                     "channel"
-                    if key in {AccessPolicyKey.REPORT_CHANNELS, AccessPolicyKey.ROLE_REQUEST_CHANNELS}
+                    if key
+                    in {
+                        AccessPolicyKey.REPORT_CHANNELS,
+                        AccessPolicyKey.ROLE_REQUEST_CHANNELS,
+                        AccessPolicyKey.PAGER_CHANNELS,
+                    }
                     else "user"
                     if key is AccessPolicyKey.AGENT_USERS
                     else "role"

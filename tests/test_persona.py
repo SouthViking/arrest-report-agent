@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 15
-    assert profile.revision == 17
+    assert profile.schema_version == 16
+    assert profile.revision == 18
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -36,8 +36,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 15
-    assert profile.revision == 24
+    assert profile.schema_version == 16
+    assert profile.revision == 25
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -93,6 +93,10 @@ async def test_personas_keep_personality_copy_with_capitalized_titles(loaded_per
     assert "supervisión" in roy.messages.interface.role_requests.pending_description.lower()
     assert "/solicitar-roles" in walter.messages.help.general_commands
     assert "/info-roles" in roy.messages.help.general_commands
+    assert "/pager" in walter.messages.help.general_commands
+    assert "/info-pager" in roy.messages.help.general_commands
+    assert "{jump_url}" in walter.messages.interface.pagers.created_confirmation
+    assert "Llegaste tarde" in roy.messages.interface.pagers.stale
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,256 @@
+from __future__ import annotations
+
+import asyncio
+import os
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from uuid import uuid4
+
+import pytest
+from alembic import command
+from alembic.config import Config
+from pydantic import ValidationError
+
+from arrest_report_agent.config import (
+    AccessPolicyKey,
+    AccessPolicyMode,
+    AccessPolicySnapshot,
+    AppSettings,
+    GuildAgentConfig,
+    GuildConfigSnapshot,
+    GuildFeatureSnapshot,
+    GuildRuntimeSettings,
+)
+from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
+from arrest_report_agent.infrastructure.postgres import PostgresClient, PostgresClientConfig
+from arrest_report_agent.infrastructure.postgres.schema import discord_guilds
+from arrest_report_agent.pagers.discord import PagerCog, PagerControlsView, PagerService
+from arrest_report_agent.pagers.models import Pager, PagerResponder, PagerStatus, UserPager
+from arrest_report_agent.pagers.repository import PagerRepository
+
+
+def _snapshot(settings: AppSettings, *, enabled: bool) -> GuildConfigSnapshot:
+    policies = {
+        key: AccessPolicySnapshot(
+            key=key,
+            subject_type=POLICY_SUBJECT_TYPES[key],
+            mode=(
+                AccessPolicyMode.RESTRICTED
+                if enabled
+                and key
+                in {
+                    AccessPolicyKey.PAGER_CHANNELS,
+                    AccessPolicyKey.PAGER_CREATOR_ROLES,
+                    AccessPolicyKey.PAGER_RECIPIENT_ROLES,
+                    AccessPolicyKey.PAGER_CLOSER_ROLES,
+                }
+                else AccessPolicyMode.DISABLED
+            ),
+            ids=(
+                (100,)
+                if enabled and key is AccessPolicyKey.PAGER_CHANNELS
+                else (200,)
+                if enabled
+                and key
+                in {
+                    AccessPolicyKey.PAGER_CREATOR_ROLES,
+                    AccessPolicyKey.PAGER_CLOSER_ROLES,
+                }
+                else (300,)
+                if enabled and key is AccessPolicyKey.PAGER_RECIPIENT_ROLES
+                else ()
+            ),
+        )
+        for key in AccessPolicyKey
+    }
+    agent = GuildAgentConfig(
+        model=settings.openai_model,
+        reasoning_effort=settings.openai_reasoning_effort,
+        review_timeout_seconds=settings.review_timeout_seconds,
+        max_agent_turns=settings.max_agent_turns,
+        max_images_per_review=settings.max_images_per_review,
+        max_image_bytes=settings.max_image_bytes,
+        max_files_per_review=settings.max_files_per_review,
+        max_file_bytes=settings.max_file_bytes,
+        max_total_file_bytes=settings.max_total_file_bytes,
+        thread_context_max_messages=settings.thread_context_max_messages,
+        channel_context_max_messages=settings.channel_context_max_messages,
+        thread_context_max_chars=settings.thread_context_max_chars,
+        thread_context_max_message_chars=settings.thread_context_max_message_chars,
+        thread_context_max_historical_images=settings.thread_context_max_historical_images,
+        thread_context_max_historical_files=settings.thread_context_max_historical_files,
+        thread_auto_archive_minutes=settings.thread_auto_archive_minutes,  # type: ignore[arg-type]
+    )
+    return GuildConfigSnapshot(
+        guild_id=1,
+        revision_id=uuid4(),
+        revision=1,
+        agent=agent,
+        policies=policies,
+        features={
+            "pagers": GuildFeatureSnapshot(
+                key="pagers",
+                enabled=enabled,
+                schema_version=1,
+                payload={"starting_number": 92},
+            )
+        },
+        persona_revision_id=uuid4(),
+        persona_id="walter_vigil",
+        persona_revision=18,
+    )
+
+
+def _pager(status: PagerStatus = PagerStatus.ACTIVE) -> Pager:
+    now = datetime.now(UTC)
+    return Pager(
+        id=uuid4(),
+        guild_id=1,
+        channel_id=100,
+        message_id=500,
+        number=92,
+        creator_user_id=10,
+        creator_callsign="241WS",
+        recipient_role_id=300,
+        location="Ganton",
+        situation="Unidad solicita apoyo.",
+        status=status,
+        resolution="Situación controlada." if status.terminal else None,
+        closed_by_user_id=10 if status.terminal else None,
+        created_at=now,
+        updated_at=now,
+        closed_at=now if status.terminal else None,
+        responders=(
+            PagerResponder(user_id=11, callsign="242WS", created_at=now, updated_at=now),
+        ),
+    )
+
+
+def test_pager_domain_builds_stable_number_link_and_relationships() -> None:
+    pager = _pager()
+
+    assert pager.display_number == "00092"
+    assert pager.jump_url == "https://discord.com/channels/1/100/500"
+    assert UserPager(pager=pager, creator=True, responder_callsign="241WS").relationship == (
+        "Emisor y respondiente"
+    )
+    assert PagerStatus.CONCLUDED.terminal
+    assert not PagerStatus.ACTIVE.terminal
+
+
+@pytest.mark.asyncio
+async def test_pager_embed_and_persistent_controls_are_deterministic(
+    settings: AppSettings,
+    persona,
+) -> None:
+    runtime = GuildRuntimeSettings(settings, _snapshot(settings, enabled=True))
+    service = PagerService(
+        SimpleNamespace(),
+        SimpleNamespace(),
+        runtime,
+        persona,
+        enabled=True,
+    )
+
+    active = service.build_embed(_pager())
+    terminal = PagerControlsView(disabled=True)
+
+    assert active.title == "📟 Pager #00092"
+    assert active.description == "📻 Activo"
+    assert any(field.name == "Unidades que responden · 1" for field in active.fields)
+    assert {child.custom_id for child in terminal.children} == {
+        "pager:v1:respond",
+        "pager:v1:withdraw",
+        "pager:v1:conclude",
+        "pager:v1:cancel",
+    }
+    assert all(child.disabled for child in terminal.children)
+
+
+def test_pager_commands_are_root_commands() -> None:
+    commands = (
+        PagerCog.pager,
+        PagerCog.active_pagers,
+        PagerCog.my_pagers,
+        PagerCog.info_pager,
+    )
+
+    assert [command.name for command in commands] == [
+        "pager",
+        "pager-activos",
+        "mis-pagers",
+        "info-pager",
+    ]
+    assert all(command.parent is None for command in commands)
+
+
+def test_enabled_pagers_require_restricted_complete_configuration(settings: AppSettings) -> None:
+    snapshot = _snapshot(settings, enabled=True)
+
+    assert snapshot.policy(AccessPolicyKey.PAGER_CHANNELS).ids == (100,)
+    assert GuildRuntimeSettings(settings, snapshot).pager_starting_number == 92
+
+    payload = snapshot.model_dump()
+    payload["policies"][AccessPolicyKey.PAGER_CHANNELS]["mode"] = AccessPolicyMode.DISABLED
+    payload["policies"][AccessPolicyKey.PAGER_CHANNELS]["ids"] = ()
+    with pytest.raises(ValidationError, match="pager_channels"):
+        GuildConfigSnapshot.model_validate(payload)
+
+
+@pytest.mark.asyncio
+async def test_pager_repository_persists_responses_and_idempotent_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    await asyncio.to_thread(command.upgrade, Config("alembic.ini"), "head")
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    guild_id = 987654321012345678
+    try:
+        await client.execute(discord_guilds.delete().where(discord_guilds.c.discord_id == guild_id))
+        await client.execute(discord_guilds.insert().values(discord_id=guild_id, name="Pager QA"))
+        repository = PagerRepository(client)
+        pager = await repository.create_publishing(
+            guild_id=guild_id,
+            channel_id=100,
+            creator_user_id=10,
+            creator_callsign="241WS",
+            recipient_role_id=300,
+            location="Ganton",
+            situation="Apoyo requerido.",
+            starting_number=92,
+        )
+        assert pager.number == 92
+        pager = await repository.publish(pager.id, 500)
+        pager = await repository.upsert_responder(pager.id, 11, "242WS")
+        pager = await repository.upsert_responder(pager.id, 11, "243WS")
+        assert [(item.user_id, item.callsign) for item in pager.responders] == [(11, "243WS")]
+
+        closed, changed = await repository.close(
+            pager.id,
+            status=PagerStatus.CONCLUDED,
+            resolution="Situación controlada.",
+            actor_user_id=10,
+        )
+        repeated, changed_again = await repository.close(
+            pager.id,
+            status=PagerStatus.CONCLUDED,
+            resolution="No debe reemplazar el resultado.",
+            actor_user_id=10,
+        )
+
+        assert changed and not changed_again
+        assert closed.status is PagerStatus.CONCLUDED
+        assert repeated.resolution == "Situación controlada."
+        restored = await repository.restore_active_after_delivery_failure(
+            pager.id,
+            expected_status=PagerStatus.CONCLUDED,
+        )
+        assert restored.status is PagerStatus.ACTIVE
+        assert restored.resolution is None
+    finally:
+        await client.execute(discord_guilds.delete().where(discord_guilds.c.discord_id == guild_id))
+        await client.close()

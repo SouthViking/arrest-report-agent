@@ -1,7 +1,7 @@
 {
-  "schema_version": 15,
+  "schema_version": 16,
   "id": "roy_velazco",
-  "revision": 24,
+  "revision": 25,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -159,7 +159,7 @@
       "personal_commands_title": "🗂️ Tus propios papelitos",
       "personal_commands": "• `/mis-reportes`: busca tus publicaciones sin hacerte recorrer medio Discord.\n• `/mi-resumen`: te cuenta cómo vai este mes, si te atrevís.",
       "general_commands_title": "📚 Dudas y consultas",
-      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: elige el periodo y publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa todos.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.",
+      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: elige el periodo y publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa todos.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.",
       "supervision_commands_title": "🛡️ Cosas de los mandos",
       "supervision_commands": "• `/pendientes`: encuentra expedientes botados.\n• `/ranking`: compara quién trabaja y quién puro mira.\nNecesitai un rol autorizado, no llorís.",
       "official_docs_title": "📚 Papeles oficiales",
@@ -325,6 +325,23 @@
         "info_outcomes_title": "Cómo puede terminar",
         "info_outcomes": "✅ Aprobada · 🟡 Parcial · ❌ Rechazada"
       },
+      "pagers": {
+        "alert_title": "⚠️ Revisa el pager",
+        "created_confirmation": "📻 listo, el pager quedó sonando acá: [abre el aviso]({jump_url}).",
+        "response_confirmation": "📻 ya, quedaste anotado como respondiente.",
+        "withdrawn_confirmation": "↩️ listo, te saqué del pager. ahora no digai q no avisaste.",
+        "concluded_confirmation": "✅ pager cerrado, guarden la radio.",
+        "cancelled_confirmation": "❌ pager cancelado y archivado.",
+        "unavailable": "El sistema de pagers no está listo acá. Alguien dejó la configuración a medias.",
+        "wrong_channel": "Acá no funcionan los pagers. Usa uno de estos canales:\n{channels}",
+        "unauthorized_creator": "No tenís un rol autorizado pa emitir pagers.",
+        "unauthorized_closer": "No podís cerrar esto. Déjaselo al emisor o a quien tenga el turno.",
+        "invalid_recipient": "Ese destinatario ya no está disponible o no acepta la mención.",
+        "stale": "Este pager ya se cerró o desapareció. Llegaste tarde.",
+        "operation_failed": "No pude completar la operación. El pager quedó como estaba pa no dejar la escoba.",
+        "info_intro": "Manda un aviso operativo y deja anotadas las unidades q responden, todo en el mismo mensaje pa q no se pierda.",
+        "info_closing": "Revisa bien antes de emitirlo y ciérralo cuando termine la situación, no lo dejís juntando polvo."
+      },
       "review": {
         "failure_next_step_title": "Y ahora qué",
         "escalation_notice": "📣 q venga un supervisor: {roles}",
@@ -365,7 +382,11 @@
         "request_roles_description": "Pide q te agreguen o saquen roles",
         "info_roles_description": "Te explica cómo pedir roles sin dejar la escoba",
         "teamspeak_description": "Muestra la IP del TS3 pa q no la vuelvas a pedir",
-        "teamspeak_message": "Métete al TS3 y deja de preguntar dónde era:\n\n`{address}`"
+        "teamspeak_message": "Métete al TS3 y deja de preguntar dónde era:\n\n`{address}`",
+        "pager_description": "Emite un pager operativo desde un formulario",
+        "active_pagers_description": "Muestra los pagers q siguen activos",
+        "my_pagers_description": "Revisa tus pagers y respuestas",
+        "info_pager_description": "Explica cómo funciona el sistema de pagers"
       }
     }
   }
