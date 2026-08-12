@@ -276,10 +276,14 @@ Al usar **Responder / actualizar**, primero se exige uno de los roles de
 `operational_staff_roles`. Si el miembro ya registró `/callsign`, ese valor se utiliza directamente
 y no se abre un formulario. Si todavía no existe, el pager lo solicita una vez y lo conserva para
 respuestas posteriores. `/callsign` permite registrarlo o reemplazarlo con un modal; tanto el
-resultado como los errores son efímeros y usan la personalidad activa. `/callsigns` publica para el
+resultado como los errores son efímeros y usan la personalidad activa. Solo acepta dos o tres
+números seguidos de `L`, `F`, `B` o `S` —por ejemplo `280L`, `60F`, `282B` o `281S`— y normaliza la
+letra a mayúscula. Esta restricción solo aplica al comando: el formulario de respuesta del pager
+mantiene un valor libre como fallback. `/callsigns` publica para el
 personal operativo un directorio paginado, agrupado por callsign y limitado a miembros que todavía
 pertenecen a la guild. Las referencias no generan notificaciones. `/info-callsigns` explica ambos
-comandos públicamente y de forma breve.
+comandos públicamente y de forma breve, incluido cómo el pager reutiliza el callsign al pulsar
+**Responder / actualizar**.
 
 `/pager-activos` publica cinco avisos por página con enlaces directos. `/mis-pagers` presenta de forma
 privada los avisos emitidos o respondidos por el usuario. `/info-pager` explica públicamente el flujo y

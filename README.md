@@ -279,10 +279,11 @@ Comandos disponibles:
 - `/mis-pagers`: consulta de forma privada los pagers creados o respondidos.
 - `/info-pager`: publica una explicación breve del sistema.
 - `/callsign`: registra o reemplaza de forma privada el callsign operativo del miembro; requiere un
-  rol configurado como personal operativo.
+  rol configurado como personal operativo y acepta formatos como `280L`, `60F`, `282B` o `281S`.
 - `/callsigns`: publica para el personal operativo el directorio paginado, agrupado por callsign y
   sin notificar a los miembros referenciados.
-- `/info-callsigns`: explica públicamente y de forma breve cómo registrar y consultar callsigns.
+- `/info-callsigns`: explica públicamente cómo registrar y consultar callsigns, y cómo se reutilizan
+  al responder un pager.
 - `/config`: abre un panel efímero sin argumentos, reservado a owners o roles `config_admin_roles`;
   permite inspeccionar la revisión activa y administrar borradores, accesos, agente, módulos,
   personas, publicación y rollback mediante botones y formularios. Los intentos no autorizados

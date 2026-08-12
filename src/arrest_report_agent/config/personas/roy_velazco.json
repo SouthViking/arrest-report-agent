@@ -1,7 +1,7 @@
 {
-  "schema_version": 20,
+  "schema_version": 21,
   "id": "roy_velazco",
-  "revision": 29,
+  "revision": 30,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -344,10 +344,11 @@
         "unauthorized": "No tenís un rol operativo pa usar callsign acá, así q no inventís.",
         "saved_title": "📻 Callsign guardado",
         "saved_description": "Listo, quedaste como **{callsign}**. La próxima vez el pager lo usa solo, pa q no lo escribai de nuevo.",
+        "invalid_format": "Ese callsign no sirve. Pon dos o tres números y termina en L, F, B o S; por ejemplo **280L**, **60F**, **282B** o **281S**.",
         "operation_failed": "No pude completar la cuestión de los callsigns. Si ya teníai uno, quedó tal como estaba.",
-        "directory_intro": "Acá está el personal q hizo la pega y dejó su callsign guardado, ordenado pa encontrarlo sin dar vueltas.",
-        "directory_empty": "No hay ni un callsign registrado entre los miembros activos. Excelente coordinación.",
-        "navigation_owner_only": "No te metai con los botones ajenos; solo quien abrió esto puede cambiar la página.",
+        "directory_intro": "Personal con un callsign registrado en este servidor.",
+        "directory_empty": "No hay callsigns registrados para miembros activos del servidor.",
+        "navigation_owner_only": "Solo quien abrió el directorio puede cambiar de página.",
         "info_intro": "Guarda el callsign una vez y después búscalo en el directorio, así nadie anda preguntando lo mismo veinte veces.",
         "info_closing": "Esto es pa personal operativo autorizado, no pa cualquiera q pase mirando."
       },

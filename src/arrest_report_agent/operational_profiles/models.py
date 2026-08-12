@@ -2,9 +2,25 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
+
+CALLSIGN_PATTERN = re.compile(r"^[0-9]{2,3}[LFBS]$")
+
+
+class CallsignFormatError(ValueError):
+    """Raised when an operational callsign does not use the supported format."""
+
+
+def normalize_callsign(value: str) -> str:
+    """Normalize and validate callsigns shared by commands and pager responses."""
+
+    normalized = value.strip().upper()
+    if not CALLSIGN_PATTERN.fullmatch(normalized):
+        raise CallsignFormatError("Callsign must contain 2-3 digits followed by L, F, B or S")
+    return normalized
 
 
 class MemberProfile(BaseModel):

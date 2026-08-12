@@ -14,7 +14,7 @@ from arrest_report_agent.config import BotPersona, PersonaCallsignMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
-from .models import MemberProfile
+from .models import CallsignFormatError, MemberProfile, normalize_callsign
 from .repository import MemberProfileRepository
 
 LOGGER = logging.getLogger(__name__)
@@ -64,6 +64,11 @@ class CallsignCog(commands.Cog):
                 await ctx.respond(embed=_alert(ui.alert_title, ui.unauthorized), ephemeral=True)
                 return
             existing = await self.repository.get_callsign(ctx.guild.id, ctx.author.id)
+            if existing is not None:
+                try:
+                    existing = normalize_callsign(existing)
+                except CallsignFormatError:
+                    existing = None
             await ctx.send_modal(CallsignModal(self, ctx.author.id, existing))
         except Exception as error:
             log_event(
@@ -147,7 +152,17 @@ class CallsignCog(commands.Cog):
                 name="Registrar o actualizar",
                 value=(
                     "Usa `/callsign` para guardar tu identificador operativo. "
-                    "El formulario y su confirmación son privados."
+                    "El formulario y su confirmación son privados. El formato es de dos o tres "
+                    "números seguidos de `L`, `F`, `B` o `S`; por ejemplo `280L` o `60F`."
+                ),
+                inline=False,
+            )
+            embed.add_field(
+                name="Uso en pagers",
+                value=(
+                    "Al pulsar **Responder / actualizar** en un pager, el bot utiliza "
+                    "automáticamente tu callsign guardado. Si aún no tienes uno, te lo "
+                    "solicitará una vez y lo conservará para las siguientes respuestas."
                 ),
                 inline=False,
             )
@@ -217,10 +232,11 @@ class CallsignCog(commands.Cog):
             )
             return
         try:
+            normalized_callsign = normalize_callsign(callsign)
             profile = await self.repository.upsert_callsign(
                 interaction.guild.id,
                 interaction.user.id,
-                callsign,
+                normalized_callsign,
             )
             await interaction.response.send_message(
                 embed=discord.Embed(
@@ -237,6 +253,11 @@ class CallsignCog(commands.Cog):
                 "member_callsign_updated",
                 guild_id=interaction.guild.id,
                 user_id=interaction.user.id,
+            )
+        except CallsignFormatError:
+            await interaction.response.send_message(
+                embed=_alert(ui.alert_title, ui.invalid_format),
+                ephemeral=True,
             )
         except Exception as error:
             log_event(
@@ -261,9 +282,9 @@ class CallsignModal(discord.ui.DesignerModal):
         self.value = discord.ui.InputText(
             custom_id="callsign:v1:value",
             value=current,
-            placeholder="Ej.: 241WS",
-            min_length=1,
-            max_length=40,
+            placeholder="Ej.: 280L",
+            min_length=3,
+            max_length=4,
         )
         super().__init__(
             discord.ui.Label("Callsign", self.value),

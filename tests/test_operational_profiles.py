@@ -12,7 +12,11 @@ from arrest_report_agent.operational_profiles.discord import (
     CallsignModal,
     _directory_groups,
 )
-from arrest_report_agent.operational_profiles.models import MemberProfile
+from arrest_report_agent.operational_profiles.models import (
+    CallsignFormatError,
+    MemberProfile,
+    normalize_callsign,
+)
 
 
 def _member(user_id: int, role_ids: tuple[int, ...]) -> discord.Member:
@@ -30,9 +34,9 @@ def _member(user_id: int, role_ids: tuple[int, ...]) -> discord.Member:
 async def test_callsign_modal_prefills_existing_value(persona) -> None:
     cog = CallsignCog(SimpleNamespace(), SimpleNamespace(), persona)
 
-    modal = CallsignModal(cog, requester_id=11, current="242WS")
+    modal = CallsignModal(cog, requester_id=11, current="280L")
 
-    assert modal.value.value == "242WS"
+    assert modal.value.value == "280L"
     assert modal.custom_id == "callsign:v1:update:11"
 
 
@@ -66,12 +70,60 @@ async def test_callsign_confirmation_is_ephemeral_and_personality_aware(persona)
         response=SimpleNamespace(send_message=send_message),
     )
 
-    await cog.save(interaction, requester_id=11, callsign="242WS")
+    await cog.save(interaction, requester_id=11, callsign="280l")
 
-    assert saved == [(1, 11, "242WS")]
+    assert saved == [(1, 11, "280L")]
     assert messages[0]["ephemeral"] is True
     assert messages[0]["embed"].title == persona.messages.interface.callsigns.saved_title
-    assert "242WS" in messages[0]["embed"].description
+    assert "280L" in messages[0]["embed"].description
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    (("60f", "60F"), (" 280l ", "280L"), ("282B", "282B"), ("281s", "281S")),
+)
+def test_callsign_format_is_normalized(raw: str, expected: str) -> None:
+    assert normalize_callsign(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ("6L", "280", "280WS", "ABCL", "280X", "280 L", "1234L"))
+def test_callsign_format_rejects_unsupported_values(raw: str) -> None:
+    with pytest.raises(CallsignFormatError):
+        normalize_callsign(raw)
+
+
+@pytest.mark.asyncio
+async def test_callsign_invalid_format_uses_personality_error(persona) -> None:
+    messages: list[dict[str, object]] = []
+    member = _member(11, (200,))
+
+    async def cached(_guild_id: int):
+        return SimpleNamespace(
+            settings=SimpleNamespace(operational_staff_role_ids=(200,)),
+            persona=SimpleNamespace(profile=persona),
+        )
+
+    async def upsert_callsign(*_args):
+        raise CallsignFormatError
+
+    async def send_message(**kwargs: object) -> None:
+        messages.append(kwargs)
+
+    cog = CallsignCog(
+        SimpleNamespace(cached=cached),
+        SimpleNamespace(upsert_callsign=upsert_callsign),
+        persona,
+    )
+    interaction = SimpleNamespace(
+        guild=member.guild,
+        user=member,
+        response=SimpleNamespace(send_message=send_message),
+    )
+
+    await cog.save(interaction, requester_id=11, callsign="troleo")
+
+    assert messages[0]["ephemeral"] is True
+    assert messages[0]["embed"].description == persona.messages.interface.callsigns.invalid_format
 
 
 @pytest.mark.asyncio
@@ -95,7 +147,7 @@ async def test_callsign_rejects_members_without_operational_role(persona) -> Non
         response=SimpleNamespace(send_message=send_message),
     )
 
-    await cog.save(interaction, requester_id=11, callsign="242WS")
+    await cog.save(interaction, requester_id=11, callsign="280L")
 
     assert messages[0]["ephemeral"] is True
     assert persona.messages.interface.callsigns.unauthorized in messages[0]["embed"].description
@@ -141,7 +193,7 @@ async def test_callsign_directory_is_public_without_notifications(persona) -> No
     profile = MemberProfile(
         guild_id=1,
         user_id=11,
-        callsign="242WS",
+        callsign="280L",
         created_at=now,
         updated_at=now,
     )
@@ -170,7 +222,7 @@ async def test_callsign_directory_is_public_without_notifications(persona) -> No
     assert responses[0]["ephemeral"] is False
     assert responses[0]["view"] is None
     assert responses[0]["allowed_mentions"].everyone is False
-    assert responses[0]["embed"].fields[0].name == "242WS"
+    assert responses[0]["embed"].fields[0].name == "280L"
 
 
 def test_callsign_commands_are_root_commands() -> None:
@@ -267,3 +319,7 @@ async def test_info_callsigns_is_public_and_personality_aware(persona) -> None:
 
     assert responses[0]["ephemeral"] is False
     assert responses[0]["embed"].description == persona.messages.interface.callsigns.info_intro
+    assert "280L" in responses[0]["embed"].fields[0].value
+    assert responses[0]["embed"].fields[1].name == "Uso en pagers"
+    assert "Responder / actualizar" in responses[0]["embed"].fields[1].value
+    assert "automáticamente" in responses[0]["embed"].fields[1].value

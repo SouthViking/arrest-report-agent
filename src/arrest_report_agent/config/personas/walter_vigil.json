@@ -1,7 +1,7 @@
 {
-  "schema_version": 20,
+  "schema_version": 21,
   "id": "walter_vigil",
-  "revision": 22,
+  "revision": 23,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -324,8 +324,9 @@
         "unauthorized": "Solo el personal operativo autorizado puede registrar o utilizar un callsign.",
         "saved_title": "📻 Callsign actualizado",
         "saved_description": "Quedó registrado como **{callsign}** para las operaciones de este servidor.",
+        "invalid_format": "Utilice entre dos y tres números seguidos de L, F, B o S. Ejemplos: **280L**, **60F**, **282B** o **281S**.",
         "operation_failed": "No pude completar la operación de callsigns. El registro anterior, si existía, permanece sin cambios.",
-        "directory_intro": "Directorio operativo del personal que mantiene un callsign registrado en este servidor.",
+        "directory_intro": "Personal con un callsign registrado en este servidor.",
         "directory_empty": "Todavía no hay callsigns registrados para miembros activos del servidor.",
         "navigation_owner_only": "Solo quien abrió el directorio puede cambiar de página.",
         "info_intro": "Registre su identificador una vez y consúltelo junto al resto del personal cuando necesite coordinar una operación.",

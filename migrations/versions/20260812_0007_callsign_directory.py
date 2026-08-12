@@ -17,6 +17,7 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 PERSONA_REVISIONS = (("walter_vigil", 22), ("roy_velazco", 29))
+PERSONA_SCHEMA_VERSION = 20
 
 
 def upgrade() -> None:
@@ -39,8 +40,11 @@ def _install_persona_revisions(connection: sa.Connection) -> None:
         if persona_id is None:
             continue
         payload = json.loads((persona_dir / f"{slug}.json").read_text(encoding="utf-8"))
-        if payload["revision"] != expected_revision:
-            raise RuntimeError(f"Unexpected packaged revision for {slug}")
+        if int(payload["revision"]) < expected_revision:
+            raise RuntimeError(f"Packaged revision for {slug} predates this migration")
+        payload["revision"] = expected_revision
+        payload["schema_version"] = PERSONA_SCHEMA_VERSION
+        payload["messages"]["interface"]["callsigns"].pop("invalid_format", None)
         revision_id = connection.execute(
             sa.text(
                 "SELECT id FROM persona_revisions "

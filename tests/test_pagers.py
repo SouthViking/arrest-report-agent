@@ -109,7 +109,7 @@ def _snapshot(settings: AppSettings, *, enabled: bool) -> GuildConfigSnapshot:
         },
         persona_revision_id=uuid4(),
         persona_id="walter_vigil",
-        persona_revision=22,
+        persona_revision=23,
     )
 
 
@@ -122,7 +122,7 @@ def _pager(status: PagerStatus = PagerStatus.ACTIVE) -> Pager:
         message_id=500,
         number=92,
         creator_user_id=10,
-        creator_callsign="241WS",
+        creator_callsign="60F",
         recipient_role_ids=(300, 301),
         location="Ganton",
         situation="Unidad solicita apoyo.",
@@ -132,7 +132,7 @@ def _pager(status: PagerStatus = PagerStatus.ACTIVE) -> Pager:
         created_at=now,
         updated_at=now,
         closed_at=now if status.terminal else None,
-        responders=(PagerResponder(user_id=11, callsign="242WS", created_at=now, updated_at=now),),
+        responders=(PagerResponder(user_id=11, callsign="280L", created_at=now, updated_at=now),),
     )
 
 
@@ -141,7 +141,7 @@ def test_pager_domain_builds_stable_number_link_and_relationships() -> None:
 
     assert pager.display_number == "00092"
     assert pager.jump_url == "https://discord.com/channels/1/100/500"
-    assert UserPager(pager=pager, creator=True, responder_callsign="241WS").relationship == (
+    assert UserPager(pager=pager, creator=True, responder_callsign="60F").relationship == (
         "Emisor y respondiente"
     )
     assert PagerStatus.CONCLUDED.terminal
@@ -291,7 +291,7 @@ async def test_pager_emitter_cannot_register_as_responder(
         enabled=True,
     )
 
-    await service.respond(interaction, _pager().id, "241WS")
+    await service.respond(interaction, _pager().id, "60F")
 
     assert len(messages) == 1
     assert messages[0]["ephemeral"] is True
@@ -346,7 +346,7 @@ async def test_successful_pager_response_only_updates_public_message(
     )
     service.refresh_message = refresh_message  # type: ignore[method-assign]
 
-    await service.respond(interaction, pager.id, "242WS")
+    await service.respond(interaction, pager.id, "280L")
 
     assert deferred == [False]
     assert followups == []
@@ -354,7 +354,7 @@ async def test_successful_pager_response_only_updates_public_message(
 
 
 @pytest.mark.asyncio
-async def test_first_pager_response_stores_callsign_for_future_use(
+async def test_first_pager_response_accepts_and_stores_free_form_callsign(
     settings: AppSettings,
     persona,
 ) -> None:
@@ -401,14 +401,14 @@ async def test_first_pager_response_stores_callsign_for_future_use(
 
     service.refresh_message = refresh_message  # type: ignore[method-assign]
 
-    await service.respond(interaction, pager.id, " 242WS ", remember=True)
+    await service.respond(interaction, pager.id, " 280WS ", remember=True)
 
-    assert saved == [(1, 11, "242WS")]
-    assert responder_callsigns == ["242WS"]
+    assert saved == [(1, 11, "280WS")]
+    assert responder_callsigns == ["280WS"]
 
 
 @pytest.mark.asyncio
-async def test_saved_callsign_is_used_without_revalidation_or_rewrite(
+async def test_saved_callsign_is_used_without_rewrite(
     settings: AppSettings,
     persona,
 ) -> None:
@@ -425,7 +425,7 @@ async def test_saved_callsign_is_used_without_revalidation_or_rewrite(
         return pager
 
     async def get_callsign(_guild_id, _user_id):
-        return "242WS"
+        return "280L"
 
     async def upsert_callsign(*_args):
         raise AssertionError("an existing callsign must not be rewritten")
@@ -462,7 +462,7 @@ async def test_saved_callsign_is_used_without_revalidation_or_rewrite(
     existing = await service.saved_callsign(member)
     await service.respond(interaction, pager.id, existing or "")
 
-    assert responder_callsigns == ["242WS"]
+    assert responder_callsigns == ["280L"]
 
 
 @pytest.mark.asyncio
@@ -476,7 +476,7 @@ async def test_editing_pager_updates_public_message_without_confirmation(
     active = _pager()
     edited = active.model_copy(
         update={
-            "creator_callsign": "245WS",
+            "creator_callsign": "282B",
             "recipient_role_ids": (301,),
             "location": "Dillimore",
             "situation": "Apoyo vial requerido.",
@@ -495,7 +495,7 @@ async def test_editing_pager_updates_public_message_without_confirmation(
 
     async def update_active(_pager_id, **kwargs):
         assert kwargs == {
-            "creator_callsign": "245WS",
+            "creator_callsign": "282B",
             "recipient_role_ids": (301,),
             "location": "Dillimore",
             "situation": "Apoyo vial requerido.",
@@ -534,7 +534,7 @@ async def test_editing_pager_updates_public_message_without_confirmation(
         interaction,
         active.id,
         channel=channel,
-        callsign="245WS",
+        callsign="282B",
         recipient_role_ids=(301,),
         location="Dillimore",
         situation="Apoyo vial requerido.",
@@ -668,21 +668,23 @@ async def test_pager_repository_persists_responses_and_idempotent_close(
         await client.execute(discord_guilds.insert().values(discord_id=guild_id, name="Pager QA"))
         repository = PagerRepository(client)
         profiles = MemberProfileRepository(client)
-        profile = await profiles.upsert_callsign(guild_id, 11, "242WS")
-        assert profile.callsign == "242WS"
-        updated_profile = await profiles.upsert_callsign(guild_id, 11, "243WS")
-        assert updated_profile.callsign == "243WS"
-        await profiles.upsert_callsign(guild_id, 12, "241WS")
+        profile = await profiles.upsert_callsign(guild_id, 11, "280l")
+        assert profile.callsign == "280l"
+        updated_profile = await profiles.upsert_callsign(guild_id, 11, "281S")
+        assert updated_profile.callsign == "281S"
+        await profiles.upsert_callsign(guild_id, 12, "60F")
         stored_profiles = await profiles.list_for_guild(guild_id)
         assert [(item.user_id, item.callsign) for item in stored_profiles] == [
-            (12, "241WS"),
-            (11, "243WS"),
+            (11, "281S"),
+            (12, "60F"),
         ]
+        free_form_profile = await profiles.upsert_callsign(guild_id, 13, "280WS")
+        assert free_form_profile.callsign == "280WS"
         pager = await repository.create_publishing(
             guild_id=guild_id,
             channel_id=100,
             creator_user_id=10,
-            creator_callsign="241WS",
+            creator_callsign="60F",
             recipient_role_ids=(300, 301),
             location="Ganton",
             situation="Apoyo requerido.",
@@ -693,20 +695,20 @@ async def test_pager_repository_persists_responses_and_idempotent_close(
         pager = await repository.publish(pager.id, 500)
         pager = await repository.update_active(
             pager.id,
-            creator_callsign="245WS",
+            creator_callsign="282B",
             recipient_role_ids=(301,),
             location="Dillimore",
             situation="Apoyo vial requerido.",
         )
-        assert pager.creator_callsign == "245WS"
+        assert pager.creator_callsign == "282B"
         assert pager.recipient_role_ids == (301,)
         assert pager.location == "Dillimore"
         assert pager.situation == "Apoyo vial requerido."
         with pytest.raises(ValueError, match="creator"):
-            await repository.upsert_responder(pager.id, 10, "241WS")
-        pager = await repository.upsert_responder(pager.id, 11, "242WS")
-        pager = await repository.upsert_responder(pager.id, 11, "243WS")
-        assert [(item.user_id, item.callsign) for item in pager.responders] == [(11, "243WS")]
+            await repository.upsert_responder(pager.id, 10, "60F")
+        pager = await repository.upsert_responder(pager.id, 11, "280L")
+        pager = await repository.upsert_responder(pager.id, 11, "281S")
+        assert [(item.user_id, item.callsign) for item in pager.responders] == [(11, "281S")]
 
         creator_entries, creator_total = await repository.list_for_user(
             guild_id,
@@ -731,7 +733,7 @@ async def test_pager_repository_persists_responses_and_idempotent_close(
         assert creator_entries[0].relationship == "Emisor"
         assert responder_total == 1
         assert responder_entries[0].relationship == "Respondiente"
-        assert responder_entries[0].responder_callsign == "243WS"
+        assert responder_entries[0].responder_callsign == "281S"
         assert unrelated_total == 0
         assert unrelated_entries == ()
 
