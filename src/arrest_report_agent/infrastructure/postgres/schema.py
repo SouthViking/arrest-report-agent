@@ -259,7 +259,6 @@ pagers = sa.Table(
     sa.Column("number", sa.Integer, nullable=False),
     sa.Column("creator_user_id", sa.BigInteger, nullable=False),
     sa.Column("creator_callsign", sa.String(40), nullable=False),
-    sa.Column("recipient_role_id", sa.BigInteger, nullable=False),
     sa.Column("location", sa.String(200), nullable=False),
     sa.Column("situation", sa.Text, nullable=False),
     sa.Column("status", sa.String(20), nullable=False),
@@ -277,6 +276,23 @@ pagers = sa.Table(
     sa.UniqueConstraint("guild_id", "channel_id", "message_id", name="uq_pager_message"),
     sa.Index("ix_pager_guild_status_created", "guild_id", "status", "created_at"),
     sa.Index("ix_pager_creator", "guild_id", "creator_user_id", "created_at"),
+)
+
+pager_recipient_roles = sa.Table(
+    "pager_recipient_roles",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "pager_id",
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("pagers.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("role_id", sa.BigInteger, nullable=False),
+    sa.Column("position", sa.Integer, nullable=False),
+    sa.CheckConstraint("position >= 0", name="ck_pager_recipient_position"),
+    sa.UniqueConstraint("pager_id", "role_id", name="uq_pager_recipient_role"),
+    sa.UniqueConstraint("pager_id", "position", name="uq_pager_recipient_position"),
 )
 
 pager_responders = sa.Table(

@@ -20,7 +20,7 @@ from arrest_report_agent.config import (
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
-from .models import Pager, PagerStatus, UserPager
+from .models import Pager, PagerCreatorCannotRespondError, PagerStatus, UserPager
 from .repository import PagerRepository
 
 LOGGER = logging.getLogger(__name__)
@@ -117,22 +117,24 @@ class PagerService:
         if role.mentionable:
             return True
         bot_member = channel.guild.me
-        return bool(
-            bot_member is not None
-            and channel.permissions_for(bot_member).mention_everyone
-        )
+        return bool(bot_member is not None and channel.permissions_for(bot_member).mention_everyone)
 
-    def validate_recipient(
+    def validate_recipients(
         self,
         channel: discord.TextChannel,
-        role_id: int,
-    ) -> discord.Role:
-        if role_id not in self.settings.pager_recipient_role_ids:
+        role_ids: tuple[int, ...],
+    ) -> tuple[discord.Role, ...]:
+        if not role_ids or len(role_ids) > 25 or len(role_ids) != len(set(role_ids)):
             raise PagerValidationError(self.ui.invalid_recipient)
-        role = channel.guild.get_role(role_id)
-        if role is None or not self.can_notify_role(channel, role):
-            raise PagerValidationError(self.ui.invalid_recipient)
-        return role
+        roles: list[discord.Role] = []
+        for role_id in role_ids:
+            if role_id not in self.settings.pager_recipient_role_ids:
+                raise PagerValidationError(self.ui.invalid_recipient)
+            role = channel.guild.get_role(role_id)
+            if role is None or not self.can_notify_role(channel, role):
+                raise PagerValidationError(self.ui.invalid_recipient)
+            roles.append(role)
+        return tuple(roles)
 
     async def allowed_channel_summary(self, guild: discord.Guild) -> str:
         channel_ids = self.settings.snapshot.policy(AccessPolicyKey.PAGER_CHANNELS).ids
@@ -150,7 +152,7 @@ class PagerService:
         channel: discord.TextChannel,
         member: discord.Member,
         callsign: str,
-        recipient_role_id: int,
+        recipient_role_ids: tuple[int, ...],
         location: str,
         situation: str,
     ) -> None:
@@ -169,7 +171,7 @@ class PagerService:
             )
             return
         try:
-            role = self.validate_recipient(channel, recipient_role_id)
+            roles = self.validate_recipients(channel, recipient_role_ids)
         except PagerValidationError as error:
             await interaction.response.send_message(
                 embed=self.alert(error.public_message),
@@ -186,19 +188,19 @@ class PagerService:
                 channel_id=channel.id,
                 creator_user_id=member.id,
                 creator_callsign=callsign.strip(),
-                recipient_role_id=role.id,
+                recipient_role_ids=tuple(role.id for role in roles),
                 location=location.strip(),
                 situation=situation.strip(),
                 starting_number=self.settings.pager_starting_number,
             )
             message = await channel.send(
-                content=role.mention,
+                content=" ".join(role.mention for role in roles),
                 embed=self.build_embed(pager),
                 view=PagerControlsView(),
                 allowed_mentions=discord.AllowedMentions(
                     everyone=False,
                     users=False,
-                    roles=[role],
+                    roles=list(roles),
                     replied_user=False,
                 ),
             )
@@ -208,15 +210,7 @@ class PagerService:
                 view=PagerControlsView(),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
-            await interaction.followup.send(
-                embed=discord.Embed(
-                    title="📻 Pager emitido",
-                    description=self.ui.created_confirmation.format(jump_url=message.jump_url),
-                    color=discord.Color.green(),
-                ),
-                ephemeral=True,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            await _dismiss_deferred_response(interaction)
             log_event(
                 LOGGER,
                 "info",
@@ -271,6 +265,20 @@ class PagerService:
                 ephemeral=True,
             )
             return
+        try:
+            current = await self.repository.get(pager_id)
+        except (LookupError, ValueError) as error:
+            await interaction.response.send_message(embed=self.alert(self.ui.stale), ephemeral=True)
+            self._log_error("pager_response_failed", error, pager_id, interaction)
+            return
+        if current.creator_user_id == interaction.user.id:
+            await interaction.response.send_message(
+                embed=self.alert(self.ui.creator_cannot_respond), ephemeral=True
+            )
+            return
+        if current.status is not PagerStatus.ACTIVE:
+            await interaction.response.send_message(embed=self.alert(self.ui.stale), ephemeral=True)
+            return
         await interaction.response.defer(ephemeral=True)
         try:
             async with self.lock(pager_id):
@@ -280,11 +288,11 @@ class PagerService:
                     callsign.strip(),
                 )
                 await self.refresh_message(pager)
-            await interaction.followup.send(
-                embed=_notice("📻 Unidad registrada", self.ui.response_confirmation),
-                ephemeral=True,
-            )
+            await _dismiss_deferred_response(interaction)
             self._log_transition("pager_responder_upserted", pager, interaction.user.id, "responded")
+        except PagerCreatorCannotRespondError as error:
+            await interaction.followup.send(embed=self.alert(self.ui.creator_cannot_respond), ephemeral=True)
+            self._log_error("pager_response_rejected", error, pager_id, interaction)
         except (LookupError, ValueError) as error:
             await interaction.followup.send(embed=self.alert(self.ui.stale), ephemeral=True)
             self._log_error("pager_response_failed", error, pager_id, interaction)
@@ -302,12 +310,15 @@ class PagerService:
         try:
             async with self.lock(pager.id):
                 pager, removed = await self.repository.remove_responder(pager.id, interaction.user.id)
-                await self.refresh_message(pager)
-            description = self.ui.withdrawn_confirmation if removed else "No figuraba como respondiente."
-            await interaction.followup.send(
-                embed=_notice("↩️ Respuesta actualizada", description),
-                ephemeral=True,
-            )
+                if removed:
+                    await self.refresh_message(pager)
+            if not removed:
+                await interaction.followup.send(
+                    embed=self.alert("No figurabas como respondiente en este pager."),
+                    ephemeral=True,
+                )
+                return
+            await _dismiss_deferred_response(interaction)
             self._log_transition("pager_responder_removed", pager, interaction.user.id, "withdrawn")
         except (LookupError, ValueError) as error:
             await interaction.followup.send(embed=self.alert(self.ui.stale), ephemeral=True)
@@ -351,15 +362,7 @@ class PagerService:
             if not changed:
                 await interaction.followup.send(embed=self.alert(self.ui.stale), ephemeral=True)
                 return
-            description = (
-                self.ui.concluded_confirmation
-                if status is PagerStatus.CONCLUDED
-                else self.ui.cancelled_confirmation
-            )
-            await interaction.followup.send(
-                embed=_notice(_status_label(status), description),
-                ephemeral=True,
-            )
+            await _dismiss_deferred_response(interaction)
             self._log_transition(
                 "pager_closed",
                 pager,
@@ -389,7 +392,7 @@ class PagerService:
             raise LookupError("Pager channel is unavailable")
         message = await channel.fetch_message(pager.message_id)
         await message.edit(
-            content=f"<@&{pager.recipient_role_id}>",
+            content=_recipient_mentions(pager),
             embed=self.build_embed(pager),
             view=PagerControlsView(disabled=pager.status.terminal),
             allowed_mentions=discord.AllowedMentions.none(),
@@ -403,12 +406,10 @@ class PagerService:
             timestamp=pager.created_at,
         )
         embed.add_field(name="Unidad emisora", value=pager.creator_callsign, inline=True)
-        embed.add_field(name="Destinatario", value=f"<@&{pager.recipient_role_id}>", inline=True)
+        embed.add_field(name="Destinatarios", value=_recipient_mentions(pager), inline=True)
         embed.add_field(name="Ubicación", value=pager.location, inline=False)
         embed.add_field(name="Situación", value=pager.situation, inline=False)
-        responders = "\n".join(
-            f"• **{item.callsign}** · <@{item.user_id}>" for item in pager.responders
-        )
+        responders = "\n".join(f"• **{item.callsign}** · <@{item.user_id}>" for item in pager.responders)
         embed.add_field(
             name=f"Unidades que responden · {len(pager.responders)}",
             value=responders or "Ninguna unidad registrada todavía.",
@@ -515,6 +516,11 @@ class PagerControlsView(discord.ui.View):
         if pager.status is not PagerStatus.ACTIVE:
             await interaction.response.send_message(embed=service.alert(service.ui.stale), ephemeral=True)
             return
+        if interaction.user.id == pager.creator_user_id:
+            await interaction.response.send_message(
+                embed=service.alert(service.ui.creator_cannot_respond), ephemeral=True
+            )
+            return
         await interaction.response.send_modal(PagerResponseModal(service, pager.id))
 
     @discord.ui.button(
@@ -568,9 +574,7 @@ class PagerControlsView(discord.ui.View):
         except PagerValidationError as error:
             await interaction.response.send_message(embed=service.alert(error.public_message), ephemeral=True)
             return
-        if not isinstance(interaction.user, discord.Member) or not service.can_close(
-            interaction.user, pager
-        ):
+        if not isinstance(interaction.user, discord.Member) or not service.can_close(interaction.user, pager):
             await interaction.response.send_message(
                 embed=service.alert(service.ui.unauthorized_closer), ephemeral=True
             )
@@ -597,8 +601,10 @@ class PagerCreateModal(discord.ui.DesignerModal):
         )
         self.recipient = discord.ui.StringSelect(
             custom_id="pager:v1:create:recipient",
-            placeholder="Selecciona el grupo destinatario",
+            placeholder="Selecciona uno o más grupos destinatarios",
             options=[discord.SelectOption(label=role.name[:100], value=str(role.id)) for role in roles],
+            min_values=1,
+            max_values=len(roles),
         )
         self.location = discord.ui.InputText(
             custom_id="pager:v1:create:location",
@@ -615,7 +621,7 @@ class PagerCreateModal(discord.ui.DesignerModal):
         )
         super().__init__(
             discord.ui.Label("Unidad o callsign", self.callsign),
-            discord.ui.Label("Destinatario", self.recipient),
+            discord.ui.Label("Destinatarios", self.recipient),
             discord.ui.Label("Ubicación", self.location),
             discord.ui.Label("Situación", self.situation),
             title="Emitir pager",
@@ -634,7 +640,7 @@ class PagerCreateModal(discord.ui.DesignerModal):
             channel=self.channel,
             member=interaction.user,
             callsign=self.callsign.value,
-            recipient_role_id=int(self.recipient.values[0]),
+            recipient_role_ids=tuple(int(role_id) for role_id in self.recipient.values),
             location=self.location.value,
             situation=self.situation.value,
         )
@@ -788,8 +794,10 @@ class PagerCog(commands.Cog):
     async def pager(self, ctx: discord.ApplicationContext) -> None:
         service = await self._service(ctx)
         if service is None or not service.enabled:
-            embed = service.alert(service.ui.unavailable) if service else _generic_alert(
-                "El sistema de pagers no está habilitado."
+            embed = (
+                service.alert(service.ui.unavailable)
+                if service
+                else _generic_alert("El sistema de pagers no está habilitado.")
             )
             await ctx.respond(
                 embed=embed,
@@ -807,7 +815,11 @@ class PagerCog(commands.Cog):
             )
             return
         roles = service.recipient_roles(ctx.guild)
-        if not roles or any(not service.can_notify_role(ctx.channel, role) for role in roles):
+        if (
+            not roles
+            or len(roles) > 25
+            or any(not service.can_notify_role(ctx.channel, role) for role in roles)
+        ):
             await ctx.respond(embed=service.alert(service.ui.invalid_recipient), ephemeral=True)
             return
         await ctx.send_modal(PagerCreateModal(service, ctx.author, ctx.channel))
@@ -857,7 +869,7 @@ class PagerCog(commands.Cog):
         )
         embed.add_field(
             name="Cómo emitir uno",
-            value="Usa `/pager` y completa unidad, destinatario, ubicación y situación.",
+            value="Usa `/pager` y completa unidad, destinatarios, ubicación y situación.",
             inline=False,
         )
         embed.add_field(
@@ -880,8 +892,10 @@ class PagerCog(commands.Cog):
     async def _operational_service(self, ctx: discord.ApplicationContext) -> PagerService | None:
         service = await self._service(ctx)
         if service is None or not service.enabled:
-            embed = service.alert(service.ui.unavailable) if service else _generic_alert(
-                "El sistema de pagers no está habilitado."
+            embed = (
+                service.alert(service.ui.unavailable)
+                if service
+                else _generic_alert("El sistema de pagers no está habilitado.")
             )
             await ctx.respond(
                 embed=embed,
@@ -909,7 +923,7 @@ def _active_list_embed(entries: Iterable[Pager], total: int, page: int) -> disco
         embed.add_field(
             name=f"#{pager.display_number} · {pager.location}",
             value=(
-                f"<@&{pager.recipient_role_id}> · {discord.utils.format_dt(pager.created_at, style='R')}\n"
+                f"{_recipient_mentions(pager)} · {discord.utils.format_dt(pager.created_at, style='R')}\n"
                 f"**Unidades:** {len(pager.responders)} · {link}"
             ),
             inline=False,
@@ -966,8 +980,18 @@ def _status_color(status: PagerStatus) -> discord.Color:
     }[status]
 
 
-def _notice(title: str, description: str) -> discord.Embed:
-    return discord.Embed(title=title, description=description, color=discord.Color.green())
+def _recipient_mentions(pager: Pager) -> str:
+    return " ".join(f"<@&{role_id}>" for role_id in pager.recipient_role_ids)
+
+
+async def _dismiss_deferred_response(interaction: discord.Interaction) -> None:
+    """Remove the private acknowledgement after the public pager message was updated."""
+
+    delete = getattr(interaction, "delete_original_response", None)
+    if delete is None:
+        return
+    with suppress(discord.HTTPException):
+        await delete()
 
 
 def _generic_alert(description: str) -> discord.Embed:

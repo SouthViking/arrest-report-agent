@@ -254,9 +254,11 @@ políticas **Canales de pagers**, **Emisores de pagers**, **Destinatarios de pag
 `starting_number` fija el primer correlativo cuando la guild todavía no tiene registros; LSSD se
 inicializa en `92`.
 
-`/pager` solicita callsign, destinatario, ubicación y situación mediante un modal. Publica una sola
-mención al rol destinatario y un embed que se actualiza con las unidades respondientes. Sus botones
-permiten registrar o actualizar callsign, retirarse, concluir con resultado o cancelar con motivo.
+`/pager` solicita callsign, uno o más destinatarios, ubicación y situación mediante un modal. Publica
+una única notificación para todos los roles seleccionados y un embed que se actualiza con las unidades
+respondientes. El emisor no puede registrarse también como respondiente. Sus botones permiten registrar
+o actualizar callsign, retirarse, concluir con resultado o cancelar con motivo; las operaciones exitosas
+se reflejan directamente en el mensaje sin confirmaciones efímeras adicionales.
 
 `/pager-activos` publica cinco avisos por página con enlaces directos. `/mis-pagers` presenta de forma
 privada los avisos emitidos o respondidos por el usuario. `/info-pager` explica públicamente el flujo y

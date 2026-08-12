@@ -6,7 +6,11 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class PagerCreatorCannotRespondError(ValueError):
+    """Raised when a pager emitter attempts to register as a responder."""
 
 
 class PagerStatus(StrEnum):
@@ -40,7 +44,7 @@ class Pager(FrozenPagerModel):
     number: int = Field(ge=1, le=99_999)
     creator_user_id: int = Field(gt=0)
     creator_callsign: str = Field(min_length=1, max_length=40)
-    recipient_role_id: int = Field(gt=0)
+    recipient_role_ids: tuple[int, ...] = Field(min_length=1, max_length=25)
     location: str = Field(min_length=1, max_length=200)
     situation: str = Field(min_length=1, max_length=1000)
     status: PagerStatus
@@ -51,6 +55,15 @@ class Pager(FrozenPagerModel):
     closed_at: datetime | None = None
     responders: tuple[PagerResponder, ...] = ()
 
+    @field_validator("recipient_role_ids")
+    @classmethod
+    def validate_recipient_roles(cls, role_ids: tuple[int, ...]) -> tuple[int, ...]:
+        if any(role_id <= 0 for role_id in role_ids):
+            raise ValueError("Recipient role IDs must be positive")
+        if len(role_ids) != len(set(role_ids)):
+            raise ValueError("Recipient role IDs must be unique")
+        return role_ids
+
     @property
     def display_number(self) -> str:
         return f"{self.number:05d}"
@@ -59,10 +72,7 @@ class Pager(FrozenPagerModel):
     def jump_url(self) -> str | None:
         if self.message_id is None:
             return None
-        return (
-            f"https://discord.com/channels/{self.guild_id}/"
-            f"{self.channel_id}/{self.message_id}"
-        )
+        return f"https://discord.com/channels/{self.guild_id}/{self.channel_id}/{self.message_id}"
 
 
 class UserPager(FrozenPagerModel):

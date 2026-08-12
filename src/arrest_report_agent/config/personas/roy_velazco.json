@@ -1,7 +1,7 @@
 {
-  "schema_version": 16,
+  "schema_version": 17,
   "id": "roy_velazco",
-  "revision": 25,
+  "revision": 26,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -327,15 +327,11 @@
       },
       "pagers": {
         "alert_title": "⚠️ Revisa el pager",
-        "created_confirmation": "📻 listo, el pager quedó sonando acá: [abre el aviso]({jump_url}).",
-        "response_confirmation": "📻 ya, quedaste anotado como respondiente.",
-        "withdrawn_confirmation": "↩️ listo, te saqué del pager. ahora no digai q no avisaste.",
-        "concluded_confirmation": "✅ pager cerrado, guarden la radio.",
-        "cancelled_confirmation": "❌ pager cancelado y archivado.",
         "unavailable": "El sistema de pagers no está listo acá. Alguien dejó la configuración a medias.",
         "wrong_channel": "Acá no funcionan los pagers. Usa uno de estos canales:\n{channels}",
         "unauthorized_creator": "No tenís un rol autorizado pa emitir pagers.",
         "unauthorized_closer": "No podís cerrar esto. Déjaselo al emisor o a quien tenga el turno.",
+        "creator_cannot_respond": "Si tú mandaste el pager no te anotís como respuesta también, po. Espera a otra unidad.",
         "invalid_recipient": "Ese destinatario ya no está disponible o no acepta la mención.",
         "stale": "Este pager ya se cerró o desapareció. Llegaste tarde.",
         "operation_failed": "No pude completar la operación. El pager quedó como estaba pa no dejar la escoba.",

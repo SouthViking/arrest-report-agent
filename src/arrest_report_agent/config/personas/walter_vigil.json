@@ -1,7 +1,7 @@
 {
-  "schema_version": 16,
+  "schema_version": 17,
   "id": "walter_vigil",
-  "revision": 18,
+  "revision": 19,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -307,15 +307,11 @@
       },
       "pagers": {
         "alert_title": "⚠️ Pager no disponible",
-        "created_confirmation": "📻 Pager emitido correctamente: [abrir aviso]({jump_url}).",
-        "response_confirmation": "📻 Su unidad quedó registrada en el pager.",
-        "withdrawn_confirmation": "↩️ Su unidad fue retirada del pager.",
-        "concluded_confirmation": "✅ Pager concluido y archivado.",
-        "cancelled_confirmation": "❌ Pager cancelado y archivado.",
         "unavailable": "El sistema de pagers no está disponible con la configuración actual.",
         "wrong_channel": "Este canal no está habilitado para operaciones de pager. Utilice uno de los siguientes:\n{channels}",
         "unauthorized_creator": "No tiene un rol autorizado para emitir pagers.",
         "unauthorized_closer": "Solo el emisor o un responsable autorizado puede cerrar este pager.",
+        "creator_cannot_respond": "Como emisor del pager, no puede registrarse también como unidad respondiente.",
         "invalid_recipient": "El destinatario seleccionado ya no está disponible o no admite menciones.",
         "stale": "Este pager ya fue cerrado o dejó de estar disponible.",
         "operation_failed": "No pude completar la operación. El pager conserva su estado anterior.",

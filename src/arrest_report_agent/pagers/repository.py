@@ -13,11 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from arrest_report_agent.infrastructure.postgres import PostgresClient
 from arrest_report_agent.infrastructure.postgres.schema import (
     discord_guilds,
+    pager_recipient_roles,
     pager_responders,
     pagers,
 )
 
-from .models import Pager, PagerResponder, PagerStatus, UserPager
+from .models import Pager, PagerCreatorCannotRespondError, PagerResponder, PagerStatus, UserPager
 
 
 class PagerRepository:
@@ -33,11 +34,15 @@ class PagerRepository:
         channel_id: int,
         creator_user_id: int,
         creator_callsign: str,
-        recipient_role_id: int,
+        recipient_role_ids: tuple[int, ...],
         location: str,
         situation: str,
         starting_number: int,
     ) -> Pager:
+        if not recipient_role_ids or len(recipient_role_ids) > 25:
+            raise ValueError("A pager requires between 1 and 25 recipient roles")
+        if len(recipient_role_ids) != len(set(recipient_role_ids)):
+            raise ValueError("Pager recipient roles must be unique")
         async with self.client.transaction() as tx:
             guild = await tx.scalar(
                 sa.select(discord_guilds.c.discord_id)
@@ -66,11 +71,22 @@ class PagerRepository:
                     number=next_number,
                     creator_user_id=creator_user_id,
                     creator_callsign=creator_callsign,
-                    recipient_role_id=recipient_role_id,
                     location=location,
                     situation=situation,
                     status=PagerStatus.PUBLISHING.value,
                 )
+            )
+            await tx.execute(
+                pager_recipient_roles.insert(),
+                [
+                    {
+                        "id": uuid.uuid4(),
+                        "pager_id": pager_id,
+                        "role_id": role_id,
+                        "position": position,
+                    }
+                    for position, role_id in enumerate(recipient_role_ids)
+                ],
             )
             return await self._get(pager_id, tx)
 
@@ -117,6 +133,8 @@ class PagerRepository:
         async with self.client.transaction() as tx:
             pager = await self._get_for_update(pager_id, tx)
             self._require_active(pager)
+            if pager.creator_user_id == user_id:
+                raise PagerCreatorCannotRespondError("Pager creator cannot register as a responder")
             await tx.execute(
                 pg_insert(pager_responders)
                 .values(
@@ -204,9 +222,7 @@ class PagerRepository:
 
     async def list_active(self, guild_id: int, *, offset: int, limit: int) -> tuple[tuple[Pager, ...], int]:
         where = (pagers.c.guild_id == guild_id, pagers.c.status == PagerStatus.ACTIVE.value)
-        count_row = await self.client.fetch_one(
-            sa.select(sa.func.count().label("count")).where(*where)
-        )
+        count_row = await self.client.fetch_one(sa.select(sa.func.count().label("count")).where(*where))
         total = int(count_row["count"] if count_row is not None else 0)
         rows = await self.client.fetch_all(
             sa.select(pagers.c.id)
@@ -225,26 +241,31 @@ class PagerRepository:
         offset: int,
         limit: int,
     ) -> tuple[tuple[UserPager, ...], int]:
-        responder = pager_responders.alias("viewer_responder")
+        membership_responder = pager_responders.alias("membership_responder")
+        viewer_responder = pager_responders.alias("viewer_responder")
         relation = sa.or_(
             pagers.c.creator_user_id == user_id,
             sa.exists(
-                sa.select(1).where(
-                    responder.c.pager_id == pagers.c.id,
-                    responder.c.user_id == user_id,
+                sa.select(1)
+                .select_from(membership_responder)
+                .where(
+                    membership_responder.c.pager_id == pagers.c.id,
+                    membership_responder.c.user_id == user_id,
                 )
+                .correlate(pagers)
             ),
         )
         where = (pagers.c.guild_id == guild_id, pagers.c.status != PagerStatus.PUBLISHING.value, relation)
-        count_row = await self.client.fetch_one(
-            sa.select(sa.func.count().label("count")).where(*where)
-        )
+        count_row = await self.client.fetch_one(sa.select(sa.func.count().label("count")).where(*where))
         total = int(count_row["count"] if count_row is not None else 0)
         rows = await self.client.fetch_all(
-            sa.select(pagers.c.id, pagers.c.creator_user_id, responder.c.callsign)
+            sa.select(pagers.c.id, pagers.c.creator_user_id, viewer_responder.c.callsign)
             .outerjoin(
-                responder,
-                sa.and_(responder.c.pager_id == pagers.c.id, responder.c.user_id == user_id),
+                viewer_responder,
+                sa.and_(
+                    viewer_responder.c.pager_id == pagers.c.id,
+                    viewer_responder.c.user_id == user_id,
+                ),
             )
             .where(*where)
             .order_by(pagers.c.created_at.desc())
@@ -268,17 +289,34 @@ class PagerRepository:
 
     async def _get(self, pager_id: UUID, connection: AsyncConnection) -> Pager:
         row = (
-            await connection.execute(sa.select(pagers).where(pagers.c.id == pager_id))
-        ).mappings().one_or_none()
+            (await connection.execute(sa.select(pagers).where(pagers.c.id == pager_id)))
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             raise LookupError(f"Pager {pager_id} was not found")
         responders = (
-            await connection.execute(
-                sa.select(pager_responders)
-                .where(pager_responders.c.pager_id == pager_id)
-                .order_by(pager_responders.c.created_at, pager_responders.c.user_id)
+            (
+                await connection.execute(
+                    sa.select(pager_responders)
+                    .where(pager_responders.c.pager_id == pager_id)
+                    .order_by(pager_responders.c.created_at, pager_responders.c.user_id)
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
+        recipients = (
+            (
+                await connection.execute(
+                    sa.select(pager_recipient_roles.c.role_id)
+                    .where(pager_recipient_roles.c.pager_id == pager_id)
+                    .order_by(pager_recipient_roles.c.position)
+                )
+            )
+            .scalars()
+            .all()
+        )
         return Pager(
             id=UUID(str(row["id"])),
             guild_id=int(row["guild_id"]),
@@ -287,7 +325,7 @@ class PagerRepository:
             number=int(row["number"]),
             creator_user_id=int(row["creator_user_id"]),
             creator_callsign=str(row["creator_callsign"]),
-            recipient_role_id=int(row["recipient_role_id"]),
+            recipient_role_ids=tuple(int(role_id) for role_id in recipients),
             location=str(row["location"]),
             situation=str(row["situation"]),
             status=PagerStatus(str(row["status"])),
@@ -310,9 +348,7 @@ class PagerRepository:
         )
 
     async def _touch(self, pager_id: UUID, tx: AsyncConnection) -> None:
-        await tx.execute(
-            pagers.update().where(pagers.c.id == pager_id).values(updated_at=datetime.now(UTC))
-        )
+        await tx.execute(pagers.update().where(pagers.c.id == pager_id).values(updated_at=datetime.now(UTC)))
 
     @staticmethod
     def _require_active(pager: Pager) -> None:

@@ -106,9 +106,10 @@ IA ni persiste la solicitud en PostgreSQL: el mensaje versionado de Discord cons
 sus botones persistentes. PostgreSQL solo aporta su configuración dinámica. `/info-roles` permanece
 disponible en cualquier canal o hilo de una guild habilitada.
 
-El módulo determinista de pagers persiste sus avisos y respondientes en PostgreSQL. `/pager` emite
-el aviso en el canal autorizado, `/pager-activos` enlaza los avisos abiertos, `/mis-pagers` entrega
-el historial privado del usuario y `/info-pager` publica una guía breve. Los controles persistentes
+El módulo determinista de pagers persiste sus avisos, múltiples roles destinatarios y respondientes
+en PostgreSQL. `/pager` emite el aviso en el canal autorizado, `/pager-activos` enlaza los avisos
+abiertos, `/mis-pagers` entrega el historial privado del usuario y `/info-pager` publica una guía breve.
+El emisor no puede registrarse además como respondiente. Los controles persistentes
 permiten responder, retirarse, concluir o cancelar incluso después de reiniciar el proceso.
 
 La política previa valida guild, autor y usuario antes de leer contexto o iniciar el Runner. Las

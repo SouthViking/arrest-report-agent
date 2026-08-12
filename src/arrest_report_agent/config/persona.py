@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 16
+PERSONA_SCHEMA_VERSION = 17
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -621,15 +621,11 @@ class PersonaPagerMessages(FrozenPersonaModel):
     """Personality-aware framing for the deterministic pager subsystem."""
 
     alert_title: str = Field(min_length=1, max_length=256)
-    created_confirmation: str = Field(min_length=1, max_length=400)
-    response_confirmation: str = Field(min_length=1, max_length=300)
-    withdrawn_confirmation: str = Field(min_length=1, max_length=300)
-    concluded_confirmation: str = Field(min_length=1, max_length=300)
-    cancelled_confirmation: str = Field(min_length=1, max_length=300)
     unavailable: str = Field(min_length=1, max_length=400)
     wrong_channel: str = Field(min_length=1, max_length=500)
     unauthorized_creator: str = Field(min_length=1, max_length=400)
     unauthorized_closer: str = Field(min_length=1, max_length=400)
+    creator_cannot_respond: str = Field(min_length=1, max_length=400)
     invalid_recipient: str = Field(min_length=1, max_length=400)
     stale: str = Field(min_length=1, max_length=300)
     operation_failed: str = Field(min_length=1, max_length=300)
@@ -639,7 +635,6 @@ class PersonaPagerMessages(FrozenPersonaModel):
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaPagerMessages:
         for template, fields, label in (
-            (self.created_confirmation, {"jump_url"}, "interface.pagers.created_confirmation"),
             (self.wrong_channel, {"channels"}, "interface.pagers.wrong_channel"),
         ):
             _require_template_fields(template, fields, label)
