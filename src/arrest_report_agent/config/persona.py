@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 21
+PERSONA_SCHEMA_VERSION = 22
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -649,6 +649,9 @@ class PersonaCallsignMessages(FrozenPersonaModel):
     unauthorized: str = Field(min_length=1, max_length=400)
     saved_title: str = Field(min_length=1, max_length=256)
     saved_description: str = Field(min_length=1, max_length=400)
+    removed_title: str = Field(min_length=1, max_length=256)
+    removed_description: str = Field(min_length=1, max_length=400)
+    missing_description: str = Field(min_length=1, max_length=400)
     invalid_format: str = Field(min_length=1, max_length=500)
     operation_failed: str = Field(min_length=1, max_length=300)
     directory_intro: str = Field(min_length=1, max_length=500)
@@ -741,6 +744,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     my_pagers_description: str = Field(min_length=1, max_length=100)
     info_pager_description: str = Field(min_length=1, max_length=100)
     callsign_description: str = Field(min_length=1, max_length=100)
+    remove_callsign_description: str = Field(min_length=1, max_length=100)
     callsigns_description: str = Field(min_length=1, max_length=100)
     info_callsigns_description: str = Field(min_length=1, max_length=100)
 

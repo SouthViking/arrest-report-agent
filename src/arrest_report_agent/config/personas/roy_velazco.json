@@ -1,7 +1,7 @@
 {
-  "schema_version": 21,
+  "schema_version": 22,
   "id": "roy_velazco",
-  "revision": 30,
+  "revision": 31,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -159,7 +159,7 @@
       "personal_commands_title": "🗂️ Tus propios papelitos",
       "personal_commands": "• `/mis-reportes`: busca tus publicaciones sin hacerte recorrer medio Discord.\n• `/mi-resumen`: te cuenta cómo vai este mes, si te atrevís.",
       "general_commands_title": "📚 Dudas y consultas",
-      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: elige el periodo y publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa todos.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.\n• `/callsign`: guarda tu callsign pa no repetirlo cada vez.\n• `/callsigns`: muestra quién usa cada callsign.\n• `/info-callsigns`: explica cómo guardar y revisar callsigns.",
+      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: elige el periodo y publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa todos.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.\n• `/callsign`: guarda tu callsign pa no repetirlo cada vez.\n• `/quitar-callsign`: borra el callsign q dejaste guardado.\n• `/callsigns`: muestra quién usa cada callsign.\n• `/info-callsigns`: explica cómo guardar y revisar callsigns.",
       "supervision_commands_title": "🛡️ Cosas de los mandos",
       "supervision_commands": "• `/pendientes`: encuentra expedientes botados.\n• `/ranking`: compara quién trabaja y quién puro mira.\nNecesitai un rol autorizado, no llorís.",
       "official_docs_title": "📚 Papeles oficiales",
@@ -344,6 +344,9 @@
         "unauthorized": "No tenís un rol operativo pa usar callsign acá, así q no inventís.",
         "saved_title": "📻 Callsign guardado",
         "saved_description": "Listo, quedaste como **{callsign}**. La próxima vez el pager lo usa solo, pa q no lo escribai de nuevo.",
+        "removed_title": "📻 Callsign borrado",
+        "removed_description": "Listo, ya no quedó guardado. El próximo pager te lo va a pedir de nuevo.",
+        "missing_description": "No teníai ningún callsign guardado pa borrar.",
         "invalid_format": "Ese callsign no sirve. Pon dos o tres números y termina en L, F, B o S; por ejemplo **280L**, **60F**, **282B** o **281S**.",
         "operation_failed": "No pude completar la cuestión de los callsigns. Si ya teníai uno, quedó tal como estaba.",
         "directory_intro": "Personal con un callsign registrado en este servidor.",
@@ -398,6 +401,7 @@
         "my_pagers_description": "Revisa tus pagers y respuestas",
         "info_pager_description": "Explica cómo funciona el sistema de pagers",
         "callsign_description": "Guarda tu callsign pa no repetirlo en cada pager",
+        "remove_callsign_description": "Borra el callsign q dejaste guardado",
         "callsigns_description": "Muestra quién usa cada callsign operativo",
         "info_callsigns_description": "Explica cómo guardar y consultar callsigns"
       }

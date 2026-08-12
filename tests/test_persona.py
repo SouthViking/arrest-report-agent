@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 21
-    assert profile.revision == 23
+    assert profile.schema_version == 22
+    assert profile.revision == 24
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -36,8 +36,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 21
-    assert profile.revision == 30
+    assert profile.schema_version == 22
+    assert profile.revision == 31
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -97,6 +97,8 @@ async def test_personas_keep_personality_copy_with_capitalized_titles(loaded_per
     assert "/info-pager" in roy.messages.help.general_commands
     assert "/callsign" in walter.messages.help.general_commands
     assert "/callsign" in roy.messages.help.general_commands
+    assert "/quitar-callsign" in walter.messages.help.general_commands
+    assert "/quitar-callsign" in roy.messages.help.general_commands
     assert "emisor" in walter.messages.interface.pagers.creator_cannot_respond.lower()
     assert "no te anotís" in roy.messages.interface.pagers.creator_cannot_respond
     assert "Llegaste tarde" in roy.messages.interface.pagers.stale

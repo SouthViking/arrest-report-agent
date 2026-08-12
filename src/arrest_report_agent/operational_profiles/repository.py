@@ -84,3 +84,12 @@ class MemberProfileRepository:
         if profile is None:
             raise RuntimeError("Member profile disappeared after upsert")
         return profile
+
+    async def delete_callsign(self, guild_id: int, user_id: int) -> bool:
+        result = await self.client.execute(
+            sa.delete(guild_member_profiles).where(
+                guild_member_profiles.c.guild_id == guild_id,
+                guild_member_profiles.c.user_id == user_id,
+            )
+        )
+        return bool(result.rowcount)

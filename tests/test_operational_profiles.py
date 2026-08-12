@@ -78,6 +78,46 @@ async def test_callsign_confirmation_is_ephemeral_and_personality_aware(persona)
     assert "280L" in messages[0]["embed"].description
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("removed", (True, False))
+async def test_remove_callsign_is_ephemeral_and_personality_aware(persona, removed: bool) -> None:
+    responses: list[dict[str, object]] = []
+    deleted: list[tuple[int, int]] = []
+    member = _member(11, (200,))
+
+    async def cached(_guild_id: int):
+        return SimpleNamespace(
+            settings=SimpleNamespace(operational_staff_role_ids=(200,)),
+            persona=SimpleNamespace(profile=persona),
+        )
+
+    async def delete_callsign(guild_id: int, user_id: int) -> bool:
+        deleted.append((guild_id, user_id))
+        return removed
+
+    async def respond(**kwargs: object) -> None:
+        responses.append(kwargs)
+
+    cog = CallsignCog(
+        SimpleNamespace(cached=cached),
+        SimpleNamespace(delete_callsign=delete_callsign),
+        persona,
+    )
+    context = SimpleNamespace(guild=member.guild, author=member, respond=respond)
+
+    await CallsignCog.remove_callsign.callback(cog, context)  # type: ignore[arg-type]
+
+    assert deleted == [(1, 11)]
+    assert responses[0]["ephemeral"] is True
+    assert responses[0]["embed"].title == persona.messages.interface.callsigns.removed_title
+    expected = (
+        persona.messages.interface.callsigns.removed_description
+        if removed
+        else persona.messages.interface.callsigns.missing_description
+    )
+    assert responses[0]["embed"].description == expected
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     (("60f", "60F"), (" 280l ", "280L"), ("282B", "282B"), ("281s", "281S")),
@@ -226,9 +266,19 @@ async def test_callsign_directory_is_public_without_notifications(persona) -> No
 
 
 def test_callsign_commands_are_root_commands() -> None:
-    commands = (CallsignCog.callsign, CallsignCog.callsigns, CallsignCog.info_callsigns)
+    commands = (
+        CallsignCog.callsign,
+        CallsignCog.remove_callsign,
+        CallsignCog.callsigns,
+        CallsignCog.info_callsigns,
+    )
 
-    assert [command.name for command in commands] == ["callsign", "callsigns", "info-callsigns"]
+    assert [command.name for command in commands] == [
+        "callsign",
+        "quitar-callsign",
+        "callsigns",
+        "info-callsigns",
+    ]
     assert all(command.parent is None for command in commands)
 
 
@@ -320,7 +370,8 @@ async def test_info_callsigns_is_public_and_personality_aware(persona) -> None:
     assert responses[0]["ephemeral"] is False
     assert responses[0]["embed"].description == persona.messages.interface.callsigns.info_intro
     assert "280L" in responses[0]["embed"].fields[0].value
-    assert responses[0]["embed"].fields[1].name == "Uso en pagers"
-    assert "Al emitir `/pager`" in responses[0]["embed"].fields[1].value
-    assert "Responder / actualizar" in responses[0]["embed"].fields[1].value
-    assert "automáticamente" in responses[0]["embed"].fields[1].value
+    fields = {field.name: field.value for field in responses[0]["embed"].fields}
+    assert "`/quitar-callsign`" in fields["Dejar de reutilizarlo"]
+    assert "Al emitir `/pager`" in fields["Uso en pagers"]
+    assert "Responder / actualizar" in fields["Uso en pagers"]
+    assert "automáticamente" in fields["Uso en pagers"]

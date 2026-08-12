@@ -43,6 +43,7 @@ class CallsignCog(commands.Cog):
         self.default_persona = persona
         commands_copy = persona.messages.interface.commands
         self.callsign.description = commands_copy.callsign_description
+        self.remove_callsign.description = commands_copy.remove_callsign_description
         self.callsigns.description = commands_copy.callsigns_description
         self.info_callsigns.description = commands_copy.info_callsigns_description
 
@@ -86,6 +87,58 @@ class CallsignCog(commands.Cog):
                 embed = _alert(ui.alert_title, ui.operation_failed)
             except Exception:
                 embed = _generic_alert("No pude abrir el registro de callsign.")
+            await ctx.respond(embed=embed, ephemeral=True)
+
+    @discord.slash_command(name="quitar-callsign", description="Elimina su callsign guardado")
+    async def remove_callsign(self, ctx: discord.ApplicationContext) -> None:
+        if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+            await ctx.respond(
+                embed=_generic_alert("Este comando solo funciona dentro de un servidor."),
+                ephemeral=True,
+            )
+            return
+        try:
+            bundle = await self.provider.cached(ctx.guild.id)
+            ui = bundle.persona.profile.messages.interface.callsigns
+            if not _member_has_any_role(
+                ctx.author,
+                bundle.settings.operational_staff_role_ids,
+            ):
+                await ctx.respond(embed=_alert(ui.alert_title, ui.unauthorized), ephemeral=True)
+                return
+            removed = await self.repository.delete_callsign(ctx.guild.id, ctx.author.id)
+            await ctx.respond(
+                embed=discord.Embed(
+                    title=ui.removed_title,
+                    description=(ui.removed_description if removed else ui.missing_description),
+                    color=discord.Color.green() if removed else discord.Color.blurple(),
+                ),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "member_callsign_removed" if removed else "member_callsign_remove_noop",
+                guild_id=ctx.guild.id,
+                user_id=ctx.author.id,
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "member_callsign_remove_failed",
+                exc_info=error,
+                guild_id=ctx.guild.id,
+                user_id=ctx.author.id,
+                **exception_fields(error),
+            )
+            try:
+                bundle = await self.provider.cached(ctx.guild.id)
+                ui = bundle.persona.profile.messages.interface.callsigns
+                embed = _alert(ui.alert_title, ui.operation_failed)
+            except Exception:
+                embed = _generic_alert("No pude quitar el callsign guardado.")
             await ctx.respond(embed=embed, ephemeral=True)
 
     @discord.slash_command(name="callsigns", description="Muestra el directorio de callsigns")
@@ -154,6 +207,14 @@ class CallsignCog(commands.Cog):
                     "Usa `/callsign` para guardar tu identificador operativo. "
                     "El formulario y su confirmación son privados. El formato es de dos o tres "
                     "números seguidos de `L`, `F`, `B` o `S`; por ejemplo `280L` o `60F`."
+                ),
+                inline=False,
+            )
+            embed.add_field(
+                name="Dejar de reutilizarlo",
+                value=(
+                    "Usa `/quitar-callsign` para eliminar tu callsign guardado. "
+                    "Desde entonces, los formularios de pager volverán a pedirte uno libre."
                 ),
                 inline=False,
             )

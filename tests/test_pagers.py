@@ -721,6 +721,9 @@ async def test_pager_repository_persists_responses_and_idempotent_close(
         ]
         free_form_profile = await profiles.upsert_callsign(guild_id, 13, "280WS")
         assert free_form_profile.callsign == "280WS"
+        assert await profiles.delete_callsign(guild_id, 13) is True
+        assert await profiles.get_callsign(guild_id, 13) is None
+        assert await profiles.delete_callsign(guild_id, 13) is False
         pager = await repository.create_publishing(
             guild_id=guild_id,
             channel_id=100,
