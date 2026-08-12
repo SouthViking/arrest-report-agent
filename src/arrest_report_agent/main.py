@@ -14,7 +14,7 @@ from agents import flush_traces
 
 from arrest_report_agent.bootstrap import build_runtime
 from arrest_report_agent.bootstrap.database import run_import_command, run_verify_command
-from arrest_report_agent.bootstrap.health import serve_health
+from arrest_report_agent.bootstrap.health import serve_http
 from arrest_report_agent.config import AppSettings, load_settings
 from arrest_report_agent.config.logging import configure_logging, exception_fields, log_event
 
@@ -36,7 +36,12 @@ async def run() -> None:
             **exception_fields(error),
         )
         raise
-    health_server = await serve_health(settings.health_host, settings.health_port, runtime.health)
+    health_server = await serve_http(
+        settings.health_host,
+        settings.health_port,
+        runtime.health,
+        runtime.railway_webhook_receiver,
+    )
     guild_ids = await runtime.config_provider.guild_ids()
     log_event(
         LOGGER,
@@ -55,6 +60,10 @@ async def run() -> None:
         configured_guilds=len(guild_ids),
         role_request_subsystem_enabled=runtime.role_requests_enabled,
         pager_subsystem_enabled=runtime.pagers_enabled,
+        deployment_notification_subsystem_enabled=(
+            runtime.deployment_notifications_enabled
+        ),
+        railway_webhook_enabled=runtime.railway_webhook_receiver is not None,
     )
     stop_requested = asyncio.Event()
     loop = asyncio.get_running_loop()

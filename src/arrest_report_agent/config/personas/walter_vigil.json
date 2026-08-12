@@ -1,7 +1,7 @@
 {
-  "schema_version": 22,
+  "schema_version": 23,
   "id": "walter_vigil",
-  "revision": 24,
+  "revision": 25,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -334,6 +334,13 @@
         "navigation_owner_only": "Solo quien abrió el directorio puede cambiar de página.",
         "info_intro": "Registre su identificador una vez y consúltelo junto al resto del personal cuando necesite coordinar una operación.",
         "info_closing": "Ambos comandos están reservados al personal operativo autorizado."
+      },
+      "deployments": {
+        "release_intro": "La nueva versión quedó desplegada y disponible. Este es el parte breve de los cambios.",
+        "release_closing": "Despliegue verificado y en servicio.",
+        "failed_description": "La versión propuesta no superó las comprobaciones del despliegue. La versión estable anterior permanece operativa cuando Railway puede conservarla.",
+        "crashed_description": "El servicio dejó de responder después de iniciar. Revise Railway y los logs técnicos antes de intentar restablecerlo.",
+        "oom_description": "Railway detuvo el servicio por falta de memoria. Revise el consumo y los límites antes de reiniciarlo."
       },
       "review": {
         "failure_next_step_title": "Siguiente paso",

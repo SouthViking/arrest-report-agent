@@ -94,6 +94,8 @@ modelo no puede escoger una guild ni un canal de publicación.
   del subsistema de avisos operativos; no depende del agente ni de OpenAI.
 - `operational_profiles`: metadata reutilizable por guild y miembro, persistencia de callsigns,
   actualización privada, directorio agrupado y ayuda pública.
+- `deployments`: contrato de webhooks Railway, inbox de eventos, outbox idempotente y renderer de
+  changelog/alertas para Discord; no depende del runner ni de OpenAI.
 
 Los comandos personales `/mis-reportes` y `/mi-resumen` siguen una ruta determinista separada
 del runner. Leen de forma acotada los canales de revisión visibles, atribuyen publicaciones raíz al
@@ -139,6 +141,14 @@ La fuente de producción es la rama `main`. GitHub Actions valida lint, tipos, t
 Docker en cada push; Railway debe mantener **Wait for CI** habilitado para desplegar únicamente
 revisiones que terminen esos checks correctamente. Las variables y secretos viven en Railway, no en
 el repositorio. PostgreSQL y Bucket se enlazan mediante referencias de variables del proyecto.
+
+El mismo proceso aloja `GET /health` y el receptor autenticado de Railway. El request solo normaliza
+y persiste: la publicación en Discord ocurre fuera de la ruta HTTP mediante un worker que consume un
+outbox. Esto permite responder `202` rápido, deduplicar reintentos del proveedor y reintentar fallas
+transitorias sin perder el evento. Para un evento exitoso, el SHA del webhook debe coincidir con el
+`RAILWAY_GIT_COMMIT_SHA` de la instancia; así el contenedor anterior puede recibir el evento pero solo
+la revisión nueva anuncia su propio manifest. Las políticas y el módulo de notificaciones se leen del
+snapshot dinámico de cada guild.
 
 ## Solicitudes de roles
 

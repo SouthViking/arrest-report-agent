@@ -107,6 +107,31 @@ def test_local_health_port_remains_supported() -> None:
     assert settings.health_port == 8181
 
 
+def test_railway_webhook_requires_complete_identity_and_url_safe_secret() -> None:
+    values = {
+        "_env_file": None,
+        "DISCORD_TOKEN": "discord",
+        "OPENAI_API_KEY": "openai",
+        "RAILWAY_WEBHOOK_SECRET": "a" * 43,
+        "RAILWAY_PROJECT_ID": "project",
+        "RAILWAY_ENVIRONMENT_ID": "production",
+        "RAILWAY_SERVICE_ID": "bot",
+    }
+
+    settings = AppSettings(**values)
+
+    assert settings.railway_webhook_enabled is True
+    assert settings.railway_webhook_identity_is_complete is True
+    assert settings.app_version == "0.2.0"
+
+    with pytest.raises(ValidationError, match="RAILWAY_ENVIRONMENT_ID"):
+        AppSettings(
+            **{key: value for key, value in values.items() if key != "RAILWAY_ENVIRONMENT_ID"}
+        )
+    with pytest.raises(ValidationError, match="URL-safe"):
+        AppSettings(**{**values, "RAILWAY_WEBHOOK_SECRET": "/" * 43})
+
+
 @pytest.mark.parametrize(
     ("variable_name", "allowlist_attribute"),
     [

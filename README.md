@@ -204,7 +204,8 @@ interacciones al publicarlo de forma atómica. La última revisión válida perm
 temporal de PostgreSQL; mientras tanto, las mutaciones administrativas quedan bloqueadas.
 
 El proceso expone `GET /health` en el puerto 8080. Devuelve `200` cuando Discord, PostgreSQL y las
-fuentes locales de conocimiento están disponibles; durante el arranque devuelve `503`.
+fuentes locales de conocimiento están disponibles; durante el arranque devuelve `503`. El mismo
+servidor HTTP puede recibir eventos de Railway sin crear otro servicio.
 
 ### Railway
 
@@ -225,6 +226,33 @@ Carga únicamente secretos y opciones de proceso en **Variables**. Vincula `DATA
 PostgreSQL y las credenciales S3 al Bucket mediante referencias de Railway. No subas `.env.production`,
 tokens, URL de base ni credenciales del Bucket. Los env legacy pueden retirarse después de ejecutar
 `db verify` con éxito.
+
+### Changelog y alertas de despliegue
+
+Cada versión se define una sola vez en `arrest_report_agent.__version__` y debe coincidir con el
+manifest estricto [`release.json`](src/arrest_report_agent/release.json). El manifest contiene el
+título, resumen y hasta diez cambios tipados; no contiene copy de una persona.
+
+El receptor se habilita únicamente cuando están presentes `RAILWAY_WEBHOOK_SECRET` y los IDs del
+proyecto, entorno y servicio. La URL que se configura en Railway es:
+
+```text
+https://<dominio-publico>/webhooks/railway/<RAILWAY_WEBHOOK_SECRET>
+```
+
+Acepta `Deployment.deployed`, `Deployment.failed`, `Deployment.crashed` y
+`Deployment.oom_killed`. Verifica el secreto con comparación constante, limita el cuerpo, valida el
+JSON y exige que los tres IDs coincidan y que el entorno no sea efímero. CORS se habilita únicamente
+para el botón de prueba del dashboard de Railway; no sustituye al secreto.
+
+Los eventos válidos y las entregas quedan en PostgreSQL. En un despliegue exitoso, la nueva instancia
+solo anuncia el changelog cuando `RAILWAY_GIT_COMMIT_SHA` coincide con el commit del evento. Cada
+canal y versión tiene una clave idempotente, y los errores transitorios de Discord se reintentan con
+backoff. Las alertas de fallo no publican secretos, logs ni mensajes de commit.
+
+Para activarlo en una guild, usa `/config`, crea un borrador, configura **Canales de despliegues** en
+modo restringido, habilita **Notificaciones de despliegue** con schema `1` y opciones `{}`, y publica
+el borrador. Hasta entonces la migración lo deja explícitamente deshabilitado.
 
 ## Uso en Discord
 
@@ -317,6 +345,11 @@ el contenido exacto del FAQ.
 | `PERSONA_ASSET_ACCESS_KEY_ID` | obligatorio | Credencial S3; secreto de proceso. |
 | `PERSONA_ASSET_SECRET_ACCESS_KEY` | obligatorio | Credencial S3; secreto de proceso. |
 | `CONFIG_OWNER_USER_IDS` | vacío | Owners de emergencia autorizados para `/config`; no se almacena en DB. |
+| `RAILWAY_WEBHOOK_SECRET` | vacío | Secreto URL-safe de 43 a 128 caracteres incluido en la ruta privada del webhook. Vacío deshabilita el receptor. |
+| `RAILWAY_PROJECT_ID` | vacío | Proyecto Railway autorizado; obligatorio al habilitar el webhook. |
+| `RAILWAY_ENVIRONMENT_ID` | vacío | Entorno Railway autorizado; obligatorio al habilitar el webhook. |
+| `RAILWAY_SERVICE_ID` | vacío | Servicio Railway autorizado; obligatorio al habilitar el webhook. |
+| `RAILWAY_GIT_COMMIT_SHA` | Railway | SHA inyectado por Railway para que solo la nueva revisión anuncie un despliegue exitoso. |
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
 | `REPORT_CHANNEL_IDS` | `*` | Canales usados por búsquedas, resúmenes, rankings, supervisión y ayuda; no restringe menciones. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` quedan como aliases compatibles. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |

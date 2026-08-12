@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 22
-    assert profile.revision == 24
+    assert profile.schema_version == 23
+    assert profile.revision == 25
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -36,8 +36,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 22
-    assert profile.revision == 31
+    assert profile.schema_version == 23
+    assert profile.revision == 32
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -104,6 +104,8 @@ async def test_personas_keep_personality_copy_with_capitalized_titles(loaded_per
     assert "Llegaste tarde" in roy.messages.interface.pagers.stale
     assert "{callsign}" in walter.messages.interface.callsigns.saved_description
     assert "próxima vez" in roy.messages.interface.callsigns.saved_description
+    assert walter.messages.interface.deployments.release_intro
+    assert roy.messages.interface.deployments.crashed_description
 
 
 @pytest.mark.asyncio

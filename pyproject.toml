@@ -4,11 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "arrest-report-agent"
-version = "0.1.0"
 description = "Discord agent for reviewing roleplay arrest reports."
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
-dynamic = ["dependencies"]
+dynamic = ["dependencies", "version"]
 
 [project.optional-dependencies]
 dev = [
@@ -26,6 +25,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 arrest_report_agent = [
+    "release.json",
     "config/data/*.json",
     "config/assets/*.png",
     "config/personas/*.json",
@@ -38,6 +38,7 @@ arrest_report_agent = [
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
+version = {attr = "arrest_report_agent.__version__"}
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

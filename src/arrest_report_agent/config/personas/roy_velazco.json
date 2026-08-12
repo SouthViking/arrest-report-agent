@@ -1,7 +1,7 @@
 {
-  "schema_version": 22,
+  "schema_version": 23,
   "id": "roy_velazco",
-  "revision": 31,
+  "revision": 32,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -354,6 +354,13 @@
         "navigation_owner_only": "Solo quien abrió el directorio puede cambiar de página.",
         "info_intro": "Guarda el callsign una vez y después búscalo en el directorio, así nadie anda preguntando lo mismo veinte veces.",
         "info_closing": "Esto es pa personal operativo autorizado, no pa cualquiera q pase mirando."
+      },
+      "deployments": {
+        "release_intro": "Quedó arriba la versión nueva. Acá va lo q cambió, corto y sin dar veinte vueltas.",
+        "release_closing": "Ya está andando. Si rompen algo, por último ahora queda avisado.",
+        "failed_description": "Esta versión no alcanzó a quedar arriba. La anterior sigue funcionando si Railway logró mantenerla, así q revisen el despliegue antes de tocar más cosas.",
+        "crashed_description": "El servicio alcanzó a partir y después se cayó. Revisen Railway y los logs antes de apretar botones al lote.",
+        "oom_description": "Railway lo frenó pq se quedó sin memoria. Revisen el consumo y los límites antes de levantarlo de nuevo."
       },
       "review": {
         "failure_next_step_title": "Y ahora qué",

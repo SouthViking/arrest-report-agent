@@ -17,6 +17,11 @@ from arrest_report_agent.config import (
     load_global_profile_banner,
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.deployments import (
+    DeploymentNotificationWorker,
+    DeploymentRepository,
+    RailwayWebhookReceiver,
+)
 from arrest_report_agent.infrastructure.discord import (
     ConfigurationAdminCog,
     DiscordProfileSynchronizer,
@@ -36,6 +41,7 @@ from arrest_report_agent.pagers import (
     PagerRepository,
     PagerServiceRegistry,
 )
+from arrest_report_agent.release import ReleaseManifest
 from arrest_report_agent.role_requests import (
     RoleRequestCog,
     RoleRequestDecisionView,
@@ -57,6 +63,9 @@ class Runtime:
     persona: LoadedPersona
     role_requests_enabled: bool
     pagers_enabled: bool
+    deployment_notifications_enabled: bool
+    deployment_worker: DeploymentNotificationWorker
+    railway_webhook_receiver: RailwayWebhookReceiver | None
     postgres: PostgresClient
     config_provider: DatabaseConfigProvider
 
@@ -77,9 +86,12 @@ class Runtime:
             "persona_revision": self.persona.profile.revision,
             "role_requests": self.role_requests_enabled,
             "pagers": self.pagers_enabled,
+            "deployment_notifications": self.deployment_notifications_enabled,
+            "railway_webhook": self.railway_webhook_receiver is not None,
         }
 
     async def close(self) -> None:
+        await self.deployment_worker.close()
         await self.config_provider.close()
         await self.postgres.close()
 
@@ -90,6 +102,7 @@ async def build_runtime(
 ) -> Runtime:
     if persona_provider is not None:
         raise ValueError("Runtime personas are authoritative in PostgreSQL")
+    release_manifest = ReleaseManifest.load_packaged()
     postgres = build_postgres_client(settings)
     await postgres.open()
     catalog = ChargeCatalog.load_default()
@@ -211,6 +224,42 @@ async def build_runtime(
         "pager_subsystem_registered",
         configured_guilds=len(pager_bundles),
     )
+    deployment_repository = DeploymentRepository(postgres)
+    deployment_worker = DeploymentNotificationWorker(
+        bot,
+        config_provider,
+        deployment_repository,
+        release_manifest,
+        current_commit_sha=settings.railway_git_commit_sha,
+    )
+    deployment_worker.start()
+    railway_webhook_receiver = (
+        RailwayWebhookReceiver(
+            settings,
+            deployment_repository,
+            deployment_worker.wake,
+        )
+        if settings.railway_webhook_enabled
+        else None
+    )
+    deployment_bundles = [
+        bundle
+        for bundle in all_bundles
+        if (
+            feature := bundle.snapshot.features.get("deployment_notifications")
+        )
+        is not None
+        and feature.enabled
+    ]
+    deployment_notifications_enabled = bool(deployment_bundles)
+    log_event(
+        LOGGER,
+        "info",
+        "deployment_notification_subsystem_registered",
+        configured_guilds=len(deployment_bundles),
+        webhook_enabled=railway_webhook_receiver is not None,
+        release_version=release_manifest.version,
+    )
     return Runtime(
         bot=bot,
         catalog=catalog,
@@ -219,6 +268,9 @@ async def build_runtime(
         persona=persona,
         role_requests_enabled=role_requests_enabled,
         pagers_enabled=pagers_enabled,
+        deployment_notifications_enabled=deployment_notifications_enabled,
+        deployment_worker=deployment_worker,
+        railway_webhook_receiver=railway_webhook_receiver,
         postgres=postgres,
         config_provider=config_provider,
     )

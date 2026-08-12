@@ -347,6 +347,11 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 supervisor_roles[guild_id],
                 empty_means_disabled=True,
             ),
+            AccessPolicySnapshot(
+                key=AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS,
+                subject_type="channel",
+                mode=AccessPolicyMode.DISABLED,
+            ),
         )
         guilds.append(
             BootstrapGuild(
@@ -372,6 +377,12 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         enabled=False,
                         schema_version=1,
                         payload={"starting_number": 92 if guild_id == 1234674521416663070 else 1},
+                    ),
+                    GuildFeatureSnapshot(
+                        key="deployment_notifications",
+                        enabled=False,
+                        schema_version=1,
+                        payload={},
                     ),
                 ),
                 persona_revision_id=placeholder_persona_revision,

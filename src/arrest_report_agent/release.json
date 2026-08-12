@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "version": "0.2.0",
+  "title": "Actualizaci\u00f3n disponible",
+  "summary": "El bot ahora puede comunicar de forma estructurada las versiones disponibles y los incidentes de despliegue.",
+  "changes": [
+    {
+      "type": "added",
+      "text": "Recepción segura e idempotente de eventos de Railway."
+    },
+    {
+      "type": "added",
+      "text": "Changelog automático en los canales configurados de Discord."
+    },
+    {
+      "type": "improved",
+      "text": "Versionado de la aplicación centralizado y verificable en CI."
+    }
+  ]
+}

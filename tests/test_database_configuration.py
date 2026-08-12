@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import uuid
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -29,6 +30,8 @@ from arrest_report_agent.config import (
     PackagedPersonaProvider,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
+from arrest_report_agent.deployments import DeploymentRepository, RailwayDeploymentEvent
+from arrest_report_agent.deployments.repository import DeploymentDeliveryTarget
 from arrest_report_agent.infrastructure.postgres import (
     ConfigurationRepository,
     PostgresClient,
@@ -343,14 +346,15 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 24
-        assert persona["schema_version"] == 22
+        assert persona["revision"] == 25
+        assert persona["schema_version"] == 23
         assert persona["payload"]["messages"]["interface"]["callsigns"]["saved_title"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["removed_title"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["directory_intro"] == (
             "Personal con un callsign registrado en este servidor."
         )
         assert "280L" in persona["payload"]["messages"]["interface"]["callsigns"]["invalid_format"]
+        assert persona["payload"]["messages"]["interface"]["deployments"]["release_intro"]
         table = await client.fetch_one(
             sa.text("SELECT to_regclass('public.guild_member_profiles') AS name")
         )
@@ -380,18 +384,7 @@ async def _exercise_database(database_url: str) -> None:
         policies = tuple(
             AccessPolicySnapshot(
                 key=key,
-                subject_type=(
-                    "channel"
-                    if key
-                    in {
-                        AccessPolicyKey.REPORT_CHANNELS,
-                        AccessPolicyKey.ROLE_REQUEST_CHANNELS,
-                        AccessPolicyKey.PAGER_CHANNELS,
-                    }
-                    else "user"
-                    if key is AccessPolicyKey.AGENT_USERS
-                    else "role"
-                ),
+                subject_type=POLICY_SUBJECT_TYPES[key],
                 mode=(
                     AccessPolicyMode.OPEN
                     if key
@@ -449,6 +442,45 @@ async def _exercise_database(database_url: str) -> None:
         initial = await repository.active_snapshot(123)
         assert initial.revision_id == initial_id
         assert initial.persona_id == "walter_vigil"
+        deployment_repository = DeploymentRepository(client)
+        deployment_event = RailwayDeploymentEvent.model_validate(
+            {
+                "type": "Deployment.deployed",
+                "details": {
+                    "source": "GitHub",
+                    "branch": "main",
+                    "commitHash": "a" * 40,
+                },
+                "resource": {
+                    "project": {"id": "project"},
+                    "environment": {"id": "production", "isEphemeral": False},
+                    "service": {"id": "bot"},
+                    "deployment": {"id": "deploy-1"},
+                },
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
+        deployment_record, inserted = await deployment_repository.record_event(deployment_event)
+        duplicate, inserted_again = await deployment_repository.record_event(deployment_event)
+        assert inserted is True
+        assert inserted_again is False
+        assert duplicate.id == deployment_record.id
+        assert await deployment_repository.enqueue_deliveries(
+            deployment_record.id,
+            (
+                DeploymentDeliveryTarget(
+                    guild_id=123,
+                    channel_id=456,
+                    kind="release",
+                    notification_key="release:123:456:0.2.0",
+                ),
+            ),
+        ) == 1
+        deliveries = await deployment_repository.due_deliveries()
+        assert len(deliveries) == 1
+        assert deliveries[0].event.commit_hash == "a" * 40
+        await deployment_repository.mark_delivery_sent(deliveries[0].id, 789)
+        assert await deployment_repository.due_deliveries() == ()
         provider = DatabaseConfigProvider(
             client,
             repository,

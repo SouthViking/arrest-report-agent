@@ -257,7 +257,11 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
     assert PublishConfigurationModal(cog, 42).title == "Publicar configuración"
     assert AccessPolicyModal(cog, 42).title == "Configurar accesos"
     assert AgentConfigurationModal(cog, 42, provider.snapshot.agent).title == "Configurar agente"
-    assert FeatureConfigurationModal(cog, 42).title == "Configurar módulo"
+    feature_modal = FeatureConfigurationModal(cog, 42)
+    assert feature_modal.title == "Configurar módulo"
+    assert "deployment_notifications" in {
+        option.value for option in feature_modal.key.options
+    }
     persona_modal = PersonaConfigurationModal(cog, 42, include_global_profile=True)
     assert persona_modal.title == "Administrar personas"
     assert [option.value for option in persona_modal.action.options][-1] == "global"

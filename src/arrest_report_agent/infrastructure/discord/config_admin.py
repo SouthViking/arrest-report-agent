@@ -43,11 +43,13 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
     AccessPolicyKey.PAGER_RECIPIENT_ROLES: "Destinatarios de pagers",
     AccessPolicyKey.PAGER_CLOSER_ROLES: "Responsables de cierre de pagers",
     AccessPolicyKey.OPERATIONAL_STAFF_ROLES: "Personal operativo con callsign",
+    AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: "Canales de despliegues",
 }
 FEATURE_LABELS = {
     "role_requests": "Solicitudes de roles",
     "pagers": "Pagers",
     "teamspeak": "TeamSpeak",
+    "deployment_notifications": "Notificaciones de despliegue",
 }
 MODE_LABELS = {
     AccessPolicyMode.OPEN: "abierta",
@@ -801,6 +803,10 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 discord.SelectOption(label="Solicitudes de roles", value="role_requests"),
                 discord.SelectOption(label="Pagers", value="pagers"),
                 discord.SelectOption(label="TeamSpeak", value="teamspeak"),
+                discord.SelectOption(
+                    label="Notificaciones de despliegue",
+                    value="deployment_notifications",
+                ),
             ],
         )
         self.enabled = discord.ui.StringSelect(
@@ -845,6 +851,8 @@ class FeatureConfigurationModal(BaseConfigurationModal):
             payload = {**(current.payload if current is not None else {}), **payload}
             if key == "pagers" and "starting_number" not in payload:
                 payload["starting_number"] = 1
+            if key == "deployment_notifications" and payload:
+                raise ValueError("Este módulo no admite opciones JSON.")
             feature = GuildFeatureSnapshot(
                 key=key,
                 enabled=self.enabled.values[0] == "true",

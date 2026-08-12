@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from arrest_report_agent import __version__
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,7 +172,6 @@ class AppSettings(BaseSettings):
     )
 
     app_environment: str = Field(default="local", alias="APP_ENV", min_length=1)
-    app_version: str = Field(default="0.1.0", alias="APP_VERSION", min_length=1)
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_json_indented: bool = Field(default=True, alias="LOG_JSON_INDENTED")
     health_host: str = Field(default="0.0.0.0", alias="HEALTH_HOST")
@@ -179,6 +181,14 @@ class AppSettings(BaseSettings):
         ge=1,
         le=65535,
     )
+    railway_webhook_secret: SecretStr | None = Field(
+        default=None,
+        alias="RAILWAY_WEBHOOK_SECRET",
+    )
+    railway_project_id: str | None = Field(default=None, alias="RAILWAY_PROJECT_ID")
+    railway_environment_id: str | None = Field(default=None, alias="RAILWAY_ENVIRONMENT_ID")
+    railway_service_id: str | None = Field(default=None, alias="RAILWAY_SERVICE_ID")
+    railway_git_commit_sha: str | None = Field(default=None, alias="RAILWAY_GIT_COMMIT_SHA")
 
     openai_model: str = Field(default="gpt-5.6-terra", alias="OPENAI_MODEL", min_length=1)
     openai_reasoning_effort: str = Field(default="medium", alias="OPENAI_REASONING_EFFORT", min_length=1)
@@ -228,6 +238,26 @@ class AppSettings(BaseSettings):
     def normalize_bot_persona(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else None
 
+    @field_validator("railway_webhook_secret")
+    @classmethod
+    def normalize_railway_webhook_secret(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None:
+            return None
+        return SecretStr(value.get_secret_value().strip())
+
+    @field_validator(
+        "railway_project_id",
+        "railway_environment_id",
+        "railway_service_id",
+        "railway_git_commit_sha",
+    )
+    @classmethod
+    def normalize_optional_railway_value(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
     @field_validator("thread_auto_archive_minutes")
     @classmethod
     def validate_archive_duration(cls, value: int) -> int:
@@ -260,7 +290,42 @@ class AppSettings(BaseSettings):
                 "ROLE_REQUEST_ALLOWED_ROLE_IDS cannot include reviewer roles configured in "
                 "ROLE_REQUEST_REVIEWER_ROLE_IDS"
             )
+        if self.railway_webhook_enabled:
+            secret = self.railway_webhook_secret
+            assert secret is not None
+            secret_value = secret.get_secret_value().strip()
+            if not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", secret_value):
+                raise ValueError(
+                    "RAILWAY_WEBHOOK_SECRET must be 43-128 URL-safe characters"
+                )
+            if not self.railway_webhook_identity_is_complete:
+                raise ValueError(
+                    "RAILWAY_PROJECT_ID, RAILWAY_ENVIRONMENT_ID and RAILWAY_SERVICE_ID "
+                    "are required when RAILWAY_WEBHOOK_SECRET is configured"
+                )
         return self
+
+    @property
+    def app_version(self) -> str:
+        return __version__
+
+    @property
+    def railway_webhook_enabled(self) -> bool:
+        return bool(
+            self.railway_webhook_secret
+            and self.railway_webhook_secret.get_secret_value().strip()
+        )
+
+    @property
+    def railway_webhook_identity_is_complete(self) -> bool:
+        return all(
+            value and value.strip()
+            for value in (
+                self.railway_project_id,
+                self.railway_environment_id,
+                self.railway_service_id,
+            )
+        )
 
     @property
     def config_owner_user_ids(self) -> tuple[int, ...]:

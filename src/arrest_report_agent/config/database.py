@@ -36,6 +36,7 @@ class AccessPolicyKey(StrEnum):
     PAGER_RECIPIENT_ROLES = "pager_recipient_roles"
     PAGER_CLOSER_ROLES = "pager_closer_roles"
     OPERATIONAL_STAFF_ROLES = "operational_staff_roles"
+    DEPLOYMENT_NOTIFICATION_CHANNELS = "deployment_notification_channels"
 
 
 POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] = {
@@ -53,6 +54,7 @@ POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] 
     AccessPolicyKey.PAGER_RECIPIENT_ROLES: "role",
     AccessPolicyKey.PAGER_CLOSER_ROLES: "role",
     AccessPolicyKey.OPERATIONAL_STAFF_ROLES: "role",
+    AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: "channel",
 }
 
 
@@ -150,6 +152,17 @@ class GuildConfigSnapshot(FrozenConfigModel):
                     raise ValueError(f"enabled pagers requires restricted policy {key.value}")
             if len(self.policies[AccessPolicyKey.PAGER_RECIPIENT_ROLES].ids) > 25:
                 raise ValueError("pagers supports at most 25 recipient roles")
+        deployment_feature = self.features.get("deployment_notifications")
+        if deployment_feature is not None and deployment_feature.enabled:
+            if deployment_feature.schema_version != 1 or deployment_feature.payload:
+                raise ValueError(
+                    "deployment_notifications requires feature schema version 1 with empty options"
+                )
+            channels = self.policies[AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS]
+            if channels.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError(
+                    "enabled deployment_notifications requires restricted deployment channels"
+                )
         return self
 
     def policy(self, key: AccessPolicyKey) -> AccessPolicySnapshot:
@@ -230,6 +243,11 @@ class GuildRuntimeSettings:
     @property
     def operational_staff_role_ids(self) -> tuple[int, ...]:
         policy = self.snapshot.policy(AccessPolicyKey.OPERATIONAL_STAFF_ROLES)
+        return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
+    def deployment_notification_channel_ids(self) -> tuple[int, ...]:
+        policy = self.snapshot.policy(AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS)
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
 
     @property

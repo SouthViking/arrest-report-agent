@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 22
+PERSONA_SCHEMA_VERSION = 23
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -670,6 +670,16 @@ class PersonaCallsignMessages(FrozenPersonaModel):
         return self
 
 
+class PersonaDeploymentMessages(FrozenPersonaModel):
+    """Personality-aware framing for deterministic deployment notifications."""
+
+    release_intro: str = Field(min_length=1, max_length=500)
+    release_closing: str = Field(min_length=1, max_length=300)
+    failed_description: str = Field(min_length=1, max_length=500)
+    crashed_description: str = Field(min_length=1, max_length=500)
+    oom_description: str = Field(min_length=1, max_length=500)
+
+
 class PersonaReviewMessages(FrozenPersonaModel):
     """Personality-aware framing around formal structured review data."""
 
@@ -768,6 +778,7 @@ class PersonaInterfaceMessages(FrozenPersonaModel):
     role_requests: PersonaRoleRequestMessages
     pagers: PersonaPagerMessages
     callsigns: PersonaCallsignMessages
+    deployments: PersonaDeploymentMessages
     review: PersonaReviewMessages
     commands: PersonaCommandMessages
 

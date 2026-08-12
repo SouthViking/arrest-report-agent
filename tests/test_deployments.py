@@ -1,0 +1,222 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from uuid import UUID
+
+import discord
+import pytest
+from aiohttp.test_utils import TestClient, TestServer
+
+from arrest_report_agent.bootstrap.health import create_http_application
+from arrest_report_agent.config import AccessPolicyKey, AccessPolicyMode
+from arrest_report_agent.deployments.discord import DeploymentNotificationWorker, build_deployment_embed
+from arrest_report_agent.deployments.models import DeploymentEventType, RailwayDeploymentEvent
+from arrest_report_agent.deployments.repository import DeploymentEventRecord
+from arrest_report_agent.release import ReleaseManifest
+
+
+def railway_payload(event_type: str = "Deployment.deployed") -> dict[str, object]:
+    return {
+        "type": event_type,
+        "details": {
+            "id": "detail-id",
+            "source": "GitHub",
+            "status": "SUCCESS",
+            "branch": "main",
+            "commitHash": "a" * 40,
+            "commitAuthor": "SouthViking",
+            "commitMessage": "Ship deployment notifications",
+        },
+        "resource": {
+            "workspace": {"id": "workspace", "name": "Personal"},
+            "project": {"id": "project", "name": "Agent"},
+            "environment": {
+                "id": "production",
+                "name": "production",
+                "isEphemeral": False,
+            },
+            "service": {"id": "bot", "name": "app"},
+            "deployment": {"id": "deployment-1"},
+        },
+        "severity": "INFO",
+        "timestamp": "2026-08-12T12:34:56.000Z",
+    }
+
+
+def test_railway_payload_normalizes_supported_events_and_identity() -> None:
+    event = RailwayDeploymentEvent.model_validate(railway_payload("Deployment.OOM_KILLED"))
+
+    assert event.event_type is DeploymentEventType.OOM_KILLED
+    assert event.deployment_id == "deployment-1"
+    assert event.matches_runtime(
+        project_id="project",
+        environment_id="production",
+        service_id="bot",
+    )
+    assert event.matches_commit("a" * 8)
+    assert len(event.provider_event_key) == 64
+
+
+def test_release_manifest_is_packaged_and_matches_application_version() -> None:
+    manifest = ReleaseManifest.load_packaged()
+
+    assert manifest.version == "0.2.0"
+    assert manifest.changes
+
+
+def test_deployment_embeds_keep_operational_data_and_persona_framing(persona) -> None:
+    manifest = ReleaseManifest.load_packaged()
+    event = DeploymentEventRecord(
+        id=UUID("00000000-0000-0000-0000-000000000001"),
+        event_type=DeploymentEventType.DEPLOYED,
+        deployment_id="deployment-1",
+        project_id="project",
+        environment_id="production",
+        service_id="bot",
+        source="GitHub",
+        branch="main",
+        commit_hash="abcdef1234567890",
+        commit_message="message",
+        severity="INFO",
+        timestamp=datetime(2026, 8, 12, 12, 34, tzinfo=UTC),
+    )
+
+    embed = build_deployment_embed(event, manifest, persona)
+
+    assert embed.title == "🚀 Actualización disponible · v0.2.0"
+    assert persona.messages.interface.deployments.release_intro in (embed.description or "")
+    assert any(field.name == "Cambios" for field in embed.fields)
+    assert any("abcdef12" in field.value for field in embed.fields)
+    assert embed.colour == discord.Color.green()
+
+
+class FakeReceiver:
+    secret = "s" * 43
+
+    def __init__(self) -> None:
+        self.events: list[RailwayDeploymentEvent] = []
+
+    async def receive(self, event: RailwayDeploymentEvent) -> SimpleNamespace:
+        self.events.append(event)
+        return SimpleNamespace(status="accepted")
+
+
+class FakeDeploymentRepository:
+    def __init__(self) -> None:
+        self.ignored: list[tuple[UUID, str]] = []
+        self.processed: list[UUID] = []
+        self.targets: list[object] = []
+
+    async def mark_event_ignored(self, event_id: UUID, reason: str) -> None:
+        self.ignored.append((event_id, reason))
+
+    async def enqueue_deliveries(self, _event_id: UUID, targets: tuple[object, ...]) -> int:
+        self.targets.extend(targets)
+        return len(targets)
+
+    async def mark_event_processed(self, event_id: UUID) -> None:
+        self.processed.append(event_id)
+
+
+@pytest.mark.asyncio
+async def test_success_event_waits_for_the_matching_runtime_and_then_targets_channels() -> None:
+    event = DeploymentEventRecord(
+        id=UUID("00000000-0000-0000-0000-000000000002"),
+        event_type=DeploymentEventType.DEPLOYED,
+        deployment_id="deployment-2",
+        project_id="project",
+        environment_id="production",
+        service_id="bot",
+        source="GitHub",
+        branch="main",
+        commit_hash="b" * 40,
+        commit_message=None,
+        severity="INFO",
+        timestamp=datetime.now(UTC),
+    )
+    repository = FakeDeploymentRepository()
+    policy = SimpleNamespace(mode=AccessPolicyMode.RESTRICTED, ids=(456, 789))
+    bundle = SimpleNamespace(
+        snapshot=SimpleNamespace(
+            features={"deployment_notifications": SimpleNamespace(enabled=True)},
+            policies={AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: policy},
+        )
+    )
+    provider = SimpleNamespace(
+        guild_ids=lambda: _async_value((123,)),
+        cached=lambda _guild_id: _async_value(bundle),
+    )
+    old_worker = DeploymentNotificationWorker(
+        SimpleNamespace(),  # type: ignore[arg-type]
+        provider,  # type: ignore[arg-type]
+        repository,  # type: ignore[arg-type]
+        ReleaseManifest.load_packaged(),
+        current_commit_sha="a" * 40,
+    )
+
+    await old_worker._prepare_event(event)  # noqa: SLF001
+
+    assert repository.processed == []
+    assert repository.targets == []
+
+    new_worker = DeploymentNotificationWorker(
+        SimpleNamespace(),  # type: ignore[arg-type]
+        provider,  # type: ignore[arg-type]
+        repository,  # type: ignore[arg-type]
+        ReleaseManifest.load_packaged(),
+        current_commit_sha="b" * 40,
+    )
+    await new_worker._prepare_event(event)  # noqa: SLF001
+
+    assert repository.processed == [event.id]
+    assert [target.channel_id for target in repository.targets] == [456, 789]
+    assert all(target.notification_key.endswith(":0.2.0") for target in repository.targets)
+
+
+async def _async_value(value: object) -> object:
+    return value
+
+
+@pytest.mark.asyncio
+async def test_webhook_endpoint_authenticates_validates_and_limits_cors() -> None:
+    async def healthy() -> dict[str, object]:
+        return {"ok": True}
+
+    receiver = FakeReceiver()
+    app = create_http_application(healthy, receiver)  # type: ignore[arg-type]
+    client = TestClient(TestServer(app))
+    await client.start_server()
+    try:
+        wrong = await client.post(
+            "/webhooks/railway/wrong",
+            json=railway_payload(),
+        )
+        assert wrong.status == 404
+
+        invalid = await client.post(
+            f"/webhooks/railway/{receiver.secret}",
+            data="not-json",
+            headers={"Content-Type": "application/json"},
+        )
+        assert invalid.status == 400
+
+        accepted = await client.post(
+            f"/webhooks/railway/{receiver.secret}",
+            json=railway_payload(),
+            headers={"Origin": "https://railway.com"},
+        )
+        assert accepted.status == 202
+        assert await accepted.json() == {"status": "accepted"}
+        assert accepted.headers["Access-Control-Allow-Origin"] == "https://railway.com"
+        assert len(receiver.events) == 1
+
+        untrusted = await client.post(
+            f"/webhooks/railway/{receiver.secret}",
+            json=railway_payload(),
+            headers={"Origin": "https://example.com"},
+        )
+        assert untrusted.status == 202
+        assert "Access-Control-Allow-Origin" not in untrusted.headers
+    finally:
+        await client.close()

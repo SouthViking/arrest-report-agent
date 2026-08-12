@@ -330,3 +330,76 @@ pager_responders = sa.Table(
     sa.UniqueConstraint("pager_id", "user_id", name="uq_pager_responder"),
     sa.Index("ix_pager_responder_user", "user_id", "updated_at"),
 )
+
+deployment_events = sa.Table(
+    "deployment_events",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column("provider_event_key", sa.String(64), nullable=False, unique=True),
+    sa.Column("event_type", sa.String(30), nullable=False),
+    sa.Column("deployment_id", sa.String(100), nullable=False),
+    sa.Column("project_id", sa.String(100), nullable=False),
+    sa.Column("environment_id", sa.String(100), nullable=False),
+    sa.Column("service_id", sa.String(100), nullable=False),
+    sa.Column("source", sa.String(50)),
+    sa.Column("branch", sa.String(255)),
+    sa.Column("commit_hash", sa.String(64)),
+    sa.Column("commit_message", sa.String(500)),
+    sa.Column("severity", sa.String(30)),
+    sa.Column("event_timestamp", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("status", sa.String(20), nullable=False, server_default="received"),
+    sa.Column("ignored_reason", sa.String(100)),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("processed_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(
+        "event_type IN ('deployed','failed','crashed','oom_killed')",
+        name="ck_deployment_event_type",
+    ),
+    sa.CheckConstraint(
+        "status IN ('received','processed','ignored')",
+        name="ck_deployment_event_status",
+    ),
+    sa.Index("ix_deployment_event_status_created", "status", "created_at"),
+)
+
+deployment_notification_deliveries = sa.Table(
+    "deployment_notification_deliveries",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "event_id",
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("deployment_events.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("channel_id", sa.BigInteger, nullable=False),
+    sa.Column("notification_kind", sa.String(20), nullable=False),
+    sa.Column("notification_key", sa.String(200), nullable=False, unique=True),
+    sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
+    sa.Column("discord_message_id", sa.BigInteger),
+    sa.Column("attempts", sa.Integer, nullable=False, server_default="0"),
+    sa.Column("next_attempt_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("last_error", sa.String(500)),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("sent_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(
+        "notification_kind IN ('release','incident')",
+        name="ck_deployment_notification_kind",
+    ),
+    sa.CheckConstraint(
+        "status IN ('pending','retry','sent','failed')",
+        name="ck_deployment_notification_status",
+    ),
+    sa.Index(
+        "ix_deployment_notification_pending",
+        "status",
+        "next_attempt_at",
+    ),
+)
