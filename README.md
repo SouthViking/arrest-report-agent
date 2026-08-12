@@ -274,7 +274,8 @@ Comandos disponibles:
 - `/solicitar-roles`: abre un formulario privado para solicitar hasta diez altas y diez bajas;
   publica un expediente en el canal de origen para aprobación completa, parcial o rechazo.
 - `/info-roles`: publica una explicación breve sobre el uso y los resultados de las solicitudes.
-- `/pager`: abre un formulario privado y emite un pager en el canal actual.
+- `/pager`: abre un formulario privado y emite un pager en el canal actual; reutiliza el callsign
+  registrado sin volver a solicitarlo.
 - `/pager-activos`: publica los pagers abiertos con enlaces directos.
 - `/mis-pagers`: consulta de forma privada los pagers creados o respondidos.
 - `/info-pager`: publica una explicación breve del sistema.
@@ -283,7 +284,7 @@ Comandos disponibles:
 - `/callsigns`: publica para el personal operativo el directorio paginado, agrupado por callsign y
   sin notificar a los miembros referenciados.
 - `/info-callsigns`: explica públicamente cómo registrar y consultar callsigns, y cómo se reutilizan
-  al responder un pager.
+  al emitir o responder un pager.
 - `/config`: abre un panel efímero sin argumentos, reservado a owners o roles `config_admin_roles`;
   permite inspeccionar la revisión activa y administrar borradores, accesos, agente, módulos,
   personas, publicación y rollback mediante botones y formularios. Los intentos no autorizados

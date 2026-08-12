@@ -264,7 +264,9 @@ políticas **Canales de pagers**, **Emisores de pagers**, **Destinatarios de pag
 `starting_number` fija el primer correlativo cuando la guild todavía no tiene registros; LSSD se
 inicializa en `92`.
 
-`/pager` solicita callsign, uno o más destinatarios, ubicación y situación mediante un modal. Publica
+`/pager` reutiliza automáticamente el callsign registrado y solicita uno o más destinatarios,
+ubicación y situación mediante un modal. Si el emisor todavía no registró un callsign, conserva un
+campo libre como fallback. Publica
 una única notificación para todos los roles seleccionados y un embed que se actualiza con las unidades
 respondientes. El emisor no puede registrarse también como respondiente. Sus botones permiten registrar
 o actualizar una respuesta, retirarse, editar sus datos, concluir con resultado o cancelar con motivo. Solo el
@@ -272,10 +274,11 @@ emisor y los responsables de cierre pueden editar; los cambios de destinatarios 
 notificación. Las operaciones exitosas se reflejan directamente en el mensaje sin confirmaciones
 efímeras adicionales.
 
-Al usar **Responder / actualizar**, primero se exige uno de los roles de
-`operational_staff_roles`. Si el miembro ya registró `/callsign`, ese valor se utiliza directamente
-y no se abre un formulario. Si todavía no existe, el pager lo solicita una vez y lo conserva para
-respuestas posteriores. `/callsign` permite registrarlo o reemplazarlo con un modal; tanto el
+Al emitir un pager se exigen los roles configurados en `pager_creator_roles`; al usar
+**Responder / actualizar**, uno de los roles de `operational_staff_roles`. En ambos flujos, si el
+miembro ya registró `/callsign`, ese valor se utiliza directamente y el campo correspondiente no se
+muestra. Si todavía no existe, el pager permite indicarlo libremente como fallback. `/callsign`
+permite registrarlo o reemplazarlo con un modal; tanto el
 resultado como los errores son efímeros y usan la personalidad activa. Solo acepta dos o tres
 números seguidos de `L`, `F`, `B` o `S` —por ejemplo `280L`, `60F`, `282B` o `281S`— y normaliza la
 letra a mayúscula. Esta restricción solo aplica al comando: el formulario de respuesta del pager
@@ -283,7 +286,7 @@ mantiene un valor libre como fallback. `/callsigns` publica para el
 personal operativo un directorio paginado, agrupado por callsign y limitado a miembros que todavía
 pertenecen a la guild. Las referencias no generan notificaciones. `/info-callsigns` explica ambos
 comandos públicamente y de forma breve, incluido cómo el pager reutiliza el callsign al pulsar
-**Responder / actualizar**.
+`/pager` o **Responder / actualizar**.
 
 `/pager-activos` publica cinco avisos por página con enlaces directos. `/mis-pagers` presenta de forma
 privada los avisos emitidos o respondidos por el usuario. `/info-pager` explica públicamente el flujo y

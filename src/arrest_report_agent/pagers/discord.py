@@ -759,17 +759,24 @@ class PagerCreateModal(discord.ui.DesignerModal):
         service: PagerService,
         member: discord.Member,
         channel: discord.TextChannel,
+        *,
+        saved_callsign: str | None = None,
     ) -> None:
         self.service = service
         self.member = member
         self.channel = channel
+        self.saved_callsign = saved_callsign
         roles = service.recipient_roles(member.guild)
-        self.callsign = discord.ui.InputText(
-            custom_id="pager:v1:create:callsign",
-            placeholder="Ej.: 241WS",
-            min_length=1,
-            max_length=40,
-        )
+        self.callsign: discord.ui.InputText | None = None
+        fields: list[discord.ui.Item] = []
+        if saved_callsign is None:
+            self.callsign = discord.ui.InputText(
+                custom_id="pager:v1:create:callsign",
+                placeholder="Ej.: 241WS",
+                min_length=1,
+                max_length=40,
+            )
+            fields.append(discord.ui.Label("Unidad o callsign", self.callsign))
         self.recipient = discord.ui.StringSelect(
             custom_id="pager:v1:create:recipient",
             placeholder="Selecciona uno o más grupos destinatarios",
@@ -790,11 +797,15 @@ class PagerCreateModal(discord.ui.DesignerModal):
             min_length=1,
             max_length=1000,
         )
+        fields.extend(
+            (
+                discord.ui.Label("Destinatarios", self.recipient),
+                discord.ui.Label("Ubicación", self.location),
+                discord.ui.Label("Situación", self.situation),
+            )
+        )
         super().__init__(
-            discord.ui.Label("Unidad o callsign", self.callsign),
-            discord.ui.Label("Destinatarios", self.recipient),
-            discord.ui.Label("Ubicación", self.location),
-            discord.ui.Label("Situación", self.situation),
+            *fields,
             title="Emitir pager",
             custom_id=f"pager:v1:create:{member.id}",
             timeout=MODAL_TIMEOUT_SECONDS,
@@ -806,11 +817,16 @@ class PagerCreateModal(discord.ui.DesignerModal):
                 embed=self.service.alert(self.service.ui.unavailable), ephemeral=True
             )
             return
+        callsign = self.saved_callsign
+        if callsign is None:
+            if self.callsign is None:  # pragma: no cover - constructor invariant
+                raise RuntimeError("Pager callsign input is unavailable")
+            callsign = self.callsign.value
         await self.service.create(
             interaction,
             channel=self.channel,
             member=interaction.user,
-            callsign=self.callsign.value,
+            callsign=callsign,
             recipient_role_ids=tuple(int(role_id) for role_id in self.recipient.values),
             location=self.location.value,
             situation=self.situation.value,
@@ -1072,7 +1088,29 @@ class PagerCog(commands.Cog):
         ):
             await ctx.respond(embed=service.alert(service.ui.invalid_recipient), ephemeral=True)
             return
-        await ctx.send_modal(PagerCreateModal(service, ctx.author, ctx.channel))
+        try:
+            saved_callsign = await service.saved_callsign(ctx.author)
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "pager_creator_callsign_lookup_failed",
+                exc_info=error,
+                guild_id=ctx.guild.id,
+                channel_id=ctx.channel.id,
+                user_id=ctx.author.id,
+                **exception_fields(error),
+            )
+            await ctx.respond(embed=service.alert(service.ui.operation_failed), ephemeral=True)
+            return
+        await ctx.send_modal(
+            PagerCreateModal(
+                service,
+                ctx.author,
+                ctx.channel,
+                saved_callsign=saved_callsign,
+            )
+        )
 
     @discord.slash_command(name="pager-activos", description="Muestra los pagers activos")
     async def active_pagers(self, ctx: discord.ApplicationContext) -> None:
@@ -1119,7 +1157,11 @@ class PagerCog(commands.Cog):
         )
         embed.add_field(
             name="Cómo emitir uno",
-            value="Usa `/pager` y completa unidad, destinatarios, ubicación y situación.",
+            value=(
+                "Usa `/pager` y completa destinatarios, ubicación y situación. Si registraste "
+                "`/callsign`, el bot lo utiliza automáticamente y no vuelve a pedirlo; si no, "
+                "puedes indicarlo libremente en el formulario."
+            ),
             inline=False,
         )
         embed.add_field(

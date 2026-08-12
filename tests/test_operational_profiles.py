@@ -321,5 +321,6 @@ async def test_info_callsigns_is_public_and_personality_aware(persona) -> None:
     assert responses[0]["embed"].description == persona.messages.interface.callsigns.info_intro
     assert "280L" in responses[0]["embed"].fields[0].value
     assert responses[0]["embed"].fields[1].name == "Uso en pagers"
+    assert "Al emitir `/pager`" in responses[0]["embed"].fields[1].value
     assert "Responder / actualizar" in responses[0]["embed"].fields[1].value
     assert "automáticamente" in responses[0]["embed"].fields[1].value

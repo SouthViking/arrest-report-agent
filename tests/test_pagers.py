@@ -214,6 +214,47 @@ async def test_pager_modal_accepts_multiple_recipients(settings: AppSettings, pe
 
 
 @pytest.mark.asyncio
+async def test_pager_modal_omits_callsign_when_profile_has_one(
+    settings: AppSettings,
+    persona,
+) -> None:
+    runtime = GuildRuntimeSettings(settings, _snapshot(settings, enabled=True))
+    service = PagerService(SimpleNamespace(), SimpleNamespace(), runtime, persona, enabled=True)
+    roles = {role_id: SimpleNamespace(id=role_id, name=f"Role {role_id}") for role_id in (300, 301)}
+    guild = SimpleNamespace(get_role=roles.get)
+    member = SimpleNamespace(id=10, guild=guild)
+
+    modal = PagerCreateModal(
+        service,
+        member,
+        SimpleNamespace(),
+        saved_callsign="280L",
+    )
+
+    assert modal.saved_callsign == "280L"
+    assert modal.callsign is None
+    assert len(modal.children) == 3
+
+
+@pytest.mark.asyncio
+async def test_pager_modal_keeps_free_callsign_fallback_without_profile(
+    settings: AppSettings,
+    persona,
+) -> None:
+    runtime = GuildRuntimeSettings(settings, _snapshot(settings, enabled=True))
+    service = PagerService(SimpleNamespace(), SimpleNamespace(), runtime, persona, enabled=True)
+    roles = {role_id: SimpleNamespace(id=role_id, name=f"Role {role_id}") for role_id in (300, 301)}
+    guild = SimpleNamespace(get_role=roles.get)
+    member = SimpleNamespace(id=10, guild=guild)
+
+    modal = PagerCreateModal(service, member, SimpleNamespace())
+
+    assert modal.saved_callsign is None
+    assert modal.callsign is not None
+    assert len(modal.children) == 4
+
+
+@pytest.mark.asyncio
 async def test_pager_edit_modal_is_prepopulated(settings: AppSettings, persona) -> None:
     runtime = GuildRuntimeSettings(settings, _snapshot(settings, enabled=True))
     service = PagerService(SimpleNamespace(), SimpleNamespace(), runtime, persona, enabled=True)

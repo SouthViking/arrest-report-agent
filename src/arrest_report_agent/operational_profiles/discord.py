@@ -160,9 +160,9 @@ class CallsignCog(commands.Cog):
             embed.add_field(
                 name="Uso en pagers",
                 value=(
-                    "Al pulsar **Responder / actualizar** en un pager, el bot utiliza "
-                    "automáticamente tu callsign guardado. Si aún no tienes uno, te lo "
-                    "solicitará una vez y lo conservará para las siguientes respuestas."
+                    "Al emitir `/pager` o pulsar **Responder / actualizar**, el bot utiliza "
+                    "automáticamente tu callsign guardado y omite ese campo. Si aún no tienes "
+                    "uno, podrás indicarlo libremente en el formulario del pager."
                 ),
                 inline=False,
             )
