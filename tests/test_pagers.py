@@ -24,7 +24,12 @@ from arrest_report_agent.config import (
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
 from arrest_report_agent.infrastructure.postgres import PostgresClient, PostgresClientConfig
 from arrest_report_agent.infrastructure.postgres.schema import discord_guilds
-from arrest_report_agent.pagers.discord import PagerCog, PagerControlsView, PagerService
+from arrest_report_agent.pagers.discord import (
+    PagerCog,
+    PagerControlsView,
+    PagerService,
+    PagerValidationError,
+)
 from arrest_report_agent.pagers.models import Pager, PagerResponder, PagerStatus, UserPager
 from arrest_report_agent.pagers.repository import PagerRepository
 
@@ -165,6 +170,45 @@ async def test_pager_embed_and_persistent_controls_are_deterministic(
         "pager:v1:cancel",
     }
     assert all(child.disabled for child in terminal.children)
+
+
+def test_pager_recipient_can_be_notified_with_effective_channel_permission(
+    settings: AppSettings,
+    persona,
+) -> None:
+    runtime = GuildRuntimeSettings(settings, _snapshot(settings, enabled=True))
+    service = PagerService(SimpleNamespace(), SimpleNamespace(), runtime, persona, enabled=True)
+    role = SimpleNamespace(id=300, mentionable=False)
+    bot_member = SimpleNamespace(id=999)
+    guild = SimpleNamespace(me=bot_member, get_role=lambda role_id: role if role_id == 300 else None)
+    channel = SimpleNamespace(
+        guild=guild,
+        permissions_for=lambda member: SimpleNamespace(
+            mention_everyone=member is bot_member,
+        ),
+    )
+
+    assert service.validate_recipient(channel, 300) is role
+
+
+def test_pager_recipient_requires_role_or_effective_mention_permission(
+    settings: AppSettings,
+    persona,
+) -> None:
+    runtime = GuildRuntimeSettings(settings, _snapshot(settings, enabled=True))
+    service = PagerService(SimpleNamespace(), SimpleNamespace(), runtime, persona, enabled=True)
+    role = SimpleNamespace(id=300, mentionable=False)
+    guild = SimpleNamespace(
+        me=SimpleNamespace(id=999),
+        get_role=lambda role_id: role if role_id == 300 else None,
+    )
+    channel = SimpleNamespace(
+        guild=guild,
+        permissions_for=lambda _member: SimpleNamespace(mention_everyone=False),
+    )
+
+    with pytest.raises(PagerValidationError):
+        service.validate_recipient(channel, 300)
 
 
 def test_pager_commands_are_root_commands() -> None:

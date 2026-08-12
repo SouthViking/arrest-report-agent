@@ -112,11 +112,25 @@ class PagerService:
                 result.append(role)
         return tuple(result)
 
-    def validate_recipient(self, guild: discord.Guild, role_id: int) -> discord.Role:
+    @staticmethod
+    def can_notify_role(channel: discord.TextChannel, role: discord.Role) -> bool:
+        if role.mentionable:
+            return True
+        bot_member = channel.guild.me
+        return bool(
+            bot_member is not None
+            and channel.permissions_for(bot_member).mention_everyone
+        )
+
+    def validate_recipient(
+        self,
+        channel: discord.TextChannel,
+        role_id: int,
+    ) -> discord.Role:
         if role_id not in self.settings.pager_recipient_role_ids:
             raise PagerValidationError(self.ui.invalid_recipient)
-        role = guild.get_role(role_id)
-        if role is None or not role.mentionable:
+        role = channel.guild.get_role(role_id)
+        if role is None or not self.can_notify_role(channel, role):
             raise PagerValidationError(self.ui.invalid_recipient)
         return role
 
@@ -155,7 +169,7 @@ class PagerService:
             )
             return
         try:
-            role = self.validate_recipient(member.guild, recipient_role_id)
+            role = self.validate_recipient(channel, recipient_role_id)
         except PagerValidationError as error:
             await interaction.response.send_message(
                 embed=self.alert(error.public_message),
@@ -793,7 +807,7 @@ class PagerCog(commands.Cog):
             )
             return
         roles = service.recipient_roles(ctx.guild)
-        if not roles or any(not role.mentionable for role in roles):
+        if not roles or any(not service.can_notify_role(ctx.channel, role) for role in roles):
             await ctx.respond(embed=service.alert(service.ui.invalid_recipient), ephemeral=True)
             return
         await ctx.send_modal(PagerCreateModal(service, ctx.author, ctx.channel))
