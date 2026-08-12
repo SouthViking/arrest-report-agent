@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import discord
 import pytest
 
-from arrest_report_agent.config import PackagedPersonaProvider
+from arrest_report_agent.config import PackagedPersonaProvider, SnowflakeAllowlist
 from arrest_report_agent.infrastructure.discord.cog import (
     PENAL_CODE_URL,
     PROCEDURES_MANUAL_URL,
@@ -18,6 +19,7 @@ from arrest_report_agent.infrastructure.discord.cog import (
 from arrest_report_agent.infrastructure.discord.supervision import (
     HonorRankingModal,
     ShameRankingModal,
+    SupervisorRolePolicy,
 )
 
 
@@ -249,6 +251,7 @@ async def test_public_rankings_do_not_apply_user_allowlist(
     class FakeMember:
         def __init__(self, user_id: int) -> None:
             self.id = user_id
+            self.roles = (SimpleNamespace(id=700),)
 
     modals: list[object] = []
 
@@ -260,6 +263,10 @@ async def test_public_rankings_do_not_apply_user_allowlist(
     member = FakeMember(123)
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     cog = ReviewCog(bot, restricted, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+    cog._default_runtime = replace(
+        cog._default_runtime,
+        report_analytics_policy=SupervisorRolePolicy(SnowflakeAllowlist(ids=frozenset({700}))),
+    )
     cog.personal_report_finder = SimpleNamespace(
         visible_channels=lambda _guild, _member: (SimpleNamespace(id=200),)
     )  # type: ignore[assignment]
@@ -290,6 +297,54 @@ async def test_public_rankings_do_not_apply_user_allowlist(
         "last_30_days",
         "last_90_days",
     ]
+
+
+@pytest.mark.asyncio
+async def test_report_analytics_blocks_members_without_staff_role(
+    settings,
+    persona,
+    monkeypatch,
+) -> None:
+    class FakeMember:
+        def __init__(self, user_id: int) -> None:
+            self.id = user_id
+            self.roles = ()
+
+    responses: list[dict[str, object]] = []
+    modals: list[object] = []
+
+    async def respond(*args: object, **kwargs: object) -> None:
+        responses.append({"args": args, **kwargs})
+
+    async def send_modal(modal: object) -> None:
+        modals.append(modal)
+
+    guild = SimpleNamespace(id=min(settings.discord_guild_ids or ()))
+    member = FakeMember(123)
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+    cog._default_runtime = replace(
+        cog._default_runtime,
+        report_analytics_policy=SupervisorRolePolicy(SnowflakeAllowlist(ids=frozenset({700}))),
+    )
+    ctx = SimpleNamespace(
+        guild=guild,
+        author=member,
+        interaction=SimpleNamespace(id=456),
+        respond=respond,
+        send_modal=send_modal,
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.cog.discord.Member",
+        FakeMember,
+    )
+
+    await cog.open_report_shame.callback(cog, ctx)  # type: ignore[arg-type]
+    await cog.approved_report_honor.callback(cog, ctx)  # type: ignore[arg-type]
+
+    assert modals == []
+    assert len(responses) == 2
+    assert all(response["ephemeral"] is True for response in responses)
 
 
 @pytest.mark.asyncio

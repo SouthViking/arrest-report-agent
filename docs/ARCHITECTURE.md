@@ -106,12 +106,14 @@ categoría y descripción con un límite acotado de resultados.
 `/verguenza` comparte el finder determinista: abre un modal privado para elegir mes actual o los
 últimos 7, 30 o 90 días y después publica un top 10 visible para el canal. Filtra primero todo reporte
 que ya tenga ✅ y agrupa los estados restantes por autor dentro del periodo. La consulta respeta la
-allowlist de guilds y los permisos efectivos de lectura del solicitante, pero deliberadamente no
-aplica la allowlist de usuarios ni los roles de supervisión.
+allowlist de guilds, la política independiente `report_analytics_roles` y los permisos efectivos de
+lectura del solicitante. No aplica la allowlist de usuarios ni concede por sí sola permisos de
+supervisión.
 
 `/honor` reutiliza el mismo snapshot y los mismos periodos, pero conserva únicamente autores con al
 menos un reporte aprobado. El orden usa cantidad de aprobaciones, porcentaje y volumen como
-desempates; el total y la tasa mantienen todos los estados del autor para conservar el contexto.
+desempates; el total y la tasa mantienen todos los estados del autor para conservar el contexto. Usa
+la misma política de analítica que `/verguenza`.
 
 El contrato funcional completo de los comandos está documentado en [Comandos de Discord](COMMANDS.md).
 

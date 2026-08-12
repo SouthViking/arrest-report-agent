@@ -136,16 +136,20 @@ async def test_legacy_import_partitions_ids_and_disables_empty_restricted_scopes
 
     plan = await plan_environment_import(settings)
     first, second = plan.guilds
+    first_policies = {policy.key: policy for policy in first.policies}
+    second_policies = {policy.key: policy for policy in second.policies}
 
     assert first.guild_id == 1
-    assert first.policies[0].ids == (10,)
-    assert first.policies[1].ids == (99,)
-    assert first.policies[6].ids == (22,)
+    assert first_policies[AccessPolicyKey.REPORT_CHANNELS].ids == (10,)
+    assert first_policies[AccessPolicyKey.AGENT_USERS].ids == (99,)
+    assert first_policies[AccessPolicyKey.REPORT_ANALYTICS_ROLES].ids == (20,)
+    assert first_policies[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].ids == (22,)
     assert first.features[0].enabled is True
     assert second.guild_id == 2
-    assert second.policies[0].mode is AccessPolicyMode.DISABLED
-    assert second.policies[2].mode is AccessPolicyMode.DISABLED
-    assert second.policies[6].mode is AccessPolicyMode.DISABLED
+    assert second_policies[AccessPolicyKey.REPORT_CHANNELS].mode is AccessPolicyMode.DISABLED
+    assert second_policies[AccessPolicyKey.SUPERVISOR_ROLES].mode is AccessPolicyMode.DISABLED
+    assert second_policies[AccessPolicyKey.REPORT_ANALYTICS_ROLES].mode is AccessPolicyMode.DISABLED
+    assert second_policies[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].mode is AccessPolicyMode.DISABLED
     assert second.features[0].enabled is False
 
 

@@ -38,8 +38,8 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/guia` | Todos | Efímera | `report_guide.json` |
 | `/cargos` | Todos | Efímera | `delitos.json` |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
-| `/verguenza` | Todos | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
-| `/honor` | Todos | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
+| `/verguenza` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
+| `/honor` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/ts3` | Todos | Pública | Dirección fija y texto de la persona activa |
 | `/pendientes` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/ranking` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
@@ -59,6 +59,10 @@ leer el historial de Discord.
 Los comandos de supervisión comparten `SUPERVISOR_ROLE_IDS`. Ausente, vacío o `*` permite a
 todos; una lista CSV exige que el miembro posea al menos uno de esos roles. La comprobación está
 centralizada y no depende de `AUTHORIZED_USER_IDS`.
+
+`/verguenza` y `/honor` usan la política PostgreSQL independiente `report_analytics_roles`. Debe
+mantener IDs explícitos de los roles staff autorizados; una política deshabilitada bloquea ambos
+comandos. Esta autorización tampoco depende de los usuarios habilitados para el agente.
 
 Los comandos de roles se registran únicamente cuando `ROLE_REQUEST_REVIEWER_ROLE_IDS` contiene al
 menos un ID explícito. `ROLE_REQUEST_ALLOWED_ROLE_IDS` ausente, vacío o con `*` permite todos los
@@ -161,9 +165,10 @@ los reportes aprobados quedan fuera antes de agrupar. Cada sección ordena por c
 muestra el desglose con una leyenda común: `📭` sin revisión, `⏳` en revisión, `❌` con
 correcciones y `⚠️` inconcluso.
 
-El resultado es visible para todo el canal, pero usa menciones sin notificación. Cualquier miembro
-de una guild habilitada puede ejecutarlo y el snapshot solo incluye canales configurados que ese
-miembro y el bot puedan leer. No aplica `AUTHORIZED_USER_IDS`, no ejecuta IA y no conserva historial.
+El resultado es visible para todo el canal, pero usa menciones sin notificación. Solo los miembros
+incluidos en la política `report_analytics_roles` pueden ejecutarlo, y el snapshot incluye únicamente
+canales configurados que ese miembro y el bot puedan leer. No aplica la política de usuarios del agente,
+no ejecuta IA y no conserva historial.
 
 ## `/honor`
 
@@ -174,8 +179,9 @@ por porcentaje de aprobación y finalmente por volumen total de reportes.
 
 Cada fila muestra aprobaciones, reportes presentados y porcentaje. El total conserva los reportes
 que todavía estén pendientes o tengan otro resultado, de modo que el porcentaje represente el
-snapshot completo del periodo. Es público, no notifica las menciones mostradas, no aplica
-`AUTHORIZED_USER_IDS`, no ejecuta IA y no mantiene historial propio.
+snapshot completo del periodo. El resultado es público, pero solo los roles de
+`report_analytics_roles` pueden generarlo. No notifica las menciones mostradas, no aplica la política
+de usuarios del agente, no ejecuta IA y no mantiene historial propio.
 
 ## `/ranking`
 

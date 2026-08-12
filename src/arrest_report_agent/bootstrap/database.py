@@ -284,6 +284,12 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 supervisor_roles[guild_id],
             ),
             policy(
+                AccessPolicyKey.REPORT_ANALYTICS_ROLES,
+                "role",
+                not settings.supervisor_role_allowlist.is_restricted,
+                supervisor_roles[guild_id],
+            ),
+            policy(
                 AccessPolicyKey.REVIEW_ESCALATION_ROLES,
                 "role",
                 False,
@@ -358,11 +364,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         key="pagers",
                         enabled=False,
                         schema_version=1,
-                        payload={
-                            "starting_number": 92
-                            if guild_id == 1234674521416663070
-                            else 1
-                        },
+                        payload={"starting_number": 92 if guild_id == 1234674521416663070 else 1},
                     ),
                 ),
                 persona_revision_id=placeholder_persona_revision,

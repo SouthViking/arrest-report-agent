@@ -112,6 +112,11 @@ abiertos, `/mis-pagers` entrega el historial privado del usuario y `/info-pager`
 El emisor no puede registrarse además como respondiente. Los controles persistentes
 permiten responder, retirarse, editar, concluir o cancelar incluso después de reiniciar el proceso.
 
+Las analíticas globales `/verguenza` y `/honor` usan una política independiente
+`report_analytics_roles`. Solo sus roles staff autorizados pueden generarlas, aunque el resultado
+continúa siendo público para el canal. `/pendientes` y `/ranking` mantienen su política separada de
+supervisión.
+
 La política previa valida guild, autor y usuario antes de leer contexto o iniciar el Runner. Las
 tools de escritura operan exclusivamente dentro de la conversación autorizada. La tool de reacción
 acepta un ID presente en ese contexto, pero no una guild o canal libre y no puede salir del mensaje

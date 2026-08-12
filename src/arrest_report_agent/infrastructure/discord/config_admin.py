@@ -32,6 +32,7 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
     AccessPolicyKey.REPORT_CHANNELS: "Canales del agente",
     AccessPolicyKey.AGENT_USERS: "Usuarios del agente",
     AccessPolicyKey.SUPERVISOR_ROLES: "Roles de supervisión",
+    AccessPolicyKey.REPORT_ANALYTICS_ROLES: "Roles de analítica de reportes",
     AccessPolicyKey.REVIEW_ESCALATION_ROLES: "Roles de derivación",
     AccessPolicyKey.ROLE_REQUEST_CHANNELS: "Canales de solicitudes de roles",
     AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES: "Roles solicitables",
@@ -83,10 +84,13 @@ def build_config_panel_embed(snapshot: object, draft_id: object | None) -> disco
         f"• **{POLICY_LABELS[key]}:** {MODE_LABELS[policy.mode]} ({len(policy.ids)})"
         for key, policy in sorted(snapshot.policies.items(), key=lambda item: item[0].value)
     )
-    features = "\n".join(
-        f"• **{FEATURE_LABELS.get(key, key)}:** {'habilitado' if feature.enabled else 'deshabilitado'}"
-        for key, feature in sorted(getattr(snapshot, "features", {}).items())
-    ) or "No hay módulos configurados."
+    features = (
+        "\n".join(
+            f"• **{FEATURE_LABELS.get(key, key)}:** {'habilitado' if feature.enabled else 'deshabilitado'}"
+            for key, feature in sorted(getattr(snapshot, "features", {}).items())
+        )
+        or "No hay módulos configurados."
+    )
     embed = discord.Embed(
         title="⚙️ Panel de configuración",
         description=(

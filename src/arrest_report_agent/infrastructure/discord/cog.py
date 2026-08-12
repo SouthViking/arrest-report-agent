@@ -75,6 +75,7 @@ class ReviewCogRuntime:
     persona: BotPersona
     access_policy: DiscordAccessPolicy
     supervisor_policy: SupervisorRolePolicy
+    report_analytics_policy: SupervisorRolePolicy
     context_builder: DiscordContextBuilder
     personal_report_finder: DiscordPersonalReportFinder
 
@@ -280,6 +281,10 @@ class ReviewCog(commands.Cog):
         return self._runtime.supervisor_policy
 
     @property
+    def report_analytics_policy(self) -> SupervisorRolePolicy:
+        return self._runtime.report_analytics_policy
+
+    @property
     def context_builder(self) -> DiscordContextBuilder:
         return self._runtime.context_builder
 
@@ -307,6 +312,13 @@ class ReviewCog(commands.Cog):
             persona=persona,
             access_policy=DiscordAccessPolicy.from_settings(settings),  # type: ignore[arg-type]
             supervisor_policy=SupervisorRolePolicy.from_settings(settings),  # type: ignore[arg-type]
+            report_analytics_policy=SupervisorRolePolicy(
+                roles=getattr(
+                    settings,
+                    "report_analytics_role_allowlist",
+                    settings.supervisor_role_allowlist,
+                )
+            ),
             context_builder=DiscordContextBuilder(settings, persona, self.bot),  # type: ignore[arg-type]
             personal_report_finder=DiscordPersonalReportFinder(self.bot, settings),  # type: ignore[arg-type]
         )
@@ -806,7 +818,7 @@ class ReviewCog(commands.Cog):
         description="Muestra quién acumula más reportes sin aprobar",
     )
     async def open_report_shame(self, ctx: discord.ApplicationContext) -> None:
-        identity = await self._authorize_public_report_command(ctx)
+        identity = await self._authorize_report_analytics_command(ctx)
         if identity is None:
             return
         guild, member = identity
@@ -836,7 +848,7 @@ class ReviewCog(commands.Cog):
         description="Destaca a quienes acumulan más reportes aprobados",
     )
     async def approved_report_honor(self, ctx: discord.ApplicationContext) -> None:
-        identity = await self._authorize_public_report_command(ctx)
+        identity = await self._authorize_report_analytics_command(ctx)
         if identity is None:
             return
         guild, member = identity
@@ -983,11 +995,11 @@ class ReviewCog(commands.Cog):
             return None
         return guild, member
 
-    async def _authorize_public_report_command(
+    async def _authorize_report_analytics_command(
         self,
         ctx: discord.ApplicationContext,
     ) -> tuple[discord.Guild, discord.Member] | None:
-        """Allow any member in an enabled guild to read report data visible to them."""
+        """Restrict global report analytics to the dedicated staff role policy."""
 
         guild = ctx.guild
         member = ctx.author
@@ -1003,6 +1015,21 @@ class ReviewCog(commands.Cog):
                 self.persona.messages.access.personal_member_unavailable,
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return None
+        if not self.report_analytics_policy.allows(member):
+            await ctx.respond(
+                build_supervisor_unauthorized_message(self.persona.messages.access),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "report_analytics_command_blocked",
+                guild_id=guild.id,
+                user_id=member.id,
+                interaction_id=ctx.interaction.id,
             )
             return None
         return guild, member
