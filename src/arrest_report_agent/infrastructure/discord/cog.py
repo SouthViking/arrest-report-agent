@@ -213,6 +213,16 @@ def build_unauthorized_user_message(
     )
 
 
+def build_blocked_user_message(
+    *,
+    messages: PersonaAccessMessages,
+    message_id: int,
+) -> str:
+    """Build a distinct in-character notice for an explicitly blocked user."""
+
+    return messages.blocked_user_messages[message_id % len(messages.blocked_user_messages)]
+
+
 class ReviewCog(commands.Cog):
     def __init__(
         self,
@@ -380,6 +390,7 @@ class ReviewCog(commands.Cog):
             configured_report_channels=self.settings.report_channel_allowlist.configured_count,
             user_access_mode=("restricted" if self.access_policy.users.is_restricted else "open"),
             configured_users=self.access_policy.users.configured_count,
+            configured_blocked_users=self.access_policy.blocked_users.configured_count,
             supervisor_access_mode=("restricted" if self.supervisor_policy.is_restricted else "open"),
             configured_supervisor_roles=self.supervisor_policy.roles.configured_count,
             persona_id=self.persona.id,
@@ -402,6 +413,9 @@ class ReviewCog(commands.Cog):
             return
         evaluation = await self.access_policy.evaluate_event(message, bot_user.id)
         decision = evaluation.decision
+        if decision is TriggerDecision.REDIRECT_BLOCKED_USER:
+            await self._redirect_blocked_user(message)
+            return
         if decision is TriggerDecision.REDIRECT_UNAUTHORIZED_USER:
             await self._redirect_unauthorized_user(message)
             return
@@ -613,6 +627,16 @@ class ReviewCog(commands.Cog):
                 form_of_address=self.persona.identity.default_form_of_address,
             ),
             event_prefix="unauthorized_user_redirect",
+        )
+
+    async def _redirect_blocked_user(self, message: discord.Message) -> None:
+        await self._reply_deterministic_notice(
+            message,
+            content=build_blocked_user_message(
+                messages=self.persona.messages.access,
+                message_id=message.id,
+            ),
+            event_prefix="blocked_user_redirect",
         )
 
     async def _reply_deterministic_notice(

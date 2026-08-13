@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 26
+PERSONA_SCHEMA_VERSION = 27
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -126,6 +126,7 @@ class PersonaAccessMessages(FrozenPersonaModel):
 
     unauthorized_user_intros: tuple[str, ...] = Field(min_length=1, max_length=8)
     unauthorized_user: str = Field(min_length=1, max_length=400)
+    blocked_user_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
     scope_refusal: str = Field(min_length=1, max_length=400)
     supervisor_unauthorized: str = Field(min_length=1, max_length=400)
     other_member_query: str = Field(min_length=1, max_length=250)
@@ -137,7 +138,7 @@ class PersonaAccessMessages(FrozenPersonaModel):
     no_supervisor_channels: str = Field(min_length=1, max_length=300)
     no_personal_channels: str = Field(min_length=1, max_length=300)
 
-    @field_validator("unauthorized_user_intros")
+    @field_validator("unauthorized_user_intros", "blocked_user_messages")
     @classmethod
     def reject_empty_pool_items(cls, values: tuple[str, ...]) -> tuple[str, ...]:
         if any(not value.strip() for value in values):

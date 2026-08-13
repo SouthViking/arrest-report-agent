@@ -18,6 +18,7 @@ class TriggerDecision(StrEnum):
     """Deterministic outcome for an incoming Discord message."""
 
     REVIEW = "review"
+    REDIRECT_BLOCKED_USER = "redirect_blocked_user"
     REDIRECT_UNAUTHORIZED_USER = "redirect_unauthorized_user"
     IGNORE_NOT_ADDRESSED = "ignore_not_addressed"
     IGNORE_BOT_OR_WEBHOOK = "ignore_bot_or_webhook"
@@ -44,6 +45,7 @@ class DiscordAccessPolicy:
     guilds: SnowflakeAllowlist
     users: SnowflakeAllowlist
     roles: SnowflakeAllowlist
+    blocked_users: SnowflakeAllowlist
 
     @classmethod
     def from_settings(cls, settings: AppSettings) -> DiscordAccessPolicy:
@@ -51,11 +53,23 @@ class DiscordAccessPolicy:
             guilds=settings.guild_allowlist,
             users=settings.user_allowlist,
             roles=settings.agent_role_allowlist,
+            blocked_users=getattr(
+                settings,
+                "agent_blocked_user_allowlist",
+                SnowflakeAllowlist(ids=frozenset()),
+            ),
         )
+
+    def blocks_member(self, member: discord.abc.User) -> bool:
+        """Deny an explicitly blocked user regardless of positive access policies."""
+
+        return self.blocked_users.allows(member.id)
 
     def allows_member(self, member: discord.abc.User) -> bool:
         """Authorize when either the user policy or the role policy matches."""
 
+        if self.blocks_member(member):
+            return False
         if self.users.allows(member.id):
             return True
         if self.roles.ids is None:
@@ -79,6 +93,8 @@ class DiscordAccessPolicy:
             referenced_author_id = _resolved_reference_author_id(message)
         if bot_user_id not in message.raw_mentions and referenced_author_id != bot_user_id:
             return TriggerDecision.IGNORE_NOT_ADDRESSED
+        if self.blocks_member(message.author):
+            return TriggerDecision.REDIRECT_BLOCKED_USER
         if not self.allows_member(message.author):
             return TriggerDecision.REDIRECT_UNAUTHORIZED_USER
         return TriggerDecision.REVIEW

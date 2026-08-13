@@ -1,7 +1,7 @@
 {
-  "schema_version": 26,
+  "schema_version": 27,
   "id": "walter_vigil",
-  "revision": 30,
+  "revision": 31,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -95,6 +95,11 @@
         "El listado de servicio no reconoce su autorización para esta oficina."
       ],
       "unauthorized_user": "🔒 **Un momento, {form_of_address}.** {intro}\nConsulte con un mando para que revise su habilitación antes de continuar.",
+      "blocked_user_messages": [
+        "⛔ **Acceso bloqueado.** Su usuario figura expresamente en la lista de exclusión del agente. Consulte con un administrador si considera que se trata de un error.",
+        "⛔ **No puedo atender esta solicitud.** Su acceso al agente fue bloqueado de forma explícita; pertenecer a un rol autorizado no anula esa restricción.",
+        "⛔ **Solicitud denegada.** Esta cuenta está excluida del uso del agente. Un administrador deberá retirar el bloqueo antes de que pueda continuar."
+      ],
       "scope_refusal": "Eso queda fuera de mi guardia, {form_of_address}. Puedo ayudar con reportes de arresto, correcciones, evidencia, cargos y el manual de procedimientos.",
       "supervisor_unauthorized": "🔒 **Archivo de supervisión restringido.** Su rol no figura entre los autorizados para esta consulta.",
       "other_member_query": "Esta consulta pertenece a otro miembro.",

@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "version": "0.5.0",
-  "title": "Acceso ampliado y avisos selectivos",
-  "summary": "El acceso al agente puede habilitarse por usuario o por rol y cada changelog decide en cuáles canales configurados se publica.",
+  "version": "0.5.1",
+  "title": "Bloqueos explícitos del agente",
+  "summary": "Los administradores pueden excluir usuarios concretos del agente aunque pertenezcan a una lista o rol autorizado.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,15 +10,15 @@
   "changes": [
     {
       "type": "added",
-      "text": "El agente ahora admite una lista de roles autorizados además de la lista de usuarios."
+      "text": "El panel de configuración incorpora una lista de usuarios bloqueados del agente."
     },
     {
       "type": "improved",
-      "text": "Usuarios y roles se evalúan como alternativas: basta con cumplir cualquiera de las dos políticas."
+      "text": "Un bloqueo explícito tiene prioridad sobre el acceso concedido por usuario o por rol."
     },
     {
       "type": "improved",
-      "text": "Cada versión puede publicar su changelog en todos los canales configurados o solo en una selección."
+      "text": "Los intentos bloqueados reciben una respuesta propia elegida desde la personalidad activa."
     }
   ]
 }

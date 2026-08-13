@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 26
-    assert profile.revision == 30
+    assert profile.schema_version == 27
+    assert profile.revision == 31
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -36,8 +36,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 26
-    assert profile.revision == 37
+    assert profile.schema_version == 27
+    assert profile.revision == 38
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -70,6 +70,9 @@ async def test_personas_keep_personality_copy_with_capitalized_titles(loaded_per
     assert "Su rol" in walter.messages.access.supervisor_unauthorized
     assert "bonito intento" in roy.messages.access.supervisor_unauthorized
     assert "pa q arregle tu caga de acceso antes de volver" in roy.messages.access.unauthorized_user
+    assert len(walter.messages.access.blocked_user_messages) == 3
+    assert len(roy.messages.access.blocked_user_messages) == 3
+    assert "lista de bloqueados" in roy.messages.access.blocked_user_messages[0]
     assert roy.messages.failures.review_failure_title == "⚠️ Se trabó el papeleo"
     assert walter.messages.interface.review.narrative_scope_label == "solo narrativa"
     assert roy.messages.interface.review.charges_scope_label == "los cargos"

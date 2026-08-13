@@ -11,8 +11,9 @@ flowchart LR
     Q --> Y["Perfil y presencia de Discord"]
     M["Mensaje de Discord"] --> T["DiscordAccessPolicy"]
     A["Políticas relacionales por guild"] --> T
-    T -->|"guild y usuario habilitados"| C["Contexto acotado de Discord"]
+    T -->|"guild y usuario o rol habilitados"| C["Contexto acotado de Discord"]
     T -->|"guild no habilitada"| I["Ignorar"]
+    T -->|"usuario bloqueado"| L["Respuesta local de bloqueo"]
     T -->|"usuario no habilitado"| U["Respuesta local de acceso"]
     C --> S["Guardrail textual de alcance e intención"]
     S -->|"claramente ajeno"| O["Respuesta breve sin imágenes"]
@@ -38,9 +39,10 @@ importador resuelve canales y roles contra Discord, los distribuye por guild y r
 idempotente antes del corte definitivo.
 
 `DiscordAccessPolicy` es el único preprocesador del listener y se ejecuta antes de descargar contexto
-o llamar a OpenAI. Valida guild, autor humano, activación por mención o respuesta directa al bot y
-acceso por usuario o rol, en ese orden. Las políticas `agent_users` y `agent_roles` se combinan como
-OR. No limita canales: dentro de una guild autorizada, una mención puede iniciar
+o llamar a OpenAI. Valida guild, autor humano y activación por mención o respuesta directa al bot;
+después aplica `agent_blocked_users` y finalmente el acceso positivo. La blacklist tiene precedencia
+absoluta y las políticas `agent_users` y `agent_roles` se combinan como OR. No limita canales: dentro
+de una guild autorizada, una mención puede iniciar
 una conversación desde cualquier canal visible. Si Discord no incluyó el mensaje referenciado,
 resuelve solo esa referencia antes de decidir; una respuesta a cualquier otra persona se ignora.
 

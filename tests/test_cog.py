@@ -11,6 +11,7 @@ from arrest_report_agent.infrastructure.discord.cog import (
     PENAL_CODE_URL,
     PROCEDURES_MANUAL_URL,
     ReviewCog,
+    build_blocked_user_message,
     build_help_embed,
     build_teamspeak_embed,
     build_unauthorized_user_message,
@@ -21,6 +22,7 @@ from arrest_report_agent.infrastructure.discord.supervision import (
     ShameRankingModal,
     SupervisorRolePolicy,
 )
+from arrest_report_agent.infrastructure.discord.trigger import DiscordAccessPolicy
 
 
 class FakeTypingContext:
@@ -430,6 +432,15 @@ def test_unauthorized_user_message_varies_copy_but_keeps_stable_format(persona) 
         )
 
 
+def test_blocked_user_message_uses_the_persona_pool(persona) -> None:
+    messages = [
+        build_blocked_user_message(messages=persona.messages.access, message_id=index)
+        for index in range(len(persona.messages.access.blocked_user_messages))
+    ]
+
+    assert messages == list(persona.messages.access.blocked_user_messages)
+
+
 @pytest.mark.asyncio
 async def test_deleted_report_channels_are_omitted_and_cached(
     settings,
@@ -634,6 +645,48 @@ async def test_unauthorized_mention_replies_once_without_context_or_agent(settin
         messages=persona.messages.access,
         message_id=42,
         form_of_address=persona.identity.default_form_of_address,
+    )
+
+
+@pytest.mark.asyncio
+async def test_blocked_mention_uses_distinct_notice_without_context_or_agent(
+    settings,
+    persona,
+) -> None:
+    replies: list[dict[str, object]] = []
+
+    async def reply(**kwargs) -> None:
+        replies.append(kwargs)
+
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+    cog.context_builder = UnexpectedContextBuilder()  # type: ignore[assignment]
+    cog._default_runtime = replace(  # noqa: SLF001
+        cog._default_runtime,  # noqa: SLF001
+        access_policy=DiscordAccessPolicy(
+            guilds=settings.guild_allowlist,
+            users=SnowflakeAllowlist(ids=None),
+            roles=SnowflakeAllowlist(ids=None),
+            blocked_users=SnowflakeAllowlist(ids=frozenset({123})),
+        ),
+    )
+    message = SimpleNamespace(
+        id=42,
+        guild=SimpleNamespace(id=min(settings.discord_guild_ids or ())),
+        author=SimpleNamespace(id=123, bot=False, roles=[]),
+        webhook_id=None,
+        channel=SimpleNamespace(id=555),
+        raw_mentions=[999],
+        reference=None,
+        reply=reply,
+    )
+
+    await cog.on_message(message)  # type: ignore[arg-type]
+
+    assert len(replies) == 1
+    assert replies[0]["content"] == build_blocked_user_message(
+        messages=persona.messages.access,
+        message_id=42,
     )
 
 

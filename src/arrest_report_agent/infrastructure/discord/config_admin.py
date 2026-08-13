@@ -32,6 +32,7 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
     AccessPolicyKey.REPORT_CHANNELS: "Canales del agente",
     AccessPolicyKey.AGENT_USERS: "Usuarios del agente",
     AccessPolicyKey.AGENT_ROLES: "Roles con acceso al agente",
+    AccessPolicyKey.AGENT_BLOCKED_USERS: "Usuarios bloqueados del agente",
     AccessPolicyKey.SUPERVISOR_ROLES: "Roles de supervisión",
     AccessPolicyKey.REPORT_ANALYTICS_ROLES: "Roles de analítica de reportes",
     AccessPolicyKey.REVIEW_ESCALATION_ROLES: "Roles de derivación",
@@ -657,6 +658,10 @@ class AccessPolicyModal(BaseConfigurationModal):
                 raise ValueError("Este panel solo funciona dentro de un servidor.")
             current = await self.cog.draft_policy(interaction.guild.id, key)
             raw_ids = self.ids.value.strip()
+            if key is AccessPolicyKey.AGENT_BLOCKED_USERS and action == "open":
+                raise ValueError(
+                    "Los usuarios bloqueados requieren IDs explícitos o una política deshabilitada."
+                )
             if action in {"restricted", "add", "remove"} and not raw_ids:
                 raise ValueError("Indica al menos un ID para esta acción.")
             if action == "open":

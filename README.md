@@ -91,7 +91,9 @@ usuario habilitado puede activar al bot mediante una mención o una respuesta di
 canal visible para el bot. Tras importar a PostgreSQL, el acceso del agente se administra con las
 políticas **Usuarios del agente** y **Roles con acceso al agente**. Ambas se evalúan como un OR: una
 coincidencia de usuario o de cualquiera de los roles es suficiente; si alguna está abierta, el acceso
-queda abierto para la guild.
+queda abierto para la guild. La política **Usuarios bloqueados del agente** admite únicamente IDs
+explícitos o estar deshabilitada y tiene precedencia absoluta: una cuenta incluida no puede activar
+el agente aunque también figure en una lista permitida o posea un rol autorizado.
 
 `REPORT_CHANNEL_IDS` no restringe conversaciones. Define los canales que `/mis-reportes`,
 `/mi-resumen`, `/pendientes`, `/ranking`, `/verguenza`, `/honor` y `/errores-reportes` utilizan como archivo de reportes y los que `/ayuda`

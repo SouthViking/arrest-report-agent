@@ -11,6 +11,7 @@ El comando abre un panel efímero con botones para:
 - Consultar la configuración activa y actualizar la vista.
 - Crear o descartar el borrador.
 - Editar políticas de acceso mediante selectores e IDs ingresados en un formulario.
+- Bloquear usuarios concretos del agente con precedencia sobre cualquier usuario o rol permitido.
 - Seleccionar modelo, reasoning y límites principales del agente.
 - Configurar módulos y sus opciones JSON.
 - Importar, publicar, asignar o revertir personas, incluyendo carga de JSON y avatar.

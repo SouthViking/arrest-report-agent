@@ -49,6 +49,7 @@ def test_central_policy_receives_access_scopes(settings) -> None:
     assert policy.guilds.ids == settings.discord_guild_ids
     assert policy.users.ids == settings.authorized_user_ids
     assert policy.roles.ids == frozenset()
+    assert policy.blocked_users.ids == frozenset()
 
 
 def test_unmentioned_message_is_ignored(settings) -> None:
@@ -194,6 +195,7 @@ def test_agent_user_and_role_policies_are_combined_with_or(settings) -> None:
         guilds=settings.guild_allowlist,
         users=trigger.SnowflakeAllowlist(ids=frozenset({123})),
         roles=trigger.SnowflakeAllowlist(ids=frozenset({777})),
+        blocked_users=trigger.SnowflakeAllowlist(ids=frozenset()),
     )
 
     assert policy.classify(
@@ -221,10 +223,41 @@ def test_open_agent_role_policy_allows_any_member(settings) -> None:
         guilds=settings.guild_allowlist,
         users=trigger.SnowflakeAllowlist(ids=frozenset()),
         roles=trigger.SnowflakeAllowlist(ids=None),
+        blocked_users=trigger.SnowflakeAllowlist(ids=frozenset()),
     )
 
     assert policy.classify(make_message(settings, mentions=[999], user_id=456), 999) is (
         TriggerDecision.REVIEW
+    )
+
+
+def test_agent_user_blacklist_overrides_user_and_role_access(settings) -> None:
+    policy = DiscordAccessPolicy(
+        guilds=settings.guild_allowlist,
+        users=trigger.SnowflakeAllowlist(ids=frozenset({123})),
+        roles=trigger.SnowflakeAllowlist(ids=frozenset({777})),
+        blocked_users=trigger.SnowflakeAllowlist(ids=frozenset({123})),
+    )
+
+    message = make_message(settings, mentions=[999], user_id=123, role_ids=(777,))
+
+    assert policy.allows_member(message.author) is False
+    assert policy.classify(
+        message,
+        999,
+    ) is TriggerDecision.REDIRECT_BLOCKED_USER
+
+
+def test_blacklisted_user_is_ignored_until_the_bot_is_addressed(settings) -> None:
+    policy = DiscordAccessPolicy(
+        guilds=settings.guild_allowlist,
+        users=trigger.SnowflakeAllowlist(ids=None),
+        roles=trigger.SnowflakeAllowlist(ids=frozenset()),
+        blocked_users=trigger.SnowflakeAllowlist(ids=frozenset({123})),
+    )
+
+    assert policy.classify(make_message(settings, mentions=[], user_id=123), 999) is (
+        TriggerDecision.IGNORE_NOT_ADDRESSED
     )
 
 

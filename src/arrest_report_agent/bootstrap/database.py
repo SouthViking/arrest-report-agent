@@ -282,6 +282,11 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 subject_type="role",
                 mode=AccessPolicyMode.DISABLED,
             ),
+            AccessPolicySnapshot(
+                key=AccessPolicyKey.AGENT_BLOCKED_USERS,
+                subject_type="user",
+                mode=AccessPolicyMode.DISABLED,
+            ),
             policy(
                 AccessPolicyKey.SUPERVISOR_ROLES,
                 "role",

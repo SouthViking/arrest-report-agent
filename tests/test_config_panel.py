@@ -255,7 +255,11 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
     ]
     assert DraftConfigurationModal(cog, 42).title == "Administrar borrador"
     assert PublishConfigurationModal(cog, 42).title == "Publicar configuración"
-    assert AccessPolicyModal(cog, 42).title == "Configurar accesos"
+    access_modal = AccessPolicyModal(cog, 42)
+    assert access_modal.title == "Configurar accesos"
+    assert AccessPolicyKey.AGENT_BLOCKED_USERS.value in {
+        option.value for option in access_modal.policy.options
+    }
     assert AgentConfigurationModal(cog, 42, provider.snapshot.agent).title == "Configurar agente"
     feature_modal = FeatureConfigurationModal(cog, 42)
     assert feature_modal.title == "Configurar módulo"

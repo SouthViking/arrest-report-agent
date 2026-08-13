@@ -43,6 +43,15 @@ from arrest_report_agent.infrastructure.storage import MemoryObjectStorage
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
 
+def test_agent_user_blacklist_requires_explicit_ids_or_disabled_mode() -> None:
+    with pytest.raises(ValueError, match="explicit IDs or disabled"):
+        AccessPolicySnapshot(
+            key=AccessPolicyKey.AGENT_BLOCKED_USERS,
+            subject_type="user",
+            mode=AccessPolicyMode.OPEN,
+        )
+
+
 def test_postgres_urls_are_normalized_for_both_drivers() -> None:
     config = PostgresClientConfig(url="postgres://user:secret@host:5432/database")
 
@@ -148,6 +157,7 @@ async def test_legacy_import_partitions_ids_and_disables_empty_restricted_scopes
     assert first_policies[AccessPolicyKey.REPORT_CHANNELS].ids == (10,)
     assert first_policies[AccessPolicyKey.AGENT_USERS].ids == (99,)
     assert first_policies[AccessPolicyKey.AGENT_ROLES].mode is AccessPolicyMode.DISABLED
+    assert first_policies[AccessPolicyKey.AGENT_BLOCKED_USERS].mode is AccessPolicyMode.DISABLED
     assert first_policies[AccessPolicyKey.REPORT_ANALYTICS_ROLES].ids == (20,)
     assert first_policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES].ids == (20,)
     assert first_policies[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].ids == (22,)
@@ -445,8 +455,9 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 30
-        assert persona["schema_version"] == 26
+        assert persona["revision"] == 31
+        assert persona["schema_version"] == 27
+        assert persona["payload"]["messages"]["access"]["blocked_user_messages"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["saved_title"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["removed_title"]
         assert "60F1" in persona["payload"]["messages"]["interface"]["callsigns"]["invalid_format"]

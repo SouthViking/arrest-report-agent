@@ -25,6 +25,7 @@ class AccessPolicyKey(StrEnum):
     REPORT_CHANNELS = "report_channels"
     AGENT_USERS = "agent_users"
     AGENT_ROLES = "agent_roles"
+    AGENT_BLOCKED_USERS = "agent_blocked_users"
     SUPERVISOR_ROLES = "supervisor_roles"
     REPORT_ANALYTICS_ROLES = "report_analytics_roles"
     REVIEW_ESCALATION_ROLES = "review_escalation_roles"
@@ -44,6 +45,7 @@ POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] 
     AccessPolicyKey.REPORT_CHANNELS: "channel",
     AccessPolicyKey.AGENT_USERS: "user",
     AccessPolicyKey.AGENT_ROLES: "role",
+    AccessPolicyKey.AGENT_BLOCKED_USERS: "user",
     AccessPolicyKey.SUPERVISOR_ROLES: "role",
     AccessPolicyKey.REPORT_ANALYTICS_ROLES: "role",
     AccessPolicyKey.REVIEW_ESCALATION_ROLES: "role",
@@ -73,6 +75,8 @@ class AccessPolicySnapshot(FrozenConfigModel):
             raise ValueError(f"{self.key.value} requires {expected_type} subjects")
         if self.mode is AccessPolicyMode.RESTRICTED and not self.ids:
             raise ValueError(f"restricted policy {self.key.value} requires at least one ID")
+        if self.key is AccessPolicyKey.AGENT_BLOCKED_USERS and self.mode is AccessPolicyMode.OPEN:
+            raise ValueError("agent_blocked_users only supports explicit IDs or disabled mode")
         if self.mode is not AccessPolicyMode.RESTRICTED and self.ids:
             raise ValueError(f"{self.mode.value} policy {self.key.value} cannot contain IDs")
         if any(value <= 0 for value in self.ids) or len(set(self.ids)) != len(self.ids):
@@ -198,6 +202,10 @@ class GuildRuntimeSettings:
     @property
     def agent_role_allowlist(self) -> SnowflakeAllowlist:
         return self.snapshot.policy(AccessPolicyKey.AGENT_ROLES).as_allowlist()
+
+    @property
+    def agent_blocked_user_allowlist(self) -> SnowflakeAllowlist:
+        return self.snapshot.policy(AccessPolicyKey.AGENT_BLOCKED_USERS).as_allowlist()
 
     @property
     def supervisor_role_allowlist(self) -> SnowflakeAllowlist:
