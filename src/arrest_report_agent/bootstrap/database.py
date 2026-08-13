@@ -277,6 +277,11 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 not settings.user_allowlist.is_restricted,
                 tuple(sorted(settings.user_allowlist.ids or ())),
             ),
+            AccessPolicySnapshot(
+                key=AccessPolicyKey.AGENT_ROLES,
+                subject_type="role",
+                mode=AccessPolicyMode.DISABLED,
+            ),
             policy(
                 AccessPolicyKey.SUPERVISOR_ROLES,
                 "role",

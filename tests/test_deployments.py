@@ -61,8 +61,9 @@ def test_railway_payload_normalizes_supported_events_and_identity() -> None:
 def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     manifest = ReleaseManifest.load_packaged()
 
-    assert manifest.version == "0.4.2"
+    assert manifest.version == "0.5.0"
     assert manifest.repository_url == "https://github.com/SouthViking/arrest-report-agent"
+    assert manifest.changelog_targets == (1241206587079524442,)
     assert manifest.changes
 
 
@@ -71,6 +72,15 @@ def test_release_manifest_rejects_non_github_repository() -> None:
     payload["repository_url"] = "https://example.com/SouthViking/arrest-report-agent"
 
     with pytest.raises(ValueError, match="GitHub repository"):
+        ReleaseManifest.model_validate(payload)
+
+
+@pytest.mark.parametrize("targets", [[], [123, 123], [0], [True], "123"])
+def test_release_manifest_rejects_invalid_changelog_targets(targets: object) -> None:
+    payload = ReleaseManifest.load_packaged().model_dump(mode="json")
+    payload["changelog_targets"] = targets
+
+    with pytest.raises(ValueError, match="changelog_targets"):
         ReleaseManifest.model_validate(payload)
 
 
@@ -93,7 +103,7 @@ def test_deployment_embeds_keep_operational_data_and_persona_framing(persona) ->
 
     embed = build_deployment_embed(event, manifest, persona)
 
-    assert embed.title == "🚀 Más formatos de callsign · v0.4.2"
+    assert embed.title == "🚀 Acceso ampliado y avisos selectivos · v0.5.0"
     assert persona.messages.interface.deployments.release_intro in (embed.description or "")
     assert any(field.name == "Cambios" for field in embed.fields)
     deployment_field = next(field for field in embed.fields if field.name == "Despliegue")
@@ -184,11 +194,14 @@ async def test_success_event_waits_for_the_matching_runtime_and_then_targets_cha
         guild_ids=lambda: _async_value((123,)),
         cached=lambda _guild_id: _async_value(bundle),
     )
+    manifest_payload = ReleaseManifest.load_packaged().model_dump(mode="json")
+    manifest_payload["changelog_targets"] = "all"
+    manifest = ReleaseManifest.model_validate(manifest_payload)
     old_worker = DeploymentNotificationWorker(
         SimpleNamespace(),  # type: ignore[arg-type]
         provider,  # type: ignore[arg-type]
         repository,  # type: ignore[arg-type]
-        ReleaseManifest.load_packaged(),
+        manifest,
         current_commit_sha="a" * 40,
     )
 
@@ -201,14 +214,101 @@ async def test_success_event_waits_for_the_matching_runtime_and_then_targets_cha
         SimpleNamespace(),  # type: ignore[arg-type]
         provider,  # type: ignore[arg-type]
         repository,  # type: ignore[arg-type]
-        ReleaseManifest.load_packaged(),
+        manifest,
         current_commit_sha="b" * 40,
     )
     await new_worker._prepare_event(event)  # noqa: SLF001
 
     assert repository.processed == [event.id]
     assert [target.channel_id for target in repository.targets] == [456, 789]
-    assert all(target.notification_key.endswith(":0.4.2") for target in repository.targets)
+    assert all(target.notification_key.endswith(":0.5.0") for target in repository.targets)
+
+
+@pytest.mark.asyncio
+async def test_success_changelog_targets_only_selected_configured_channels() -> None:
+    event = DeploymentEventRecord(
+        id=UUID("00000000-0000-0000-0000-000000000007"),
+        event_type=DeploymentEventType.DEPLOYED,
+        deployment_id="deployment-selected",
+        project_id="project",
+        environment_id="production",
+        service_id="bot",
+        source="GitHub",
+        branch="main",
+        commit_hash="b" * 40,
+        commit_message=None,
+        severity="INFO",
+        timestamp=datetime.now(UTC),
+    )
+    repository = FakeDeploymentRepository()
+    policy = SimpleNamespace(mode=AccessPolicyMode.RESTRICTED, ids=(456, 789))
+    bundle = SimpleNamespace(
+        snapshot=SimpleNamespace(
+            features={"deployment_notifications": SimpleNamespace(enabled=True)},
+            policies={AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: policy},
+        )
+    )
+    provider = SimpleNamespace(
+        guild_ids=lambda: _async_value((123,)),
+        cached=lambda _guild_id: _async_value(bundle),
+    )
+    payload = ReleaseManifest.load_packaged().model_dump(mode="json")
+    payload["changelog_targets"] = [789, 999]
+    manifest = ReleaseManifest.model_validate(payload)
+    worker = DeploymentNotificationWorker(
+        SimpleNamespace(),  # type: ignore[arg-type]
+        provider,  # type: ignore[arg-type]
+        repository,  # type: ignore[arg-type]
+        manifest,
+        current_commit_sha="b" * 40,
+    )
+
+    await worker._prepare_event(event)  # noqa: SLF001
+
+    assert [target.channel_id for target in repository.targets] == [789]
+
+
+@pytest.mark.asyncio
+async def test_failure_alerts_ignore_changelog_channel_selection() -> None:
+    event = DeploymentEventRecord(
+        id=UUID("00000000-0000-0000-0000-000000000008"),
+        event_type=DeploymentEventType.FAILED,
+        deployment_id="deployment-failed",
+        project_id="project",
+        environment_id="production",
+        service_id="bot",
+        source="GitHub",
+        branch="main",
+        commit_hash="b" * 40,
+        commit_message=None,
+        severity="ERROR",
+        timestamp=datetime.now(UTC),
+    )
+    repository = FakeDeploymentRepository()
+    policy = SimpleNamespace(mode=AccessPolicyMode.RESTRICTED, ids=(456, 789))
+    bundle = SimpleNamespace(
+        snapshot=SimpleNamespace(
+            features={"deployment_notifications": SimpleNamespace(enabled=True)},
+            policies={AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: policy},
+        )
+    )
+    provider = SimpleNamespace(
+        guild_ids=lambda: _async_value((123,)),
+        cached=lambda _guild_id: _async_value(bundle),
+    )
+    payload = ReleaseManifest.load_packaged().model_dump(mode="json")
+    payload["changelog_targets"] = [789]
+    worker = DeploymentNotificationWorker(
+        SimpleNamespace(),  # type: ignore[arg-type]
+        provider,  # type: ignore[arg-type]
+        repository,  # type: ignore[arg-type]
+        ReleaseManifest.model_validate(payload),
+        current_commit_sha="b" * 40,
+    )
+
+    await worker._prepare_event(event)  # noqa: SLF001
+
+    assert [target.channel_id for target in repository.targets] == [456, 789]
 
 
 async def _async_value(value: object) -> object:

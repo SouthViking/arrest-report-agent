@@ -24,6 +24,7 @@ class AccessPolicyMode(StrEnum):
 class AccessPolicyKey(StrEnum):
     REPORT_CHANNELS = "report_channels"
     AGENT_USERS = "agent_users"
+    AGENT_ROLES = "agent_roles"
     SUPERVISOR_ROLES = "supervisor_roles"
     REPORT_ANALYTICS_ROLES = "report_analytics_roles"
     REVIEW_ESCALATION_ROLES = "review_escalation_roles"
@@ -42,6 +43,7 @@ class AccessPolicyKey(StrEnum):
 POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] = {
     AccessPolicyKey.REPORT_CHANNELS: "channel",
     AccessPolicyKey.AGENT_USERS: "user",
+    AccessPolicyKey.AGENT_ROLES: "role",
     AccessPolicyKey.SUPERVISOR_ROLES: "role",
     AccessPolicyKey.REPORT_ANALYTICS_ROLES: "role",
     AccessPolicyKey.REVIEW_ESCALATION_ROLES: "role",
@@ -192,6 +194,10 @@ class GuildRuntimeSettings:
     @property
     def user_allowlist(self) -> SnowflakeAllowlist:
         return self.snapshot.policy(AccessPolicyKey.AGENT_USERS).as_allowlist()
+
+    @property
+    def agent_role_allowlist(self) -> SnowflakeAllowlist:
+        return self.snapshot.policy(AccessPolicyKey.AGENT_ROLES).as_allowlist()
 
     @property
     def supervisor_role_allowlist(self) -> SnowflakeAllowlist:

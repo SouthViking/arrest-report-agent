@@ -34,9 +34,9 @@ sensibles; permanece desactivada por defecto.
 Los IDs de `REVIEW_ESCALATION_ROLE_IDS` tampoco se entregan al modelo. Discord los resuelve y limita
 de forma determinista únicamente cuando corresponde publicar una derivación.
 
-Los mensajes sin mención no generan llamadas, almacenamiento ni logs de contenido. Guilds, canales
-y usuarios pasan por una política local antes de reconstruir el contexto. Una mención de un usuario
-fuera de `AUTHORIZED_USER_IDS` registra solo IDs técnicos mediante los eventos
+Los mensajes sin mención no generan llamadas, almacenamiento ni logs de contenido. Guilds y acceso
+por usuario o rol pasan por una política local antes de reconstruir el contexto. Una mención que no
+coincide con `agent_users` ni con `agent_roles` registra solo IDs técnicos mediante los eventos
 `unauthorized_user_redirect_*`.
 
 ## Logs

@@ -43,13 +43,24 @@ class DiscordAccessPolicy:
 
     guilds: SnowflakeAllowlist
     users: SnowflakeAllowlist
+    roles: SnowflakeAllowlist
 
     @classmethod
     def from_settings(cls, settings: AppSettings) -> DiscordAccessPolicy:
         return cls(
             guilds=settings.guild_allowlist,
             users=settings.user_allowlist,
+            roles=settings.agent_role_allowlist,
         )
+
+    def allows_member(self, member: discord.abc.User) -> bool:
+        """Authorize when either the user policy or the role policy matches."""
+
+        if self.users.allows(member.id):
+            return True
+        if self.roles.ids is None:
+            return True
+        return any(getattr(role, "id", None) in self.roles.ids for role in getattr(member, "roles", ()))
 
     def classify(
         self,
@@ -68,7 +79,7 @@ class DiscordAccessPolicy:
             referenced_author_id = _resolved_reference_author_id(message)
         if bot_user_id not in message.raw_mentions and referenced_author_id != bot_user_id:
             return TriggerDecision.IGNORE_NOT_ADDRESSED
-        if not self.users.allows(message.author.id):
+        if not self.allows_member(message.author):
             return TriggerDecision.REDIRECT_UNAUTHORIZED_USER
         return TriggerDecision.REVIEW
 

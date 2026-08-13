@@ -39,7 +39,8 @@ idempotente antes del corte definitivo.
 
 `DiscordAccessPolicy` es el único preprocesador del listener y se ejecuta antes de descargar contexto
 o llamar a OpenAI. Valida guild, autor humano, activación por mención o respuesta directa al bot y
-usuario, en ese orden. No limita canales: dentro de una guild autorizada, una mención puede iniciar
+acceso por usuario o rol, en ese orden. Las políticas `agent_users` y `agent_roles` se combinan como
+OR. No limita canales: dentro de una guild autorizada, una mención puede iniciar
 una conversación desde cualquier canal visible. Si Discord no incluyó el mensaje referenciado,
 resuelve solo esa referencia antes de decidir; una respuesta a cualquier otra persona se ignora.
 

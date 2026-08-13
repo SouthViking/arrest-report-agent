@@ -374,6 +374,12 @@ class AppSettings(BaseSettings):
         )
 
     @property
+    def agent_role_allowlist(self) -> SnowflakeAllowlist:
+        """Legacy env imports never grant agent access through roles."""
+
+        return SnowflakeAllowlist(ids=frozenset())
+
+    @property
     def supervisor_role_allowlist(self) -> SnowflakeAllowlist:
         return SnowflakeAllowlist.parse(
             self.supervisor_role_ids_csv,

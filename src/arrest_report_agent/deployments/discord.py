@@ -123,7 +123,14 @@ class DeploymentNotificationWorker:
             )
             if policy is None or policy.mode is not AccessPolicyMode.RESTRICTED:
                 continue
-            for channel_id in policy.ids:
+            channel_ids = policy.ids
+            if event.event_type is DeploymentEventType.DEPLOYED:
+                channel_ids = tuple(
+                    channel_id
+                    for channel_id in channel_ids
+                    if self.manifest.targets_changelog_channel(channel_id)
+                )
+            for channel_id in channel_ids:
                 kind = (
                     "release"
                     if event.event_type is DeploymentEventType.DEPLOYED

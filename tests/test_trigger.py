@@ -19,11 +19,16 @@ def make_message(
     bot: bool = False,
     webhook_id=None,
     channel_id=None,
+    role_ids: tuple[int, ...] = (),
 ):
     configured_guilds = settings.discord_guild_ids
     return SimpleNamespace(
         guild=SimpleNamespace(id=min(configured_guilds) if configured_guilds else 1),
-        author=SimpleNamespace(id=user_id, bot=bot),
+        author=SimpleNamespace(
+            id=user_id,
+            bot=bot,
+            roles=[SimpleNamespace(id=role_id) for role_id in role_ids],
+        ),
         webhook_id=webhook_id,
         channel=SimpleNamespace(id=channel_id or 2),
         raw_mentions=mentions,
@@ -43,6 +48,7 @@ def test_central_policy_receives_access_scopes(settings) -> None:
 
     assert policy.guilds.ids == settings.discord_guild_ids
     assert policy.users.ids == settings.authorized_user_ids
+    assert policy.roles.ids == frozenset()
 
 
 def test_unmentioned_message_is_ignored(settings) -> None:
@@ -180,6 +186,45 @@ def test_authorized_user_can_reach_review(settings) -> None:
             restricted,
         )
         is TriggerDecision.REVIEW
+    )
+
+
+def test_agent_user_and_role_policies_are_combined_with_or(settings) -> None:
+    policy = DiscordAccessPolicy(
+        guilds=settings.guild_allowlist,
+        users=trigger.SnowflakeAllowlist(ids=frozenset({123})),
+        roles=trigger.SnowflakeAllowlist(ids=frozenset({777})),
+    )
+
+    assert policy.classify(
+        make_message(settings, mentions=[999], user_id=123, role_ids=(777,)),
+        999,
+    ) is TriggerDecision.REVIEW
+    assert (
+        policy.classify(
+            make_message(settings, mentions=[999], user_id=456, role_ids=(777,)),
+            999,
+        )
+        is TriggerDecision.REVIEW
+    )
+    assert (
+        policy.classify(
+            make_message(settings, mentions=[999], user_id=456, role_ids=(888,)),
+            999,
+        )
+        is TriggerDecision.REDIRECT_UNAUTHORIZED_USER
+    )
+
+
+def test_open_agent_role_policy_allows_any_member(settings) -> None:
+    policy = DiscordAccessPolicy(
+        guilds=settings.guild_allowlist,
+        users=trigger.SnowflakeAllowlist(ids=frozenset()),
+        roles=trigger.SnowflakeAllowlist(ids=None),
+    )
+
+    assert policy.classify(make_message(settings, mentions=[999], user_id=456), 999) is (
+        TriggerDecision.REVIEW
     )
 
 

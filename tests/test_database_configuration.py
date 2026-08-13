@@ -147,6 +147,7 @@ async def test_legacy_import_partitions_ids_and_disables_empty_restricted_scopes
     assert first.guild_id == 1
     assert first_policies[AccessPolicyKey.REPORT_CHANNELS].ids == (10,)
     assert first_policies[AccessPolicyKey.AGENT_USERS].ids == (99,)
+    assert first_policies[AccessPolicyKey.AGENT_ROLES].mode is AccessPolicyMode.DISABLED
     assert first_policies[AccessPolicyKey.REPORT_ANALYTICS_ROLES].ids == (20,)
     assert first_policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES].ids == (20,)
     assert first_policies[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].ids == (22,)

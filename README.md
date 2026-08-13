@@ -88,7 +88,10 @@ Las allowlists de acceso comparten una sola regla: variable ausente, vacía o co
 cualquier ID del scope; una lista CSV como `123,456` lo restringe. Esto aplica a servidores
 (`DISCORD_GUILD_IDS`) y usuarios (`AUTHORIZED_USER_IDS`). Dentro de una guild autorizada, cualquier
 usuario habilitado puede activar al bot mediante una mención o una respuesta directa desde cualquier
-canal visible para el bot.
+canal visible para el bot. Tras importar a PostgreSQL, el acceso del agente se administra con las
+políticas **Usuarios del agente** y **Roles con acceso al agente**. Ambas se evalúan como un OR: una
+coincidencia de usuario o de cualquiera de los roles es suficiente; si alguna está abierta, el acceso
+queda abierto para la guild.
 
 `REPORT_CHANNEL_IDS` no restringe conversaciones. Define los canales que `/mis-reportes`,
 `/mi-resumen`, `/pendientes`, `/ranking`, `/verguenza`, `/honor` y `/errores-reportes` utilizan como archivo de reportes y los que `/ayuda`
@@ -118,7 +121,7 @@ continúa siendo público para el canal. El último comando consulta revisiones 
 desde esta versión y cuenta cada expediente una sola vez por tipo de error, aunque haya re-revisiones.
 `/pendientes` y `/ranking` mantienen su política separada de supervisión.
 
-La política previa valida guild, autor y usuario antes de leer contexto o iniciar el Runner. Las
+La política previa valida guild, autor y acceso por usuario o rol antes de leer contexto o iniciar el Runner. Las
 tools de escritura operan exclusivamente dentro de la conversación autorizada. La tool de reacción
 acepta un ID presente en ese contexto, pero no una guild o canal libre y no puede salir del mensaje
 raíz, canal o hilo activo. Las consultas de mensajes o adjuntos quedan fijadas a la guild y a los permisos
@@ -232,7 +235,11 @@ tokens, URL de base ni credenciales del Bucket. Los env legacy pueden retirarse 
 
 Cada versión se define una sola vez en `arrest_report_agent.__version__` y debe coincidir con el
 manifest estricto [`release.json`](src/arrest_report_agent/release.json). El manifest contiene el
-título, resumen y hasta diez cambios tipados; no contiene copy de una persona.
+título, resumen, hasta diez cambios tipados y `changelog_targets`; no contiene copy de una persona.
+`changelog_targets` acepta `"all"` para publicar en todos los canales configurados o una lista de
+IDs para publicar solo en esa intersección. Nunca permite enviar a un canal que no esté autorizado
+por la política **Canales de despliegues** de su guild. Las alertas de fallo continúan llegando a
+todos los canales configurados, independientemente de esta selección.
 
 El receptor se habilita únicamente cuando están presentes `RAILWAY_WEBHOOK_SECRET` y los IDs del
 proyecto, entorno y servicio. La URL que se configura en Railway es:

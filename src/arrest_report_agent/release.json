@@ -1,21 +1,24 @@
 {
-  "schema_version": 1,
-  "version": "0.4.2",
-  "title": "Más formatos de callsign",
-  "summary": "El registro de callsigns admite identificadores operativos con un número adicional después de la letra.",
+  "schema_version": 2,
+  "version": "0.5.0",
+  "title": "Acceso ampliado y avisos selectivos",
+  "summary": "El acceso al agente puede habilitarse por usuario o por rol y cada changelog decide en cuáles canales configurados se publica.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
-      "type": "improved",
-      "text": "`/callsign` acepta dos o tres números, una letra entre A y Z y un número final opcional, incluyendo formatos como `60F1`."
+      "type": "added",
+      "text": "El agente ahora admite una lista de roles autorizados además de la lista de usuarios."
     },
     {
       "type": "improved",
-      "text": "Los formatos anteriores, como `64A` o `280L`, siguen siendo válidos y la letra se normaliza automáticamente a mayúsculas."
+      "text": "Usuarios y roles se evalúan como alternativas: basta con cumplir cualquiera de las dos políticas."
     },
     {
       "type": "improved",
-      "text": "Los avisos de despliegue ahora se publican tanto en el canal técnico del bot como en el chat general de la facción."
+      "text": "Cada versión puede publicar su changelog en todos los canales configurados o solo en una selección."
     }
   ]
 }

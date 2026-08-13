@@ -31,6 +31,7 @@ LOGGER = logging.getLogger(__name__)
 POLICY_LABELS: dict[AccessPolicyKey, str] = {
     AccessPolicyKey.REPORT_CHANNELS: "Canales del agente",
     AccessPolicyKey.AGENT_USERS: "Usuarios del agente",
+    AccessPolicyKey.AGENT_ROLES: "Roles con acceso al agente",
     AccessPolicyKey.SUPERVISOR_ROLES: "Roles de supervisión",
     AccessPolicyKey.REPORT_ANALYTICS_ROLES: "Roles de analítica de reportes",
     AccessPolicyKey.REVIEW_ESCALATION_ROLES: "Roles de derivación",
