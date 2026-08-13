@@ -206,7 +206,8 @@ class CallsignCog(commands.Cog):
                 value=(
                     "Usa `/callsign` para guardar tu identificador operativo. "
                     "El formulario y su confirmación son privados. El formato es de dos o tres "
-                    "números seguidos de una letra; por ejemplo `280L`, `60F` o `64A`."
+                    "números, una letra y un número final opcional; por ejemplo `280L`, "
+                    "`64A` o `60F1`."
                 ),
                 inline=False,
             )

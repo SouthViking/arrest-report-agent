@@ -127,13 +127,18 @@ async def test_remove_callsign_is_ephemeral_and_personality_aware(persona, remov
         ("281s", "281S"),
         ("64a", "64A"),
         ("999z", "999Z"),
+        ("60f1", "60F1"),
+        ("280a9", "280A9"),
     ),
 )
 def test_callsign_format_is_normalized(raw: str, expected: str) -> None:
     assert normalize_callsign(raw) == expected
 
 
-@pytest.mark.parametrize("raw", ("6L", "280", "280WS", "ABCL", "280 L", "1234L", "64Ñ"))
+@pytest.mark.parametrize(
+    "raw",
+    ("6L", "280", "280WS", "ABCL", "280 L", "1234L", "64Ñ", "60F12", "60FF1"),
+)
 def test_callsign_format_rejects_unsupported_values(raw: str) -> None:
     with pytest.raises(CallsignFormatError):
         normalize_callsign(raw)

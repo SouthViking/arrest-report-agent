@@ -1,7 +1,7 @@
 {
   "schema_version": 26,
   "id": "walter_vigil",
-  "revision": 29,
+  "revision": 30,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -338,7 +338,7 @@
         "removed_title": "📻 Callsign eliminado",
         "removed_description": "Su callsign dejó de estar guardado. Los próximos formularios de pager volverán a solicitarlo.",
         "missing_description": "No tenía un callsign guardado para eliminar.",
-        "invalid_format": "Utilice entre dos y tres números seguidos de una letra de A a Z. Ejemplos: **280L**, **60F** o **64A**.",
+        "invalid_format": "Utilice dos o tres números, una letra de A a Z y, opcionalmente, un número final. Ejemplos: **280L**, **64A** o **60F1**.",
         "operation_failed": "No pude completar la operación de callsigns. El registro anterior, si existía, permanece sin cambios.",
         "directory_intro": "Personal con un callsign registrado en este servidor.",
         "directory_empty": "Todavía no hay callsigns registrados para miembros activos del servidor.",

@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "version": "0.4.1",
-  "title": "Callsigns operativos ampliados",
-  "summary": "El registro de callsigns ahora admite cualquier letra operativa después de su numeración.",
+  "version": "0.4.2",
+  "title": "Más formatos de callsign",
+  "summary": "El registro de callsigns admite identificadores operativos con un número adicional después de la letra.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changes": [
     {
       "type": "improved",
-      "text": "`/callsign` acepta dos o tres números seguidos de cualquier letra entre A y Z, incluido un formato como `64A`."
+      "text": "`/callsign` acepta dos o tres números, una letra entre A y Z y un número final opcional, incluyendo formatos como `60F1`."
     },
     {
       "type": "improved",
-      "text": "Los mensajes de ayuda y validación explican el formato ampliado y mantienen la normalización automática a mayúsculas."
+      "text": "Los formatos anteriores, como `64A` o `280L`, siguen siendo válidos y la letra se normaliza automáticamente a mayúsculas."
     },
     {
       "type": "improved",
