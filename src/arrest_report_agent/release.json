@@ -1,21 +1,13 @@
 {
   "schema_version": 1,
-  "version": "0.3.2",
+  "version": "0.3.3",
   "title": "Actualizaci\u00f3n disponible",
-  "summary": "Las revisiones priorizan problemas materiales y cierran el expediente aprobado aunque el hilo sea ajeno.",
+  "summary": "Los expedientes aprobados quedan cerrados y disponibles para una intervención posterior cuando haga falta.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changes": [
     {
-      "type": "improved",
-      "text": "La severidad distingue correcciones obligatorias, advertencias y sugerencias sin bloquear por detalles menores."
-    },
-    {
-      "type": "improved",
-      "text": "Los cargos se evalúan por el significado completo de los hechos y no por frases literales."
-    },
-    {
       "type": "fixed",
-      "text": "Los hilos de revisiones aprobadas se cierran aunque hayan sido creados por otra persona."
+      "text": "El cierre automático archiva el hilo sin bloquearlo, permitiendo que los usuarios autorizados puedan reabrirlo."
     }
   ]
 }

@@ -293,7 +293,7 @@ class DiscordReviewPublisher:
 
     async def _close_approved_thread(self, thread: discord.Thread) -> None:
         try:
-            await thread.edit(archived=True, locked=True)
+            await thread.edit(archived=True)
         except (discord.Forbidden, discord.NotFound, discord.HTTPException) as error:
             log_event(
                 LOGGER,

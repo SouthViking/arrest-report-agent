@@ -270,7 +270,7 @@ async def test_initial_mention_approval_uses_and_archives_thread(settings, perso
     assert root.added == ["⏳", "✅"]
     assert root.created == 1
     assert root.thread.sent[0]["embeds"][0].title.startswith("✅")
-    assert root.thread.edits[-1] == {"archived": True, "locked": True}
+    assert root.thread.edits[-1] == {"archived": True}
     assert all(user_id == 999 for _, user_id in root.removed)
 
 
@@ -291,7 +291,7 @@ async def test_full_approval_closes_thread_created_by_another_user(settings, per
     await publisher.publish(publication("approved"))
 
     assert root.added == ["✅"]
-    assert thread.edits == [{"archived": True, "locked": True}]
+    assert thread.edits == [{"archived": True}]
 
 
 @pytest.mark.asyncio
