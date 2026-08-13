@@ -404,6 +404,75 @@ deployment_notification_deliveries = sa.Table(
     ),
 )
 
+ci_workflow_events = sa.Table(
+    "ci_workflow_events",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column("provider_event_key", sa.String(64), nullable=False, unique=True),
+    sa.Column("delivery_id", sa.String(64), nullable=False, unique=True),
+    sa.Column("repository_id", sa.BigInteger, nullable=False),
+    sa.Column("repository_full_name", sa.String(255), nullable=False),
+    sa.Column("workflow_id", sa.BigInteger, nullable=False),
+    sa.Column("workflow_name", sa.String(255), nullable=False),
+    sa.Column("run_id", sa.BigInteger, nullable=False),
+    sa.Column("run_attempt", sa.Integer, nullable=False),
+    sa.Column("triggering_event", sa.String(50), nullable=False),
+    sa.Column("branch", sa.String(255)),
+    sa.Column("commit_hash", sa.String(64), nullable=False),
+    sa.Column("commit_message", sa.String(500)),
+    sa.Column("actor_login", sa.String(100), nullable=False),
+    sa.Column("event_timestamp", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("status", sa.String(20), nullable=False, server_default="received"),
+    sa.Column("ignored_reason", sa.String(100)),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("processed_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint("run_attempt > 0", name="ck_ci_workflow_run_attempt"),
+    sa.CheckConstraint(
+        "status IN ('received','processed','ignored')",
+        name="ck_ci_workflow_event_status",
+    ),
+    sa.UniqueConstraint(
+        "repository_id",
+        "run_id",
+        "run_attempt",
+        name="uq_ci_workflow_run_attempt",
+    ),
+    sa.Index("ix_ci_workflow_event_status_created", "status", "created_at"),
+)
+
+ci_notification_deliveries = sa.Table(
+    "ci_notification_deliveries",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "event_id",
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("ci_workflow_events.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("channel_id", sa.BigInteger, nullable=False),
+    sa.Column("notification_key", sa.String(200), nullable=False, unique=True),
+    sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
+    sa.Column("discord_message_id", sa.BigInteger),
+    sa.Column("attempts", sa.Integer, nullable=False, server_default="0"),
+    sa.Column("next_attempt_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("last_error", sa.String(500)),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("sent_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(
+        "status IN ('pending','retry','sent','failed')",
+        name="ck_ci_notification_status",
+    ),
+    sa.Index("ix_ci_notification_pending", "status", "next_attempt_at"),
+)
+
 suggestion_counters = sa.Table(
     "suggestion_counters",
     metadata,

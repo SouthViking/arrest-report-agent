@@ -39,6 +39,7 @@ class AccessPolicyKey(StrEnum):
     PAGER_CLOSER_ROLES = "pager_closer_roles"
     OPERATIONAL_STAFF_ROLES = "operational_staff_roles"
     DEPLOYMENT_NOTIFICATION_CHANNELS = "deployment_notification_channels"
+    CI_FAILURE_NOTIFICATION_CHANNELS = "ci_failure_notification_channels"
 
 
 POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] = {
@@ -59,6 +60,7 @@ POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] 
     AccessPolicyKey.PAGER_CLOSER_ROLES: "role",
     AccessPolicyKey.OPERATIONAL_STAFF_ROLES: "role",
     AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: "channel",
+    AccessPolicyKey.CI_FAILURE_NOTIFICATION_CHANNELS: "channel",
 }
 
 

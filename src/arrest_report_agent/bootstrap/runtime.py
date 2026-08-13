@@ -8,6 +8,11 @@ from dataclasses import dataclass
 import discord
 from agents import set_default_openai_key
 
+from arrest_report_agent.ci_notifications import (
+    CiNotificationRepository,
+    CiNotificationWorker,
+    GitHubWebhookReceiver,
+)
 from arrest_report_agent.config import (
     AppSettings,
     LoadedPersona,
@@ -69,6 +74,8 @@ class Runtime:
     deployment_notifications_enabled: bool
     deployment_worker: DeploymentNotificationWorker
     railway_webhook_receiver: RailwayWebhookReceiver | None
+    ci_notification_worker: CiNotificationWorker
+    github_webhook_receiver: GitHubWebhookReceiver | None
     postgres: PostgresClient
     config_provider: DatabaseConfigProvider
 
@@ -92,10 +99,12 @@ class Runtime:
             "suggestions": self.suggestions_enabled,
             "deployment_notifications": self.deployment_notifications_enabled,
             "railway_webhook": self.railway_webhook_receiver is not None,
+            "github_webhook": self.github_webhook_receiver is not None,
         }
 
     async def close(self) -> None:
         await self.deployment_worker.close()
+        await self.ci_notification_worker.close()
         await self.config_provider.close()
         await self.postgres.close()
 
@@ -265,6 +274,24 @@ async def build_runtime(
         if settings.railway_webhook_enabled
         else None
     )
+    ci_notification_repository = CiNotificationRepository(postgres)
+    ci_notification_worker = CiNotificationWorker(
+        bot,
+        config_provider,
+        ci_notification_repository,
+        release_manifest,
+    )
+    ci_notification_worker.start()
+    github_webhook_receiver = (
+        GitHubWebhookReceiver(
+            settings,
+            ci_notification_repository,
+            ci_notification_worker.wake,
+            expected_repository=release_manifest.repository_full_name,
+        )
+        if settings.github_webhook_enabled
+        else None
+    )
     deployment_bundles = [
         bundle
         for bundle in all_bundles
@@ -279,6 +306,7 @@ async def build_runtime(
         configured_guilds=len(deployment_bundles),
         webhook_enabled=railway_webhook_receiver is not None,
         release_version=release_manifest.version,
+        github_webhook_enabled=github_webhook_receiver is not None,
     )
     return Runtime(
         bot=bot,
@@ -292,6 +320,8 @@ async def build_runtime(
         deployment_notifications_enabled=deployment_notifications_enabled,
         deployment_worker=deployment_worker,
         railway_webhook_receiver=railway_webhook_receiver,
+        ci_notification_worker=ci_notification_worker,
+        github_webhook_receiver=github_webhook_receiver,
         postgres=postgres,
         config_provider=config_provider,
     )

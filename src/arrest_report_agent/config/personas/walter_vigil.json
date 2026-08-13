@@ -1,7 +1,7 @@
 {
-  "schema_version": 27,
+  "schema_version": 28,
   "id": "walter_vigil",
-  "revision": 31,
+  "revision": 32,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -356,7 +356,8 @@
         "release_closing": "Despliegue verificado y en servicio.",
         "failed_description": "La versión propuesta no superó las comprobaciones del despliegue. La versión estable anterior permanece operativa cuando Railway puede conservarla.",
         "crashed_description": "El servicio dejó de responder después de iniciar. Revise Railway y los logs técnicos antes de intentar restablecerlo.",
-        "oom_description": "Railway detuvo el servicio por falta de memoria. Revise el consumo y los límites antes de reiniciarlo."
+        "oom_description": "Railway detuvo el servicio por falta de memoria. Revise el consumo y los límites antes de reiniciarlo.",
+        "ci_failed_description": "La integración continua detectó un problema. Revise la ejecución antes de considerar este cambio apto para despliegue."
       },
       "suggestions": {
         "alert_title": "⚠️ Revise la sugerencia",

@@ -1,7 +1,7 @@
 {
-  "schema_version": 27,
+  "schema_version": 28,
   "id": "roy_velazco",
-  "revision": 38,
+  "revision": 39,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -376,7 +376,8 @@
         "release_closing": "Ya está andando. Si rompen algo, por último ahora queda avisado.",
         "failed_description": "Esta versión no alcanzó a quedar arriba. La anterior sigue funcionando si Railway logró mantenerla, así q revisen el despliegue antes de tocar más cosas.",
         "crashed_description": "El servicio alcanzó a partir y después se cayó. Revisen Railway y los logs antes de apretar botones al lote.",
-        "oom_description": "Railway lo frenó pq se quedó sin memoria. Revisen el consumo y los límites antes de levantarlo de nuevo."
+        "oom_description": "Railway lo frenó pq se quedó sin memoria. Revisen el consumo y los límites antes de levantarlo de nuevo.",
+        "ci_failed_description": "quedó la cagá en el CI. revisen la ejecución antes de dar este cambio por bueno."
       },
       "suggestions": {
         "alert_title": "⚠️ Revisa la sugerencia",

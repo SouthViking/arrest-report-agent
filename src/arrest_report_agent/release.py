@@ -94,6 +94,10 @@ class ReleaseManifest(FrozenReleaseModel):
     def targets_changelog_channel(self, channel_id: int) -> bool:
         return self.changelog_targets == "all" or channel_id in self.changelog_targets
 
+    @property
+    def repository_full_name(self) -> str:
+        return self.repository_url.removeprefix("https://github.com/")
+
     @classmethod
     def load_packaged(cls) -> ReleaseManifest:
         try:

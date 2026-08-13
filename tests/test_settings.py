@@ -122,12 +122,31 @@ def test_railway_webhook_requires_complete_identity_and_url_safe_secret() -> Non
 
     assert settings.railway_webhook_enabled is True
     assert settings.railway_webhook_identity_is_complete is True
-    assert settings.app_version == "0.5.1"
+    assert settings.app_version == "0.5.2"
 
     with pytest.raises(ValidationError, match="RAILWAY_ENVIRONMENT_ID"):
         AppSettings(**{key: value for key, value in values.items() if key != "RAILWAY_ENVIRONMENT_ID"})
     with pytest.raises(ValidationError, match="URL-safe"):
         AppSettings(**{**values, "RAILWAY_WEBHOOK_SECRET": "/" * 43})
+
+
+def test_github_webhook_requires_a_strong_shared_secret() -> None:
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        GITHUB_WEBHOOK_SECRET="g" * 32,
+    )
+
+    assert settings.github_webhook_enabled is True
+
+    with pytest.raises(ValidationError, match="32-256"):
+        AppSettings(
+            _env_file=None,
+            DISCORD_TOKEN="discord",
+            OPENAI_API_KEY="openai",
+            GITHUB_WEBHOOK_SECRET="too-short",
+        )
 
 
 @pytest.mark.parametrize(

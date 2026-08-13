@@ -17,6 +17,8 @@ from arrest_report_agent.bootstrap.database import (
     DiscordGuildInfo,
     plan_environment_import,
 )
+from arrest_report_agent.ci_notifications import CiNotificationRepository, GitHubWorkflowRunEvent
+from arrest_report_agent.ci_notifications.repository import CiDeliveryTarget
 from arrest_report_agent.config import (
     AccessPolicyKey,
     AccessPolicyMode,
@@ -231,8 +233,12 @@ def test_callsign_alphabet_migration_adds_chat_without_replacing_deployment_chan
                 (1234675609536430152, 1241206587079524442),
             )
         )
+        asyncio.run(
+            _assert_ci_failure_channels(database_url, (1241206587079524442,))
+        )
         command.downgrade(alembic, "20260813_0013")
         asyncio.run(_assert_deployment_channels(database_url, (1241206587079524442,)))
+        asyncio.run(_assert_ci_failure_channels(database_url, ()))
     finally:
         command.downgrade(alembic, "base")
         if previous is None:
@@ -302,6 +308,26 @@ async def _assert_deployment_channels(database_url: str, expected: tuple[int, ..
                 "JOIN guild_access_policy_members gapm ON gapm.policy_id = gap.id "
                 "WHERE dg.discord_id = 1234674521416663070 "
                 "AND gap.policy_key = 'deployment_notification_channels' "
+                "ORDER BY gapm.snowflake_id"
+            )
+        )
+        assert tuple(int(row["snowflake_id"]) for row in rows) == expected
+    finally:
+        await client.close()
+
+
+async def _assert_ci_failure_channels(database_url: str, expected: tuple[int, ...]) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(
+            sa.text(
+                "SELECT gapm.snowflake_id FROM discord_guilds dg "
+                "JOIN guild_access_policies gap "
+                "ON gap.config_revision_id = dg.active_config_revision_id "
+                "JOIN guild_access_policy_members gapm ON gapm.policy_id = gap.id "
+                "WHERE dg.discord_id = 1234674521416663070 "
+                "AND gap.policy_key = 'ci_failure_notification_channels' "
                 "ORDER BY gapm.snowflake_id"
             )
         )
@@ -455,8 +481,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 31
-        assert persona["schema_version"] == 27
+        assert persona["revision"] == 32
+        assert persona["schema_version"] == 28
         assert persona["payload"]["messages"]["access"]["blocked_user_messages"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["saved_title"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["removed_title"]
@@ -466,6 +492,7 @@ async def _assert_callsign_migration(
         )
         assert "280L" in persona["payload"]["messages"]["interface"]["callsigns"]["invalid_format"]
         assert persona["payload"]["messages"]["interface"]["deployments"]["release_intro"]
+        assert persona["payload"]["messages"]["interface"]["deployments"]["ci_failed_description"]
         assert persona["payload"]["messages"]["interface"]["suggestions"]["info_warning"]
         assert persona["payload"]["messages"]["interface"]["commands"]["teamspeak_unauthorized"]
         table = await client.fetch_one(sa.text("SELECT to_regclass('public.guild_member_profiles') AS name"))
@@ -595,6 +622,57 @@ async def _exercise_database(database_url: str) -> None:
         assert deliveries[0].event.commit_hash == "a" * 40
         await deployment_repository.mark_delivery_sent(deliveries[0].id, 789)
         assert await deployment_repository.due_deliveries() == ()
+        ci_repository = CiNotificationRepository(client)
+        ci_event = GitHubWorkflowRunEvent.model_validate(
+            {
+                "action": "completed",
+                "repository": {
+                    "id": 123456,
+                    "full_name": "SouthViking/arrest-report-agent",
+                },
+                "sender": {"login": "SouthViking"},
+                "workflow_run": {
+                    "id": 31741783031,
+                    "workflow_id": 9001,
+                    "name": "CI",
+                    "event": "push",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "run_attempt": 1,
+                    "head_branch": "any-branch",
+                    "head_sha": "b" * 40,
+                    "actor": {"login": "SouthViking"},
+                    "head_commit": {"message": "Break CI"},
+                    "updated_at": datetime.now(UTC).isoformat(),
+                },
+            }
+        )
+        ci_record, ci_inserted = await ci_repository.record_event("delivery-1", ci_event)
+        ci_duplicate, ci_inserted_again = await ci_repository.record_event(
+            "delivery-redelivery",
+            ci_event,
+        )
+        assert ci_inserted is True
+        assert ci_inserted_again is False
+        assert ci_duplicate.id == ci_record.id
+        assert (
+            await ci_repository.enqueue_deliveries(
+                ci_record.id,
+                (
+                    CiDeliveryTarget(
+                        guild_id=123,
+                        channel_id=456,
+                        notification_key="ci-failure:123:456:123456:31741783031:1",
+                    ),
+                ),
+            )
+            == 1
+        )
+        ci_deliveries = await ci_repository.due_deliveries()
+        assert len(ci_deliveries) == 1
+        assert ci_deliveries[0].event.branch == "any-branch"
+        await ci_repository.mark_delivery_sent(ci_deliveries[0].id, 790)
+        assert await ci_repository.due_deliveries() == ()
         provider = DatabaseConfigProvider(
             client,
             repository,

@@ -9,6 +9,11 @@ from collections.abc import Awaitable, Callable
 from aiohttp import web
 from pydantic import ValidationError
 
+from arrest_report_agent.ci_notifications import (
+    GitHubWebhookAuthenticationError,
+    GitHubWebhookPayloadError,
+    GitHubWebhookReceiver,
+)
 from arrest_report_agent.deployments import (
     RailwayDeploymentEvent,
     RailwayWebhookPayloadError,
@@ -17,7 +22,8 @@ from arrest_report_agent.deployments import (
 from arrest_report_agent.infrastructure.postgres import DatabaseUnavailableError
 
 HealthCheck = Callable[[], Awaitable[dict[str, object]]]
-MAX_WEBHOOK_BYTES = 65_536
+MAX_RAILWAY_WEBHOOK_BYTES = 65_536
+MAX_GITHUB_WEBHOOK_BYTES = 1_048_576
 RAILWAY_BROWSER_ORIGINS = frozenset({"https://railway.com", "https://railway.app"})
 
 
@@ -40,8 +46,9 @@ async def serve_http(
     port: int,
     check: HealthCheck,
     webhook_receiver: RailwayWebhookReceiver | None = None,
+    github_webhook_receiver: GitHubWebhookReceiver | None = None,
 ) -> HttpServer:
-    app = create_http_application(check, webhook_receiver)
+    app = create_http_application(check, webhook_receiver, github_webhook_receiver)
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
     site = web.TCPSite(runner, host, port)
@@ -58,8 +65,9 @@ async def serve_health(host: str, port: int, check: HealthCheck) -> HttpServer:
 def create_http_application(
     check: HealthCheck,
     webhook_receiver: RailwayWebhookReceiver | None = None,
+    github_webhook_receiver: GitHubWebhookReceiver | None = None,
 ) -> web.Application:
-    app = web.Application(client_max_size=MAX_WEBHOOK_BYTES)
+    app = web.Application(client_max_size=MAX_GITHUB_WEBHOOK_BYTES)
 
     async def health(_request: web.Request) -> web.Response:
         payload = await check()
@@ -84,13 +92,21 @@ def create_http_application(
                     status=415,
                     headers=cors_headers,
                 )
-            if request.content_length is not None and request.content_length > MAX_WEBHOOK_BYTES:
+            if (
+                request.content_length is not None
+                and request.content_length > MAX_RAILWAY_WEBHOOK_BYTES
+            ):
                 raise web.HTTPRequestEntityTooLarge(
-                    max_size=MAX_WEBHOOK_BYTES,
+                    max_size=MAX_RAILWAY_WEBHOOK_BYTES,
                     actual_size=request.content_length,
                 )
             try:
                 raw_body = await request.read()
+                if len(raw_body) > MAX_RAILWAY_WEBHOOK_BYTES:
+                    raise web.HTTPRequestEntityTooLarge(
+                        max_size=MAX_RAILWAY_WEBHOOK_BYTES,
+                        actual_size=len(raw_body),
+                    )
                 payload = json.loads(raw_body)
                 event = RailwayDeploymentEvent.model_validate(payload)
                 acceptance = await webhook_receiver.receive(event)
@@ -114,6 +130,50 @@ def create_http_application(
 
         app.router.add_route("POST", path, railway_webhook)
         app.router.add_route("OPTIONS", path, railway_webhook)
+    if github_webhook_receiver is not None:
+
+        async def github_webhook(request: web.Request) -> web.Response:
+            if request.content_type != "application/json":
+                return web.json_response(
+                    {"status": "invalid", "error": "application_json_required"},
+                    status=415,
+                )
+            if (
+                request.content_length is not None
+                and request.content_length > MAX_GITHUB_WEBHOOK_BYTES
+            ):
+                raise web.HTTPRequestEntityTooLarge(
+                    max_size=MAX_GITHUB_WEBHOOK_BYTES,
+                    actual_size=request.content_length,
+                )
+            raw_body = await request.read()
+            if len(raw_body) > MAX_GITHUB_WEBHOOK_BYTES:
+                raise web.HTTPRequestEntityTooLarge(
+                    max_size=MAX_GITHUB_WEBHOOK_BYTES,
+                    actual_size=len(raw_body),
+                )
+            try:
+                acceptance = await github_webhook_receiver.receive(
+                    raw_body,
+                    event_name=request.headers.get("X-GitHub-Event", ""),
+                    delivery_id=request.headers.get("X-GitHub-Delivery", ""),
+                    signature=request.headers.get("X-Hub-Signature-256", ""),
+                )
+            except GitHubWebhookAuthenticationError:
+                return web.json_response(
+                    {"status": "unauthorized"},
+                    status=401,
+                )
+            except GitHubWebhookPayloadError:
+                return web.json_response(
+                    {"status": "invalid", "error": "unsupported_payload"},
+                    status=400,
+                )
+            except DatabaseUnavailableError:
+                return web.json_response({"status": "unavailable"}, status=503)
+            return web.json_response({"status": acceptance.status}, status=202)
+
+        app.router.add_post("/webhooks/github/actions", github_webhook)
     return app
 
 

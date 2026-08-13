@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "version": "0.5.1",
-  "title": "Bloqueos explícitos del agente",
-  "summary": "Los administradores pueden excluir usuarios concretos del agente aunque pertenezcan a una lista o rol autorizado.",
+  "version": "0.5.2",
+  "title": "Alertas internas de integración continua",
+  "summary": "Los fallos del CI pueden notificarse de forma segura y automática en los canales internos configurados.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,15 +10,15 @@
   "changes": [
     {
       "type": "added",
-      "text": "El panel de configuración incorpora una lista de usuarios bloqueados del agente."
+      "text": "El bot recibe eventos workflow_run firmados por GitHub y avisa cuando falla el workflow CI."
     },
     {
       "type": "improved",
-      "text": "Un bloqueo explícito tiene prioridad sobre el acceso concedido por usuario o por rol."
+      "text": "Los canales de errores de CI cuentan con una whitelist independiente administrable desde el panel."
     },
     {
       "type": "improved",
-      "text": "Los intentos bloqueados reciben una respuesta propia elegida desde la personalidad activa."
+      "text": "Las alertas incluyen enlaces seguros al commit y a la ejecución, sin publicar logs ni datos sensibles."
     }
   ]
 }

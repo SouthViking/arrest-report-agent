@@ -41,6 +41,7 @@ async def run() -> None:
         settings.health_port,
         runtime.health,
         runtime.railway_webhook_receiver,
+        runtime.github_webhook_receiver,
     )
     guild_ids = await runtime.config_provider.guild_ids()
     log_event(
@@ -63,6 +64,7 @@ async def run() -> None:
         suggestion_subsystem_enabled=runtime.suggestions_enabled,
         deployment_notification_subsystem_enabled=(runtime.deployment_notifications_enabled),
         railway_webhook_enabled=runtime.railway_webhook_receiver is not None,
+        github_webhook_enabled=runtime.github_webhook_receiver is not None,
     )
     stop_requested = asyncio.Event()
     loop = asyncio.get_running_loop()

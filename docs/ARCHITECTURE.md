@@ -99,6 +99,8 @@ modelo no puede escoger una guild ni un canal de publicación.
   actualización privada, directorio agrupado y ayuda pública.
 - `deployments`: contrato de webhooks Railway, inbox de eventos, outbox idempotente y renderer de
   changelog/alertas para Discord; no depende del runner ni de OpenAI.
+- `ci_notifications`: receptor firmado de GitHub Actions, inbox/outbox PostgreSQL y renderer de
+  alertas internas de CI; usa una política de canales independiente y no depende de OpenAI.
 
 Los comandos personales `/mis-reportes` y `/mi-resumen` siguen una ruta determinista separada
 del runner. Leen de forma acotada los canales de revisión visibles, atribuyen publicaciones raíz al
@@ -151,13 +153,21 @@ Docker en cada push; Railway debe mantener **Wait for CI** habilitado para despl
 revisiones que terminen esos checks correctamente. Las variables y secretos viven en Railway, no en
 el repositorio. PostgreSQL y Bucket se enlazan mediante referencias de variables del proyecto.
 
-El mismo proceso aloja `GET /health` y el receptor autenticado de Railway. El request solo normaliza
-y persiste: la publicación en Discord ocurre fuera de la ruta HTTP mediante un worker que consume un
+El mismo proceso aloja `GET /health`, el receptor autenticado de Railway y el webhook firmado de
+GitHub Actions. Cada request solo valida, normaliza y persiste: la publicación en Discord ocurre
+fuera de la ruta HTTP mediante workers que consumen un
 outbox. Esto permite responder `202` rápido, deduplicar reintentos del proveedor y reintentar fallas
 transitorias sin perder el evento. Para un evento exitoso, el SHA del webhook debe coincidir con el
 `RAILWAY_GIT_COMMIT_SHA` de la instancia; así el contenedor anterior puede recibir el evento pero solo
 la revisión nueva anuncia su propio manifest. Las políticas y el módulo de notificaciones se leen del
 snapshot dinámico de cada guild.
+
+GitHub entrega `workflow_run` en `/webhooks/github/actions`. El receptor verifica
+`X-Hub-Signature-256` con `GITHUB_WEBHOOK_SECRET`, limita el repositorio y el workflow a los valores
+empaquetados y acepta fallos desde cualquier rama. `X-GitHub-Delivery` se conserva como identidad de
+auditoría, mientras la ejecución, intento y repositorio forman la clave idempotente operacional. La
+política `ci_failure_notification_channels` resuelve los destinos sin reutilizar canales públicos de
+changelog o despliegue.
 
 ## Solicitudes de roles
 

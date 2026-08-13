@@ -189,6 +189,10 @@ class AppSettings(BaseSettings):
     railway_environment_id: str | None = Field(default=None, alias="RAILWAY_ENVIRONMENT_ID")
     railway_service_id: str | None = Field(default=None, alias="RAILWAY_SERVICE_ID")
     railway_git_commit_sha: str | None = Field(default=None, alias="RAILWAY_GIT_COMMIT_SHA")
+    github_webhook_secret: SecretStr | None = Field(
+        default=None,
+        alias="GITHUB_WEBHOOK_SECRET",
+    )
 
     openai_model: str = Field(default="gpt-5.6-terra", alias="OPENAI_MODEL", min_length=1)
     openai_reasoning_effort: str = Field(default="medium", alias="OPENAI_REASONING_EFFORT", min_length=1)
@@ -241,6 +245,13 @@ class AppSettings(BaseSettings):
     @field_validator("railway_webhook_secret")
     @classmethod
     def normalize_railway_webhook_secret(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None:
+            return None
+        return SecretStr(value.get_secret_value().strip())
+
+    @field_validator("github_webhook_secret")
+    @classmethod
+    def normalize_github_webhook_secret(cls, value: SecretStr | None) -> SecretStr | None:
         if value is None:
             return None
         return SecretStr(value.get_secret_value().strip())
@@ -303,6 +314,11 @@ class AppSettings(BaseSettings):
                     "RAILWAY_PROJECT_ID, RAILWAY_ENVIRONMENT_ID and RAILWAY_SERVICE_ID "
                     "are required when RAILWAY_WEBHOOK_SECRET is configured"
                 )
+        if self.github_webhook_enabled:
+            secret = self.github_webhook_secret
+            assert secret is not None
+            if not 32 <= len(secret.get_secret_value()) <= 256:
+                raise ValueError("GITHUB_WEBHOOK_SECRET must contain 32-256 characters")
         return self
 
     @property
@@ -314,6 +330,13 @@ class AppSettings(BaseSettings):
         return bool(
             self.railway_webhook_secret
             and self.railway_webhook_secret.get_secret_value().strip()
+        )
+
+    @property
+    def github_webhook_enabled(self) -> bool:
+        return bool(
+            self.github_webhook_secret
+            and self.github_webhook_secret.get_secret_value().strip()
         )
 
     @property

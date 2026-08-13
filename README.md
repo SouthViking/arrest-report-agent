@@ -268,6 +268,25 @@ Para activarlo en una guild, usa `/config`, crea un borrador, configura **Canale
 modo restringido, habilita **Notificaciones de despliegue** con schema `1` y opciones `{}`, y publica
 el borrador. Hasta entonces la migración lo deja explícitamente deshabilitado.
 
+### Alertas de GitHub Actions
+
+El mismo servidor HTTP recibe el webhook nativo `workflow_run` de GitHub en:
+
+```text
+https://<dominio-publico>/webhooks/github/actions
+```
+
+Configura `GITHUB_WEBHOOK_SECRET` en Railway y usa exactamente el mismo secreto al crear el webhook
+del repositorio. El receptor valida `X-Hub-Signature-256` sobre el cuerpo original, deduplica con la
+identidad de la ejecución y solo conserva fallos completados del workflow `CI` de este repositorio.
+No filtra por rama ni por origen: puede avisar fallos de pushes, pull requests o ejecuciones manuales.
+
+La política **Canales de errores de CI** es independiente de **Canales de despliegues**. La migración
+inicial la restringe únicamente a `lssd-bot-git` en LSSD y la deja deshabilitada en las demás guilds.
+Cada alerta enlaza el commit y GitHub Actions, pero no copia logs, stacktraces ni secretos a Discord.
+El evento y sus entregas quedan en PostgreSQL para deduplicar redeliveries y reintentar errores
+transitorios de Discord.
+
 ### Buzón de sugerencias
 
 `/sugerencia` está disponible en cualquier canal o hilo de una guild configurada. El formulario
@@ -390,6 +409,7 @@ el contenido exacto del FAQ.
 | `RAILWAY_ENVIRONMENT_ID` | vacío | Entorno Railway autorizado; obligatorio al habilitar el webhook. |
 | `RAILWAY_SERVICE_ID` | vacío | Servicio Railway autorizado; obligatorio al habilitar el webhook. |
 | `RAILWAY_GIT_COMMIT_SHA` | Railway | SHA inyectado por Railway para que solo la nueva revisión anuncie un despliegue exitoso. |
+| `GITHUB_WEBHOOK_SECRET` | vacío | Secreto compartido de 32 a 256 caracteres para validar con HMAC-SHA256 el webhook nativo de GitHub. Vacío deshabilita el receptor. |
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
 | `REPORT_CHANNEL_IDS` | `*` | Canales usados por búsquedas, resúmenes, rankings, supervisión y ayuda; no restringe menciones. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` quedan como aliases compatibles. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |

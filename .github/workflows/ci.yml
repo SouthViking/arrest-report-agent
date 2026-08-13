@@ -9,6 +9,12 @@ on:
       - dev
       - main
   workflow_dispatch:
+    inputs:
+      simulate_failure:
+        description: Force a controlled CI failure for notification QA
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -42,6 +48,12 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+
+      - name: Simulate controlled CI failure
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.simulate_failure }}
+        run: |
+          echo "::error::Controlled CI failure requested for notification QA"
+          exit 1
 
       - name: Set up Python
         uses: actions/setup-python@v6
