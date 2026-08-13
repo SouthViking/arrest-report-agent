@@ -1,0 +1,420 @@
+{
+  "version": "2026-08-13",
+  "source": "Manual LSSD · IV. Comunicación · Códigos radiales y alfabeto radiofónico APCO",
+  "entries": [
+    {
+      "code": "3",
+      "category": "response_code",
+      "meaning": "Emergencia, sirenas y luces.",
+      "aliases": ["Código 3"]
+    },
+    {
+      "code": "4",
+      "category": "response_code",
+      "meaning": "No se precisa de más asistencia; no se puede pedir más.",
+      "aliases": ["Código 4", "Situación controlada"]
+    },
+    {
+      "code": "5",
+      "category": "response_code",
+      "meaning": "Todas las unidades permanecerán alejadas de un área concreta.",
+      "aliases": ["Código 5"]
+    },
+    {
+      "code": "6",
+      "category": "response_code",
+      "meaning": "Investigación de campo.",
+      "aliases": ["Código 6"]
+    },
+    {
+      "code": "9",
+      "category": "response_code",
+      "meaning": "Coordinación previa a una parada.",
+      "aliases": ["Código 9"]
+    },
+    {
+      "code": "14",
+      "category": "response_code",
+      "meaning": "Reanudar labores; se utiliza para liberar las unidades de un incidente grande.",
+      "aliases": ["Código 14"]
+    },
+    {
+      "code": "10-4",
+      "category": "ten_code",
+      "meaning": "Copiado.",
+      "aliases": []
+    },
+    {
+      "code": "10-9",
+      "category": "ten_code",
+      "meaning": "Repita la información.",
+      "aliases": []
+    },
+    {
+      "code": "10-15",
+      "category": "ten_code",
+      "meaning": "Sospechoso en custodia; se informa cuando el sospechoso es esposado.",
+      "aliases": ["Sospechoso en custodia"]
+    },
+    {
+      "code": "10-19",
+      "category": "ten_code",
+      "meaning": "Volviendo a ubicación.",
+      "aliases": []
+    },
+    {
+      "code": "10-20",
+      "category": "ten_code",
+      "meaning": "Ubicación actual.",
+      "aliases": ["Ubicación"]
+    },
+    {
+      "code": "10-21",
+      "category": "ten_code",
+      "meaning": "Contactar vía telefónica.",
+      "aliases": []
+    },
+    {
+      "code": "10-22",
+      "category": "ten_code",
+      "meaning": "Cancelar la última información.",
+      "aliases": []
+    },
+    {
+      "code": "10-28",
+      "category": "ten_code",
+      "meaning": "Verificar el registro de un vehículo o las órdenes de un sujeto.",
+      "aliases": ["Verificar registro", "Verificar órdenes"]
+    },
+    {
+      "code": "10-31",
+      "category": "ten_code",
+      "meaning": "Enviar unidades a la frecuencia específica.",
+      "aliases": []
+    },
+    {
+      "code": "10-33",
+      "category": "ten_code",
+      "meaning": "Mensaje urgente; debe acompañarse de la solicitud de parche.",
+      "aliases": ["Dame el parche"]
+    },
+    {
+      "code": "10-34",
+      "category": "ten_code",
+      "meaning": "Despejar la frecuencia para un mensaje no urgente o una transmisión.",
+      "aliases": []
+    },
+    {
+      "code": "10-97",
+      "category": "ten_code",
+      "meaning": "Llegar a la escena; se informa la calle o propiedad.",
+      "aliases": ["Llegada a escena"]
+    },
+    {
+      "code": "10-98",
+      "category": "ten_code",
+      "meaning": "Asignación finalizada.",
+      "aliases": ["Finalizar asignación"]
+    },
+    {
+      "code": "187",
+      "category": "situation_code",
+      "meaning": "Homicidio.",
+      "aliases": []
+    },
+    {
+      "code": "207",
+      "category": "situation_code",
+      "meaning": "Secuestro.",
+      "aliases": []
+    },
+    {
+      "code": "211",
+      "category": "situation_code",
+      "meaning": "Robo (sustracción con violencia).",
+      "aliases": ["Robo con violencia"]
+    },
+    {
+      "code": "211S",
+      "category": "situation_code",
+      "meaning": "Alarma silenciosa.",
+      "aliases": ["211-S"]
+    },
+    {
+      "code": "215",
+      "category": "situation_code",
+      "meaning": "Robo de un vehículo a vista y presencia del dueño.",
+      "aliases": ["Robo de vehículo con dueño presente"]
+    },
+    {
+      "code": "242",
+      "category": "situation_code",
+      "meaning": "Agresión.",
+      "aliases": []
+    },
+    {
+      "code": "245",
+      "category": "situation_code",
+      "meaning": "Asalto con un arma mortal.",
+      "aliases": ["ADW"]
+    },
+    {
+      "code": "415",
+      "category": "situation_code",
+      "meaning": "Disturbios.",
+      "aliases": []
+    },
+    {
+      "code": "415G",
+      "category": "situation_code",
+      "meaning": "Disturbio de pandillas.",
+      "aliases": ["415-G"]
+    },
+    {
+      "code": "417",
+      "category": "situation_code",
+      "meaning": "Persona armada.",
+      "aliases": []
+    },
+    {
+      "code": "417A",
+      "category": "situation_code",
+      "meaning": "Persona con cuchillo.",
+      "aliases": ["417-A"]
+    },
+    {
+      "code": "417B",
+      "category": "situation_code",
+      "meaning": "Persona atrincherada.",
+      "aliases": ["417-B"]
+    },
+    {
+      "code": "451",
+      "category": "situation_code",
+      "meaning": "Incendio provocado.",
+      "aliases": []
+    },
+    {
+      "code": "459",
+      "category": "situation_code",
+      "meaning": "Hurto.",
+      "aliases": []
+    },
+    {
+      "code": "503",
+      "category": "situation_code",
+      "meaning": "Robo de vehículo sin el dueño presente.",
+      "aliases": []
+    },
+    {
+      "code": "510",
+      "category": "situation_code",
+      "meaning": "Carrera callejera.",
+      "aliases": []
+    },
+    {
+      "code": "511",
+      "category": "situation_code",
+      "meaning": "Street takeover: grupos coordinados cierran calles para carreras clandestinas o demostraciones vehiculares.",
+      "aliases": ["Street takeover"]
+    },
+    {
+      "code": "594",
+      "category": "situation_code",
+      "meaning": "Vandalismo.",
+      "aliases": []
+    },
+    {
+      "code": "602",
+      "category": "situation_code",
+      "meaning": "Invasión de propiedad.",
+      "aliases": []
+    },
+    {
+      "code": "902R",
+      "category": "situation_code",
+      "meaning": "Solicitud de ambulancia; no debe utilizarse por radio interdepartamental.",
+      "aliases": ["902-R", "Solicitud de ambulancia"]
+    },
+    {
+      "code": "904",
+      "category": "situation_code",
+      "meaning": "Incendio.",
+      "aliases": []
+    },
+    {
+      "code": "923",
+      "category": "situation_code",
+      "meaning": "Disparos ilegales o tiroteos ilegales.",
+      "aliases": ["Illegal shooting"]
+    },
+    {
+      "code": "998",
+      "category": "situation_code",
+      "meaning": "Ayudante envuelto en disparos.",
+      "aliases": ["Deputy involucrado en disparos"]
+    },
+    {
+      "code": "999",
+      "category": "situation_code",
+      "meaning": "Ayudante necesita ayuda urgente; todas las unidades deben responder. Solo SCC utiliza este código.",
+      "aliases": ["Ayuda urgente"]
+    },
+    {
+      "code": "A",
+      "category": "phonetic",
+      "meaning": "Adam",
+      "aliases": []
+    },
+    {
+      "code": "B",
+      "category": "phonetic",
+      "meaning": "Boy",
+      "aliases": []
+    },
+    {
+      "code": "C",
+      "category": "phonetic",
+      "meaning": "Charles",
+      "aliases": []
+    },
+    {
+      "code": "D",
+      "category": "phonetic",
+      "meaning": "David",
+      "aliases": []
+    },
+    {
+      "code": "E",
+      "category": "phonetic",
+      "meaning": "Edward",
+      "aliases": []
+    },
+    {
+      "code": "F",
+      "category": "phonetic",
+      "meaning": "Frank",
+      "aliases": []
+    },
+    {
+      "code": "G",
+      "category": "phonetic",
+      "meaning": "George",
+      "aliases": []
+    },
+    {
+      "code": "H",
+      "category": "phonetic",
+      "meaning": "Henry",
+      "aliases": []
+    },
+    {
+      "code": "I",
+      "category": "phonetic",
+      "meaning": "Ida",
+      "aliases": []
+    },
+    {
+      "code": "J",
+      "category": "phonetic",
+      "meaning": "John",
+      "aliases": []
+    },
+    {
+      "code": "K",
+      "category": "phonetic",
+      "meaning": "King",
+      "aliases": []
+    },
+    {
+      "code": "L",
+      "category": "phonetic",
+      "meaning": "Lincoln",
+      "aliases": []
+    },
+    {
+      "code": "M",
+      "category": "phonetic",
+      "meaning": "Mary",
+      "aliases": []
+    },
+    {
+      "code": "N",
+      "category": "phonetic",
+      "meaning": "Nora",
+      "aliases": []
+    },
+    {
+      "code": "O",
+      "category": "phonetic",
+      "meaning": "Ocean",
+      "aliases": []
+    },
+    {
+      "code": "P",
+      "category": "phonetic",
+      "meaning": "Paul",
+      "aliases": []
+    },
+    {
+      "code": "Q",
+      "category": "phonetic",
+      "meaning": "Queen",
+      "aliases": []
+    },
+    {
+      "code": "R",
+      "category": "phonetic",
+      "meaning": "Robert",
+      "aliases": []
+    },
+    {
+      "code": "S",
+      "category": "phonetic",
+      "meaning": "Sam",
+      "aliases": []
+    },
+    {
+      "code": "T",
+      "category": "phonetic",
+      "meaning": "Tom",
+      "aliases": []
+    },
+    {
+      "code": "U",
+      "category": "phonetic",
+      "meaning": "Union",
+      "aliases": []
+    },
+    {
+      "code": "V",
+      "category": "phonetic",
+      "meaning": "Victor",
+      "aliases": []
+    },
+    {
+      "code": "W",
+      "category": "phonetic",
+      "meaning": "William",
+      "aliases": []
+    },
+    {
+      "code": "X",
+      "category": "phonetic",
+      "meaning": "X-Ray",
+      "aliases": ["XRay", "X Ray"]
+    },
+    {
+      "code": "Y",
+      "category": "phonetic",
+      "meaning": "Young",
+      "aliases": []
+    },
+    {
+      "code": "Z",
+      "category": "phonetic",
+      "meaning": "Zebra",
+      "aliases": []
+    }
+  ]
+}

@@ -31,6 +31,8 @@ también sin ejecutar el agente.
   compresión y limitaciones gráficas; no infiere atributos sensibles.
 - Consulta una guía local por secciones y un índice validado de 164 delitos descargados del PCU; la
   búsqueda de cargos permite seleccionar campos, combinar términos y tolerar typos cuando proceda.
+- Resuelve bajo demanda códigos de respuesta, códigos 10, códigos de situación y el alfabeto
+  radiofónico APCO desde una referencia oficial acotada, sin inyectar el manual completo al prompt.
 - Mantiene el indicador nativo de escritura mientras procesa una solicitud.
 - Muestra una presencia global priorizada: `⭐ De guardia`, `📻 Atendiendo consultas`,
   `🔎 Consultando el código` o `📂 Revisando expedientes`. Las ejecuciones paralelas no se pisan.
@@ -453,7 +455,7 @@ tokens de salida. Estas cifras son estimaciones operativas y no reemplazan la fa
 .venv/bin/mypy
 ```
 
-La suite predeterminada no llama a Discord ni a OpenAI. Cubre catálogo, configuración, trigger,
+La suite predeterminada no llama a Discord ni a OpenAI. Cubre catálogos, configuración, trigger,
 contexto multimodal y documental, efectos inmediatos de las tools, embeds, clasificación de errores,
 metadata y costos.
 
@@ -480,7 +482,7 @@ en el entorno o en `.env` y se habilita de forma explícita:
   Discord; no pueden recuperar publicaciones eliminadas ni recordar correcciones anteriores.
 - Los cambios de configuración se administran como snapshots completos por guild; no hay edición
   directa de filas ni hot reload de secretos de proceso.
-- El catálogo y la guía son archivos versionados; todavía no existe sincronización con OpenMP/PCU.
+- Los catálogos y la guía son archivos versionados; todavía no existe sincronización con OpenMP/PCU.
 - Cada guild puede tener configuración y personalidad propia, pero el username, avatar, bio y
   presencia de la aplicación de Discord siguen siendo globales por limitación de Discord.
 - No se ejecuta una segunda revisión automática ni un fallback de veredicto con otro modelo.

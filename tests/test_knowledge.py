@@ -4,7 +4,7 @@ import pytest
 
 from arrest_report_agent.config import PackagedPersonaProvider
 from arrest_report_agent.infrastructure.discord.general_knowledge import ChargeSearchModal
-from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+from arrest_report_agent.knowledge import ChargeCatalog, RadioCodeCatalog, ReportGuide
 
 
 def test_catalog_loads_expected_downloaded_dataset() -> None:
@@ -70,6 +70,51 @@ def test_charge_detail_batch_is_bounded() -> None:
 
     with pytest.raises(ValueError, match="At most ten"):
         catalog.get_details(list(range(1, 12)))
+
+
+def test_radio_catalog_loads_only_the_bounded_official_reference() -> None:
+    catalog = RadioCodeCatalog.load_default()
+
+    assert catalog.entry_count == 69
+    assert len(catalog.source_hash) == 64
+    assert {
+        category: sum(entry.category == category for entry in catalog.entries)
+        for category in ("response_code", "ten_code", "situation_code", "phonetic")
+    } == {
+        "response_code": 6,
+        "ten_code": 13,
+        "situation_code": 24,
+        "phonetic": 26,
+    }
+
+
+def test_radio_catalog_normalizes_codes_case_accents_and_separators() -> None:
+    catalog = RadioCodeCatalog.load_default()
+
+    result = catalog.search(["211", "10 4", "ADAM", "ocean", "211-S"])
+    location = catalog.search(["UBICACION ACTUAL"])
+
+    assert {item["code"] for item in result["results"]} == {"211", "10-4", "A", "O", "211S"}
+    assert result["unmatched_queries"] == []
+    assert [item["code"] for item in location["results"]] == ["10-20"]
+
+
+def test_radio_catalog_supports_filters_multi_query_and_conservative_fuzzy_matching() -> None:
+    catalog = RadioCodeCatalog.load_default()
+
+    without_fuzzy = catalog.search(["ambulansia"], fields=["meaning"])
+    with_fuzzy = catalog.search(["ambulansia"], fields=["meaning"], fuzzy=True)
+    filtered = catalog.search(
+        ["homicidio", "robo vehículo"],
+        categories=["situation_code"],
+        fields=["meaning", "aliases"],
+        term_match="all",
+    )
+
+    assert without_fuzzy["results"] == []
+    assert without_fuzzy["unmatched_queries"] == ["ambulansia"]
+    assert [item["code"] for item in with_fuzzy["results"]] == ["902R"]
+    assert {item["code"] for item in filtered["results"]} == {"187", "215", "503"}
 
 
 def test_guide_exposes_only_requested_sections() -> None:

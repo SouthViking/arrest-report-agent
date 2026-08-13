@@ -19,7 +19,7 @@ from arrest_report_agent.config import (
     ResolvedModel,
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
-from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+from arrest_report_agent.knowledge import ChargeCatalog, RadioCodeCatalog, ReportGuide
 
 from .client import PostgresClient
 from .repository import CONFIG_NOTIFY_CHANNEL, ConfigurationRepository
@@ -47,12 +47,14 @@ class DatabaseConfigProvider:
         catalog: ChargeCatalog,
         guide: ReportGuide,
         model_catalog: ModelCatalog,
+        radio_catalog: RadioCodeCatalog | None = None,
     ) -> None:
         self.client = client
         self.repository = repository
         self.process_settings = process_settings
         self.catalog = catalog
         self.guide = guide
+        self.radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
         self.model_catalog = model_catalog
         self._bundles: dict[int, GuildRuntimeBundle] = {}
         self._personas: dict[UUID, LoadedPersona] = {}
@@ -115,7 +117,14 @@ class DatabaseConfigProvider:
                 snapshot.agent.model,
                 snapshot.agent.reasoning_effort,
             )
-            service = ReviewService(settings, self.catalog, self.guide, model, persona.profile)  # type: ignore[arg-type]
+            service = ReviewService(
+                settings,  # type: ignore[arg-type]
+                self.catalog,
+                self.guide,
+                model,
+                persona.profile,
+                self.radio_catalog,
+            )
             bundle = GuildRuntimeBundle(
                 snapshot=snapshot,
                 settings=settings,

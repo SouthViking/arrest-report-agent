@@ -1325,12 +1325,12 @@ async def test_knowledge_tools_promote_the_interaction_activity() -> None:
         tool.name: tool
         for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
     }
-    arguments = json.dumps({"charge_ids": [1]})
+    arguments = json.dumps({"queries": ["211", "10 15", "Ocean"]})
 
-    await tools["get_charge_details"].on_invoke_tool(
+    result = await tools["search_radio_codes"].on_invoke_tool(
         ToolContext(
             context=run_context,
-            tool_name="get_charge_details",
+            tool_name="search_radio_codes",
             tool_call_id="call-knowledge",
             tool_arguments=arguments,
         ),
@@ -1338,3 +1338,4 @@ async def test_knowledge_tools_promote_the_interaction_activity() -> None:
     )
 
     assert activity.activities == [AgentActivity.KNOWLEDGE]
+    assert {item["code"] for item in result["results"]} == {"211", "10-15", "O"}

@@ -24,6 +24,11 @@ from arrest_report_agent.knowledge import (
     ChargeCatalog,
     ChargeMatchMode,
     ChargeSearchField,
+    RadioCodeCatalog,
+    RadioCodeCategory,
+    RadioMatchMode,
+    RadioSearchField,
+    RadioTermMatch,
     ReportGuide,
 )
 
@@ -144,6 +149,7 @@ class GuildMemberFilters(BaseModel):
 def build_agent_tools(
     catalog: ChargeCatalog,
     guide: ReportGuide,
+    radio_catalog: RadioCodeCatalog | None = None,
     *,
     max_images_per_review: int = 10,
     max_image_bytes: int = 10_485_760,
@@ -153,6 +159,8 @@ def build_agent_tools(
     image_detail: str = "auto",
 ) -> list[object]:
     """Create tools bound to immutable local knowledge sources."""
+
+    resolved_radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
 
     @function_tool
     async def get_report_guide(
@@ -166,6 +174,53 @@ def build_agent_tools(
 
         await _mark_knowledge_activity(ctx.context)
         return guide.get(sections)
+
+    @function_tool
+    async def search_radio_codes(
+        ctx: RunContextWrapper[ReviewRunContext],
+        queries: Annotated[
+            list[Annotated[str, Field(min_length=1, max_length=100)]],
+            Field(min_length=1, max_length=10),
+        ],
+        categories: Annotated[
+            list[RadioCodeCategory] | None,
+            Field(min_length=1, max_length=4),
+        ] = None,
+        fields: Annotated[
+            list[RadioSearchField] | None,
+            Field(min_length=1, max_length=3),
+        ] = None,
+        match_mode: RadioMatchMode = "auto",
+        term_match: RadioTermMatch = "all",
+        fuzzy: bool = False,
+        limit: Annotated[int, Field(ge=1, le=50)] = 20,
+    ) -> dict[str, object]:
+        """Search official radio codes and the APCO phonetic alphabet in one bounded call.
+
+        Use this before interpreting possible radio references in reports. Each item in `queries`
+        is searched independently and results are combined. Codes are normalized across case,
+        accents, spaces and hyphens.
+
+        Args:
+            queries: One to ten codes, meanings or phonetic words to resolve together.
+            categories: Optional response-code, ten-code, situation-code or phonetic filters.
+            fields: Fields to inspect; defaults to code, meaning and aliases.
+            match_mode: Exact only, textual contains, or auto with exact matches preferred.
+            term_match: Require all words or allow any word within each textual query.
+            fuzzy: Allow conservative typo matching for words of four or more characters.
+            limit: Maximum combined results, from 1 to 50.
+        """
+
+        await _mark_knowledge_activity(ctx.context)
+        return resolved_radio_catalog.search(
+            queries=queries,
+            categories=categories,
+            fields=fields,
+            match_mode=match_mode,
+            term_match=term_match,
+            fuzzy=fuzzy,
+            limit=limit,
+        )
 
     @function_tool
     async def list_charge_index(
@@ -799,6 +854,7 @@ def build_agent_tools(
 
     return [
         get_report_guide,
+        search_radio_codes,
         list_charge_index,
         get_charge_details,
         list_guild_roles,

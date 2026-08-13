@@ -86,7 +86,8 @@ modelo no puede escoger una guild ni un canal de publicación.
 
 - `domain`: modelos Pydantic y enums que definen el contrato de revisión.
 - `config`: secretos de proceso, snapshots Pydantic y catálogos JSON validados.
-- `knowledge`: guía versionada e índice del JSON del PCU, cargados y validados al iniciar.
+- `knowledge`: guía versionada, índice del JSON del PCU y referencia acotada de códigos radiales,
+  cargados y validados al iniciar.
 - `application`: prompt, tools, contexto del runner, errores, tracing y orquestación.
 - `infrastructure/discord`: política previa, reconstrucción de hilos, embeds, reacciones y comandos.
 - `infrastructure/postgres`: cliente async, esquema SQLAlchemy, repositorios y caché dinámica.
@@ -238,6 +239,10 @@ El nickname es opcional y `null` significa que no se administra por guild.
 ## Herramientas del agente
 
 - `get_report_guide(sections)`: devuelve solo las secciones solicitadas.
+- `search_radio_codes(queries, categories, fields, match_mode, term_match, fuzzy, limit)`: resuelve
+  en una llamada acotada códigos de respuesta, códigos 10, códigos de situación y palabras del
+  alfabeto radiofónico APCO. Normaliza mayúsculas, acentos y separadores; admite múltiples consultas,
+  filtros y fuzzy conservador sin exponer el resto del manual.
 - `list_charge_index(category_ids, query, fields, match_mode, fuzzy, limit)`: sin filtros lista
   categorías; con filtros busca sobre código, título, tipo, categoría o descripción y retorna IDs y
   resultados compactos. Permite exigir todos/cualquiera de los términos y tolerar typos de forma
@@ -290,6 +295,12 @@ personaje. El agente valida el nombre del título y selecciona solo filas de la 
 fecha inmediatamente próxima compatible con la tramitación; diferencias de horas y cruces de
 medianoche no son contradicciones por sí solos. Las filas antiguas se excluyen antes de evaluar los
 cargos.
+
+Cuando una narrativa contiene una referencia radial plausible, el prompt exige resolverla con el
+catálogo oficial antes de interpretar el pasaje o declarar un cargo sin sustento. El significado
+aporta contexto, pero no prueba automáticamente todos los elementos legales. Fechas, horas,
+cantidades, callsigns, bolsas de evidencia y códigos penales no se consideran códigos radiales sin
+contexto operativo suficiente.
 
 `ReviewPublication.review_scope` distingue `full`, `narrative`, `charges` y `targeted`; este último
 requiere un `focus` explícito. El veredicto se interpreta únicamente dentro de ese alcance. Una

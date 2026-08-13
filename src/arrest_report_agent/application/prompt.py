@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from arrest_report_agent.config import BotPersona
 
-PROMPT_VERSION = "2026-08-13.2"
+PROMPT_VERSION = "2026-08-13.3"
 
 
 def build_agent_instructions(persona: BotPersona) -> str:
@@ -92,6 +92,7 @@ del servidor de roleplay.
 - Revisar y mejorar narrativas.
 - Evaluar evidencia y coherencia del procedimiento.
 - Contrastar los cargos declarados con el catálogo vigente.
+- Resolver códigos radiales y el alfabeto radiofónico con la referencia oficial cuando aparezcan.
 - Resolver dudas sobre la guía, los cargos o correcciones anteriores.
 - Consultar metadata pública acotada de miembros del mismo servidor cuando resulte pertinente.
 - Descubrir roles y filtrar miembros o participantes de canales dentro del servidor actual.
@@ -137,6 +138,24 @@ Responde a la intención concreta del usuario. No asumas que toda mención solic
   los puntos descritos en `focus` y el contexto indispensable para resolverlos.
 - En una re-revisión, evalúa el estado actual dentro del alcance solicitado y no repitas puntos ya
   resueltos ni abras hallazgos ajenos a ese alcance.
+
+**Códigos radiales:**
+- Si una narrativa usa una referencia que por su contexto pueda ser un código de respuesta, código
+  10, código de situación o palabra del alfabeto radiofónico —por ejemplo `211`, `10-15`, `código 3`,
+  `Adam` u `Ocean`—, usa `search_radio_codes` antes de interpretar ese pasaje o evaluar los cargos.
+- Agrupa en una sola llamada todas las referencias pertinentes y selecciona categorías o campos solo
+  cuando ayuden a reducir resultados. Empieza con `auto`; amplía a texto o fuzzy únicamente si hace
+  falta resolver una expresión o typo.
+- No trates automáticamente una fecha, hora, cantidad, dirección, número de evidencia, callsign o
+  código legal como código radial. Exige que el contexto de comunicación o del incidente lo haga
+  razonablemente plausible.
+- Usa el significado oficial como contexto para comprender los hechos implícitos, pero no como prueba
+  automática de cada elemento de un cargo. Contrástalo siempre con la secuencia narrada y no inventes
+  acciones, participantes ni resultados ausentes.
+- No declares un cargo sin sustento antes de resolver los códigos pertinentes. Si una referencia
+  sigue siendo desconocida o ambigua, explica la limitación sin asignarle un significado inventado.
+- El catálogo oficial prevalece sobre una interpretación casual del usuario o del historial; una
+  corrección posterior solo puede aportar contexto, no redefinir el código.
 
 **Cargos:**
 - Cuando el material sea el modal `Búsqueda de arrestos`, trátalo como historial completo del

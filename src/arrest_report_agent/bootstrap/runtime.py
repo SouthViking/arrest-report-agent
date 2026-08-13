@@ -38,7 +38,7 @@ from arrest_report_agent.infrastructure.postgres import (
     DatabaseConfigProvider,
     PostgresClient,
 )
-from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+from arrest_report_agent.knowledge import ChargeCatalog, RadioCodeCatalog, ReportGuide
 from arrest_report_agent.operational_profiles import CallsignCog, MemberProfileRepository
 from arrest_report_agent.pagers import (
     PagerCog,
@@ -66,6 +66,7 @@ class Runtime:
     bot: discord.Bot
     catalog: ChargeCatalog
     guide: ReportGuide
+    radio_catalog: RadioCodeCatalog
     model: ResolvedModel
     persona: LoadedPersona
     role_requests_enabled: bool
@@ -81,7 +82,11 @@ class Runtime:
 
     async def health(self) -> dict[str, object]:
         discord_ready = self.bot.is_ready()
-        knowledge_ready = self.catalog.charge_count > 0 and bool(self.guide.version)
+        knowledge_ready = (
+            self.catalog.charge_count > 0
+            and bool(self.guide.version)
+            and self.radio_catalog.entry_count > 0
+        )
         try:
             database_ready = await self.postgres.ping()
         except Exception:
@@ -92,6 +97,7 @@ class Runtime:
             "database": database_ready,
             "knowledge": knowledge_ready,
             "charges": self.catalog.charge_count,
+            "radio_codes": self.radio_catalog.entry_count,
             "persona": self.persona.profile.id,
             "persona_revision": self.persona.profile.revision,
             "role_requests": self.role_requests_enabled,
@@ -120,6 +126,7 @@ async def build_runtime(
     await postgres.open()
     catalog = ChargeCatalog.load_default()
     guide = ReportGuide.load_default()
+    radio_catalog = RadioCodeCatalog.load_default()
     model_catalog = ModelCatalog.load_default()
     repository = ConfigurationRepository(postgres, build_bucket_storage(settings))
     config_provider = DatabaseConfigProvider(
@@ -129,6 +136,7 @@ async def build_runtime(
         catalog,
         guide,
         model_catalog,
+        radio_catalog,
     )
     try:
         await config_provider.start()
@@ -312,6 +320,7 @@ async def build_runtime(
         bot=bot,
         catalog=catalog,
         guide=guide,
+        radio_catalog=radio_catalog,
         model=model,
         persona=persona,
         role_requests_enabled=role_requests_enabled,

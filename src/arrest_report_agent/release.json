@@ -1,24 +1,22 @@
 {
   "schema_version": 2,
-  "version": "0.5.2",
-  "title": "Alertas internas de integración continua",
-  "summary": "Los fallos del CI pueden notificarse de forma segura y automática en los canales internos configurados.",
+  "version": "0.5.3",
+  "title": "Referencia oficial de códigos radiales",
+  "summary": "Las revisiones ahora interpretan los códigos radiales con la referencia oficial antes de evaluar los hechos y cargos.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
       "type": "added",
-      "text": "El bot recibe eventos workflow_run firmados por GitHub y avisa cuando falla el workflow CI."
+      "text": "Se incorporó una búsqueda acotada de códigos de respuesta, códigos 10, situaciones y alfabeto radiofónico APCO."
     },
     {
       "type": "improved",
-      "text": "Los canales de errores de CI cuentan con una whitelist independiente administrable desde el panel."
+      "text": "El agente verifica referencias radiales pertinentes antes de interpretar la narrativa o evaluar los cargos."
     },
     {
       "type": "improved",
-      "text": "Las alertas incluyen enlaces seguros al commit y a la ejecución, sin publicar logs ni datos sensibles."
+      "text": "Fechas, horas, callsigns, evidencias y códigos legales ya no se confunden automáticamente con códigos radiales."
     }
   ]
 }

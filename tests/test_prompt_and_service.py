@@ -111,6 +111,12 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "Las variaciones de tiempo verbal no superan `warning`" in prompt
     assert "no uses `required` como sinónimo" in prompt
     assert "Contrasta cada cargo por el significado de los hechos" in prompt
+    assert "usa `search_radio_codes` antes de interpretar" in prompt
+    assert "Agrupa en una sola llamada todas las referencias pertinentes" in prompt
+    assert "fecha, hora, cantidad, dirección, número de evidencia, callsign" in prompt
+    assert "no como prueba\n  automática de cada elemento de un cargo" in prompt
+    assert "No declares un cargo sin sustento antes de resolver los códigos" in prompt
+    assert "sin asignarle un significado inventado" in prompt
     assert "no por palabras,\n  fórmulas o frases rituales" in prompt
     assert "La ausencia de una frase aislada no vuelve un cargo `unsupported`" in prompt
     assert "detalle inferible o de contexto adicional" in prompt
@@ -192,6 +198,7 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
 
     assert tool_names == [
         "get_report_guide",
+        "search_radio_codes",
         "list_charge_index",
         "get_charge_details",
         "list_guild_roles",
@@ -221,6 +228,25 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert search_properties["match_mode"]["enum"] == ["all", "any"]
     assert search_properties["fuzzy"]["default"] is False
     assert search_properties["limit"]["default"] == 20
+    radio_search = next(tool for tool in service.agent.tools if tool.name == "search_radio_codes")
+    radio_properties = radio_search.params_json_schema["properties"]
+    assert radio_properties["queries"]["minItems"] == 1
+    assert radio_properties["queries"]["maxItems"] == 10
+    assert radio_properties["categories"]["anyOf"][0]["items"]["enum"] == [
+        "response_code",
+        "ten_code",
+        "situation_code",
+        "phonetic",
+    ]
+    assert radio_properties["fields"]["anyOf"][0]["items"]["enum"] == [
+        "code",
+        "meaning",
+        "aliases",
+    ]
+    assert radio_properties["match_mode"]["default"] == "auto"
+    assert radio_properties["term_match"]["default"] == "all"
+    assert radio_properties["fuzzy"]["default"] is False
+    assert radio_properties["limit"]["default"] == 20
     assert metadata["root_message_id"] == "3"
     assert metadata["trigger_message_id"] == "4"
     assert metadata["user_id"] == "5"

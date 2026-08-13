@@ -24,7 +24,7 @@ from arrest_report_agent.domain import (
     ReviewVerdict,
 )
 from arrest_report_agent.infrastructure.discord.context import render_agent_input
-from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+from arrest_report_agent.knowledge import ChargeCatalog, RadioCodeCatalog, ReportGuide
 
 pytestmark = [pytest.mark.ai_eval, pytest.mark.asyncio(loop_scope="module")]
 
@@ -66,6 +66,18 @@ class InMemoryPublisher:
         self.failures.append(public_message)
 
 
+class RecordingRadioCodeCatalog:
+    """Record real catalog queries without replacing their production behavior."""
+
+    def __init__(self) -> None:
+        self.delegate = RadioCodeCatalog.load_default()
+        self.calls: list[dict[str, object]] = []
+
+    def search(self, **arguments: object) -> dict[str, object]:
+        self.calls.append(arguments)
+        return self.delegate.search(**arguments)  # type: ignore[arg-type]
+
+
 @pytest.fixture
 def ai_eval_settings() -> AppSettings:
     """Load the real model selection and API key without requiring a Discord connection."""
@@ -91,6 +103,7 @@ def ai_eval_settings() -> AppSettings:
 async def _run_agent(
     settings: AppSettings,
     case: ReviewCase,
+    radio_catalog: RecordingRadioCodeCatalog | None = None,
 ) -> tuple[ReviewRunContext, InMemoryPublisher]:
     model = ModelCatalog.load_default().resolve(
         settings.openai_model,
@@ -105,6 +118,7 @@ async def _run_agent(
         ReportGuide.load_default(),
         model,
         persona,
+        radio_catalog,  # type: ignore[arg-type]
     )
 
     await service.review(
@@ -611,3 +625,94 @@ Revisa únicamente el estado vigente del expediente.""",
         and any(term in f"{finding.title} {finding.detail}".lower() for term in ("lugar", "ubicación"))
         for finding in publication.findings
     )
+
+
+async def test_resolves_radio_codes_before_assessing_report_charges(
+    ai_eval_settings: AppSettings,
+) -> None:
+    radio_catalog = RecordingRadioCodeCatalog()
+    case = _case(
+        (
+            "user",
+            """Solicito la revisión completa. Las fotografías frontal y lateral están presentes.
+
+Yo, ayudante Elena Torres, bajo la asignación 241W, respondí a un 211 en un comercio de Jefferson
+el 05/08/2026 a las 20:15. La encargada señaló a Daniel Vega y declaró que acababa de quitarle el
+dinero de la caja mediante un forcejeo. Lo observé huir con el efectivo, lo alcancé a una cuadra y
+lo arresté sin lesiones. Informé el 10-15 y regresé a disponibilidad con un 10-98. El detenido fue
+trasladado a la estación de Ganton. El dinero quedó asociado a la bolsa de evidencia #1842.
+
+Cargos declarados:
+- CP-459 — Robo.
+
+Revisa la narrativa y los cargos.""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case, radio_catalog)
+    publication = _single_publication(publisher)
+    queried = {
+        str(query).casefold().replace("-", "").replace(" ", "")
+        for call in radio_catalog.calls
+        for query in call["queries"]  # type: ignore[union-attr]
+    }
+
+    assert {"211", "1015", "1098"}.issubset(queried), radio_catalog.calls
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+    assert any(charge.alignment == "supported" for charge in publication.charges)
+
+
+async def test_answers_batched_radio_and_phonetic_question_from_official_catalog(
+    ai_eval_settings: AppSettings,
+) -> None:
+    radio_catalog = RecordingRadioCodeCatalog()
+    case = _case(
+        (
+            "user",
+            "Según la referencia radial oficial, ¿qué significan 10-20 y 902R, y qué letras son "
+            "Adam y Ocean?",
+        )
+    )
+
+    context, publisher = await _run_agent(ai_eval_settings, case, radio_catalog)
+    response = "\n".join(publisher.messages).casefold()
+    queried = {
+        str(query).casefold().replace("-", "").replace(" ", "")
+        for call in radio_catalog.calls
+        for query in call["queries"]  # type: ignore[union-attr]
+    }
+
+    assert context.interaction_completed
+    assert publisher.publications == []
+    assert {"1020", "902r", "adam", "ocean"}.issubset(queried), radio_catalog.calls
+    assert "ubicación" in response
+    assert "ambulancia" in response
+    assert "a" in response and "adam" in response
+    assert "o" in response and "ocean" in response
+
+
+async def test_does_not_treat_dates_times_evidence_or_charge_ids_as_radio_codes(
+    ai_eval_settings: AppSettings,
+) -> None:
+    radio_catalog = RecordingRadioCodeCatalog()
+    case = _case(
+        (
+            "user",
+            """Revisa esta narrativa. Las fotografías están presentes.
+
+Yo, ayudante Elena Torres, bajo la asignación 241W, observé a Daniel Vega en Jefferson el 05/08/2026
+a las 21:15 mientras circulaba a alta velocidad, cruzaba repetidamente al carril contrario y obligaba
+a otros vehículos a frenar para evitar una colisión. Le ordené detenerse mediante luces y sirena. El
+conductor se detuvo de inmediato, fue arrestado sin resistencia y trasladado a Ganton. Una botella
+abierta recuperada del habitáculo quedó registrada en la bolsa de evidencia #211.
+
+Cargos declarados:
+- CV-23103 — Conducción temeraria.""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case, radio_catalog)
+    publication = _single_publication(publisher)
+
+    assert radio_catalog.calls == []
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")

@@ -21,7 +21,7 @@ from openai.types.shared.reasoning import Reasoning
 from arrest_report_agent.config import AppSettings, BotPersona, ResolvedModel
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import ReviewCase
-from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+from arrest_report_agent.knowledge import ChargeCatalog, RadioCodeCatalog, ReportGuide
 
 from .errors import classify_error, public_error_message
 from .hooks import ReviewLifecycleHooks
@@ -44,15 +44,18 @@ class ReviewService:
         guide: ReportGuide,
         model: ResolvedModel,
         persona: BotPersona,
+        radio_catalog: RadioCodeCatalog | None = None,
     ) -> None:
         self.settings = settings
         self.catalog = catalog
         self.guide = guide
         self.model = model
         self.persona = persona
+        self.radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
         tools = build_agent_tools(
             catalog,
             guide,
+            self.radio_catalog,
             max_images_per_review=settings.max_images_per_review,
             max_image_bytes=settings.max_image_bytes,
             max_files_per_review=settings.max_files_per_review,
