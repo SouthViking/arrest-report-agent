@@ -45,14 +45,12 @@ BLOCKED_MESSAGES = {
 def upgrade() -> None:
     connection = op.get_bind()
     _add_policy(connection)
-    op.execute("ALTER TABLE persona_assets DROP CONSTRAINT IF EXISTS uq_persona_asset_key")
     _install_personas(connection)
 
 
 def downgrade() -> None:
     connection = op.get_bind()
     _downgrade_personas(connection)
-    op.create_unique_constraint("uq_persona_asset_key", "persona_assets", ["object_key"])
     connection.execute(
         sa.text("DELETE FROM guild_access_policies WHERE policy_key = :policy_key"),
         {"policy_key": POLICY_KEY},
