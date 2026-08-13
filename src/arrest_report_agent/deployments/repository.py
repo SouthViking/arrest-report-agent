@@ -171,7 +171,7 @@ class DeploymentRepository:
             )
             .where(
                 deployment_notification_deliveries.c.status.in_(("pending", "retry")),
-                deployment_notification_deliveries.c.next_attempt_at <= datetime.now(UTC),
+                deployment_notification_deliveries.c.next_attempt_at <= sa.func.now(),
             )
             .order_by(deployment_notification_deliveries.c.created_at)
             .limit(limit)

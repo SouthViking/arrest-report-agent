@@ -7,7 +7,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-CALLSIGN_PATTERN = re.compile(r"^[0-9]{2,3}[LFBS]$")
+CALLSIGN_PATTERN = re.compile(r"^[0-9]{2,3}[A-Z]$")
 
 
 class CallsignFormatError(ValueError):
@@ -19,7 +19,7 @@ def normalize_callsign(value: str) -> str:
 
     normalized = value.strip().upper()
     if not CALLSIGN_PATTERN.fullmatch(normalized):
-        raise CallsignFormatError("Callsign must contain 2-3 digits followed by L, F, B or S")
+        raise CallsignFormatError("Callsign must contain 2-3 digits followed by one letter from A-Z")
     return normalized
 
 

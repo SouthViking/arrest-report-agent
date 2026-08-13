@@ -201,6 +201,104 @@ def test_callsign_migration_copies_staff_roles_and_publishes_persona() -> None:
             os.environ["DATABASE_URL"] = previous
 
 
+def test_callsign_alphabet_migration_adds_chat_without_replacing_deployment_channel() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = database_url
+    alembic = Config("alembic.ini")
+    try:
+        command.downgrade(alembic, "base")
+        command.upgrade(alembic, "20260813_0013")
+        asyncio.run(_seed_deployment_channel_configuration(database_url))
+        command.upgrade(alembic, "head")
+        asyncio.run(
+            _assert_deployment_channels(
+                database_url,
+                (1234675609536430152, 1241206587079524442),
+            )
+        )
+        command.downgrade(alembic, "20260813_0013")
+        asyncio.run(_assert_deployment_channels(database_url, (1241206587079524442,)))
+    finally:
+        command.downgrade(alembic, "base")
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
+
+
+async def _seed_deployment_channel_configuration(database_url: str) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        revision_id = uuid.uuid4()
+        policy_id = uuid.uuid4()
+        async with client.transaction() as tx:
+            await tx.execute(
+                sa.text(
+                    "INSERT INTO discord_guilds (discord_id, name) "
+                    "VALUES (1234674521416663070, 'LSSD')"
+                )
+            )
+            await tx.execute(
+                sa.text(
+                    "INSERT INTO guild_config_revisions "
+                    "(id, guild_id, revision, status, published_at) "
+                    "VALUES (:id, 1234674521416663070, 1, 'published', now())"
+                ),
+                {"id": revision_id},
+            )
+            await tx.execute(
+                sa.text(
+                    "UPDATE discord_guilds SET active_config_revision_id = :revision_id "
+                    "WHERE discord_id = 1234674521416663070"
+                ),
+                {"revision_id": revision_id},
+            )
+            await tx.execute(
+                sa.text(
+                    "INSERT INTO guild_access_policies "
+                    "(id, config_revision_id, policy_key, subject_type, mode) "
+                    "VALUES (:id, :revision_id, 'deployment_notification_channels', "
+                    "'channel', 'restricted')"
+                ),
+                {"id": policy_id, "revision_id": revision_id},
+            )
+            await tx.execute(
+                sa.text(
+                    "INSERT INTO guild_access_policy_members "
+                    "(id, policy_id, snowflake_id, position) "
+                    "VALUES (:id, :policy_id, 1241206587079524442, 0)"
+                ),
+                {"id": uuid.uuid4(), "policy_id": policy_id},
+            )
+    finally:
+        await client.close()
+
+
+async def _assert_deployment_channels(database_url: str, expected: tuple[int, ...]) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(
+            sa.text(
+                "SELECT gapm.snowflake_id FROM discord_guilds dg "
+                "JOIN guild_access_policies gap "
+                "ON gap.config_revision_id = dg.active_config_revision_id "
+                "JOIN guild_access_policy_members gapm ON gapm.policy_id = gap.id "
+                "WHERE dg.discord_id = 1234674521416663070 "
+                "AND gap.policy_key = 'deployment_notification_channels' "
+                "ORDER BY gapm.snowflake_id"
+            )
+        )
+        assert tuple(int(row["snowflake_id"]) for row in rows) == expected
+    finally:
+        await client.close()
+
+
 async def _seed_pre_callsign_configuration(database_url: str) -> dict[str, object]:
     client = PostgresClient(PostgresClientConfig(url=database_url))
     await client.open()
@@ -346,10 +444,11 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 28
+        assert persona["revision"] == 29
         assert persona["schema_version"] == 26
         assert persona["payload"]["messages"]["interface"]["callsigns"]["saved_title"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["removed_title"]
+        assert "64A" in persona["payload"]["messages"]["interface"]["callsigns"]["invalid_format"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["directory_intro"] == (
             "Personal con un callsign registrado en este servidor."
         )

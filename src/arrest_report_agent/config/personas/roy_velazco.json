@@ -1,7 +1,7 @@
 {
   "schema_version": 26,
   "id": "roy_velazco",
-  "revision": 35,
+  "revision": 36,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -358,7 +358,7 @@
         "removed_title": "📻 Callsign borrado",
         "removed_description": "Listo, ya no quedó guardado. El próximo pager te lo va a pedir de nuevo.",
         "missing_description": "No teníai ningún callsign guardado pa borrar.",
-        "invalid_format": "Ese callsign no sirve. Pon dos o tres números y termina en L, F, B o S; por ejemplo **280L**, **60F**, **282B** o **281S**.",
+        "invalid_format": "Ese callsign no sirve. Pon dos o tres números y termina en una letra de la A a la Z; por ejemplo **280L**, **60F** o **64A**.",
         "operation_failed": "No pude completar la cuestión de los callsigns. Si ya teníai uno, quedó tal como estaba.",
         "directory_intro": "Personal con un callsign registrado en este servidor.",
         "directory_empty": "No hay callsigns registrados para miembros activos del servidor.",

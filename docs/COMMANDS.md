@@ -299,7 +299,7 @@ miembro ya registró `/callsign`, ese valor se utiliza directamente y el campo c
 muestra. Si todavía no existe, el pager permite indicarlo libremente como fallback. `/callsign`
 permite registrarlo o reemplazarlo con un modal; tanto el
 resultado como los errores son efímeros y usan la personalidad activa. Solo acepta dos o tres
-números seguidos de `L`, `F`, `B` o `S` —por ejemplo `280L`, `60F`, `282B` o `281S`— y normaliza la
+números seguidos de una letra de `A` a `Z` —por ejemplo `280L`, `60F` o `64A`— y normaliza la
 letra a mayúscula. Esta restricción solo aplica al comando: el formulario de respuesta del pager
 mantiene un valor libre como fallback. `/callsigns` publica para el
 personal operativo un directorio paginado, agrupado por callsign y limitado a miembros que todavía

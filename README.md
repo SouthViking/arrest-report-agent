@@ -331,7 +331,8 @@ Comandos disponibles:
 - `/mis-pagers`: consulta de forma privada los pagers creados o respondidos.
 - `/info-pager`: publica una explicación breve del sistema.
 - `/callsign`: registra o reemplaza de forma privada el callsign operativo del miembro; requiere un
-  rol configurado como personal operativo y acepta formatos como `280L`, `60F`, `282B` o `281S`.
+  rol configurado como personal operativo y acepta dos o tres números seguidos de cualquier letra
+  de `A` a `Z`, como `280L`, `60F` o `64A`.
 - `/quitar-callsign`: elimina de forma privada el callsign guardado; los formularios de pager vuelven
   a solicitar un valor libre.
 - `/callsigns`: publica para el personal operativo el directorio paginado, agrupado por callsign y

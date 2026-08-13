@@ -22,6 +22,16 @@ PERSONA_REVISIONS = (
     ("roy_velazco", 34, 35),
 )
 PERSONA_SCHEMA_VERSION = 26
+PREVIOUS_CALLSIGN_MESSAGES = {
+    "walter_vigil": (
+        "Utilice entre dos y tres números seguidos de L, F, B o S. "
+        "Ejemplos: **280L**, **60F**, **282B** o **281S**."
+    ),
+    "roy_velazco": (
+        "Ese callsign no sirve. Pon dos o tres números y termina en L, F, B o S; "
+        "por ejemplo **280L**, **60F**, **282B** o **281S**."
+    ),
+}
 ISSUE_TYPES = (
     ("deputy_identity", "Identidad del deputy", "Nombre o identidad del deputy ausente o incorrecta."),
     ("callsign_missing", "Callsign ausente", "El reporte no identifica el callsign del deputy."),
@@ -224,10 +234,17 @@ def _install_personas(connection: sa.Connection) -> None:
             continue
         payload = json.loads((persona_dir / f"{slug}.json").read_text(encoding="utf-8"))
         if (
-            int(payload["revision"]) != next_revision
-            or int(payload["schema_version"]) != PERSONA_SCHEMA_VERSION
+            int(payload["revision"]) < next_revision
+            or int(payload["schema_version"]) < PERSONA_SCHEMA_VERSION
         ):
             raise RuntimeError(f"Packaged persona {slug} does not match review analytics migration")
+        # Persona fixtures continue evolving. Reconstruct the exact revision owned by
+        # this migration; the following revision widens the callsign alphabet.
+        payload["revision"] = next_revision
+        payload["schema_version"] = PERSONA_SCHEMA_VERSION
+        payload["messages"]["interface"]["callsigns"]["invalid_format"] = (
+            PREVIOUS_CALLSIGN_MESSAGES[slug]
+        )
         existing = connection.execute(
             sa.text(
                 "SELECT id FROM persona_revisions WHERE persona_id = :persona_id AND revision = :revision"
