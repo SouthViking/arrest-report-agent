@@ -1,7 +1,7 @@
 {
-  "schema_version": 23,
+  "schema_version": 24,
   "id": "roy_velazco",
-  "revision": 32,
+  "revision": 33,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -159,7 +159,7 @@
       "personal_commands_title": "🗂️ Tus propios papelitos",
       "personal_commands": "• `/mis-reportes`: busca tus publicaciones sin hacerte recorrer medio Discord.\n• `/mi-resumen`: te cuenta cómo vai este mes, si te atrevís.",
       "general_commands_title": "📚 Dudas y consultas",
-      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: elige el periodo y publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa todos.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.\n• `/callsign`: guarda tu callsign pa no repetirlo cada vez.\n• `/quitar-callsign`: borra el callsign q dejaste guardado.\n• `/callsigns`: muestra quién usa cada callsign.\n• `/info-callsigns`: explica cómo guardar y revisar callsigns.",
+      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa todos.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.\n• `/callsign`: guarda tu callsign pa no repetirlo cada vez.\n• `/quitar-callsign`: borra el callsign q dejaste guardado.\n• `/callsigns`: muestra quién usa cada callsign.\n• `/info-callsigns`: explica cómo guardar y revisar callsigns.\n• `/sugerencia`: manda una idea; `/info-sugerencias` explica el buzón.",
       "supervision_commands_title": "🛡️ Cosas de los mandos",
       "supervision_commands": "• `/pendientes`: encuentra expedientes botados.\n• `/ranking`: compara quién trabaja y quién puro mira.\nNecesitai un rol autorizado, no llorís.",
       "official_docs_title": "📚 Papeles oficiales",
@@ -362,6 +362,29 @@
         "crashed_description": "El servicio alcanzó a partir y después se cayó. Revisen Railway y los logs antes de apretar botones al lote.",
         "oom_description": "Railway lo frenó pq se quedó sin memoria. Revisen el consumo y los límites antes de levantarlo de nuevo."
       },
+      "suggestions": {
+        "alert_title": "⚠️ Revisa la sugerencia",
+        "submitted_title": "💡 Sugerencia guardada",
+        "submitted_description": "Listo, quedó como **{suggestion_id}** pa revisarla después. Ahora déjala ahí y no mandís la misma cuestión tres veces.",
+        "limit_reached": "Ya tenís {limit} sugerencias pendientes. Espera q archiven una antes de seguir llenando el buzón.",
+        "cooldown": "Calma la cuestión y espera {seconds} segundos antes de mandar otra.",
+        "operation_failed": "No pude guardar esa cuestión. No cambió nada, así q inténtalo de nuevo más rato.",
+        "owner_unauthorized": "Ese buzón es privado y no te toca administrarlo, bonito intento.",
+        "inbox_intro": "Las ideas q mandaron en este servidor, de la más nueva pa atrás.",
+        "inbox_empty": "No hay sugerencias todavía. Milagro, nadie ha inventado nada.",
+        "inbox_owner_only": "El buzón lo navega quien lo abrió, no metai la mano donde no te llaman.",
+        "status_pending": "⏳ Pendiente",
+        "status_archived": "🗃️ Archivada",
+        "status_updated_title": "💡 Estado actualizado",
+        "status_updated_description": "**{suggestion_id}** quedó como **{status}**. Una cuestión menos dando vueltas.",
+        "status_unchanged_description": "**{suggestion_id}** ya estaba como **{status}**. No había nada q cambiar.",
+        "invalid_reference": "Pon una referencia como corresponde, por ejemplo **SUG-00012**.",
+        "not_found": "No encontré **{suggestion_id}** en este servidor. Revisa el numerito antes de insistir.",
+        "info_intro": "¿Tenís una idea para mejorar algo? Usa `/sugerencia`, elige una categoría y explica claramente qué proponís.",
+        "info_usage": "El formulario pide categoría, un título corto y la idea completa. Queda guardada en privado pa q la revisen.",
+        "info_limit": "Podís mantener hasta **{limit} sugerencias pendientes** al mismo tiempo. Cuando las archiven, mandai nuevas.",
+        "info_warning": "El spam, las bromas y el uso malintencionado serán sancionados. Usa este espacio pa aportar, no pa mandar cualquier tontera."
+      },
       "review": {
         "failure_next_step_title": "Y ahora qué",
         "escalation_notice": "📣 q venga un supervisor: {roles}",
@@ -410,7 +433,11 @@
         "callsign_description": "Guarda tu callsign pa no repetirlo en cada pager",
         "remove_callsign_description": "Borra el callsign q dejaste guardado",
         "callsigns_description": "Muestra quién usa cada callsign operativo",
-        "info_callsigns_description": "Explica cómo guardar y consultar callsigns"
+        "info_callsigns_description": "Explica cómo guardar y consultar callsigns",
+        "suggestion_description": "Manda una sugerencia privada pa revisión",
+        "info_suggestions_description": "Explica cómo mandar una sugerencia",
+        "suggestions_description": "Abre el buzón privado de sugerencias",
+        "suggestion_status_description": "Cambia en privado el estado de una sugerencia"
       }
     }
   }

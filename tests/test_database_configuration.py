@@ -346,8 +346,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 25
-        assert persona["schema_version"] == 23
+        assert persona["revision"] == 26
+        assert persona["schema_version"] == 24
         assert persona["payload"]["messages"]["interface"]["callsigns"]["saved_title"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["removed_title"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["directory_intro"] == (
@@ -355,9 +355,8 @@ async def _assert_callsign_migration(
         )
         assert "280L" in persona["payload"]["messages"]["interface"]["callsigns"]["invalid_format"]
         assert persona["payload"]["messages"]["interface"]["deployments"]["release_intro"]
-        table = await client.fetch_one(
-            sa.text("SELECT to_regclass('public.guild_member_profiles') AS name")
-        )
+        assert persona["payload"]["messages"]["interface"]["suggestions"]["info_warning"]
+        table = await client.fetch_one(sa.text("SELECT to_regclass('public.guild_member_profiles') AS name"))
         assert table is not None and table["name"] == "guild_member_profiles"
     finally:
         await client.close()
@@ -465,17 +464,20 @@ async def _exercise_database(database_url: str) -> None:
         assert inserted is True
         assert inserted_again is False
         assert duplicate.id == deployment_record.id
-        assert await deployment_repository.enqueue_deliveries(
-            deployment_record.id,
-            (
-                DeploymentDeliveryTarget(
-                    guild_id=123,
-                    channel_id=456,
-                    kind="release",
-                    notification_key="release:123:456:0.2.1",
+        assert (
+            await deployment_repository.enqueue_deliveries(
+                deployment_record.id,
+                (
+                    DeploymentDeliveryTarget(
+                        guild_id=123,
+                        channel_id=456,
+                        kind="release",
+                        notification_key="release:123:456:0.3.0",
+                    ),
                 ),
-            ),
-        ) == 1
+            )
+            == 1
+        )
         deliveries = await deployment_repository.due_deliveries()
         assert len(deliveries) == 1
         assert deliveries[0].event.commit_hash == "a" * 40

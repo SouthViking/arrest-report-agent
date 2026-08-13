@@ -23,6 +23,13 @@ PERSONA_REVISIONS = (
     ("walter_vigil", 24, 25),
     ("roy_velazco", 31, 32),
 )
+PERSONA_SCHEMA_VERSION = 23
+SUGGESTION_COMMAND_KEYS = (
+    "suggestion_description",
+    "info_suggestions_description",
+    "suggestions_description",
+    "suggestion_status_description",
+)
 
 
 def upgrade() -> None:
@@ -170,12 +177,30 @@ def _install_personas(connection: sa.Connection) -> None:
         if source is None:
             continue
         payload = json.loads((persona_dir / f"{slug}.json").read_text(encoding="utf-8"))
-        if int(payload["revision"]) != next_revision or int(payload["schema_version"]) != 23:
+        if (
+            int(payload["revision"]) < next_revision
+            or int(payload["schema_version"]) < PERSONA_SCHEMA_VERSION
+        ):
             raise RuntimeError(f"Packaged persona {slug} does not match deployment migration")
+        # Persona files are runtime fixtures and continue evolving after this migration.
+        # Reconstruct the schema-23 snapshot instead of requiring the packaged file to
+        # remain frozen forever; the following migration will add suggestion copy.
+        payload["revision"] = next_revision
+        payload["schema_version"] = PERSONA_SCHEMA_VERSION
+        interface = payload["messages"]["interface"]
+        interface.pop("suggestions", None)
+        commands = interface["commands"]
+        for command_key in SUGGESTION_COMMAND_KEYS:
+            commands.pop(command_key, None)
+        help_messages = payload["messages"]["help"]
+        help_messages["general_commands"] = "\n".join(
+            line
+            for line in help_messages["general_commands"].splitlines()
+            if "/sugerencia" not in line and "/info-sugerencias" not in line
+        )
         existing = connection.execute(
             sa.text(
-                "SELECT id FROM persona_revisions "
-                "WHERE persona_id = :persona_id AND revision = :revision"
+                "SELECT id FROM persona_revisions WHERE persona_id = :persona_id AND revision = :revision"
             ),
             {"persona_id": source["persona_id"], "revision": next_revision},
         ).scalar_one_or_none()
@@ -186,13 +211,14 @@ def _install_personas(connection: sa.Connection) -> None:
                 sa.text(
                     "INSERT INTO persona_revisions "
                     "(id, persona_id, revision, schema_version, status, payload, checksum, published_at) "
-                    "VALUES (:id, :persona_id, :revision, 23, 'published', "
+                    "VALUES (:id, :persona_id, :revision, :schema_version, 'published', "
                     "CAST(:payload AS jsonb), :checksum, now())"
                 ),
                 {
                     "id": revision_id,
                     "persona_id": source["persona_id"],
                     "revision": next_revision,
+                    "schema_version": PERSONA_SCHEMA_VERSION,
                     "payload": serialized.decode(),
                     "checksum": hashlib.sha256(serialized).hexdigest(),
                 },

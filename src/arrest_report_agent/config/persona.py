@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 23
+PERSONA_SCHEMA_VERSION = 24
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -680,6 +680,58 @@ class PersonaDeploymentMessages(FrozenPersonaModel):
     oom_description: str = Field(min_length=1, max_length=500)
 
 
+class PersonaSuggestionMessages(FrozenPersonaModel):
+    """Personality-aware copy for the private deterministic suggestion inbox."""
+
+    alert_title: str = Field(min_length=1, max_length=256)
+    submitted_title: str = Field(min_length=1, max_length=256)
+    submitted_description: str = Field(min_length=1, max_length=500)
+    limit_reached: str = Field(min_length=1, max_length=500)
+    cooldown: str = Field(min_length=1, max_length=400)
+    operation_failed: str = Field(min_length=1, max_length=400)
+    owner_unauthorized: str = Field(min_length=1, max_length=400)
+    inbox_intro: str = Field(min_length=1, max_length=500)
+    inbox_empty: str = Field(min_length=1, max_length=300)
+    inbox_owner_only: str = Field(min_length=1, max_length=300)
+    status_pending: str = Field(min_length=1, max_length=100)
+    status_archived: str = Field(min_length=1, max_length=100)
+    status_updated_title: str = Field(min_length=1, max_length=256)
+    status_updated_description: str = Field(min_length=1, max_length=400)
+    status_unchanged_description: str = Field(min_length=1, max_length=400)
+    invalid_reference: str = Field(min_length=1, max_length=300)
+    not_found: str = Field(min_length=1, max_length=300)
+    info_intro: str = Field(min_length=1, max_length=600)
+    info_usage: str = Field(min_length=1, max_length=600)
+    info_limit: str = Field(min_length=1, max_length=400)
+    info_warning: str = Field(min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_templates(self) -> PersonaSuggestionMessages:
+        for template, fields, label in (
+            (
+                self.submitted_description,
+                {"suggestion_id"},
+                "interface.suggestions.submitted_description",
+            ),
+            (self.limit_reached, {"limit"}, "interface.suggestions.limit_reached"),
+            (self.cooldown, {"seconds"}, "interface.suggestions.cooldown"),
+            (
+                self.status_updated_description,
+                {"suggestion_id", "status"},
+                "interface.suggestions.status_updated_description",
+            ),
+            (
+                self.status_unchanged_description,
+                {"suggestion_id", "status"},
+                "interface.suggestions.status_unchanged_description",
+            ),
+            (self.not_found, {"suggestion_id"}, "interface.suggestions.not_found"),
+            (self.info_limit, {"limit"}, "interface.suggestions.info_limit"),
+        ):
+            _require_template_fields(template, fields, label)
+        return self
+
+
 class PersonaReviewMessages(FrozenPersonaModel):
     """Personality-aware framing around formal structured review data."""
 
@@ -757,6 +809,10 @@ class PersonaCommandMessages(FrozenPersonaModel):
     remove_callsign_description: str = Field(min_length=1, max_length=100)
     callsigns_description: str = Field(min_length=1, max_length=100)
     info_callsigns_description: str = Field(min_length=1, max_length=100)
+    suggestion_description: str = Field(min_length=1, max_length=100)
+    info_suggestions_description: str = Field(min_length=1, max_length=100)
+    suggestions_description: str = Field(min_length=1, max_length=100)
+    suggestion_status_description: str = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaCommandMessages:
@@ -779,6 +835,7 @@ class PersonaInterfaceMessages(FrozenPersonaModel):
     pagers: PersonaPagerMessages
     callsigns: PersonaCallsignMessages
     deployments: PersonaDeploymentMessages
+    suggestions: PersonaSuggestionMessages
     review: PersonaReviewMessages
     commands: PersonaCommandMessages
 

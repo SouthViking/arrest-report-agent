@@ -403,3 +403,87 @@ deployment_notification_deliveries = sa.Table(
         "next_attempt_at",
     ),
 )
+
+suggestion_counters = sa.Table(
+    "suggestion_counters",
+    metadata,
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("last_number", sa.Integer, nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint("last_number > 0", name="ck_suggestion_counter_positive"),
+)
+
+suggestions = sa.Table(
+    "suggestions",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("number", sa.Integer, nullable=False),
+    sa.Column("author_user_id", sa.BigInteger, nullable=False),
+    sa.Column("source_channel_id", sa.BigInteger, nullable=False),
+    sa.Column("category_key", sa.String(30), nullable=False),
+    sa.Column("title", sa.String(100), nullable=False),
+    sa.Column("description", sa.Text, nullable=False),
+    sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
+    sa.Column("version", sa.Integer, nullable=False, server_default="1"),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("archived_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(
+        "category_key IN ('automation','procedure','documentation','experience','correction','other')",
+        name="ck_suggestion_category",
+    ),
+    sa.CheckConstraint("status IN ('pending','archived')", name="ck_suggestion_status"),
+    sa.CheckConstraint("number > 0", name="ck_suggestion_number_positive"),
+    sa.CheckConstraint("version > 0", name="ck_suggestion_version_positive"),
+    sa.UniqueConstraint("guild_id", "number", name="uq_suggestion_guild_number"),
+    sa.Index("ix_suggestion_guild_created", "guild_id", "created_at"),
+    sa.Index(
+        "ix_suggestion_author_pending",
+        "guild_id",
+        "author_user_id",
+        "status",
+        "created_at",
+    ),
+)
+
+suggestion_events = sa.Table(
+    "suggestion_events",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "suggestion_id",
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("suggestions.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("event_type", sa.String(30), nullable=False),
+    sa.Column("actor_user_id", sa.BigInteger, nullable=False),
+    sa.Column("from_status", sa.String(20)),
+    sa.Column("to_status", sa.String(20), nullable=False),
+    sa.Column("comment", sa.Text),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint(
+        "event_type IN ('submitted','status_changed')",
+        name="ck_suggestion_event_type",
+    ),
+    sa.CheckConstraint(
+        "from_status IS NULL OR from_status IN ('pending','archived')",
+        name="ck_suggestion_event_from_status",
+    ),
+    sa.CheckConstraint(
+        "to_status IN ('pending','archived')",
+        name="ck_suggestion_event_to_status",
+    ),
+    sa.Index("ix_suggestion_event_history", "suggestion_id", "created_at"),
+)

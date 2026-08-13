@@ -60,9 +60,8 @@ async def run() -> None:
         configured_guilds=len(guild_ids),
         role_request_subsystem_enabled=runtime.role_requests_enabled,
         pager_subsystem_enabled=runtime.pagers_enabled,
-        deployment_notification_subsystem_enabled=(
-            runtime.deployment_notifications_enabled
-        ),
+        suggestion_subsystem_enabled=runtime.suggestions_enabled,
+        deployment_notification_subsystem_enabled=(runtime.deployment_notifications_enabled),
         railway_webhook_enabled=runtime.railway_webhook_receiver is not None,
     )
     stop_requested = asyncio.Event()

@@ -55,6 +55,10 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/quitar-callsign` | Roles de personal operativo | Efímera | PostgreSQL |
 | `/callsigns` | Roles de personal operativo | Pública y paginada | PostgreSQL y miembros actuales de Discord |
 | `/info-callsigns` | Todos en una guild configurada | Pública | Persona y configuración actuales |
+| `/sugerencia` | Todos en una guild configurada | Modal y confirmación efímeros | PostgreSQL |
+| `/info-sugerencias` | Todos en una guild configurada | Pública | Persona activa |
+| `/sugerencias` | `CONFIG_OWNER_USER_IDS` | Efímera y paginada | PostgreSQL |
+| `/estado-sugerencia` | `CONFIG_OWNER_USER_IDS` | Modal y confirmación efímeros | PostgreSQL |
 
 Los comandos generales no aplican `AUTHORIZED_USER_IDS`; están destinados a todos los miembros que
 puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists centrales antes de
@@ -295,3 +299,20 @@ los siguientes formularios de creación o respuesta vuelven a mostrar el campo l
 `/pager-activos` publica cinco avisos por página con enlaces directos. `/mis-pagers` presenta de forma
 privada los avisos emitidos o respondidos por el usuario. `/info-pager` explica públicamente el flujo y
 los canales habilitados sin mostrar IDs ni configuración interna.
+
+## Sugerencias
+
+`/sugerencia` funciona en cualquier canal o hilo de una guild configurada y no aplica
+`AUTHORIZED_USER_IDS`. Abre un formulario privado con seis categorías visuales, título y descripción.
+El contenido se guarda en PostgreSQL y el canal recibe únicamente la interacción efímera del autor;
+no se necesita un canal de destino.
+
+Cada miembro puede mantener hasta tres sugerencias pendientes por guild y debe esperar 60 segundos
+entre envíos. La verificación usa un lock transaccional por guild y usuario, por lo que solicitudes
+simultáneas tampoco pueden superar la cuota. `/info-sugerencias` explica públicamente el flujo, las
+categorías y la regla de uso responsable, sin exponer los comandos administrativos.
+
+`/sugerencias` está reservado a `CONFIG_OWNER_USER_IDS`. Presenta de forma efímera las entradas más
+recientes, cinco por página, con selector para abrir su contenido completo. `/estado-sugerencia`
+también está reservado a owners y permite cambiar mediante un modal entre `pending` y `archived`.
+Archivar libera un cupo del autor; cada alta y transición queda registrada en `suggestion_events`.

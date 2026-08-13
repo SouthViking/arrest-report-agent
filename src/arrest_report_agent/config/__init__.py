@@ -38,6 +38,7 @@ from .persona import (
     PersonaReviewMessages,
     PersonaReviewSummaryExample,
     PersonaRoleRequestMessages,
+    PersonaSuggestionMessages,
     PersonaSupervisionMessages,
     PersonaVoice,
 )
@@ -81,6 +82,7 @@ __all__ = [
     "PersonaReviewSummaryExample",
     "PersonaRoleRequestMessages",
     "PersonaSupervisionMessages",
+    "PersonaSuggestionMessages",
     "PersonaVoice",
     "ResolvedModel",
     "SnowflakeAllowlist",

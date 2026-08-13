@@ -48,6 +48,7 @@ from arrest_report_agent.role_requests import (
     RoleRequestService,
     RoleRequestServiceRegistry,
 )
+from arrest_report_agent.suggestions import SuggestionCog, SuggestionRepository
 
 from .database import build_bucket_storage, build_postgres_client
 
@@ -63,6 +64,7 @@ class Runtime:
     persona: LoadedPersona
     role_requests_enabled: bool
     pagers_enabled: bool
+    suggestions_enabled: bool
     deployment_notifications_enabled: bool
     deployment_worker: DeploymentNotificationWorker
     railway_webhook_receiver: RailwayWebhookReceiver | None
@@ -86,6 +88,7 @@ class Runtime:
             "persona_revision": self.persona.profile.revision,
             "role_requests": self.role_requests_enabled,
             "pagers": self.pagers_enabled,
+            "suggestions": self.suggestions_enabled,
             "deployment_notifications": self.deployment_notifications_enabled,
             "railway_webhook": self.railway_webhook_receiver is not None,
         }
@@ -224,6 +227,23 @@ async def build_runtime(
         "pager_subsystem_registered",
         configured_guilds=len(pager_bundles),
     )
+    suggestion_repository = SuggestionRepository(postgres)
+    bot.add_cog(
+        SuggestionCog(
+            settings,
+            config_provider,
+            suggestion_repository,
+            persona.profile,
+        )
+    )
+    suggestions_enabled = bool(guild_ids)
+    log_event(
+        LOGGER,
+        "info",
+        "suggestion_subsystem_registered",
+        configured_guilds=len(guild_ids),
+        configured_owners=len(settings.config_owner_user_ids),
+    )
     deployment_repository = DeploymentRepository(postgres)
     deployment_worker = DeploymentNotificationWorker(
         bot,
@@ -245,10 +265,7 @@ async def build_runtime(
     deployment_bundles = [
         bundle
         for bundle in all_bundles
-        if (
-            feature := bundle.snapshot.features.get("deployment_notifications")
-        )
-        is not None
+        if (feature := bundle.snapshot.features.get("deployment_notifications")) is not None
         and feature.enabled
     ]
     deployment_notifications_enabled = bool(deployment_bundles)
@@ -268,6 +285,7 @@ async def build_runtime(
         persona=persona,
         role_requests_enabled=role_requests_enabled,
         pagers_enabled=pagers_enabled,
+        suggestions_enabled=suggestions_enabled,
         deployment_notifications_enabled=deployment_notifications_enabled,
         deployment_worker=deployment_worker,
         railway_webhook_receiver=railway_webhook_receiver,

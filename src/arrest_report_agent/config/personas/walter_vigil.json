@@ -1,7 +1,7 @@
 {
-  "schema_version": 23,
+  "schema_version": 24,
   "id": "walter_vigil",
-  "revision": 25,
+  "revision": 26,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -139,7 +139,7 @@
       "personal_commands_title": "🗂️ Consultas privadas",
       "personal_commands": "• `/mis-reportes`: filtra sus publicaciones y abre rápidamente cada expediente.\n• `/mi-resumen`: consulta sus cifras del mes actual.",
       "general_commands_title": "📚 Consultas generales",
-      "general_commands": "• `/guia`: consulta las reglas de redacción y revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo local.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: elige un periodo y publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/ts3`: publica la dirección oficial del servidor de voz.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas de roles.\n• `/info-roles`: explica el procedimiento y sus límites.\n• `/pager`: emite un aviso operativo.\n• `/pager-activos`: consulta avisos todavía abiertos.\n• `/mis-pagers`: revisa en privado sus avisos y respuestas.\n• `/info-pager`: explica brevemente el sistema.\n• `/callsign`: registra o actualiza su callsign operativo.\n• `/quitar-callsign`: elimina el callsign guardado.\n• `/callsigns`: publica el directorio de callsigns del personal.\n• `/info-callsigns`: explica cómo registrar y consultar callsigns.",
+      "general_commands": "• `/guia`: consulta las reglas de revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/ts3`: publica la dirección oficial del servidor de voz.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas.\n• `/info-roles`: explica el procedimiento y sus límites.\n• `/pager`: emite un aviso operativo.\n• `/pager-activos`: consulta avisos todavía abiertos.\n• `/mis-pagers`: revisa en privado sus avisos y respuestas.\n• `/info-pager`: explica brevemente el sistema.\n• `/callsign`: registra o actualiza su callsign operativo.\n• `/quitar-callsign`: elimina el callsign guardado.\n• `/callsigns`: publica el directorio de callsigns del personal.\n• `/info-callsigns`: explica cómo registrar y consultar callsigns.\n• `/sugerencia`: registra una propuesta; `/info-sugerencias` explica el buzón.",
       "supervision_commands_title": "🛡️ Supervisión",
       "supervision_commands": "• `/pendientes`: localiza expedientes sin estado terminal.\n• `/ranking`: compara actividad y resultados por miembro.\nRequieren un rol de supervisión autorizado.",
       "official_docs_title": "📚 Documentación oficial",
@@ -342,6 +342,29 @@
         "crashed_description": "El servicio dejó de responder después de iniciar. Revise Railway y los logs técnicos antes de intentar restablecerlo.",
         "oom_description": "Railway detuvo el servicio por falta de memoria. Revise el consumo y los límites antes de reiniciarlo."
       },
+      "suggestions": {
+        "alert_title": "⚠️ Revise la sugerencia",
+        "submitted_title": "💡 Sugerencia registrada",
+        "submitted_description": "Quedó registrada como **{suggestion_id}** para su revisión privada. Gracias por aportar una propuesta clara.",
+        "limit_reached": "Ya mantiene {limit} sugerencias pendientes. Espere a que una sea archivada antes de enviar otra.",
+        "cooldown": "Espere {seconds} segundos antes de enviar otra sugerencia.",
+        "operation_failed": "No pude completar la operación. No se registró ningún cambio; inténtelo nuevamente más tarde.",
+        "owner_unauthorized": "El buzón y la administración de estados están reservados a sus responsables.",
+        "inbox_intro": "Sugerencias recibidas en este servidor, ordenadas desde la más reciente.",
+        "inbox_empty": "Todavía no hay sugerencias registradas en este servidor.",
+        "inbox_owner_only": "Solo quien abrió el buzón puede navegar por sus sugerencias.",
+        "status_pending": "⏳ Pendiente",
+        "status_archived": "🗃️ Archivada",
+        "status_updated_title": "💡 Estado actualizado",
+        "status_updated_description": "**{suggestion_id}** quedó marcada como **{status}**.",
+        "status_unchanged_description": "**{suggestion_id}** ya se encontraba como **{status}**; no fue necesario modificarla.",
+        "invalid_reference": "Indique una referencia válida con el formato **SUG-00012**.",
+        "not_found": "No existe la sugerencia **{suggestion_id}** en este servidor.",
+        "info_intro": "¿Tiene una idea para mejorar algo? Use `/sugerencia`, seleccione una categoría y explique claramente qué propone.",
+        "info_usage": "El formulario solicita una categoría, un título breve y la descripción de la propuesta. La información queda disponible de forma privada para su revisión.",
+        "info_limit": "Puede mantener hasta **{limit} sugerencias pendientes** al mismo tiempo. Cuando sean archivadas podrá enviar nuevas.",
+        "info_warning": "El spam, las bromas y el uso malintencionado serán sancionados. Utilice este espacio para realizar aportes legítimos."
+      },
       "review": {
         "failure_next_step_title": "Siguiente paso",
         "escalation_notice": "📣 Se requiere supervisión: {roles}",
@@ -390,7 +413,11 @@
         "callsign_description": "Registra o actualiza su callsign operativo",
         "remove_callsign_description": "Elimina su callsign operativo guardado",
         "callsigns_description": "Muestra el directorio operativo de callsigns",
-        "info_callsigns_description": "Explica cómo registrar y consultar callsigns"
+        "info_callsigns_description": "Explica cómo registrar y consultar callsigns",
+        "suggestion_description": "Envía una sugerencia privada para revisión",
+        "info_suggestions_description": "Explica cómo enviar una sugerencia",
+        "suggestions_description": "Abre el buzón privado de sugerencias",
+        "suggestion_status_description": "Actualiza en privado el estado de una sugerencia"
       }
     }
   }

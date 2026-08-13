@@ -258,6 +258,20 @@ Para activarlo en una guild, usa `/config`, crea un borrador, configura **Canale
 modo restringido, habilita **Notificaciones de despliegue** con schema `1` y opciones `{}`, y publica
 el borrador. Hasta entonces la migración lo deja explícitamente deshabilitado.
 
+### Buzón de sugerencias
+
+`/sugerencia` está disponible en cualquier canal o hilo de una guild configurada. El formulario
+solicita una categoría visual, un título breve y una descripción; la confirmación es efímera y el
+contenido nunca se publica en el canal. Cada usuario puede mantener hasta tres sugerencias pendientes
+por guild y debe esperar 60 segundos entre envíos. La cuota y el cooldown se validan dentro de una
+transacción PostgreSQL para impedir que solicitudes simultáneas los evadan.
+
+`/sugerencias` presenta únicamente a los IDs de `CONFIG_OWNER_USER_IDS` un buzón efímero con cinco
+entradas por página, selector y detalle completo. `/estado-sugerencia` abre un formulario privado para
+marcar una referencia `SUG-00012` como pendiente o archivada; archivar libera un cupo del autor. Cada
+alta y transición queda en un historial inmutable. `/info-sugerencias` es público, conciso y no revela
+los comandos administrativos.
+
 ## Uso en Discord
 
 1. Para una revisión, publica el nombre o identificador del sospechoso junto con el material habitual
@@ -319,12 +333,19 @@ Comandos disponibles:
   sin notificar a los miembros referenciados.
 - `/info-callsigns`: explica públicamente cómo registrar y consultar callsigns, y cómo se reutilizan
   al emitir o responder un pager.
+- `/sugerencia`: abre un formulario privado con categoría, título y descripción; registra la idea en
+  PostgreSQL sin publicar su contenido en el canal.
+- `/info-sugerencias`: publica una explicación breve de las categorías, el límite y el uso responsable.
+- `/sugerencias`: abre el buzón efímero y paginado; está reservado a `CONFIG_OWNER_USER_IDS`.
+- `/estado-sugerencia`: cambia de forma efímera una sugerencia entre pendiente y archivada; está
+  reservado a `CONFIG_OWNER_USER_IDS`.
 - `/config`: abre un panel efímero sin argumentos, reservado a owners o roles `config_admin_roles`;
   permite inspeccionar la revisión activa y administrar borradores, accesos, agente, módulos,
   personas, publicación y rollback mediante botones y formularios. Los intentos no autorizados
   reciben una alerta efímera tomada del pool de la personalidad activa.
 
-Los comandos de guía, cargos, FAQ, vergüenza, honor, roles y consultas personales son deterministas:
+Los comandos de guía, cargos, FAQ, vergüenza, honor, roles, sugerencias y consultas personales son
+deterministas:
 no ejecutan el runner ni consumen OpenAI. Los comandos personales consultan un máximo acotado del historial de los canales
 configurados, cuentan solo publicaciones raíz del usuario con adjuntos o estado asignado y leen las
 reacciones (`⏳`, `✅`, `❌`, `⚠️`) puestas por esta instancia o por miembros que cumplan
@@ -348,7 +369,7 @@ el contenido exacto del FAQ.
 | `PERSONA_ASSET_REGION` | `auto` | Región S3 usada para firmar solicitudes. |
 | `PERSONA_ASSET_ACCESS_KEY_ID` | obligatorio | Credencial S3; secreto de proceso. |
 | `PERSONA_ASSET_SECRET_ACCESS_KEY` | obligatorio | Credencial S3; secreto de proceso. |
-| `CONFIG_OWNER_USER_IDS` | vacío | Owners de emergencia autorizados para `/config`; no se almacena en DB. |
+| `CONFIG_OWNER_USER_IDS` | vacío | Owners autorizados para `/config`, `/sugerencias` y `/estado-sugerencia`; no se almacena en DB. |
 | `RAILWAY_WEBHOOK_SECRET` | vacío | Secreto URL-safe de 43 a 128 caracteres incluido en la ruta privada del webhook. Vacío deshabilita el receptor. |
 | `RAILWAY_PROJECT_ID` | vacío | Proyecto Railway autorizado; obligatorio al habilitar el webhook. |
 | `RAILWAY_ENVIRONMENT_ID` | vacío | Entorno Railway autorizado; obligatorio al habilitar el webhook. |
