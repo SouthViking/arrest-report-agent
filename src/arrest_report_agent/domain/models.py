@@ -78,7 +78,13 @@ class ReviewCase(BaseModel):
 
 
 class ReviewFinding(BaseModel):
-    severity: FindingSeverity
+    severity: FindingSeverity = Field(
+        description=(
+            "Impact-based classification: required only for a mandatory or material correctable "
+            "deficiency; warning for a relevant non-blocking improvement; observation for an "
+            "optional clarity or style suggestion."
+        )
+    )
     title: str = Field(
         min_length=1,
         max_length=120,
@@ -111,7 +117,12 @@ class ReviewFinding(BaseModel):
 class ChargeAssessment(BaseModel):
     charge_id: int | None = None
     declared_charge: str = Field(min_length=1, max_length=160)
-    alignment: Literal["supported", "unsupported", "uncertain", "not_found"]
+    alignment: Literal["supported", "unsupported", "uncertain", "not_found"] = Field(
+        description=(
+            "Semantic alignment with the documented conduct and full sequence; do not require "
+            "literal formulas or isolated phrases when the elements follow reasonably from context."
+        )
+    )
     note: str = Field(
         min_length=1,
         max_length=500,
@@ -136,7 +147,10 @@ class ReviewPublication(BaseModel):
         description=("Specific user-requested point when review_scope is targeted; otherwise set null."),
     )
     verdict: ReviewVerdict = Field(
-        description="Verdict limited to review_scope; partial approval is not full-report approval."
+        description=(
+            "Verdict limited to review_scope; only required findings block approval, and partial "
+            "approval is not full-report approval."
+        )
     )
     summary: str = Field(
         min_length=1,

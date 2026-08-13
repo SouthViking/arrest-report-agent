@@ -9,7 +9,7 @@ import re
 import discord
 
 from arrest_report_agent.config import AppSettings, BotPersona
-from arrest_report_agent.config.logging import log_event
+from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import (
     ConversationResponseRoute,
     FindingSeverity,
@@ -67,7 +67,7 @@ class DiscordReviewPublisher:
                 embeds=build_review_embeds(publication, self.persona),
             )
             if thread is not None:
-                await self._archive_bot_owned_thread(thread)
+                await self._close_approved_thread(thread)
             return
 
         reaction = "❌" if publication.verdict is ReviewVerdict.CORRECTIONS_REQUIRED else "⚠️"
@@ -291,12 +291,20 @@ class DiscordReviewPublisher:
             with contextlib.suppress(discord.NotFound, discord.Forbidden, discord.HTTPException):
                 await self.target.root.remove_reaction(emoji, bot_user)
 
-    async def _archive_bot_owned_thread(self, thread: discord.Thread) -> None:
-        bot_user = self.bot.user
-        if bot_user is None or thread.owner_id != bot_user.id:
-            return
-        with contextlib.suppress(discord.Forbidden, discord.HTTPException):
+    async def _close_approved_thread(self, thread: discord.Thread) -> None:
+        try:
             await thread.edit(archived=True, locked=True)
+        except (discord.Forbidden, discord.NotFound, discord.HTTPException) as error:
+            log_event(
+                LOGGER,
+                "warning",
+                "approved_review_thread_close_failed",
+                exc_info=error,
+                guild_id=getattr(getattr(self.target.root, "guild", None), "id", "unknown"),
+                root_message_id=self.target.root.id,
+                thread_id=thread.id,
+                **exception_fields(error),
+            )
 
     def _escalation_notice(self) -> tuple[str | None, discord.AllowedMentions]:
         if self._escalation_roles_pinged:

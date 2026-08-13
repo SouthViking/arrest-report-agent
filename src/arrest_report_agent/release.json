@@ -1,17 +1,21 @@
 {
   "schema_version": 1,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "title": "Actualizaci\u00f3n disponible",
-  "summary": "La dirección operativa de TeamSpeak queda reservada al personal de la facción.",
+  "summary": "Las revisiones priorizan problemas materiales y cierran el expediente aprobado aunque el hilo sea ajeno.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changes": [
     {
       "type": "improved",
-      "text": "El comando /ts3 ahora valida la política de personal operativo de cada servidor."
+      "text": "La severidad distingue correcciones obligatorias, advertencias y sugerencias sin bloquear por detalles menores."
     },
     {
       "type": "improved",
-      "text": "Los accesos rechazados reciben una alerta privada acorde a la personalidad activa."
+      "text": "Los cargos se evalúan por el significado completo de los hechos y no por frases literales."
+    },
+    {
+      "type": "fixed",
+      "text": "Los hilos de revisiones aprobadas se cierran aunque hayan sido creados por otra persona."
     }
   ]
 }

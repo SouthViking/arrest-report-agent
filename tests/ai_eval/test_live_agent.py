@@ -190,7 +190,7 @@ Revisa la narrativa y los cargos.""",
     _, publisher = await _run_agent(ai_eval_settings, case)
     publication = _single_publication(publisher)
 
-    assert publication.verdict is ReviewVerdict.APPROVED
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
     assert not any(finding.severity.value == "required" for finding in publication.findings)
     assert not any(
         finding.severity.value == "required" and "grabaci" in f"{finding.title} {finding.detail}".lower()
@@ -225,9 +225,11 @@ Revisa el expediente completo.""",
     linguistic_findings = [
         finding
         for finding in publication.findings
-        if any(
-            term in f"{finding.title} {finding.detail} {finding.recommendation}".lower()
-            for term in ("ortograf", "gramát", "redacción", "puntuación")
+        if finding.severity.value == "required"
+        and any(
+            error
+            in (f"{finding.title} {finding.detail} {finding.recommendation} {finding.evidence or ''}").lower()
+            for error in ("iva", "detubo", "quedava", "uyo", "asta")
         )
     ]
 
@@ -266,6 +268,65 @@ Revisa la coherencia del cargo con los hechos narrados.""",
     assert any(charge.alignment == "unsupported" for charge in publication.charges)
 
 
+async def test_accepts_semantically_supported_charge_without_literal_stop_order(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            """Solicito la revisión de este expediente transcrito. Las fotografías reglamentarias
+están presentes y son legibles.
+
+Yo, ayudante Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las 22:15
+cuando observé un Sultan negro circulando a gran velocidad y cruzando ambos carriles. Activé las
+luces y la sirena de la patrulla; el conductor aceleró y huyó hacia Idlewood. Lo seguí durante ocho
+minutos hasta que perdió el control y quedó detenido contra una barrera. Identifiqué al conductor
+como Daniel Vega, lo arresté sin lesiones y lo trasladé a la estación de Ganton. No se recolectó
+evidencia física.
+
+Cargos declarados:
+- CV-2801 — Evadir a un oficial de la paz.
+
+Revisa el expediente completo.""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+    assert any(charge.alignment == "supported" for charge in publication.charges)
+    assert not any(finding.severity.value == "required" for finding in publication.findings)
+
+
+async def test_nonprofessional_but_clear_narrative_does_not_block_approval(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            """Solicito revisión. Las fotografías reglamentarias están presentes y son legibles.
+
+Yo, ayudante Elena Torres, bajo la asignación 241 William, patrullaba Jefferson el 05/08/2026 a las
+22:15. La unidad 240W inició una persecución contra un Sultan negro y cuando me incorporo al apoyo
+veo que el conductor toma Forum Drive hacia Idlewood. Seguimos el vehículo por unos ocho minutos.
+Finalmente choca contra una barrera, así que bajamos y arrestamos a Daniel Vega sin lesiones. Luego
+lo trasladamos a la estación de Ganton. No se recolectó evidencia física.
+
+Cargos declarados:
+- CV-2801 — Evadir a un oficial de la paz.
+
+Revisa el expediente completo.""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+    assert not any(finding.severity.value == "required" for finding in publication.findings)
+
+
 async def test_accepts_adjacent_booking_date_without_false_chronology_error(
     ai_eval_settings: AppSettings,
 ) -> None:
@@ -293,7 +354,7 @@ Revisa la narrativa y los cargos.""",
     _, publisher = await _run_agent(ai_eval_settings, case)
     publication = _single_publication(publisher)
 
-    assert publication.verdict is ReviewVerdict.APPROVED
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
     assert not any(
         finding.severity.value == "required"
         and any(term in f"{finding.title} {finding.detail}".lower() for term in ("cronolog", "fecha", "hora"))
@@ -376,7 +437,7 @@ Revisa la narrativa y los cargos del procedimiento actual.""",
     _, publisher = await _run_agent(ai_eval_settings, case)
     publication = _single_publication(publisher)
 
-    assert publication.verdict is ReviewVerdict.APPROVED
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
     assert not any("fabricación" in charge.declared_charge.lower() for charge in publication.charges)
 
 
@@ -456,7 +517,7 @@ Idlewood, junto a la estación de servicio, donde el vehículo quedó inmoviliza
 
     assert publication.review_scope is ReviewScope.TARGETED
     assert publication.focus is not None
-    assert publication.verdict is ReviewVerdict.APPROVED
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
     assert not any(
         any(term in f"{finding.title} {finding.detail}".lower() for term in ("ortograf", "redacción", "iva"))
         for finding in publication.findings

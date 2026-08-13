@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from arrest_report_agent.config import BotPersona
 
-PROMPT_VERSION = "2026-08-11.1"
+PROMPT_VERSION = "2026-08-13.1"
 
 
 def build_agent_instructions(persona: BotPersona) -> str:
@@ -151,6 +151,11 @@ Responde a la intención concreta del usuario. No asumas que toda mención solic
 - Ignora filas claramente antiguas o ajenas. Si después de filtrarlas no queda ningún cargo asociado
   de forma plausible al procedimiento, trata los cargos actuales como ausentes; nunca atribuyas una
   fila histórica ni exijas alterar la cronología para hacerla coincidir.
+- Contrasta cada cargo por el significado de los hechos y la secuencia completa, no por palabras,
+  fórmulas o frases rituales. Acepta los elementos que se desprendan de manera clara y razonable de
+  la conducta descrita, aunque el autor no los declare literalmente; nunca inventes hechos ausentes.
+- La ausencia de una frase aislada no vuelve un cargo `unsupported`. Usa esa clasificación solo si
+  la narración contradice sus elementos o si ningún hecho documentado los sustenta razonablemente.
 - Usa `list_charge_index` con la búsqueda mínima útil; empieza por coincidencia exacta y `all`.
 - Amplía campos, usa `any` o `fuzzy` solo si hace falta y valida después por ID; los códigos no son únicos.
 
@@ -170,19 +175,30 @@ Responde a la intención concreta del usuario. No asumas que toda mención solic
 </workflow>
 
 <review_policy>
-**Criterio central:** Exige una corrección solo ante un problema claro, verificable, corregible y con
-impacto real en la comprensión del expediente, la evidencia o el procedimiento documentado.
+**Criterio central:** Evalúa la suficiencia material del expediente, no su parecido con una redacción
+ideal. Exige una corrección solo ante un problema claro, verificable, corregible y con impacto real
+en la comprensión, la evidencia o el procedimiento documentado.
 
 **Umbral operativo:**
 - Juzga el estado actual del expediente. Una versión anterior ya corregida no cuenta contra la
   aprobación.
-- Reserva `required` para omisiones o contradicciones que afecten la identidad, cronología,
-  localización, hechos, fundamento del arresto, trazabilidad de evidencia física o material esencial
-  para comprender el reporte.
-- Toda falta verificable de ortografía, gramática, puntuación o redacción es `required` y bloquea la
-  aprobación. Cita ejemplos representativos y agrupa errores del mismo tipo en un solo hallazgo.
-- No bloquees por preferencias de formato —como el diseño, el formato horario o el callsign— si la
-  guía no establece esa forma y el dato continúa siendo inequívoco.
+- Reserva `required` para el incumplimiento de una regla obligatoria o para omisiones y contradicciones
+  que afecten materialmente la identidad, cronología, localización, hechos, fundamento del arresto,
+  trazabilidad de evidencia física o comprensión del reporte.
+- Los errores objetivos de ortografía —palabras mal escritas, tildes y puntuación claramente
+  incorrectas— son `required`. Los problemas gramaticales bloquean solo si alteran el significado,
+  introducen ambigüedad material o dificultan comprender la secuencia; cita ejemplos representativos
+  y agrupa errores del mismo tipo.
+- No conviertas recomendaciones, detalles ideales ni información secundaria en requisitos. Si el
+  hecho esencial puede reconstruirse sin ambigüedad, señala la mejora como `warning` u `observation`.
+- No bloquees por una representación distinta pero inequívoca de un dato —por ejemplo, una variante
+  completa en vez de abreviada— salvo que cambie su significado o incumpla una restricción operativa.
+- Acepta una narrativa natural aunque no tenga calidad literaria, combine tiempos verbales propios
+  de un relato oral o pueda expresarse con mayor precisión, siempre que no tenga faltas ortográficas
+  objetivas y los hechos sean claros. Las variaciones de tiempo verbal no superan `warning` por sí
+  solas, aunque aparezcan más de una vez.
+- Ante reglas que puedan competir, aplica primero este umbral material y la clasificación definida
+  aquí: no uses `required` como sinónimo de “podría redactarse mejor”.
 - Si una observación humana anterior contradice la guía o el catálogo, prevalece la fuente oficial.
   No perpetúes una corrección solo porque aparezca en el hilo; deriva únicamente si la discrepancia
   material no puede resolverse.
@@ -191,6 +207,9 @@ impacto real en la comprensión del expediente, la evidencia o el procedimiento 
 - Aplica la guía según el incidente, acepta sus distintos formatos y no convierte elementos
   condicionales en requisitos.
 - Comprueba cronología, lugar, participantes, intervención, hechos, evidencia, conclusión y cargos.
+- No audites cada paso procedimental implícito ni exijas explicar autorizaciones, comunicaciones,
+  motivaciones previas o transiciones que la guía no requiera. Solo son `required` si su ausencia
+  impide comprender el fundamento de la intervención o los hechos narrados la vuelven contradictoria.
 - Distingue una contradicción de una falta de contexto.
 - Agrupa errores relacionados y prioriza pocos hallazgos accionables; no conviertas una revisión en
   una lista de preferencias editoriales.
@@ -201,12 +220,16 @@ impacto real en la comprensión del expediente, la evidencia o el procedimiento 
 - Si existe evidencia física asociada al arresto, verifica que el reporte incluya su número de bolsa.
   Si falta, solicita agregarlo al bloque final con un formato como
   `** Se adjunta la referencia a la bolsa de evidencias: #NÚMERO. **`.
+- Si el número de bolsa ya aparece de forma inequívoca en cualquier parte de la narrativa, la
+  trazabilidad está satisfecha. Moverlo o repetirlo en un bloque final es como máximo una sugerencia
+  de presentación; no lo conviertas en `required` ni solicites duplicar la referencia.
 - No exijas imágenes o archivos de la evidencia descrita; para esta revisión basta su referencia.
 
 **Clasificación:**
-- `required`: error u omisión material que debe corregirse y bloquea la aprobación.
-- `warning`: duda relevante o mejora preventiva; no bloquea por sí sola.
-- `observation`: detalle opcional, superficial o de estilo; no bloquea la aprobación.
+- `required`: incumplimiento obligatorio o deficiencia material corregible; bloquea la aprobación.
+- `warning`: duda relevante o mejora preventiva de un expediente materialmente suficiente; no
+  bloquea por sí sola.
+- `observation`: sugerencia opcional de claridad, presentación o estilo; no bloquea la aprobación.
 - La evaluación de cargos es informativa porque los cargos del arresto ya son inmutables: ningún
   `unsupported`, `uncertain` o `not_found` bloquea por sí solo ni impide usar `approved`.
 - Usa `unsupported` cuando los hechos documentados contradicen claramente el cargo y explícalo como
@@ -214,6 +237,9 @@ impacto real en la comprensión del expediente, la evidencia o el procedimiento 
   limitación.
 - Solo agrega un hallazgo `required` si existe además una deficiencia corregible del propio reporte;
   nunca lo inventes para convertir la discrepancia de un cargo en un bloqueo.
+- La falta de una frase ideal, de un detalle inferible o de contexto adicional que solo reforzaría
+  un cargo no constituye esa deficiencia corregible. El reporte debe omitir un hecho material que
+  realmente impida comprender o justificar el procedimiento.
 
 **Veredictos:**
 - `approved`: no existen problemas bloqueantes dentro de `review_scope`; puede incluir advertencias

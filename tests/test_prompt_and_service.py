@@ -90,6 +90,8 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "son entorno narrativo" in prompt
     assert "no exijas sus archivos" in prompt
     assert "#NÚMERO" in prompt
+    assert "en cualquier parte de la narrativa" in prompt
+    assert "no lo conviertas en `required`" in prompt
     assert "Evalúa cobertura semántica, no cantidad de archivos" in prompt
     assert "narrativa vigente" in prompt
     assert "narrativa vigente y los cargos declarados" in prompt
@@ -100,9 +102,20 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "cruce de medianoche" in prompt
     assert "no constituye contradicción por sí solo" in prompt
     assert "Ignora filas claramente antiguas o ajenas" in prompt
-    assert "Toda falta verificable de ortografía" in prompt
+    assert "Evalúa la suficiencia material del expediente" in prompt
+    assert "Los errores objetivos de ortografía" in prompt
     assert "agrupa errores del mismo tipo" in prompt
-    assert "No bloquees por preferencias de formato" in prompt
+    assert "No conviertas recomendaciones, detalles ideales" in prompt
+    assert "una variante\n  completa en vez de abreviada" in prompt
+    assert "aunque no tenga calidad literaria" in prompt
+    assert "Las variaciones de tiempo verbal no superan `warning`" in prompt
+    assert "no uses `required` como sinónimo" in prompt
+    assert "Contrasta cada cargo por el significado de los hechos" in prompt
+    assert "no por palabras,\n  fórmulas o frases rituales" in prompt
+    assert "La ausencia de una frase aislada no vuelve un cargo `unsupported`" in prompt
+    assert "detalle inferible o de contexto adicional" in prompt
+    assert "No audites cada paso procedimental implícito" in prompt
+    assert "autorizaciones, comunicaciones" in prompt
     assert "los cargos del arresto ya son inmutables" in prompt
     assert "ningún\n  `unsupported`, `uncertain` o `not_found` bloquea" in prompt
     assert "sin pedir cambiarlo" in prompt
@@ -146,13 +159,15 @@ def test_review_tool_schema_exposes_context_specific_writing_rules() -> None:
 
     assert "review-summary voice" in publication_properties["summary"]["description"]
     assert publication_properties["review_scope"]["$ref"].endswith("/$defs/ReviewScope")
-    assert "partial approval" in publication_properties["verdict"]["description"]
+    assert "only required findings block approval" in publication_properties["verdict"]["description"]
+    assert "mandatory or material correctable deficiency" in finding_properties["severity"]["description"]
     assert "targeted" in publication_properties["focus"]["description"]
     assert "next_step" not in publication_properties
     assert "neutral Spanish" in finding_properties["detail"]["description"]
     assert "second-person singular tú imperatives" in (finding_properties["recommendation"]["description"])
     assert "never use formal usted forms" in finding_properties["recommendation"]["description"]
     assert "without persona slang" in charge_properties["note"]["description"]
+    assert "do not require literal formulas" in charge_properties["alignment"]["description"]
 
 
 def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, model, persona) -> None:

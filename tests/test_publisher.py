@@ -275,6 +275,26 @@ async def test_initial_mention_approval_uses_and_archives_thread(settings, perso
 
 
 @pytest.mark.asyncio
+async def test_full_approval_closes_thread_created_by_another_user(settings, persona) -> None:
+    thread = FakeThread(owner_id=123)
+    root = FakeRoot(thread=thread)
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=thread,
+        response_route=DiscordResponseRoute.THREAD,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
+
+    await publisher.publish(publication("approved"))
+
+    assert root.added == ["✅"]
+    assert thread.edits == [{"archived": True, "locked": True}]
+
+
+@pytest.mark.asyncio
 async def test_partial_approval_has_scoped_title_without_terminal_reaction(settings, persona) -> None:
     root = FakeRoot()
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
