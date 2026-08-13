@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 25
-    assert profile.revision == 27
+    assert profile.schema_version == 26
+    assert profile.revision == 28
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -36,8 +36,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 25
-    assert profile.revision == 34
+    assert profile.schema_version == 26
+    assert profile.revision == 35
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -87,6 +87,8 @@ async def test_personas_keep_personality_copy_with_capitalized_titles(loaded_per
     assert "/verguenza" in roy.messages.help.general_commands
     assert "/honor" in walter.messages.help.general_commands
     assert "/honor" in roy.messages.help.general_commands
+    assert "/errores-reportes" in walter.messages.help.supervision_commands
+    assert "/errores-reportes" in roy.messages.help.supervision_commands
     assert walter.messages.interface.supervision.honor_title == "🏆 Cuadro de honor"
     assert roy.messages.interface.supervision.honor_title == "🏆 Los que sí hicieron la pega"
     assert walter.messages.interface.role_requests.pending_title == "📋 Solicitud de roles"

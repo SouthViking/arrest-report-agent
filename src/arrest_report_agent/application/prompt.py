@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from arrest_report_agent.config import BotPersona
 
-PROMPT_VERSION = "2026-08-13.1"
+PROMPT_VERSION = "2026-08-13.2"
 
 
 def build_agent_instructions(persona: BotPersona) -> str:

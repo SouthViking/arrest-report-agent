@@ -251,6 +251,7 @@ def test_approved_publication_allows_non_blocking_uncertainty() -> None:
         summary="Aprobado con una advertencia.",
         findings=[
             {
+                "issue_type": "other",
                 "severity": "warning",
                 "title": "Precisión opcional",
                 "detail": "Un dato podría aclararse.",

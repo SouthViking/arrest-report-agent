@@ -210,6 +210,7 @@ async def test_help_and_command_descriptions_use_selected_persona(settings, pers
     assert cog.charge_search.description == roy.messages.interface.commands.charges_description
     assert cog.open_report_shame.description == (roy.messages.interface.commands.shame_description)
     assert cog.approved_report_honor.description == (roy.messages.interface.commands.honor_description)
+    assert cog.report_errors.description == roy.messages.interface.commands.report_errors_description
     assert cog.teamspeak_server.description == (roy.messages.interface.commands.teamspeak_description)
 
     ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]

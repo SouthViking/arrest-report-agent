@@ -487,3 +487,106 @@ suggestion_events = sa.Table(
     ),
     sa.Index("ix_suggestion_event_history", "suggestion_id", "created_at"),
 )
+
+report_issue_types = sa.Table(
+    "report_issue_types",
+    metadata,
+    sa.Column("code", sa.String(50), primary_key=True),
+    sa.Column("display_name", sa.String(100), nullable=False),
+    sa.Column("description", sa.String(500), nullable=False),
+    sa.Column("position", sa.Integer, nullable=False),
+    sa.Column("active", sa.Boolean, nullable=False, server_default=sa.true()),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.UniqueConstraint("position", name="uq_report_issue_type_position"),
+)
+
+report_reviews = sa.Table(
+    "report_reviews",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("parent_channel_id", sa.BigInteger, nullable=False),
+    sa.Column("thread_id", sa.BigInteger),
+    sa.Column("root_message_id", sa.BigInteger, nullable=False),
+    sa.Column("trigger_message_id", sa.BigInteger, nullable=False),
+    sa.Column("report_author_user_id", sa.BigInteger),
+    sa.Column("requester_user_id", sa.BigInteger, nullable=False),
+    sa.Column("attempt_number", sa.Integer, nullable=False),
+    sa.Column("review_scope", sa.String(20), nullable=False),
+    sa.Column("verdict", sa.String(30), nullable=False),
+    sa.Column("status", sa.String(20), nullable=False),
+    sa.Column("model", sa.String(100), nullable=False),
+    sa.Column("reasoning_effort", sa.String(30), nullable=False),
+    sa.Column("prompt_version", sa.String(40), nullable=False),
+    sa.Column("persona_id", sa.String(80), nullable=False),
+    sa.Column("persona_revision", sa.Integer, nullable=False),
+    sa.Column("app_version", sa.String(30), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("published_at", sa.DateTime(timezone=True)),
+    sa.Column("failed_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint("attempt_number > 0", name="ck_report_review_attempt_positive"),
+    sa.CheckConstraint(
+        "review_scope IN ('full','narrative','charges','targeted')",
+        name="ck_report_review_scope",
+    ),
+    sa.CheckConstraint(
+        "verdict IN ('approved','corrections_required','inconclusive')",
+        name="ck_report_review_verdict",
+    ),
+    sa.CheckConstraint(
+        "status IN ('publishing','published','failed')",
+        name="ck_report_review_status",
+    ),
+    sa.UniqueConstraint("guild_id", "trigger_message_id", name="uq_report_review_trigger"),
+    sa.UniqueConstraint(
+        "guild_id",
+        "root_message_id",
+        "attempt_number",
+        name="uq_report_review_attempt",
+    ),
+    sa.Index(
+        "ix_report_review_guild_published_created",
+        "guild_id",
+        "status",
+        "created_at",
+    ),
+    sa.Index(
+        "ix_report_review_guild_root",
+        "guild_id",
+        "root_message_id",
+        "attempt_number",
+    ),
+)
+
+report_review_findings = sa.Table(
+    "report_review_findings",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "review_id",
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("report_reviews.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column(
+        "issue_code",
+        sa.String(50),
+        sa.ForeignKey("report_issue_types.code", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column("severity", sa.String(20), nullable=False),
+    sa.Column("position", sa.Integer, nullable=False),
+    sa.CheckConstraint(
+        "severity IN ('required','warning','observation')",
+        name="ck_report_review_finding_severity",
+    ),
+    sa.CheckConstraint("position >= 0", name="ck_report_review_finding_position"),
+    sa.UniqueConstraint("review_id", "position", name="uq_report_review_finding_position"),
+    sa.Index("ix_report_review_finding_issue", "issue_code", "severity"),
+)

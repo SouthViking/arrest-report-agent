@@ -40,6 +40,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
 | `/verguenza` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/honor` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
+| `/errores-reportes` | Roles de analítica de reportes | Modal privado; resultado público | Revisiones estructuradas en PostgreSQL |
 | `/ts3` | Roles de personal operativo | Pública | Dirección fija, política `operational_staff_roles` y persona activa |
 | `/pendientes` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/ranking` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
@@ -191,6 +192,18 @@ que todavía estén pendientes o tengan otro resultado, de modo que el porcentaj
 snapshot completo del periodo. El resultado es público, pero solo los roles de
 `report_analytics_roles` pueden generarlo. No notifica las menciones mostradas, no aplica la política
 de usuarios del agente, no ejecuta IA y no mantiene historial propio.
+
+## `/errores-reportes`
+
+Abre un modal para filtrar por periodo, estación, severidad y cantidad de categorías. Publica un
+ranking determinista construido desde los hallazgos estructurados que el agente registra al terminar
+cada revisión completa o parcial. Las re-revisiones se conservan como intentos independientes, pero
+el conteo principal considera cada mensaje raíz una sola vez por categoría para evitar inflar un
+error repetido dentro del mismo expediente.
+
+El comando usa `report_analytics_roles`, su resultado es público y no ejecuta una llamada adicional
+a OpenAI. La acumulación comienza con el despliegue de esta versión; no existe backfill de revisiones
+anteriores.
 
 ## `/ranking`
 

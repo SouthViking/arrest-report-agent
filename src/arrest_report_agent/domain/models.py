@@ -11,6 +11,7 @@ from .enums import (
     ContextState,
     FindingSeverity,
     InteractionMode,
+    ReviewIssueType,
     ReviewScope,
     ReviewVerdict,
 )
@@ -78,6 +79,13 @@ class ReviewCase(BaseModel):
 
 
 class ReviewFinding(BaseModel):
+    issue_type: ReviewIssueType = Field(
+        description=(
+            "Stable category for deterministic report analytics. Choose the closest specific "
+            "category; use other only when none applies. Severity remains independent from this "
+            "classification."
+        )
+    )
     severity: FindingSeverity = Field(
         description=(
             "Impact-based classification: required only for a mandatory or material correctable "

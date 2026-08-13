@@ -24,6 +24,24 @@ class FindingSeverity(StrEnum):
     OBSERVATION = "observation"
 
 
+class ReviewIssueType(StrEnum):
+    """Stable taxonomy used by review storage and deterministic analytics."""
+
+    DEPUTY_IDENTITY = "deputy_identity"
+    CALLSIGN_MISSING = "callsign_missing"
+    CALLSIGN_FORMAT = "callsign_format"
+    ORTHOGRAPHY = "orthography"
+    FACTS_INSUFFICIENT = "facts_insufficient"
+    CHRONOLOGY_OR_LOCATION = "chronology_or_location"
+    DESCRIPTION_MISMATCH = "description_mismatch"
+    EVIDENCE_REFERENCE = "evidence_reference"
+    CHARGE_NOT_JUSTIFIED = "charge_not_justified"
+    CHARGE_MISMATCH = "charge_mismatch"
+    REQUIRED_MATERIAL_MISSING = "required_material_missing"
+    REPORT_FORMAT = "report_format"
+    OTHER = "other"
+
+
 class ContextState(StrEnum):
     COMPLETE = "complete"
     TRUNCATED = "truncated"

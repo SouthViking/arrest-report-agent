@@ -91,7 +91,7 @@ usuario habilitado puede activar al bot mediante una mención o una respuesta di
 canal visible para el bot.
 
 `REPORT_CHANNEL_IDS` no restringe conversaciones. Define los canales que `/mis-reportes`,
-`/mi-resumen`, `/pendientes`, `/ranking`, `/verguenza` y `/honor` utilizan como archivo de reportes y los que `/ayuda`
+`/mi-resumen`, `/pendientes`, `/ranking`, `/verguenza`, `/honor` y `/errores-reportes` utilizan como archivo de reportes y los que `/ayuda`
 presenta como destinos habituales. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` siguen siendo aliases
 de migración. Al mostrarlos, el bot conserva únicamente los que pertenecen a la guild actual y son
 visibles para él y para el solicitante, evitando referencias `#desconocido` entre servidores.
@@ -112,10 +112,11 @@ abiertos, `/mis-pagers` entrega el historial privado del usuario y `/info-pager`
 El emisor no puede registrarse además como respondiente. Los controles persistentes
 permiten responder, retirarse, editar, concluir o cancelar incluso después de reiniciar el proceso.
 
-Las analíticas globales `/verguenza` y `/honor` usan una política independiente
+Las analíticas globales `/verguenza`, `/honor` y `/errores-reportes` usan una política independiente
 `report_analytics_roles`. Solo sus roles staff autorizados pueden generarlas, aunque el resultado
-continúa siendo público para el canal. `/pendientes` y `/ranking` mantienen su política separada de
-supervisión.
+continúa siendo público para el canal. El último comando consulta revisiones estructuradas almacenadas
+desde esta versión y cuenta cada expediente una sola vez por tipo de error, aunque haya re-revisiones.
+`/pendientes` y `/ranking` mantienen su política separada de supervisión.
 
 La política previa valida guild, autor y usuario antes de leer contexto o iniciar el Runner. Las
 tools de escritura operan exclusivamente dentro de la conversación autorizada. La tool de reacción
@@ -311,6 +312,9 @@ Comandos disponibles:
   (`⏳`), correcciones (`❌`) e inconclusos (`⚠️`).
 - `/honor`: abre el mismo selector de periodo y publica por estación un top 10 de miembros con al
   menos un reporte aprobado, ordenado por cantidad de ✅, porcentaje de aprobación y volumen.
+- `/errores-reportes`: abre filtros de periodo, estación, severidad y cantidad; publica las categorías
+  de hallazgos más frecuentes registradas por el agente. No procesa reportes históricos anteriores
+  al despliegue de esta versión.
 - `/ts3`: permite al personal de `operational_staff_roles` publicar para todo el canal la dirección
   `51.81.49.72:11189` del servidor TeamSpeak 3; los intentos no autorizados son efímeros.
 - `/pendientes`: consulta de supervisión para expedientes sin estado terminal o en revisión.
@@ -438,8 +442,8 @@ en el entorno o en `.env` y se habilita de forma explícita:
 
 ## Límites actuales
 
-- PostgreSQL persiste configuración, revisiones, personalidades y auditoría; intentos y locks
-  operativos siguen siendo efímeros y se pierden al reiniciar.
+- PostgreSQL persiste configuración, personalidades, auditoría y cada intento estructurado de
+  revisión. Los locks del proceso siguen siendo efímeros y se reconstruyen al reiniciar.
 - Los callsigns se conservan por servidor y miembro. Al responder un pager se reutiliza el valor
   guardado; si todavía no existe, se solicita una vez y queda disponible para respuestas futuras.
 - Las consultas personales reconstruyen un snapshot desde mensajes y reacciones conservados en

@@ -42,6 +42,7 @@ from arrest_report_agent.pagers import (
     PagerServiceRegistry,
 )
 from arrest_report_agent.release import ReleaseManifest
+from arrest_report_agent.review_analytics import ReportReviewRepository
 from arrest_report_agent.role_requests import (
     RoleRequestCog,
     RoleRequestDecisionView,
@@ -145,6 +146,7 @@ async def build_runtime(
         persona,
         global_banner_bytes=load_global_profile_banner(),
     )
+    report_review_repository = ReportReviewRepository(postgres)
     review_cog = ReviewCog(
         bot,
         initial_bundle.settings,  # type: ignore[arg-type]
@@ -152,6 +154,7 @@ async def build_runtime(
         initial_bundle.persona.profile,
         profile_synchronizer,
         config_provider=config_provider,
+        report_review_repository=report_review_repository,
     )
     bot.add_cog(review_cog)
     bot.add_cog(ConfigurationAdminCog(settings, repository, config_provider))

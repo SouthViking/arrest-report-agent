@@ -76,5 +76,9 @@ module = ["arrest_report_agent.infrastructure.discord.*"]
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = ["arrest_report_agent.role_requests.discord", "arrest_report_agent.pagers.discord"]
+module = [
+    "arrest_report_agent.role_requests.discord",
+    "arrest_report_agent.pagers.discord",
+    "arrest_report_agent.review_analytics.discord",
+]
 ignore_errors = true

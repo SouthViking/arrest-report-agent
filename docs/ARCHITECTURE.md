@@ -119,6 +119,12 @@ menos un reporte aprobado. El orden usa cantidad de aprobaciones, porcentaje y v
 desempates; el total y la tasa mantienen todos los estados del autor para conservar el contexto. Usa
 la misma política de analítica que `/verguenza`.
 
+Cada `publish_review` pasa por un decorador de publicación que registra primero un intento en
+PostgreSQL, delega los efectos de Discord y luego lo marca como publicado o fallido. El registro
+conserva alcance, veredicto, modelo y categorías estables de hallazgos, pero no duplica el texto libre
+del reporte. `/errores-reportes` agrega esos datos con `COUNT(DISTINCT root_message_id)` por categoría,
+por lo que las re-revisiones son auditables sin multiplicar el indicador principal.
+
 El contrato funcional completo de los comandos está documentado en [Comandos de Discord](COMMANDS.md).
 
 Los comandos `/pendientes` y `/ranking` reutilizan el mismo finder acotado, pero permiten

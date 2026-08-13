@@ -52,10 +52,20 @@ def _install_personas(connection: sa.Connection) -> None:
             continue
         payload = json.loads((persona_dir / f"{slug}.json").read_text(encoding="utf-8"))
         if (
-            int(payload["revision"]) != next_revision
-            or int(payload["schema_version"]) != PERSONA_SCHEMA_VERSION
+            int(payload["revision"]) < next_revision
+            or int(payload["schema_version"]) < PERSONA_SCHEMA_VERSION
         ):
             raise RuntimeError(f"Packaged persona {slug} does not match TeamSpeak migration")
+        payload["revision"] = next_revision
+        payload["schema_version"] = PERSONA_SCHEMA_VERSION
+        supervision = payload["messages"]["interface"]["supervision"]
+        for field in tuple(supervision):
+            if field.startswith("report_errors_"):
+                supervision.pop(field)
+        payload["messages"]["interface"]["commands"].pop(
+            "report_errors_description",
+            None,
+        )
         existing = connection.execute(
             sa.text(
                 "SELECT id FROM persona_revisions WHERE persona_id = :persona_id AND revision = :revision"

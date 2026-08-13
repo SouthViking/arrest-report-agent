@@ -88,6 +88,7 @@ def publication(verdict: str) -> ReviewPublication:
         findings=(
             [
                 ReviewFinding(
+                    issue_type="chronology_or_location",
                     severity=FindingSeverity.REQUIRED,
                     title="Cronología",
                     detail="La hora no coincide con la secuencia narrada.",
@@ -113,6 +114,7 @@ def test_embed_is_structured_and_uses_runtime_identity(persona) -> None:
 def test_long_review_is_split_without_dropping_findings(persona) -> None:
     findings = [
         ReviewFinding(
+            issue_type="report_format",
             severity=FindingSeverity.REQUIRED,
             title=f"Corrección {index}",
             detail="Detalle material " * 20,
@@ -213,6 +215,7 @@ def test_generated_review_headings_start_with_uppercase(persona) -> None:
         summary="El expediente requiere una corrección.",
         findings=[
             ReviewFinding(
+                issue_type="chronology_or_location",
                 severity="required",
                 title="cronología contradictoria",
                 detail="Las horas declaradas se contradicen.",

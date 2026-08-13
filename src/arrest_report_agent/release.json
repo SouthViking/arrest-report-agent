@@ -1,13 +1,21 @@
 {
   "schema_version": 1,
-  "version": "0.3.3",
-  "title": "Actualizaci\u00f3n disponible",
-  "summary": "Los expedientes aprobados quedan cerrados y disponibles para una intervención posterior cuando haga falta.",
+  "version": "0.4.0",
+  "title": "Analítica de revisiones",
+  "summary": "Las revisiones ahora generan un historial estructurado para identificar los errores más frecuentes sin contar dos veces el mismo expediente.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changes": [
     {
-      "type": "fixed",
-      "text": "El cierre automático archiva el hilo sin bloquearlo, permitiendo que los usuarios autorizados puedan reabrirlo."
+      "type": "added",
+      "text": "Se incorpora `/errores-reportes` con filtros de periodo, estación y severidad para los roles de analítica autorizados."
+    },
+    {
+      "type": "added",
+      "text": "Cada revisión y re-revisión queda registrada con categorías estables, alcance y resultado para futuras analíticas."
+    },
+    {
+      "type": "improved",
+      "text": "Los indicadores agrupan por expediente para que un mismo error repetido en varias correcciones no infle el total."
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
-  "schema_version": 25,
+  "schema_version": 26,
   "id": "roy_velazco",
-  "revision": 34,
+  "revision": 35,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -161,7 +161,7 @@
       "general_commands_title": "📚 Dudas y consultas",
       "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa los q son staff.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.\n• `/callsign`: guarda tu callsign pa no repetirlo cada vez.\n• `/quitar-callsign`: borra el callsign q dejaste guardado.\n• `/callsigns`: muestra quién usa cada callsign.\n• `/info-callsigns`: explica cómo guardar y revisar callsigns.\n• `/sugerencia`: manda una idea; `/info-sugerencias` explica el buzón.",
       "supervision_commands_title": "🛡️ Cosas de los mandos",
-      "supervision_commands": "• `/pendientes`: encuentra expedientes botados.\n• `/ranking`: compara quién trabaja y quién puro mira.\nNecesitai un rol autorizado, no llorís.",
+      "supervision_commands": "• `/pendientes`: encuentra expedientes botados.\n• `/ranking`: compara quién trabaja y quién puro mira.\n• `/errores-reportes`: muestra qué errores se repiten más.\nNecesitai un rol autorizado, no llorís.",
       "official_docs_title": "📚 Papeles oficiales",
       "official_docs": "• [Código Penal]({penal_code_url})\n• [Manual de Procedimientos]({procedures_manual_url})",
       "footer": "mencióname o respóndeme directo. el papeleo no se arregla solo, {form_of_address}."
@@ -278,7 +278,18 @@
         "honor_empty_body": "No hay aprobados en este periodo... bonito cuadro de honor quedó.",
         "honor_footer": "mostrando {shown} de {count} personaje(s) · {display_name}",
         "honor_footer_truncated": "snapshot cortado, capaz faltó algún prócer",
-        "honor_value": "{approved} aprobado(s) de {total} · {rate}%"
+        "honor_value": "{approved} aprobado(s) de {total} · {rate}%",
+        "report_errors_modal_title": "Errores q se repiten",
+        "report_errors_severity_label": "Qué tan graves",
+        "report_errors_limit_label": "Cuántas categorías",
+        "report_errors_severity_all": "Todas las severidades",
+        "report_errors_severity_required": "Solo los q bloquean",
+        "report_errors_severity_warning": "Solo advertencias",
+        "report_errors_severity_observation": "Solo observaciones",
+        "report_errors_title": "📊 Errores frecuentes en reportes",
+        "report_errors_description": "**periodo:** {period}\n**estación:** {station}\n**severidad:** {severity}\n\n{reports} expediente(s) revisado(s) en {attempts} intento(s). Un mismo reporte cuenta una sola vez por categoría, pa q no hagan trampa con las re-revisiones.",
+        "report_errors_empty_body": "Todavía no hay hallazgos con esos filtros. O hicieron la pega o recién empezamos a contar.",
+        "report_errors_footer": "mostrando {shown} de {total} categoría(s) · {display_name}"
       },
       "role_requests": {
         "alert_title": "⚠️ Revisa la solicitud",
@@ -420,6 +431,7 @@
         "ranking_description": "Muestra quién trabaja y quién puro mira",
         "shame_description": "Publica quién acumula más reportes sin el OK",
         "honor_description": "Muestra a quienes sí lograron aprobar sus reportes",
+        "report_errors_description": "Muestra los errores q más se repiten en reportes",
         "personal_reports_description": "Busca tus reportes sin recorrer medio Discord",
         "personal_summary_description": "Te cuenta cómo vai este mes",
         "request_roles_description": "Pide q te agreguen o saquen roles",

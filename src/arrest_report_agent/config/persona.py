@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 25
+PERSONA_SCHEMA_VERSION = 26
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -434,6 +434,17 @@ class PersonaSupervisionMessages(FrozenPersonaModel):
     honor_footer: str = Field(min_length=1, max_length=300)
     honor_footer_truncated: str = Field(min_length=1, max_length=200)
     honor_value: str = Field(min_length=1, max_length=200)
+    report_errors_modal_title: str = Field(min_length=1, max_length=100)
+    report_errors_severity_label: str = Field(min_length=1, max_length=100)
+    report_errors_limit_label: str = Field(min_length=1, max_length=100)
+    report_errors_severity_all: str = Field(min_length=1, max_length=100)
+    report_errors_severity_required: str = Field(min_length=1, max_length=100)
+    report_errors_severity_warning: str = Field(min_length=1, max_length=100)
+    report_errors_severity_observation: str = Field(min_length=1, max_length=100)
+    report_errors_title: str = Field(min_length=1, max_length=256)
+    report_errors_description: str = Field(min_length=1, max_length=900)
+    report_errors_empty_body: str = Field(min_length=1, max_length=500)
+    report_errors_footer: str = Field(min_length=1, max_length=300)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaSupervisionMessages:
@@ -499,6 +510,16 @@ class PersonaSupervisionMessages(FrozenPersonaModel):
                 self.honor_value,
                 {"approved", "total", "rate"},
                 "interface.supervision.honor_value",
+            ),
+            (
+                self.report_errors_description,
+                {"period", "station", "severity", "reports", "attempts"},
+                "interface.supervision.report_errors_description",
+            ),
+            (
+                self.report_errors_footer,
+                {"shown", "total", "display_name"},
+                "interface.supervision.report_errors_footer",
             ),
         )
         for template, fields, label in templates:
@@ -795,6 +816,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     ranking_description: str = Field(min_length=1, max_length=100)
     shame_description: str = Field(min_length=1, max_length=100)
     honor_description: str = Field(min_length=1, max_length=100)
+    report_errors_description: str = Field(min_length=1, max_length=100)
     personal_reports_description: str = Field(min_length=1, max_length=100)
     personal_summary_description: str = Field(min_length=1, max_length=100)
     request_roles_description: str = Field(min_length=1, max_length=100)

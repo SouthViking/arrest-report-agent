@@ -31,6 +31,8 @@ from arrest_report_agent.config import (
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError
+from arrest_report_agent.review_analytics import RecordingReviewPublisher, ReportReviewRepository
+from arrest_report_agent.review_analytics.discord import ReportErrorsModal
 
 from .context import DiscordContextBuilder, render_agent_input
 from .general_knowledge import (
@@ -220,9 +222,11 @@ class ReviewCog(commands.Cog):
         persona: BotPersona,
         profile_synchronizer: DiscordProfileSynchronizer | None = None,
         config_provider: object | None = None,
+        report_review_repository: ReportReviewRepository | None = None,
     ) -> None:
         self.bot = bot
         self._config_provider = config_provider
+        self.report_review_repository = report_review_repository
         self._runtime_context: contextvars.ContextVar[ReviewCogRuntime | None] = contextvars.ContextVar(
             "review_cog_runtime", default=None
         )
@@ -237,6 +241,7 @@ class ReviewCog(commands.Cog):
         self.supervisor_ranking.description = command_copy.ranking_description
         self.open_report_shame.description = command_copy.shame_description
         self.approved_report_honor.description = command_copy.honor_description
+        self.report_errors.description = command_copy.report_errors_description
         self.personal_reports.description = command_copy.personal_reports_description
         self.personal_summary.description = command_copy.personal_summary_description
         self.teamspeak_server.description = command_copy.teamspeak_description
@@ -488,7 +493,20 @@ class ReviewCog(commands.Cog):
                     return
                 run_context = ReviewRunContext(
                     case=case,
-                    publisher=publisher,
+                    publisher=(
+                        RecordingReviewPublisher(
+                            publisher,
+                            self.report_review_repository,
+                            case,
+                            model=self.service.model.id,
+                            reasoning_effort=self.service.model.reasoning_effort,
+                            persona_id=self.persona.id,
+                            persona_revision=self.persona.revision,
+                            app_version=self.settings.app_version,
+                        )
+                        if self.report_review_repository is not None
+                        else publisher
+                    ),
                     attempt=attempt,
                     activity=activity,
                     member_directory=self.member_directory,
@@ -897,6 +915,45 @@ class ReviewCog(commands.Cog):
                 finder=self.personal_report_finder,
                 guild=guild,
                 member=member,
+                display_name=self.persona.identity.display_name,
+                access_messages=self.persona.messages.access,
+                failure_messages=self.persona.messages.failures,
+                ui=self.persona.messages.interface.supervision,
+                navigation=self.persona.messages.interface.navigation,
+            )
+        )
+
+    @discord.slash_command(
+        name="errores-reportes",
+        description="Muestra los errores más frecuentes en reportes",
+    )
+    async def report_errors(self, ctx: discord.ApplicationContext) -> None:
+        identity = await self._authorize_report_analytics_command(ctx)
+        if identity is None:
+            return
+        guild, member = identity
+        channels = self.personal_report_finder.visible_channels(guild, member)
+        if not channels:
+            await ctx.respond(
+                self.persona.messages.access.no_personal_channels,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        if self.report_review_repository is None:
+            await ctx.respond(
+                self.persona.messages.failures.supervision_query_failure,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await ctx.send_modal(
+            ReportErrorsModal(
+                repository=self.report_review_repository,
+                policy=self.report_analytics_policy,
+                guild=guild,
+                member=member,
+                channels=channels,
                 display_name=self.persona.identity.display_name,
                 access_messages=self.persona.messages.access,
                 failure_messages=self.persona.messages.failures,

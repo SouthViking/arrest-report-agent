@@ -1,7 +1,7 @@
 {
-  "schema_version": 25,
+  "schema_version": 26,
   "id": "walter_vigil",
-  "revision": 27,
+  "revision": 28,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -141,7 +141,7 @@
       "general_commands_title": "📚 Consultas generales",
       "general_commands": "• `/guia`: consulta las reglas de revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/ts3`: publica para el personal operativo la dirección del servidor de voz.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas.\n• `/info-roles`: explica el procedimiento y sus límites.\n• `/pager`: emite un aviso operativo.\n• `/pager-activos`: consulta avisos todavía abiertos.\n• `/mis-pagers`: revisa en privado sus avisos y respuestas.\n• `/info-pager`: explica brevemente el sistema.\n• `/callsign`: registra o actualiza su callsign operativo.\n• `/quitar-callsign`: elimina el callsign guardado.\n• `/callsigns`: publica el directorio de callsigns del personal.\n• `/info-callsigns`: explica cómo registrar y consultar callsigns.\n• `/sugerencia`: registra una propuesta; `/info-sugerencias` explica el buzón.",
       "supervision_commands_title": "🛡️ Supervisión",
-      "supervision_commands": "• `/pendientes`: localiza expedientes sin estado terminal.\n• `/ranking`: compara actividad y resultados por miembro.\nRequieren un rol de supervisión autorizado.",
+      "supervision_commands": "• `/pendientes`: localiza expedientes sin estado terminal.\n• `/ranking`: compara actividad y resultados por miembro.\n• `/errores-reportes`: resume los errores más frecuentes detectados.\nRequieren un rol de supervisión o analítica autorizado.",
       "official_docs_title": "📚 Documentación oficial",
       "official_docs": "• [Código Penal]({penal_code_url})\n• [Manual de Procedimientos]({procedures_manual_url})",
       "footer": "Intervengo con una mención o una respuesta directa. El papeleo no se aprueba solo, {form_of_address}."
@@ -258,7 +258,18 @@
         "honor_empty_body": "No hay reportes aprobados en este periodo.",
         "honor_footer": "Top {shown} de {count} miembro(s) · {display_name}",
         "honor_footer_truncated": "Snapshot limitado",
-        "honor_value": "{approved} aprobado(s) de {total} · {rate}%"
+        "honor_value": "{approved} aprobado(s) de {total} · {rate}%",
+        "report_errors_modal_title": "Analítica de errores de reportes",
+        "report_errors_severity_label": "Severidad",
+        "report_errors_limit_label": "Cantidad de categorías",
+        "report_errors_severity_all": "Todas las severidades",
+        "report_errors_severity_required": "Solo correcciones obligatorias",
+        "report_errors_severity_warning": "Solo advertencias",
+        "report_errors_severity_observation": "Solo observaciones",
+        "report_errors_title": "📊 Errores frecuentes en reportes",
+        "report_errors_description": "**Periodo:** {period}\n**Estación:** {station}\n**Severidad:** {severity}\n\n{reports} expediente(s) revisado(s) en {attempts} intento(s). Cada categoría cuenta un expediente una sola vez.",
+        "report_errors_empty_body": "Todavía no hay hallazgos registrados con estos filtros.",
+        "report_errors_footer": "Mostrando {shown} de {total} categoría(s) · {display_name}"
       },
       "role_requests": {
         "alert_title": "⚠️ Solicitud no válida",
@@ -400,6 +411,7 @@
         "ranking_description": "Compara resultados de reportes por miembro",
         "shame_description": "Publica quién acumula más reportes sin aprobar",
         "honor_description": "Destaca a quienes acumulan más reportes aprobados",
+        "report_errors_description": "Muestra los errores más frecuentes en reportes",
         "personal_reports_description": "Busca sus reportes y abre sus publicaciones",
         "personal_summary_description": "Muestra su resumen privado del mes actual",
         "request_roles_description": "Solicita altas o bajas de roles para supervisión",
