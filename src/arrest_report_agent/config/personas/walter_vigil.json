@@ -1,7 +1,7 @@
 {
-  "schema_version": 24,
+  "schema_version": 25,
   "id": "walter_vigil",
-  "revision": 26,
+  "revision": 27,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -139,7 +139,7 @@
       "personal_commands_title": "🗂️ Consultas privadas",
       "personal_commands": "• `/mis-reportes`: filtra sus publicaciones y abre rápidamente cada expediente.\n• `/mi-resumen`: consulta sus cifras del mes actual.",
       "general_commands_title": "📚 Consultas generales",
-      "general_commands": "• `/guia`: consulta las reglas de revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/ts3`: publica la dirección oficial del servidor de voz.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas.\n• `/info-roles`: explica el procedimiento y sus límites.\n• `/pager`: emite un aviso operativo.\n• `/pager-activos`: consulta avisos todavía abiertos.\n• `/mis-pagers`: revisa en privado sus avisos y respuestas.\n• `/info-pager`: explica brevemente el sistema.\n• `/callsign`: registra o actualiza su callsign operativo.\n• `/quitar-callsign`: elimina el callsign guardado.\n• `/callsigns`: publica el directorio de callsigns del personal.\n• `/info-callsigns`: explica cómo registrar y consultar callsigns.\n• `/sugerencia`: registra una propuesta; `/info-sugerencias` explica el buzón.",
+      "general_commands": "• `/guia`: consulta las reglas de revisión por sección.\n• `/cargos`: busca delitos y sanciones en el catálogo.\n• `/faq`: resuelve dudas frecuentes del procedimiento.\n• `/verguenza`: publica quién acumula más expedientes sin aprobar.\n• `/honor`: destaca a quienes acumulan más reportes aprobados.\n• `/ts3`: publica para el personal operativo la dirección del servidor de voz.\n• `/solicitar-roles`: presenta una solicitud de altas o bajas.\n• `/info-roles`: explica el procedimiento y sus límites.\n• `/pager`: emite un aviso operativo.\n• `/pager-activos`: consulta avisos todavía abiertos.\n• `/mis-pagers`: revisa en privado sus avisos y respuestas.\n• `/info-pager`: explica brevemente el sistema.\n• `/callsign`: registra o actualiza su callsign operativo.\n• `/quitar-callsign`: elimina el callsign guardado.\n• `/callsigns`: publica el directorio de callsigns del personal.\n• `/info-callsigns`: explica cómo registrar y consultar callsigns.\n• `/sugerencia`: registra una propuesta; `/info-sugerencias` explica el buzón.",
       "supervision_commands_title": "🛡️ Supervisión",
       "supervision_commands": "• `/pendientes`: localiza expedientes sin estado terminal.\n• `/ranking`: compara actividad y resultados por miembro.\nRequieren un rol de supervisión autorizado.",
       "official_docs_title": "📚 Documentación oficial",
@@ -406,6 +406,8 @@
         "info_roles_description": "Explica cómo funciona la solicitud de roles",
         "teamspeak_description": "Muestra la dirección oficial de TeamSpeak 3",
         "teamspeak_message": "La frecuencia de voz está disponible aquí, deputy:\n\n`{address}`",
+        "teamspeak_unauthorized_title": "🔒 TeamSpeak restringido",
+        "teamspeak_unauthorized": "La dirección operativa de TeamSpeak está disponible únicamente para el personal autorizado de la facción.",
         "pager_description": "Emite un pager operativo desde un formulario",
         "active_pagers_description": "Muestra los pagers que siguen activos",
         "my_pagers_description": "Consulta sus pagers y respuestas",

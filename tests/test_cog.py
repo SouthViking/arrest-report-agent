@@ -216,7 +216,10 @@ async def test_help_and_command_descriptions_use_selected_persona(settings, pers
 
 
 @pytest.mark.asyncio
-async def test_teamspeak_command_is_public_and_uses_persona(settings, persona) -> None:
+async def test_teamspeak_command_allows_operational_staff_and_uses_persona(
+    settings,
+    persona,
+) -> None:
     responses: list[dict[str, object]] = []
 
     async def respond(**kwargs) -> None:
@@ -226,10 +229,14 @@ async def test_teamspeak_command_is_public_and_uses_persona(settings, persona) -
         respond=respond,
         guild=SimpleNamespace(id=111),
         channel=SimpleNamespace(id=222),
-        author=SimpleNamespace(id=333),
+        author=SimpleNamespace(id=333, roles=(SimpleNamespace(id=444),)),
     )
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+    cog._default_runtime = replace(
+        cog._default_runtime,
+        settings=SimpleNamespace(operational_staff_role_ids=(444,)),
+    )
 
     await cog.teamspeak_server.callback(cog, ctx)
 
@@ -240,6 +247,36 @@ async def test_teamspeak_command_is_public_and_uses_persona(settings, persona) -
     assert embed.title == "🎙️ TeamSpeak 3"
     assert "51.81.49.72:11189" in (embed.description or "")
     assert embed.description == build_teamspeak_embed(persona=persona).description
+
+
+@pytest.mark.asyncio
+async def test_teamspeak_command_rejects_non_staff_ephemerally(settings, persona) -> None:
+    responses: list[dict[str, object]] = []
+
+    async def respond(**kwargs) -> None:
+        responses.append(kwargs)
+
+    ctx = SimpleNamespace(
+        respond=respond,
+        guild=SimpleNamespace(id=111),
+        channel=SimpleNamespace(id=222),
+        author=SimpleNamespace(id=333, roles=(SimpleNamespace(id=555),)),
+    )
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+    cog._default_runtime = replace(
+        cog._default_runtime,
+        settings=SimpleNamespace(operational_staff_role_ids=(444,)),
+    )
+
+    await cog.teamspeak_server.callback(cog, ctx)
+
+    assert len(responses) == 1
+    assert responses[0]["ephemeral"] is True
+    embed = responses[0]["embed"]
+    assert isinstance(embed, discord.Embed)
+    assert embed.title == persona.messages.interface.commands.teamspeak_unauthorized_title
+    assert embed.description == persona.messages.interface.commands.teamspeak_unauthorized
 
 
 @pytest.mark.asyncio

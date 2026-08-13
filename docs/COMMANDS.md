@@ -40,7 +40,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
 | `/verguenza` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/honor` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
-| `/ts3` | Todos | Pública | Dirección fija y texto de la persona activa |
+| `/ts3` | Roles de personal operativo | Pública | Dirección fija, política `operational_staff_roles` y persona activa |
 | `/pendientes` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/ranking` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/mis-reportes` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
@@ -110,9 +110,10 @@ de `report_guide.json` cargadas por el runtime.
 
 ## `/ts3`
 
-Publica un embed breve y visible para todo el canal con la dirección `51.81.49.72:11189` del
-servidor TeamSpeak 3. La dirección es determinista y el texto introductorio proviene de la persona
-activa.
+Solo los miembros incluidos en `operational_staff_roles` pueden ejecutarlo. Publica un embed breve y
+visible para todo el canal con la dirección `51.81.49.72:11189` del servidor TeamSpeak 3. La dirección
+es determinista y el texto introductorio proviene de la persona activa. Los intentos no autorizados
+reciben una alerta efímera ajustada a esa personalidad.
 
 ## `/cargos`
 

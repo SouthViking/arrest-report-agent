@@ -1,21 +1,17 @@
 {
   "schema_version": 1,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "title": "Actualizaci\u00f3n disponible",
-  "summary": "El bot incorpora un buzón privado y persistente para recibir sugerencias de toda la comunidad.",
+  "summary": "La dirección operativa de TeamSpeak queda reservada al personal de la facción.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changes": [
     {
-      "type": "added",
-      "text": "Formulario público de sugerencias con categorías visuales y confirmación privada."
-    },
-    {
-      "type": "added",
-      "text": "Buzón y administración de estados efímeros, reservados a los owners configurados."
+      "type": "improved",
+      "text": "El comando /ts3 ahora valida la política de personal operativo de cada servidor."
     },
     {
       "type": "improved",
-      "text": "Cuotas transaccionales, cooldown e historial de cambios para prevenir abuso."
+      "text": "Los accesos rechazados reciben una alerta privada acorde a la personalidad activa."
     }
   ]
 }

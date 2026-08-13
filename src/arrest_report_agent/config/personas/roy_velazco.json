@@ -1,7 +1,7 @@
 {
-  "schema_version": 24,
+  "schema_version": 25,
   "id": "roy_velazco",
-  "revision": 33,
+  "revision": 34,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -159,7 +159,7 @@
       "personal_commands_title": "🗂️ Tus propios papelitos",
       "personal_commands": "• `/mis-reportes`: busca tus publicaciones sin hacerte recorrer medio Discord.\n• `/mi-resumen`: te cuenta cómo vai este mes, si te atrevís.",
       "general_commands_title": "📚 Dudas y consultas",
-      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa todos.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.\n• `/callsign`: guarda tu callsign pa no repetirlo cada vez.\n• `/quitar-callsign`: borra el callsign q dejaste guardado.\n• `/callsigns`: muestra quién usa cada callsign.\n• `/info-callsigns`: explica cómo guardar y revisar callsigns.\n• `/sugerencia`: manda una idea; `/info-sugerencias` explica el buzón.",
+      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa los q son staff.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.\n• `/callsign`: guarda tu callsign pa no repetirlo cada vez.\n• `/quitar-callsign`: borra el callsign q dejaste guardado.\n• `/callsigns`: muestra quién usa cada callsign.\n• `/info-callsigns`: explica cómo guardar y revisar callsigns.\n• `/sugerencia`: manda una idea; `/info-sugerencias` explica el buzón.",
       "supervision_commands_title": "🛡️ Cosas de los mandos",
       "supervision_commands": "• `/pendientes`: encuentra expedientes botados.\n• `/ranking`: compara quién trabaja y quién puro mira.\nNecesitai un rol autorizado, no llorís.",
       "official_docs_title": "📚 Papeles oficiales",
@@ -426,6 +426,8 @@
         "info_roles_description": "Te explica cómo pedir roles sin dejar la escoba",
         "teamspeak_description": "Muestra la IP del TS3 pa q no la vuelvas a pedir",
         "teamspeak_message": "Métete al TS3 y deja de preguntar dónde era:\n\n`{address}`",
+        "teamspeak_unauthorized_title": "🔒 TS3 restringido",
+        "teamspeak_unauthorized": "La IP es pa la gente de la facción, no pa cualquiera. Consigue un rol operativo antes de venir a sapear.",
         "pager_description": "Emite un pager operativo desde un formulario",
         "active_pagers_description": "Muestra los pagers q siguen activos",
         "my_pagers_description": "Revisa tus pagers y respuestas",

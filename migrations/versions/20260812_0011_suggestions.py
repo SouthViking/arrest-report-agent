@@ -22,6 +22,10 @@ PERSONA_REVISIONS = (
     ("roy_velazco", 32, 33),
 )
 PERSONA_SCHEMA_VERSION = 24
+TEAMSPEAK_STAFF_FIELDS = (
+    "teamspeak_unauthorized_title",
+    "teamspeak_unauthorized",
+)
 
 
 def upgrade() -> None:
@@ -163,10 +167,15 @@ def _install_personas(connection: sa.Connection) -> None:
             continue
         payload = json.loads((persona_dir / f"{slug}.json").read_text(encoding="utf-8"))
         if (
-            int(payload["revision"]) != next_revision
-            or int(payload["schema_version"]) != PERSONA_SCHEMA_VERSION
+            int(payload["revision"]) < next_revision
+            or int(payload["schema_version"]) < PERSONA_SCHEMA_VERSION
         ):
             raise RuntimeError(f"Packaged persona {slug} does not match suggestion migration")
+        payload["revision"] = next_revision
+        payload["schema_version"] = PERSONA_SCHEMA_VERSION
+        commands = payload["messages"]["interface"]["commands"]
+        for field in TEAMSPEAK_STAFF_FIELDS:
+            commands.pop(field, None)
         existing = connection.execute(
             sa.text(
                 "SELECT id FROM persona_revisions WHERE persona_id = :persona_id AND revision = :revision"

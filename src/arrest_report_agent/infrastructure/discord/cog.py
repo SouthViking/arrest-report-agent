@@ -700,6 +700,38 @@ class ReviewCog(commands.Cog):
         description="Muestra la dirección oficial de TeamSpeak 3",
     )
     async def teamspeak_server(self, ctx: discord.ApplicationContext) -> None:
+        if ctx.guild is None:
+            await ctx.respond(
+                embed=discord.Embed(
+                    title="⚠️ TeamSpeak no disponible",
+                    description="Este comando solo funciona dentro de un servidor.",
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return
+        role_ids = set(getattr(self.settings, "operational_staff_role_ids", ()))
+        member_roles = getattr(ctx.author, "roles", ())
+        if not role_ids or not any(role.id in role_ids for role in member_roles):
+            copy = self.persona.messages.interface.commands
+            await ctx.respond(
+                embed=discord.Embed(
+                    title=copy.teamspeak_unauthorized_title,
+                    description=copy.teamspeak_unauthorized,
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "teamspeak_address_denied",
+                guild_id=ctx.guild.id,
+                channel_id=ctx.channel.id if ctx.channel else "unknown",
+                user_id=ctx.author.id,
+            )
+            return
         await ctx.respond(
             embed=build_teamspeak_embed(
                 persona=self.persona,
@@ -714,7 +746,7 @@ class ReviewCog(commands.Cog):
             LOGGER,
             "info",
             "teamspeak_address_shared",
-            guild_id=ctx.guild.id if ctx.guild else "direct_message",
+            guild_id=ctx.guild.id,
             channel_id=ctx.channel.id if ctx.channel else "unknown",
             user_id=ctx.author.id,
         )

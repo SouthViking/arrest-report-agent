@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 24
+PERSONA_SCHEMA_VERSION = 25
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -801,6 +801,8 @@ class PersonaCommandMessages(FrozenPersonaModel):
     info_roles_description: str = Field(min_length=1, max_length=100)
     teamspeak_description: str = Field(min_length=1, max_length=100)
     teamspeak_message: str = Field(min_length=1, max_length=300)
+    teamspeak_unauthorized_title: str = Field(min_length=1, max_length=256)
+    teamspeak_unauthorized: str = Field(min_length=1, max_length=400)
     pager_description: str = Field(min_length=1, max_length=100)
     active_pagers_description: str = Field(min_length=1, max_length=100)
     my_pagers_description: str = Field(min_length=1, max_length=100)

@@ -346,8 +346,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 26
-        assert persona["schema_version"] == 24
+        assert persona["revision"] == 27
+        assert persona["schema_version"] == 25
         assert persona["payload"]["messages"]["interface"]["callsigns"]["saved_title"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["removed_title"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["directory_intro"] == (
@@ -356,6 +356,7 @@ async def _assert_callsign_migration(
         assert "280L" in persona["payload"]["messages"]["interface"]["callsigns"]["invalid_format"]
         assert persona["payload"]["messages"]["interface"]["deployments"]["release_intro"]
         assert persona["payload"]["messages"]["interface"]["suggestions"]["info_warning"]
+        assert persona["payload"]["messages"]["interface"]["commands"]["teamspeak_unauthorized"]
         table = await client.fetch_one(sa.text("SELECT to_regclass('public.guild_member_profiles') AS name"))
         assert table is not None and table["name"] == "guild_member_profiles"
     finally:
@@ -472,7 +473,7 @@ async def _exercise_database(database_url: str) -> None:
                         guild_id=123,
                         channel_id=456,
                         kind="release",
-                        notification_key="release:123:456:0.3.0",
+                        notification_key="release:123:456:0.3.1",
                     ),
                 ),
             )
