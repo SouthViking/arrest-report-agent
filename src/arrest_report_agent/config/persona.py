@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 30
+PERSONA_SCHEMA_VERSION = 31
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -205,6 +205,11 @@ class PersonaHelpMessages(FrozenPersonaModel):
     request_review_title: str = Field(min_length=1, max_length=256)
     request_review: str = Field(min_length=1, max_length=900)
     owner_request_review: str = Field(min_length=1, max_length=500)
+    owner_info_intro: str = Field(min_length=1, max_length=500)
+    owner_info_start: str = Field(min_length=1, max_length=500)
+    owner_info_continue: str = Field(min_length=1, max_length=500)
+    owner_info_limit: str = Field(min_length=1, max_length=300)
+    owner_info_unavailable: str = Field(min_length=1, max_length=300)
     thread_behavior_title: str = Field(min_length=1, max_length=256)
     thread_behavior: str = Field(min_length=1, max_length=900)
     personal_commands_title: str = Field(min_length=1, max_length=256)
@@ -238,6 +243,16 @@ class PersonaHelpMessages(FrozenPersonaModel):
             self.owner_request_review,
             {"max_rounds"},
             "help.owner_request_review",
+        )
+        _require_template_fields(
+            self.owner_info_start,
+            {"bot_mention"},
+            "help.owner_info_start",
+        )
+        _require_template_fields(
+            self.owner_info_limit,
+            {"max_rounds"},
+            "help.owner_info_limit",
         )
         _require_template_fields(
             self.official_docs,

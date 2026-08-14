@@ -545,11 +545,13 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 33
-        assert persona["schema_version"] == 30
+        assert persona["revision"] == 34
+        assert persona["schema_version"] == 31
         assert persona["payload"]["messages"]["access"]["blocked_user_messages"]
         assert persona["payload"]["messages"]["access"]["owner_quota_exhausted_messages"]
         assert persona["payload"]["messages"]["help"]["owner_request_review"]
+        assert persona["payload"]["messages"]["help"]["owner_info_start"]
+        assert persona["payload"]["messages"]["help"]["owner_info_limit"]
         assert persona["payload"]["messages"]["interface"]["commands"][
             "info_reports_description"
         ]

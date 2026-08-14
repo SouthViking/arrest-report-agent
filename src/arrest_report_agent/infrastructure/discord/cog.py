@@ -207,43 +207,40 @@ def build_report_info_embed(
     report_owner_max_rounds: int | None = None,
     avatar_url: str | None = None,
 ) -> discord.Embed:
-    """Explain the report-review workflow without the broader command catalogue."""
+    """Explain the bounded self-review workflow for report authors."""
 
-    identity = persona.identity
     copy = persona.messages.help
     channels = (
         "\n".join(f"• <#{channel_id}>" for channel_id in sorted(report_channel_ids))
         if report_channel_ids is not None
         else copy.unrestricted_channels
     )
-    request_parts = [copy.request_review.format(bot_mention=bot_mention)]
-    if report_owner_max_rounds is not None:
-        request_parts.append(
-            copy.owner_request_review.format(max_rounds=report_owner_max_rounds)
-        )
     embed = discord.Embed(
-        title="📋 Revisión de reportes",
-        description=copy.description.format(
-            display_name=identity.display_name,
-            role_title=identity.role_title,
+        title="📋 Revisa tu propio reporte",
+        description=(
+            copy.owner_info_intro
+            if report_owner_max_rounds is not None
+            else copy.owner_info_unavailable
         ),
         color=discord.Color.gold(),
     )
-    embed.add_field(name=copy.review_scope_title, value=copy.review_scope, inline=False)
-    embed.add_field(
-        name=copy.request_review_title,
-        value="\n\n".join(request_parts),
-        inline=False,
-    )
-    embed.add_field(
-        name=copy.thread_behavior_title,
-        value=copy.thread_behavior,
-        inline=False,
-    )
-    embed.add_field(name=copy.location_title, value=channels, inline=False)
-    embed.set_footer(
-        text=copy.footer.format(form_of_address=identity.default_form_of_address)
-    )
+    if report_owner_max_rounds is not None:
+        embed.add_field(
+            name="1️⃣ Cómo empezar",
+            value=copy.owner_info_start.format(bot_mention=bot_mention),
+            inline=False,
+        )
+        embed.add_field(
+            name="2️⃣ Cómo continuar",
+            value=copy.owner_info_continue,
+            inline=False,
+        )
+        embed.add_field(
+            name="🕒 Límite",
+            value=copy.owner_info_limit.format(max_rounds=report_owner_max_rounds),
+            inline=False,
+        )
+        embed.add_field(name="📍 Canales habilitados", value=channels, inline=False)
     if avatar_url:
         embed.set_thumbnail(url=avatar_url)
     return embed
@@ -939,7 +936,7 @@ class ReviewCog(commands.Cog):
 
     @discord.slash_command(
         name="info-reportes",
-        description="Explica cómo solicitar y continuar una revisión",
+        description="Explica cómo revisar tu propio reporte",
     )
     async def report_info(self, ctx: discord.ApplicationContext) -> None:
         bot_user = self.bot.user

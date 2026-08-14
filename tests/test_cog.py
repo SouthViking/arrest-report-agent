@@ -212,19 +212,33 @@ def test_report_info_embed_is_public_facing_and_explains_owner_access(persona) -
         avatar_url="https://cdn.discordapp.com/avatar.png",
     )
 
-    assert embed.title == "📋 Revisión de reportes"
+    assert embed.title == "📋 Revisa tu propio reporte"
+    assert embed.description == persona.messages.help.owner_info_intro
     assert [field.name for field in embed.fields] == [
-        persona.messages.help.review_scope_title,
-        persona.messages.help.request_review_title,
-        persona.messages.help.thread_behavior_title,
-        persona.messages.help.location_title,
+        "1️⃣ Cómo empezar",
+        "2️⃣ Cómo continuar",
+        "🕒 Límite",
+        "📍 Canales habilitados",
     ]
-    request_copy = embed.fields[1].value
-    assert "<@999>" in request_copy
-    assert "su propia publicación" in request_copy
-    assert "5 intervenciones" in request_copy
+    assert "<@999>" in embed.fields[0].value
+    assert "mensaje donde publicó su reporte" in embed.fields[0].value
+    assert "Dentro del hilo" in embed.fields[1].value
+    assert "5 intervenciones" in embed.fields[2].value
     assert embed.fields[3].value == "• <#111>\n• <#222>"
     assert embed.thumbnail.url == "https://cdn.discordapp.com/avatar.png"
+
+
+def test_report_info_embed_does_not_advertise_disabled_owner_access(persona) -> None:
+    embed = build_report_info_embed(
+        persona=persona,
+        bot_mention="<@999>",
+        report_channel_ids=frozenset({111}),
+        report_owner_max_rounds=None,
+    )
+
+    assert embed.title == "📋 Revisa tu propio reporte"
+    assert embed.description == persona.messages.help.owner_info_unavailable
+    assert not embed.fields
 
 
 @pytest.mark.asyncio

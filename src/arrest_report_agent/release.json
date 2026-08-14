@@ -1,22 +1,22 @@
 {
   "schema_version": 2,
-  "version": "0.5.5",
-  "title": "Menciones de equipos desde el agente",
-  "summary": "El personal con acceso completo puede pedirle al bot que notifique directamente a roles concretos del servidor.",
+  "version": "0.5.6",
+  "title": "Guía breve para revisar tu reporte",
+  "summary": "El comando de información ahora explica de forma directa cómo pedir ayuda con tu propio expediente.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "added",
-      "text": "El bot ahora puede encontrar un rol por su nombre y mencionarlo cuando se lo pidas expresamente."
+      "type": "improved",
+      "text": "`/info-reportes` muestra cómo iniciar la revisión respondiendo directamente a tu publicación."
     },
     {
       "type": "improved",
-      "text": "La notificación funciona con hasta tres roles existentes y se envía en un único mensaje."
+      "text": "La guía explica cómo continuar dentro del hilo y adjuntar las correcciones del expediente."
     },
     {
       "type": "improved",
-      "text": "El acceso limitado para autores de reportes se mantiene sin permisos para mencionar grupos."
+      "text": "El límite vigente y los canales habilitados quedan visibles sin mezclar otros comandos o funciones."
     }
   ]
 }

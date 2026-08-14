@@ -344,8 +344,8 @@ tool puede cargar selectivamente los adjuntos del mensaje como inputs nativos de
 Comandos disponibles:
 
 - `/ayuda`: presentación, instrucciones y enlaces oficiales visibles para todo el canal.
-- `/info-reportes`: explicación pública y breve del flujo de revisión, incluidas las formas en
-  que el autor puede iniciar o continuar la revisión limitada de su propio expediente.
+- `/info-reportes`: guía pública y breve para que el autor inicie o continúe la revisión limitada
+  de su propio expediente, con el cupo vigente y los canales habilitados.
 - `/guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.
 - `/cargos`: modal privado para buscar por código, título, descripción o categoría en el catálogo
   penal local; muestra detalles y sanciones con paginación cuando corresponde.
