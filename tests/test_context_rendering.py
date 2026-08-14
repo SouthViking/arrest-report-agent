@@ -538,6 +538,50 @@ async def test_response_route_is_derived_from_activation_and_channel(settings, p
 
 
 @pytest.mark.asyncio
+async def test_report_owner_bootstrap_accepts_mention_in_own_root_report(
+    settings,
+    persona,
+    monkeypatch,
+) -> None:
+    owner_id = 123
+    report_channel_id = min(settings.report_channel_ids)
+
+    class FakeTextChannel:
+        id = report_channel_id
+
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.TextChannel",
+        FakeTextChannel,
+    )
+    parent = FakeTextChannel()
+    report = SimpleNamespace(
+        id=699,
+        author=SimpleNamespace(id=owner_id, bot=False),
+        webhook_id=None,
+        channel=parent,
+        reference=None,
+        thread=None,
+    )
+
+    target = await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
+        report,
+        TriggerActivation.MENTION,
+    )
+
+    assert target.root is report
+    assert target.trigger is report
+    assert target.thread is None
+    assert target.response_route is DiscordResponseRoute.THREAD
+
+    report.author.bot = True
+    with pytest.raises(ContextUnavailableError, match="not published by a human"):
+        await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
+            report,
+            TriggerActivation.MENTION,
+        )
+
+
+@pytest.mark.asyncio
 async def test_report_owner_bootstrap_is_anchored_to_own_replied_report(
     settings,
     persona,

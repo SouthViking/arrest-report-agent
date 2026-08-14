@@ -20,7 +20,7 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
 
     assert profile.id == "walter_vigil"
     assert profile.schema_version == 31
-    assert profile.revision == 34
+    assert profile.revision == 35
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -37,7 +37,7 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
 
     assert profile.id == "roy_velazco"
     assert profile.schema_version == 31
-    assert profile.revision == 41
+    assert profile.revision == 42
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None

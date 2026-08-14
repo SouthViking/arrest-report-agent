@@ -98,11 +98,11 @@ explícitos o estar deshabilitada y tiene precedencia absoluta: una cuenta inclu
 el agente aunque también figure en una lista permitida o posea un rol autorizado.
 
 El módulo dinámico **Acceso del propietario del reporte** añade una excepción acotada: el autor
-humano de una publicación en un canal de reportes explícito puede responder su propio mensaje y
-mencionar al bot, o continuar dentro del hilo nacido de ese reporte. Tiene hasta cinco ejecuciones
-para ese expediente; luego debe continuar personal con acceso completo. La blacklist conserva
-precedencia y el propietario nunca recibe herramientas de directorio, lectura de otros canales,
-reacciones manuales ni menciones salientes.
+humano de una publicación en un canal de reportes explícito puede mencionar al bot en el propio
+reporte, responder ese mensaje y mencionarlo más tarde, o continuar dentro del hilo nacido del
+expediente. Tiene hasta cinco ejecuciones para ese expediente; luego debe continuar personal con
+acceso completo. La blacklist conserva precedencia y el propietario nunca recibe herramientas de
+directorio, lectura de otros canales, reacciones manuales ni menciones salientes.
 
 El acceso completo puede resolver roles del servidor por nombre y, ante una solicitud explícita,
 notificar hasta tres mediante la tool terminal `mention_roles`. La publicación valida que cada rol

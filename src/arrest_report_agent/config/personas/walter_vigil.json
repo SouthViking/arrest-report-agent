@@ -1,7 +1,7 @@
 {
   "schema_version": 31,
   "id": "walter_vigil",
-  "revision": 34,
+  "revision": 35,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -144,9 +144,9 @@
       "unrestricted_channels": "• Todos los canales del servidor se consideran canales de reportes",
       "request_review_title": "📣 Cómo solicitar una revisión",
       "request_review": "Puede mencionar a {bot_mention} en cualquier canal del servidor para hacer una consulta. Para solicitar una revisión, publique el reporte con sus adjuntos: abriré un hilo para mantener despejado el canal. Si responde directamente a uno de mis mensajes, contestaré allí mismo.",
-      "owner_request_review": "Si el reporte es suyo, responda directamente a su propia publicación y mencióneme, o utilíceme dentro del hilo de ese expediente. Dispone de hasta {max_rounds} intervenciones propias para ese reporte.",
+      "owner_request_review": "Si el reporte es suyo, puede mencionarme al publicarlo, responder directamente a su propia publicación y mencionarme después, o utilizarme dentro del hilo del expediente. Dispone de hasta {max_rounds} intervenciones propias para ese reporte.",
       "owner_info_intro": "Si usted publicó el reporte, puede solicitar ayuda para revisarlo aunque no tenga acceso general al agente. La autorización se limita a su propio expediente.",
-      "owner_info_start": "Responda directamente al mensaje donde publicó su reporte y mencione a {bot_mention}. Abriré o reutilizaré el hilo de ese expediente.",
+      "owner_info_start": "Mencione a {bot_mention} en el mismo mensaje al publicar el reporte. Si ya lo publicó, responda directamente a ese mensaje y mencióneme. Abriré o reutilizaré el hilo del expediente.",
       "owner_info_continue": "Dentro del hilo, mencióneme o responda uno de mis mensajes. Puede enviar correcciones, nuevas imágenes o archivos para continuar la revisión.",
       "owner_info_limit": "Dispone de hasta **{max_rounds} intervenciones por reporte**. Después deberá continuar personal autorizado.",
       "owner_info_unavailable": "El acceso directo para autores de reportes no está habilitado en este servidor.",

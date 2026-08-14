@@ -1,22 +1,22 @@
 {
   "schema_version": 2,
-  "version": "0.5.6",
-  "title": "Guía breve para revisar tu reporte",
-  "summary": "El comando de información ahora explica de forma directa cómo pedir ayuda con tu propio expediente.",
+  "version": "0.5.7",
+  "title": "Revisión desde la publicación",
+  "summary": "Ahora puedes pedir la primera revisión mencionando al bot directamente al publicar tu reporte.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [1241206587079524442],
+  "changelog_targets": "all",
   "changes": [
     {
       "type": "improved",
-      "text": "`/info-reportes` muestra cómo iniciar la revisión respondiendo directamente a tu publicación."
+      "text": "Incluye la mención al bot en el mismo mensaje del reporte para iniciar la revisión de inmediato."
     },
     {
       "type": "improved",
-      "text": "La guía explica cómo continuar dentro del hilo y adjuntar las correcciones del expediente."
+      "text": "La opción anterior de responder tu publicación después de enviarla continúa disponible."
     },
     {
       "type": "improved",
-      "text": "El límite vigente y los canales habilitados quedan visibles sin mezclar otros comandos o funciones."
+      "text": "`/info-reportes` explica ambas formas de entrada y cómo continuar dentro del hilo."
     }
   ]
 }

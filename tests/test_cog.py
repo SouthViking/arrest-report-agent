@@ -171,7 +171,8 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention(persona) -> N
     ]
     assert embed.fields[1].value == "• <#111>\n• <#222>"
     assert "<@999>" in embed.fields[2].value
-    assert "responda directamente" in embed.fields[2].value
+    assert "mencionarme al publicarlo" in embed.fields[2].value
+    assert "responder directamente" in embed.fields[2].value
     assert "5 intervenciones" in embed.fields[2].value
     assert "/mis-reportes" in embed.fields[4].value
     assert "/mi-resumen" in embed.fields[4].value
@@ -221,7 +222,8 @@ def test_report_info_embed_is_public_facing_and_explains_owner_access(persona) -
         "📍 Canales habilitados",
     ]
     assert "<@999>" in embed.fields[0].value
-    assert "mensaje donde publicó su reporte" in embed.fields[0].value
+    assert "mismo mensaje al publicar" in embed.fields[0].value
+    assert "Si ya lo publicó" in embed.fields[0].value
     assert "Dentro del hilo" in embed.fields[1].value
     assert "5 intervenciones" in embed.fields[2].value
     assert embed.fields[3].value == "• <#111>\n• <#222>"

@@ -121,10 +121,17 @@ class DiscordContextBuilder:
         if message.channel.id not in configured_channels:
             raise ContextUnavailableError("Owner bootstrap is outside a report channel")
         if activation is not TriggerActivation.MENTION:
-            raise ContextUnavailableError("Owner bootstrap requires a direct report reply and mention")
+            raise ContextUnavailableError("Owner bootstrap requires a direct mention")
         reference = message.reference
         if reference is None or reference.message_id is None:
-            raise ContextUnavailableError("Owner bootstrap does not reply to a report")
+            self._require_human_owner(message, message.author.id)
+            return ReviewTarget(
+                root=message,
+                trigger=message,
+                parent=message.channel,
+                thread=message.thread,
+                response_route=DiscordResponseRoute.THREAD,
+            )
         referenced_channel_id = reference.channel_id or message.channel.id
         if referenced_channel_id != message.channel.id:
             raise ContextUnavailableError("Owner bootstrap references another channel")
