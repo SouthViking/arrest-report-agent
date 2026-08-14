@@ -345,7 +345,8 @@ Comandos disponibles:
 
 - `/ayuda`: presentación, instrucciones y enlaces oficiales visibles para todo el canal.
 - `/info-reportes`: guía pública y breve para que el autor inicie o continúe la revisión limitada
-  de su propio expediente, con el cupo vigente y los canales habilitados.
+  de su propio expediente. Explica el formato `@mención Nombre Apellido`, las cuatro imágenes
+  mínimas, el cupo vigente y los canales habilitados.
 - `/guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.
 - `/cargos`: modal privado para buscar por código, título, descripción o categoría en el catálogo
   penal local; muestra detalles y sanciones con paginación cuando corresponde.
@@ -396,6 +397,12 @@ Comandos disponibles:
 
 En `/config` → **Módulos**, `report_owner_access` acepta `{"max_rounds": 5}` con un valor entre 1 y
 20. Solo puede habilitarse cuando `report_channels` contiene IDs explícitos.
+
+El acceso limitado del autor solo reconoce una publicación raíz con exactamente dos componentes de
+nombre y al menos cuatro imágenes compatibles. La publicación directa debe comenzar con
+`@mención Nombre Apellido`; al entrar mediante reply o desde el hilo se valida el mismo mensaje raíz.
+Un formato o material incompleto recibe una explicación determinista, sin crear una ejecución de IA
+ni consumir una ronda.
 
 Los comandos de guía, cargos, FAQ, vergüenza, honor, roles, sugerencias y consultas personales son
 deterministas:

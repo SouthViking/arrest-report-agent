@@ -1,7 +1,7 @@
 {
-  "schema_version": 31,
+  "schema_version": 32,
   "id": "roy_velazco",
-  "revision": 42,
+  "revision": 43,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -125,6 +125,10 @@
         "📁 **hasta aquí llegaste con este expediente.** las {max_rounds} rondas del autor ya se gastaron; ahora tiene q continuar alguien del personal autorizado.",
         "⛔ **no quedan intentos pa este reporte.** ocupaste las {max_rounds} intervenciones disponibles como autor. habla con un autorizado si todavía falta revisar algo."
       ],
+      "owner_invalid_report_messages": [
+        "⚠️ **así no parte la revisión po.** manda exactamente **{bot_mention} Nombre Apellido** y adjunta al menos {min_images} imágenes: frontal, lateral, reporte de arresto y delitos. no te gasté una vuelta por este intento.",
+        "📎 **te faltó armar el expediente.** el formato es **{bot_mention} Nombre Apellido** y van mínimo {min_images} imágenes: frontal, lateral, reporte de arresto y lista de delitos. arréglalo y vuelve a llamarme."
+      ],
       "scope_refusal": "esa wea queda fuera de mi turno, {form_of_address}. pregúntame por reportes, evidencia, cargos o el manual y ahí conversamos.",
       "supervisor_unauthorized": "🔒 **archivo de supervisión restringido.** bonito intento, pero tu rol no sale en la lista... anda a buscar un mando.",
       "other_member_query": "esta consulta es de otro miembro, sapo.",
@@ -164,9 +168,10 @@
       "unrestricted_channels": "• en todos los canales del server, si dejaron la escoba así",
       "request_review_title": "📣 Cómo pedirme una revisión",
       "request_review": "menciona a {bot_mention} en cualquier canal si tenís una duda. pa pedir revisión, manda el reporte con sus adjuntos y abriré un hilo pa no llenar el canal de papeleo; si respondes uno de mis mensajes, te contesto ahí mismo.",
-      "owner_request_review": "si el reporte es tuyo, podís mencionarme al publicarlo, responder tu propia publicación y llamarme después, o hablarme dentro del hilo. tenís hasta {max_rounds} intervenciones propias pa ese reporte.",
+      "owner_request_review": "si el reporte es tuyo, publícalo como **@mención Nombre Apellido** con sus cuatro imágenes mínimas. también podís responder esa publicación o hablarme dentro del hilo. tenís hasta {max_rounds} intervenciones propias pa ese reporte.",
       "owner_info_intro": "si tú publicaste el reporte, podís pedirme ayuda aunque no tengai acceso general. eso sí, solo dentro de tu propio expediente, no te emocionís.",
-      "owner_info_start": "menciona a {bot_mention} en el mismo mensaje cuando publiques el reporte. si ya lo mandaste, responde directamente esa publicación y llámame. voy a abrir o reutilizar el hilo de la cuestión.",
+      "owner_info_start": "manda el mensaje exactamente así: **{bot_mention} Nombre Apellido**. si ya lo publicaste con ese formato, responde directamente esa publicación y llámame. voy a abrir o reutilizar el hilo de la cuestión.",
+      "owner_info_requirements": "adjunta mínimo **4 imágenes**: frontal, lateral, reporte de arresto y lista de delitos. si falta el formato o el material, no parte la revisión ni te gasto una intervención.",
       "owner_info_continue": "ya dentro del hilo, mencióname o responde uno de mis mensajes. manda ahí las correcciones, imágenes o archivos nuevos.",
       "owner_info_limit": "tenís hasta **{max_rounds} intervenciones por reporte**. después tiene q seguir alguien autorizado.",
       "owner_info_unavailable": "el acceso directo pa autores de reportes no está habilitado en este server.",

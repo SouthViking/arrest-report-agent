@@ -68,9 +68,11 @@ puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists 
 leer el historial de Discord.
 
 `/info-reportes` no ejecuta IA ni describe el catálogo general de revisión. Explica únicamente cómo
-el autor puede mencionar al bot al publicar, responder su propia publicación más tarde, continuar
-dentro del hilo, adjuntar correcciones y consultar el límite vigente. Si `report_owner_access` está
-deshabilitado, informa que la capacidad no está disponible sin enseñar pasos que no funcionarían.
+el autor debe publicar `@mención Nombre Apellido` junto con, como mínimo, las imágenes frontal,
+lateral, reporte de arresto y lista de delitos; también explica cómo responder su publicación más
+tarde, continuar dentro del hilo, adjuntar correcciones y consultar el límite vigente. Si
+`report_owner_access` está deshabilitado, informa que la capacidad no está disponible sin enseñar
+pasos que no funcionarían.
 
 Los comandos de supervisión comparten `SUPERVISOR_ROLE_IDS`. Ausente, vacío o `*` permite a
 todos; una lista CSV exige que el miembro posea al menos uno de esos roles. La comprobación está

@@ -59,8 +59,10 @@ revisión con una revisión activa.
 
 Cuando `report_owner_access` está habilitado, esos canales explícitos forman además la frontera del
 acceso limitado. El listener solo concede `report_owner` si el autor responde directamente a su
-propio reporte o habla dentro del hilo cuyo ID coincide con el mensaje raíz. No usa el fallback de
-hilos huérfanos para esta decisión. Antes del guardrail reserva atómicamente una ronda en
+propio reporte o habla dentro del hilo cuyo ID coincide con el mensaje raíz. El root debe contener
+exactamente `Nombre Apellido` —precedido por la mención al entrar desde la publicación— y cuatro
+imágenes compatibles como mínimo. Esta validación es local y no usa IA. No usa el fallback de hilos
+huérfanos para esta decisión. Antes del guardrail reserva atómicamente una ronda en
 `report_owner_agent_runs`; el trigger único evita ejecuciones duplicadas y un advisory lock impide
 superar el máximo bajo concurrencia. Los fallos anteriores a esa reserva no consumen, mientras que
 cualquier ejecución que ya puede alcanzar OpenAI queda contabilizada aunque falle después.

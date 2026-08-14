@@ -12,7 +12,7 @@ from arrest_report_agent.domain import (
     InteractionMode,
     ReviewCase,
 )
-from arrest_report_agent.domain.errors import ContextUnavailableError
+from arrest_report_agent.domain.errors import ContextUnavailableError, ReportOwnerSubmissionError
 from arrest_report_agent.infrastructure.discord.context import (
     DiscordContextBuilder,
     DiscordResponseRoute,
@@ -20,6 +20,13 @@ from arrest_report_agent.infrastructure.discord.context import (
     render_agent_input,
 )
 from arrest_report_agent.infrastructure.discord.trigger import TriggerActivation
+
+
+def _owner_report_attachments(count: int = 4) -> list[SimpleNamespace]:
+    return [
+        SimpleNamespace(filename=f"report-{index}.png", content_type="image/png")
+        for index in range(count)
+    ]
 
 
 def test_render_includes_every_selected_character_and_report_image() -> None:
@@ -561,11 +568,14 @@ async def test_report_owner_bootstrap_accepts_mention_in_own_root_report(
         channel=parent,
         reference=None,
         thread=None,
+        content="  <@!999>   José   Pérez-Soto  ",
+        attachments=_owner_report_attachments(),
     )
 
     target = await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
         report,
         TriggerActivation.MENTION,
+        bot_user_id=999,
     )
 
     assert target.root is report
@@ -578,6 +588,54 @@ async def test_report_owner_bootstrap_accepts_mention_in_own_root_report(
         await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
             report,
             TriggerActivation.MENTION,
+            bot_user_id=999,
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("content", "image_count", "error_match"),
+    [
+        ("<@999> Maikel Santana revisa", 4, "exactly Nombre Apellido"),
+        ("<@999> Maikel Santana", 3, "fewer than four"),
+        ("Maikel Santana", 4, "does not start with the bot mention"),
+        ("<@999> Maikel_ Santana", 4, "exactly Nombre Apellido"),
+    ],
+)
+async def test_report_owner_root_rejects_nonstandard_submission_without_ai(
+    settings,
+    persona,
+    monkeypatch,
+    content: str,
+    image_count: int,
+    error_match: str,
+) -> None:
+    owner_id = 123
+    report_channel_id = min(settings.report_channel_ids)
+
+    class FakeTextChannel:
+        id = report_channel_id
+
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.TextChannel",
+        FakeTextChannel,
+    )
+    report = SimpleNamespace(
+        id=699,
+        author=SimpleNamespace(id=owner_id, bot=False),
+        webhook_id=None,
+        channel=FakeTextChannel(),
+        reference=None,
+        thread=None,
+        content=content,
+        attachments=_owner_report_attachments(image_count),
+    )
+
+    with pytest.raises(ReportOwnerSubmissionError, match=error_match):
+        await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
+            report,
+            TriggerActivation.MENTION,
+            bot_user_id=999,
         )
 
 
@@ -594,6 +652,8 @@ async def test_report_owner_bootstrap_is_anchored_to_own_replied_report(
         author=SimpleNamespace(id=owner_id, bot=False),
         webhook_id=None,
         thread=None,
+        content="Maikel Santana",
+        attachments=_owner_report_attachments(),
     )
 
     class FakeTextChannel:
@@ -623,6 +683,7 @@ async def test_report_owner_bootstrap_is_anchored_to_own_replied_report(
     target = await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
         trigger,
         TriggerActivation.MENTION,
+        bot_user_id=999,
     )
 
     assert target.root is root
@@ -643,6 +704,8 @@ async def test_report_owner_thread_requires_canonical_human_root(
         id=800,
         author=SimpleNamespace(id=owner_id, bot=False),
         webhook_id=None,
+        content="<@999> Maikel Santana",
+        attachments=_owner_report_attachments(),
     )
 
     class FakeTextChannel:
@@ -672,6 +735,7 @@ async def test_report_owner_thread_requires_canonical_human_root(
     target = await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
         trigger,
         TriggerActivation.BOT_REPLY,
+        bot_user_id=999,
     )
     assert target.root is root
     assert target.thread is thread
@@ -681,6 +745,7 @@ async def test_report_owner_thread_requires_canonical_human_root(
         await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
             trigger,
             TriggerActivation.MENTION,
+            bot_user_id=999,
         )
     root.author.id = owner_id
     root.webhook_id = 55
@@ -688,6 +753,7 @@ async def test_report_owner_thread_requires_canonical_human_root(
         await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
             trigger,
             TriggerActivation.MENTION,
+            bot_user_id=999,
         )
 
 

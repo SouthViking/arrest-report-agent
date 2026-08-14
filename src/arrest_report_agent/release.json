@@ -1,22 +1,22 @@
 {
   "schema_version": 2,
-  "version": "0.5.7",
-  "title": "Revisión desde la publicación",
-  "summary": "Ahora puedes pedir la primera revisión mencionando al bot directamente al publicar tu reporte.",
+  "version": "0.5.8",
+  "title": "Formato claro para solicitar revisiones",
+  "summary": "La revisión propia ahora comienza con un formato simple y recursos mínimos claramente indicados.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
       "type": "improved",
-      "text": "Incluye la mención al bot en el mismo mensaje del reporte para iniciar la revisión de inmediato."
+      "text": "Publica `@mención Nombre Apellido` junto con las imágenes frontal, lateral, reporte de arresto y lista de delitos."
     },
     {
       "type": "improved",
-      "text": "La opción anterior de responder tu publicación después de enviarla continúa disponible."
+      "text": "Si falta el formato o el material mínimo, el bot explica cómo corregirlo sin consumir una intervención."
     },
     {
       "type": "improved",
-      "text": "`/info-reportes` explica ambas formas de entrada y cómo continuar dentro del hilo."
+      "text": "`/info-reportes` muestra el formato, los recursos requeridos, las formas de entrada y el límite vigente."
     }
   ]
 }

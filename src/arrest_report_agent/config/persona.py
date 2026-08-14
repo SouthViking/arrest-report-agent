@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 31
+PERSONA_SCHEMA_VERSION = 32
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -128,6 +128,7 @@ class PersonaAccessMessages(FrozenPersonaModel):
     unauthorized_user: str = Field(min_length=1, max_length=400)
     blocked_user_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
     owner_quota_exhausted_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
+    owner_invalid_report_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
     scope_refusal: str = Field(min_length=1, max_length=400)
     supervisor_unauthorized: str = Field(min_length=1, max_length=400)
     other_member_query: str = Field(min_length=1, max_length=250)
@@ -143,6 +144,7 @@ class PersonaAccessMessages(FrozenPersonaModel):
         "unauthorized_user_intros",
         "blocked_user_messages",
         "owner_quota_exhausted_messages",
+        "owner_invalid_report_messages",
     )
     @classmethod
     def reject_empty_pool_items(cls, values: tuple[str, ...]) -> tuple[str, ...]:
@@ -167,6 +169,12 @@ class PersonaAccessMessages(FrozenPersonaModel):
                 message,
                 {"max_rounds"},
                 f"owner_quota_exhausted_messages[{index}]",
+            )
+        for index, message in enumerate(self.owner_invalid_report_messages):
+            _require_template_fields(
+                message,
+                {"bot_mention", "min_images"},
+                f"owner_invalid_report_messages[{index}]",
             )
         return self
 
@@ -207,6 +215,7 @@ class PersonaHelpMessages(FrozenPersonaModel):
     owner_request_review: str = Field(min_length=1, max_length=500)
     owner_info_intro: str = Field(min_length=1, max_length=500)
     owner_info_start: str = Field(min_length=1, max_length=500)
+    owner_info_requirements: str = Field(min_length=1, max_length=500)
     owner_info_continue: str = Field(min_length=1, max_length=500)
     owner_info_limit: str = Field(min_length=1, max_length=300)
     owner_info_unavailable: str = Field(min_length=1, max_length=300)

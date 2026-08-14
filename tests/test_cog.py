@@ -13,6 +13,7 @@ from arrest_report_agent.infrastructure.discord.cog import (
     ReviewCog,
     build_blocked_user_message,
     build_help_embed,
+    build_owner_invalid_report_message,
     build_owner_quota_exhausted_message,
     build_report_info_embed,
     build_teamspeak_embed,
@@ -171,7 +172,7 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention(persona) -> N
     ]
     assert embed.fields[1].value == "• <#111>\n• <#222>"
     assert "<@999>" in embed.fields[2].value
-    assert "mencionarme al publicarlo" in embed.fields[2].value
+    assert "@mención Nombre Apellido" in embed.fields[2].value
     assert "responder directamente" in embed.fields[2].value
     assert "5 intervenciones" in embed.fields[2].value
     assert "/mis-reportes" in embed.fields[4].value
@@ -217,16 +218,18 @@ def test_report_info_embed_is_public_facing_and_explains_owner_access(persona) -
     assert embed.description == persona.messages.help.owner_info_intro
     assert [field.name for field in embed.fields] == [
         "1️⃣ Cómo empezar",
-        "2️⃣ Cómo continuar",
+        "2️⃣ Material mínimo",
+        "3️⃣ Cómo continuar",
         "🕒 Límite",
         "📍 Canales habilitados",
     ]
     assert "<@999>" in embed.fields[0].value
-    assert "mismo mensaje al publicar" in embed.fields[0].value
+    assert "Nombre Apellido" in embed.fields[0].value
     assert "Si ya lo publicó" in embed.fields[0].value
-    assert "Dentro del hilo" in embed.fields[1].value
-    assert "5 intervenciones" in embed.fields[2].value
-    assert embed.fields[3].value == "• <#111>\n• <#222>"
+    assert "4 imágenes" in embed.fields[1].value
+    assert "Dentro del hilo" in embed.fields[2].value
+    assert "5 intervenciones" in embed.fields[3].value
+    assert embed.fields[4].value == "• <#111>\n• <#222>"
     assert embed.thumbnail.url == "https://cdn.discordapp.com/avatar.png"
 
 
@@ -241,6 +244,20 @@ def test_report_info_embed_does_not_advertise_disabled_owner_access(persona) -> 
     assert embed.title == "📋 Revisa tu propio reporte"
     assert embed.description == persona.messages.help.owner_info_unavailable
     assert not embed.fields
+
+
+def test_invalid_owner_report_message_explains_exact_format_without_ai(persona) -> None:
+    rendered = {
+        build_owner_invalid_report_message(
+            messages=persona.messages.access,
+            message_id=index,
+            bot_mention="<@999>",
+        )
+        for index in range(len(persona.messages.access.owner_invalid_report_messages))
+    }
+
+    assert all("<@999> Nombre Apellido" in message for message in rendered)
+    assert all("4" in message for message in rendered)
 
 
 @pytest.mark.asyncio

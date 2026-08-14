@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 
 from arrest_report_agent.domain import AgentAccessLevel, InteractionMode, ReviewCase
+from arrest_report_agent.domain.errors import ReportOwnerSubmissionError
 from arrest_report_agent.infrastructure.discord.cog import ReviewCog
 from arrest_report_agent.infrastructure.discord.context import (
     DiscordResponseRoute,
@@ -53,7 +54,11 @@ class _OwnerContextBuilder:
         self.owner_resolutions = 0
         self.case_builds = 0
 
-    async def resolve_report_owner_target(self, *_args: object) -> ReviewTarget:
+    async def resolve_report_owner_target(
+        self,
+        *_args: object,
+        **_kwargs: object,
+    ) -> ReviewTarget:
         self.owner_resolutions += 1
         return self.target
 
@@ -67,6 +72,11 @@ class _OwnerContextBuilder:
 class _FailingOwnerContextBuilder(_OwnerContextBuilder):
     async def build_case(self, target: ReviewTarget, *, include_channel_history: bool) -> ReviewCase:
         raise RuntimeError("context unavailable before OpenAI")
+
+
+class _InvalidOwnerContextBuilder(_OwnerContextBuilder):
+    async def resolve_report_owner_target(self, *_args: object, **_kwargs: object) -> ReviewTarget:
+        raise ReportOwnerSubmissionError("invalid owner report")
 
 
 class _Service:
@@ -292,3 +302,41 @@ async def test_owner_context_failure_does_not_reserve_a_round(
 
     assert repository.reservations == 0
     assert service.contexts == []
+
+
+@pytest.mark.asyncio
+async def test_invalid_owner_report_gets_format_notice_without_reserving_or_running(
+    settings,
+    persona,
+) -> None:
+    restricted = settings.model_copy(update={"authorized_user_ids_csv": "999999"})
+    message, target, case, replies = _event(restricted)
+    service = _Service()
+    repository = _Repository(
+        OwnerRunReservation(
+            result=OwnerRunReservationResult.RESERVED,
+            used_rounds=1,
+            max_rounds=5,
+            run_id=uuid4(),
+        )
+    )
+    cog = ReviewCog(
+        SimpleNamespace(user=SimpleNamespace(id=999, mention="<@999>")),
+        restricted,
+        service,  # type: ignore[arg-type]
+        persona,
+        report_owner_run_repository=repository,  # type: ignore[arg-type]
+    )
+    cog._default_runtime = replace(  # noqa: SLF001
+        cog._default_runtime,  # noqa: SLF001
+        settings=SimpleNamespace(report_owner_access_max_rounds=5),
+        context_builder=_InvalidOwnerContextBuilder(target, case),  # type: ignore[arg-type]
+    )
+
+    await cog._handle_message(message)  # type: ignore[arg-type]  # noqa: SLF001
+
+    assert repository.reservations == 0
+    assert service.contexts == []
+    assert len(replies) == 1
+    assert "<@999> Nombre Apellido" in replies[0]
+    assert "4" in replies[0]

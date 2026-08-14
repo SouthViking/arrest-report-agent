@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import unicodedata
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -18,13 +20,16 @@ from arrest_report_agent.domain import (
     InteractionMode,
     ReviewCase,
 )
-from arrest_report_agent.domain.errors import ContextUnavailableError
+from arrest_report_agent.domain.errors import ContextUnavailableError, ReportOwnerSubmissionError
 
 from .attachments import AttachmentInputKind, classify_attachment
 from .member_directory import compact_role_names
 from .trigger import TriggerActivation
 
 PARTICIPANT_REGISTRY_LIMIT = 10
+REPORT_OWNER_MINIMUM_IMAGE_COUNT = 4
+_REPORT_NAME_TOKEN = r"[^\W\d_]+(?:[-'’][^\W\d_]+)*"
+_REPORT_NAME_PATTERN = re.compile(rf"{_REPORT_NAME_TOKEN}\s+{_REPORT_NAME_TOKEN}")
 LOGGER = logging.getLogger(__name__)
 
 
@@ -92,6 +97,8 @@ class DiscordContextBuilder:
         self,
         message: discord.Message,
         activation: TriggerActivation,
+        *,
+        bot_user_id: int,
     ) -> ReviewTarget:
         """Resolve an owner-only target without any orphan-thread fallback."""
 
@@ -108,6 +115,7 @@ class DiscordContextBuilder:
             except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
                 raise ContextUnavailableError("Unable to verify the report thread root") from error
             self._require_human_owner(root, message.author.id)
+            self._require_report_submission(root, bot_user_id=bot_user_id)
             return ReviewTarget(
                 root=root,
                 trigger=message,
@@ -125,6 +133,11 @@ class DiscordContextBuilder:
         reference = message.reference
         if reference is None or reference.message_id is None:
             self._require_human_owner(message, message.author.id)
+            self._require_report_submission(
+                message,
+                bot_user_id=bot_user_id,
+                require_leading_mention=True,
+            )
             return ReviewTarget(
                 root=message,
                 trigger=message,
@@ -146,6 +159,7 @@ class DiscordContextBuilder:
         if root.id == message.id:
             raise ContextUnavailableError("Owner bootstrap cannot target itself")
         self._require_human_owner(root, message.author.id)
+        self._require_report_submission(root, bot_user_id=bot_user_id)
         return ReviewTarget(
             root=root,
             trigger=message,
@@ -160,6 +174,38 @@ class DiscordContextBuilder:
             raise ContextUnavailableError("Requester is not the report owner")
         if root.author.bot or root.webhook_id is not None:
             raise ContextUnavailableError("Report root was not published by a human owner")
+
+    @staticmethod
+    def _require_report_submission(
+        root: discord.Message,
+        *,
+        bot_user_id: int,
+        require_leading_mention: bool = False,
+    ) -> None:
+        content = unicodedata.normalize("NFKC", str(getattr(root, "content", "") or ""))
+        normalized = " ".join(content.split())
+        mentions = (f"<@{bot_user_id}>", f"<@!{bot_user_id}>")
+        leading_mention = next(
+            (mention for mention in mentions if normalized.startswith(f"{mention} ")),
+            None,
+        )
+        if require_leading_mention and leading_mention is None:
+            raise ReportOwnerSubmissionError("Report root does not start with the bot mention")
+        if leading_mention is not None:
+            normalized = normalized[len(leading_mention) :].strip()
+        if _REPORT_NAME_PATTERN.fullmatch(normalized) is None:
+            raise ReportOwnerSubmissionError("Report root does not contain exactly Nombre Apellido")
+
+        image_count = 0
+        for attachment in getattr(root, "attachments", ()):
+            kind, _ = classify_attachment(
+                str(getattr(attachment, "filename", "")),
+                getattr(attachment, "content_type", None),
+            )
+            if kind is AttachmentInputKind.IMAGE:
+                image_count += 1
+        if image_count < REPORT_OWNER_MINIMUM_IMAGE_COUNT:
+            raise ReportOwnerSubmissionError("Report root has fewer than four supported images")
 
     async def _resolve_thread_root(
         self,

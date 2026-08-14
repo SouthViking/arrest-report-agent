@@ -30,7 +30,7 @@ from arrest_report_agent.config import (
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import AgentAccessLevel, ErrorKind
-from arrest_report_agent.domain.errors import ContextUnavailableError
+from arrest_report_agent.domain.errors import ContextUnavailableError, ReportOwnerSubmissionError
 from arrest_report_agent.report_owner_access import (
     OwnerRunReservationResult,
     ReportOwnerRunRepository,
@@ -38,7 +38,11 @@ from arrest_report_agent.report_owner_access import (
 from arrest_report_agent.review_analytics import RecordingReviewPublisher, ReportReviewRepository
 from arrest_report_agent.review_analytics.discord import ReportErrorsModal
 
-from .context import DiscordContextBuilder, render_agent_input
+from .context import (
+    REPORT_OWNER_MINIMUM_IMAGE_COUNT,
+    DiscordContextBuilder,
+    render_agent_input,
+)
 from .general_knowledge import (
     PENAL_CODE_URL,
     PROCEDURES_MANUAL_URL,
@@ -231,7 +235,12 @@ def build_report_info_embed(
             inline=False,
         )
         embed.add_field(
-            name="2️⃣ Cómo continuar",
+            name="2️⃣ Material mínimo",
+            value=copy.owner_info_requirements,
+            inline=False,
+        )
+        embed.add_field(
+            name="3️⃣ Cómo continuar",
             value=copy.owner_info_continue,
             inline=False,
         )
@@ -296,6 +305,21 @@ def build_owner_quota_exhausted_message(
 
     pool = messages.owner_quota_exhausted_messages
     return pool[message_id % len(pool)].format(max_rounds=max_rounds)
+
+
+def build_owner_invalid_report_message(
+    *,
+    messages: PersonaAccessMessages,
+    message_id: int,
+    bot_mention: str,
+) -> str:
+    """Explain the owner submission contract without invoking AI or spending a round."""
+
+    pool = messages.owner_invalid_report_messages
+    return pool[message_id % len(pool)].format(
+        bot_mention=bot_mention,
+        min_images=REPORT_OWNER_MINIMUM_IMAGE_COUNT,
+    )
 
 
 class ReviewCog(commands.Cog):
@@ -511,7 +535,14 @@ class ReviewCog(commands.Cog):
                 target = await self.context_builder.resolve_report_owner_target(
                     message,
                     evaluation.activation,
+                    bot_user_id=bot_user.id,
                 )
+            except ReportOwnerSubmissionError:
+                await self._redirect_owner_invalid_report(
+                    message,
+                    bot_mention=getattr(bot_user, "mention", f"<@{bot_user.id}>"),
+                )
+                return
             except ContextUnavailableError:
                 await self._redirect_unauthorized_user(message)
                 return
@@ -852,6 +883,22 @@ class ReviewCog(commands.Cog):
                 max_rounds=max_rounds,
             ),
             event_prefix="report_owner_quota_exhausted",
+        )
+
+    async def _redirect_owner_invalid_report(
+        self,
+        message: discord.Message,
+        *,
+        bot_mention: str,
+    ) -> None:
+        await self._reply_deterministic_notice(
+            message,
+            content=build_owner_invalid_report_message(
+                messages=self.persona.messages.access,
+                message_id=message.id,
+                bot_mention=bot_mention,
+            ),
+            event_prefix="report_owner_invalid_report",
         )
 
     async def _reply_deterministic_notice(
