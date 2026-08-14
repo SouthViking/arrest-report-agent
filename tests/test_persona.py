@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 28
-    assert profile.revision == 32
+    assert profile.schema_version == 30
+    assert profile.revision == 33
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -36,8 +36,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 28
-    assert profile.revision == 39
+    assert profile.schema_version == 30
+    assert profile.revision == 40
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -98,6 +98,8 @@ async def test_personas_keep_personality_copy_with_capitalized_titles(loaded_per
     assert "supervisión" in roy.messages.interface.role_requests.pending_description.lower()
     assert "/solicitar-roles" in walter.messages.help.general_commands
     assert "/info-roles" in roy.messages.help.general_commands
+    assert walter.messages.interface.commands.info_reports_description
+    assert roy.messages.interface.commands.info_reports_description
     assert "/pager" in walter.messages.help.general_commands
     assert "/info-pager" in roy.messages.help.general_commands
     assert "/callsign" in walter.messages.help.general_commands

@@ -32,6 +32,8 @@ class DiscordReviewPublisher:
         settings: AppSettings,
         target: ReviewTarget,
         persona: BotPersona,
+        *,
+        allow_outgoing_mentions: bool = True,
     ) -> None:
         self.bot = bot
         self.settings = settings
@@ -39,6 +41,7 @@ class DiscordReviewPublisher:
         self.persona = persona
         self._thread = target.thread
         self._escalation_roles_pinged = False
+        self._allow_outgoing_mentions = allow_outgoing_mentions
 
     async def mark_review_started(self) -> None:
         try:
@@ -89,14 +92,22 @@ class DiscordReviewPublisher:
     ) -> ConversationResponseRoute:
         """Send plain enriched text through the effective safe Discord route."""
 
-        chunks = _chunk_text(content.strip(), limit=2000)
+        rendered_content = content.strip()
+        if not self._allow_outgoing_mentions:
+            rendered_content = re.sub(r"<@&[1-9][0-9]{16,19}>", "rol", rendered_content)
+            rendered_content = re.sub(r"<@!?[1-9][0-9]{16,19}>", "usuario", rendered_content)
+        chunks = _chunk_text(rendered_content, limit=2000)
         if not chunks:
             raise PublicationError("Unable to publish an empty agent response")
-        allowed_mentions = discord.AllowedMentions(
-            everyone=False,
-            users=True,
-            roles=False,
-            replied_user=False,
+        allowed_mentions = (
+            discord.AllowedMentions(
+                everyone=False,
+                users=True,
+                roles=False,
+                replied_user=False,
+            )
+            if self._allow_outgoing_mentions
+            else discord.AllowedMentions.none()
         )
         try:
             effective_route = self._conversation_route(response_route)
@@ -307,6 +318,8 @@ class DiscordReviewPublisher:
             )
 
     def _escalation_notice(self) -> tuple[str | None, discord.AllowedMentions]:
+        if not self._allow_outgoing_mentions:
+            return None, discord.AllowedMentions.none()
         if self._escalation_roles_pinged:
             return None, discord.AllowedMentions.none()
         self._escalation_roles_pinged = True

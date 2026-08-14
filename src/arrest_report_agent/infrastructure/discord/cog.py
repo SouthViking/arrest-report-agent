@@ -29,8 +29,12 @@ from arrest_report_agent.config import (
     PersonaAccessMessages,
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
-from arrest_report_agent.domain import ErrorKind
+from arrest_report_agent.domain import AgentAccessLevel, ErrorKind
 from arrest_report_agent.domain.errors import ContextUnavailableError
+from arrest_report_agent.report_owner_access import (
+    OwnerRunReservationResult,
+    ReportOwnerRunRepository,
+)
 from arrest_report_agent.review_analytics import RecordingReviewPublisher, ReportReviewRepository
 from arrest_report_agent.review_analytics.discord import ReportErrorsModal
 
@@ -112,6 +116,7 @@ def build_help_embed(
     persona: BotPersona,
     bot_mention: str,
     report_channel_ids: frozenset[int] | None,
+    report_owner_max_rounds: int | None = None,
     avatar_url: str | None = None,
 ) -> discord.Embed:
     """Introduce the reviewer and explain its workflow in character."""
@@ -146,7 +151,18 @@ def build_help_embed(
     )
     embed.add_field(
         name=copy.request_review_title,
-        value=copy.request_review.format(bot_mention=bot_mention),
+        value="\n\n".join(
+            part
+            for part in (
+                copy.request_review.format(bot_mention=bot_mention),
+                (
+                    copy.owner_request_review.format(max_rounds=report_owner_max_rounds)
+                    if report_owner_max_rounds is not None
+                    else ""
+                ),
+            )
+            if part
+        ),
         inline=False,
     )
     embed.add_field(
@@ -178,6 +194,56 @@ def build_help_embed(
         inline=False,
     )
     embed.set_footer(text=copy.footer.format(form_of_address=identity.default_form_of_address))
+    if avatar_url:
+        embed.set_thumbnail(url=avatar_url)
+    return embed
+
+
+def build_report_info_embed(
+    *,
+    persona: BotPersona,
+    bot_mention: str,
+    report_channel_ids: frozenset[int] | None,
+    report_owner_max_rounds: int | None = None,
+    avatar_url: str | None = None,
+) -> discord.Embed:
+    """Explain the report-review workflow without the broader command catalogue."""
+
+    identity = persona.identity
+    copy = persona.messages.help
+    channels = (
+        "\n".join(f"• <#{channel_id}>" for channel_id in sorted(report_channel_ids))
+        if report_channel_ids is not None
+        else copy.unrestricted_channels
+    )
+    request_parts = [copy.request_review.format(bot_mention=bot_mention)]
+    if report_owner_max_rounds is not None:
+        request_parts.append(
+            copy.owner_request_review.format(max_rounds=report_owner_max_rounds)
+        )
+    embed = discord.Embed(
+        title="📋 Revisión de reportes",
+        description=copy.description.format(
+            display_name=identity.display_name,
+            role_title=identity.role_title,
+        ),
+        color=discord.Color.gold(),
+    )
+    embed.add_field(name=copy.review_scope_title, value=copy.review_scope, inline=False)
+    embed.add_field(
+        name=copy.request_review_title,
+        value="\n\n".join(request_parts),
+        inline=False,
+    )
+    embed.add_field(
+        name=copy.thread_behavior_title,
+        value=copy.thread_behavior,
+        inline=False,
+    )
+    embed.add_field(name=copy.location_title, value=channels, inline=False)
+    embed.set_footer(
+        text=copy.footer.format(form_of_address=identity.default_form_of_address)
+    )
     if avatar_url:
         embed.set_thumbnail(url=avatar_url)
     return embed
@@ -223,6 +289,18 @@ def build_blocked_user_message(
     return messages.blocked_user_messages[message_id % len(messages.blocked_user_messages)]
 
 
+def build_owner_quota_exhausted_message(
+    *,
+    messages: PersonaAccessMessages,
+    message_id: int,
+    max_rounds: int,
+) -> str:
+    """Select the dedicated owner-quota notice without invoking AI."""
+
+    pool = messages.owner_quota_exhausted_messages
+    return pool[message_id % len(pool)].format(max_rounds=max_rounds)
+
+
 class ReviewCog(commands.Cog):
     def __init__(
         self,
@@ -233,10 +311,12 @@ class ReviewCog(commands.Cog):
         profile_synchronizer: DiscordProfileSynchronizer | None = None,
         config_provider: object | None = None,
         report_review_repository: ReportReviewRepository | None = None,
+        report_owner_run_repository: ReportOwnerRunRepository | None = None,
     ) -> None:
         self.bot = bot
         self._config_provider = config_provider
         self.report_review_repository = report_review_repository
+        self.report_owner_run_repository = report_owner_run_repository
         self._runtime_context: contextvars.ContextVar[ReviewCogRuntime | None] = contextvars.ContextVar(
             "review_cog_runtime", default=None
         )
@@ -244,6 +324,7 @@ class ReviewCog(commands.Cog):
         self._default_runtime = self._build_runtime(settings, service, persona)
         command_copy = persona.messages.interface.commands
         self.review_help.description = command_copy.help_description
+        self.report_info.description = command_copy.info_reports_description
         self.report_guide.description = command_copy.guide_description
         self.charge_search.description = command_copy.charges_description
         self.report_faq.description = command_copy.faq_description
@@ -268,7 +349,7 @@ class ReviewCog(commands.Cog):
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_reviews)
         self._locks: dict[int, asyncio.Lock] = {}
         self._attempts: defaultdict[int, int] = defaultdict(int)
-        self._deterministic_reply_cooldowns: dict[tuple[int, int, int], float] = {}
+        self._deterministic_reply_cooldowns: dict[tuple[int, int, int, str], float] = {}
         self._unavailable_report_channel_keys: set[tuple[int, int]] = set()
 
     @property
@@ -391,6 +472,12 @@ class ReviewCog(commands.Cog):
             user_access_mode=("restricted" if self.access_policy.users.is_restricted else "open"),
             configured_users=self.access_policy.users.configured_count,
             configured_blocked_users=self.access_policy.blocked_users.configured_count,
+            report_owner_access_enabled=(
+                getattr(self.settings, "report_owner_access_max_rounds", None) is not None
+            ),
+            report_owner_max_rounds=(
+                getattr(self.settings, "report_owner_access_max_rounds", None) or "none"
+            ),
             supervisor_access_mode=("restricted" if self.supervisor_policy.is_restricted else "open"),
             configured_supervisor_roles=self.supervisor_policy.roles.configured_count,
             persona_id=self.persona.id,
@@ -416,10 +503,26 @@ class ReviewCog(commands.Cog):
         if decision is TriggerDecision.REDIRECT_BLOCKED_USER:
             await self._redirect_blocked_user(message)
             return
+        access_level = AgentAccessLevel.FULL
+        target = None
         if decision is TriggerDecision.REDIRECT_UNAUTHORIZED_USER:
-            await self._redirect_unauthorized_user(message)
-            return
-        if decision is not TriggerDecision.REVIEW:
+            max_rounds = getattr(self.settings, "report_owner_access_max_rounds", None)
+            if max_rounds is None or evaluation.activation is None:
+                await self._redirect_unauthorized_user(message)
+                return
+            try:
+                target = await self.context_builder.resolve_report_owner_target(
+                    message,
+                    evaluation.activation,
+                )
+            except ContextUnavailableError:
+                await self._redirect_unauthorized_user(message)
+                return
+            access_level = AgentAccessLevel.REPORT_OWNER
+        if (
+            decision is not TriggerDecision.REVIEW
+            and access_level is not AgentAccessLevel.REPORT_OWNER
+        ):
             return
         if evaluation.activation is None:
             log_event(
@@ -431,23 +534,24 @@ class ReviewCog(commands.Cog):
                 user_id=message.author.id,
             )
             return
-        try:
-            target = await self.context_builder.resolve_target(
-                message,
-                evaluation.activation,
-            )
-        except ContextUnavailableError as error:
-            log_event(
-                LOGGER,
-                "warning",
-                "review_target_unavailable",
-                exc_info=error,
-                message_id=message.id,
-                channel_id=message.channel.id,
-                user_id=message.author.id,
-                **exception_fields(error),
-            )
-            return
+        if target is None:
+            try:
+                target = await self.context_builder.resolve_target(
+                    message,
+                    evaluation.activation,
+                )
+            except ContextUnavailableError as error:
+                log_event(
+                    LOGGER,
+                    "warning",
+                    "review_target_unavailable",
+                    exc_info=error,
+                    message_id=message.id,
+                    channel_id=message.channel.id,
+                    user_id=message.author.id,
+                    **exception_fields(error),
+                )
+                return
         root_id = target.root.id
         lock = self._locks.setdefault(root_id, asyncio.Lock())
         if lock.locked():
@@ -473,9 +577,17 @@ class ReviewCog(commands.Cog):
                     self.settings,
                     target,
                     self.persona,
+                    allow_outgoing_mentions=access_level is AgentAccessLevel.FULL,
                 )
                 try:
-                    case = await self.context_builder.build_case(target)
+                    case = (
+                        await self.context_builder.build_case(
+                            target,
+                            include_channel_history=False,
+                        )
+                        if access_level is AgentAccessLevel.REPORT_OWNER
+                        else await self.context_builder.build_case(target)
+                    )
                 except Exception as error:
                     log_event(
                         LOGGER,
@@ -505,6 +617,63 @@ class ReviewCog(commands.Cog):
                             **exception_fields(publication_error),
                         )
                     return
+                agent_input = render_agent_input(
+                    case,
+                    self.service.model.runtime_defaults.image_detail,
+                )
+                owner_reservation = None
+                if access_level is AgentAccessLevel.REPORT_OWNER:
+                    max_rounds = getattr(self.settings, "report_owner_access_max_rounds", None)
+                    if max_rounds is None or self.report_owner_run_repository is None:
+                        await self._redirect_unauthorized_user(message)
+                        return
+                    try:
+                        owner_reservation = await self.report_owner_run_repository.reserve(
+                            guild_id=case.guild_id,
+                            root_message_id=case.root_message_id,
+                            trigger_message_id=case.trigger_message_id,
+                            owner_user_id=case.requester_user_id,
+                            thread_id=case.thread_id,
+                            max_rounds=max_rounds,
+                        )
+                    except Exception as error:
+                        log_event(
+                            LOGGER,
+                            "error",
+                            "report_owner_run_reservation_failed",
+                            exc_info=error,
+                            guild_id=case.guild_id,
+                            root_message_id=case.root_message_id,
+                            trigger_message_id=case.trigger_message_id,
+                            user_id=case.requester_user_id,
+                            access_level=access_level.value,
+                            **exception_fields(error),
+                        )
+                        await self._redirect_unauthorized_user(message)
+                        return
+                    log_event(
+                        LOGGER,
+                        "info",
+                        "report_owner_run_reservation",
+                        guild_id=case.guild_id,
+                        parent_channel_id=case.parent_channel_id,
+                        thread_id=case.thread_id or "none",
+                        root_message_id=case.root_message_id,
+                        trigger_message_id=case.trigger_message_id,
+                        user_id=case.requester_user_id,
+                        access_level=access_level.value,
+                        reservation_result=owner_reservation.result.value,
+                        used_rounds=owner_reservation.used_rounds,
+                        max_rounds=owner_reservation.max_rounds,
+                    )
+                    if owner_reservation.result is OwnerRunReservationResult.DUPLICATE:
+                        return
+                    if owner_reservation.result is OwnerRunReservationResult.EXHAUSTED:
+                        await self._redirect_owner_quota_exhausted(
+                            message,
+                            max_rounds=owner_reservation.max_rounds,
+                        )
+                        return
                 run_context = ReviewRunContext(
                     case=case,
                     publisher=(
@@ -522,15 +691,48 @@ class ReviewCog(commands.Cog):
                         else publisher
                     ),
                     attempt=attempt,
+                    access_level=access_level,
+                    owner_round=(
+                        owner_reservation.round_number if owner_reservation is not None else None
+                    ),
+                    owner_max_rounds=(
+                        owner_reservation.max_rounds if owner_reservation is not None else None
+                    ),
+                    owner_reservation_result=(
+                        owner_reservation.result.value if owner_reservation is not None else None
+                    ),
                     activity=activity,
                     member_directory=self.member_directory,
                     message_directory=self.message_directory,
                 )
-                agent_input = render_agent_input(
-                    case,
-                    self.service.model.runtime_defaults.image_detail,
-                )
-                await self.service.review(run_context, agent_input)
+                try:
+                    await self.service.review(run_context, agent_input)
+                finally:
+                    if owner_reservation is not None and owner_reservation.run_id is not None:
+                        try:
+                            if run_context.published or run_context.interaction_completed:
+                                await self.report_owner_run_repository.mark_completed(
+                                    owner_reservation.run_id
+                                )
+                            else:
+                                await self.report_owner_run_repository.mark_failed(
+                                    owner_reservation.run_id
+                                )
+                        except Exception as error:
+                            log_event(
+                                LOGGER,
+                                "error",
+                                "report_owner_run_finalization_failed",
+                                exc_info=error,
+                                guild_id=case.guild_id,
+                                root_message_id=case.root_message_id,
+                                trigger_message_id=case.trigger_message_id,
+                                user_id=case.requester_user_id,
+                                access_level=access_level.value,
+                                owner_round=owner_reservation.round_number,
+                                max_rounds=owner_reservation.max_rounds,
+                                **exception_fields(error),
+                            )
         finally:
             if not lock.locked():
                 self._locks.pop(root_id, None)
@@ -639,6 +841,22 @@ class ReviewCog(commands.Cog):
             event_prefix="blocked_user_redirect",
         )
 
+    async def _redirect_owner_quota_exhausted(
+        self,
+        message: discord.Message,
+        *,
+        max_rounds: int,
+    ) -> None:
+        await self._reply_deterministic_notice(
+            message,
+            content=build_owner_quota_exhausted_message(
+                messages=self.persona.messages.access,
+                message_id=message.id,
+                max_rounds=max_rounds,
+            ),
+            event_prefix="report_owner_quota_exhausted",
+        )
+
     async def _reply_deterministic_notice(
         self,
         message: discord.Message,
@@ -649,7 +867,7 @@ class ReviewCog(commands.Cog):
         guild = message.guild
         if guild is None:
             return
-        cooldown_key = (guild.id, message.channel.id, message.author.id)
+        cooldown_key = (guild.id, message.channel.id, message.author.id, event_prefix)
         now = monotonic()
         last_reply = self._deterministic_reply_cooldowns.get(cooldown_key)
         if last_reply is not None and now - last_reply < DETERMINISTIC_REPLY_COOLDOWN_SECONDS:
@@ -710,9 +928,55 @@ class ReviewCog(commands.Cog):
             persona=self.persona,
             bot_mention=bot_user.mention if bot_user else self.persona.identity.display_name,
             report_channel_ids=report_channel_ids,
+            report_owner_max_rounds=getattr(
+                self.settings,
+                "report_owner_access_max_rounds",
+                None,
+            ),
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
         )
         await ctx.respond(embed=embed, ephemeral=False)
+
+    @discord.slash_command(
+        name="info-reportes",
+        description="Explica cómo solicitar y continuar una revisión",
+    )
+    async def report_info(self, ctx: discord.ApplicationContext) -> None:
+        bot_user = self.bot.user
+        report_channel_ids = self.settings.report_channel_allowlist.ids
+        if report_channel_ids is not None:
+            report_channel_ids = frozenset(
+                await self._resolve_report_channels(
+                    guild=ctx.guild,
+                    requester=ctx.author,
+                    channel_ids=report_channel_ids,
+                )
+            )
+        await ctx.respond(
+            embed=build_report_info_embed(
+                persona=self.persona,
+                bot_mention=(
+                    bot_user.mention if bot_user else self.persona.identity.display_name
+                ),
+                report_channel_ids=report_channel_ids,
+                report_owner_max_rounds=getattr(
+                    self.settings,
+                    "report_owner_access_max_rounds",
+                    None,
+                ),
+                avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
+            ),
+            ephemeral=False,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        log_event(
+            LOGGER,
+            "info",
+            "report_info_opened",
+            guild_id=ctx.guild.id if ctx.guild else "direct_message",
+            channel_id=ctx.channel.id if ctx.channel else "unknown",
+            user_id=ctx.author.id,
+        )
 
     @discord.slash_command(name="guia", description="Consulta la guía de reportes por secciones")
     async def report_guide(self, ctx: discord.ApplicationContext) -> None:

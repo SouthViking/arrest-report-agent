@@ -117,6 +117,10 @@ class GuildFeatureSnapshot(FrozenConfigModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
+class ReportOwnerAccessOptions(FrozenConfigModel):
+    max_rounds: int = Field(ge=1, le=20)
+
+
 class GuildConfigSnapshot(FrozenConfigModel):
     guild_id: int = Field(gt=0)
     revision_id: UUID
@@ -170,6 +174,16 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if channels.mode is not AccessPolicyMode.RESTRICTED:
                 raise ValueError(
                     "enabled deployment_notifications requires restricted deployment channels"
+                )
+        owner_feature = self.features.get("report_owner_access")
+        if owner_feature is not None and owner_feature.enabled:
+            if owner_feature.schema_version != 1:
+                raise ValueError("report_owner_access requires feature schema version 1")
+            ReportOwnerAccessOptions.model_validate(owner_feature.payload)
+            channels = self.policies[AccessPolicyKey.REPORT_CHANNELS]
+            if channels.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError(
+                    "enabled report_owner_access requires explicit restricted report channels"
                 )
         return self
 
@@ -273,6 +287,13 @@ class GuildRuntimeSettings:
             return 1
         value = feature.payload.get("starting_number", 1)
         return int(value)
+
+    @property
+    def report_owner_access_max_rounds(self) -> int | None:
+        feature = self.snapshot.features.get("report_owner_access")
+        if feature is None or not feature.enabled:
+            return None
+        return ReportOwnerAccessOptions.model_validate(feature.payload).max_rounds
 
     @property
     def openai_model(self) -> str:

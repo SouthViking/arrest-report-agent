@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 28
+PERSONA_SCHEMA_VERSION = 30
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -127,6 +127,7 @@ class PersonaAccessMessages(FrozenPersonaModel):
     unauthorized_user_intros: tuple[str, ...] = Field(min_length=1, max_length=8)
     unauthorized_user: str = Field(min_length=1, max_length=400)
     blocked_user_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
+    owner_quota_exhausted_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
     scope_refusal: str = Field(min_length=1, max_length=400)
     supervisor_unauthorized: str = Field(min_length=1, max_length=400)
     other_member_query: str = Field(min_length=1, max_length=250)
@@ -138,7 +139,11 @@ class PersonaAccessMessages(FrozenPersonaModel):
     no_supervisor_channels: str = Field(min_length=1, max_length=300)
     no_personal_channels: str = Field(min_length=1, max_length=300)
 
-    @field_validator("unauthorized_user_intros", "blocked_user_messages")
+    @field_validator(
+        "unauthorized_user_intros",
+        "blocked_user_messages",
+        "owner_quota_exhausted_messages",
+    )
     @classmethod
     def reject_empty_pool_items(cls, values: tuple[str, ...]) -> tuple[str, ...]:
         if any(not value.strip() for value in values):
@@ -157,6 +162,12 @@ class PersonaAccessMessages(FrozenPersonaModel):
             {"form_of_address"},
             "scope_refusal",
         )
+        for index, message in enumerate(self.owner_quota_exhausted_messages):
+            _require_template_fields(
+                message,
+                {"max_rounds"},
+                f"owner_quota_exhausted_messages[{index}]",
+            )
         return self
 
 
@@ -193,6 +204,7 @@ class PersonaHelpMessages(FrozenPersonaModel):
     unrestricted_channels: str = Field(min_length=1, max_length=300)
     request_review_title: str = Field(min_length=1, max_length=256)
     request_review: str = Field(min_length=1, max_length=900)
+    owner_request_review: str = Field(min_length=1, max_length=500)
     thread_behavior_title: str = Field(min_length=1, max_length=256)
     thread_behavior: str = Field(min_length=1, max_length=900)
     personal_commands_title: str = Field(min_length=1, max_length=256)
@@ -221,6 +233,11 @@ class PersonaHelpMessages(FrozenPersonaModel):
             self.request_review,
             {"bot_mention"},
             "help.request_review",
+        )
+        _require_template_fields(
+            self.owner_request_review,
+            {"max_rounds"},
+            "help.owner_request_review",
         )
         _require_template_fields(
             self.official_docs,
@@ -811,6 +828,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     """Runtime descriptions and compact copy for root slash commands."""
 
     help_description: str = Field(min_length=1, max_length=100)
+    info_reports_description: str = Field(min_length=1, max_length=100)
     guide_description: str = Field(min_length=1, max_length=100)
     charges_description: str = Field(min_length=1, max_length=100)
     faq_description: str = Field(min_length=1, max_length=100)

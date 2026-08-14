@@ -13,6 +13,8 @@ from arrest_report_agent.infrastructure.discord.cog import (
     ReviewCog,
     build_blocked_user_message,
     build_help_embed,
+    build_owner_quota_exhausted_message,
+    build_report_info_embed,
     build_teamspeak_embed,
     build_unauthorized_user_message,
     maintain_typing_indicator,
@@ -114,6 +116,7 @@ class FakeGuild:
 def test_operational_commands_are_registered_at_the_root() -> None:
     commands = [
         ReviewCog.review_help,
+        ReviewCog.report_info,
         ReviewCog.report_guide,
         ReviewCog.charge_search,
         ReviewCog.report_faq,
@@ -128,6 +131,7 @@ def test_operational_commands_are_registered_at_the_root() -> None:
 
     assert [command.name for command in commands] == [
         "ayuda",
+        "info-reportes",
         "guia",
         "cargos",
         "faq",
@@ -149,6 +153,7 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention(persona) -> N
         persona=persona,
         bot_mention="<@999>",
         report_channel_ids=frozenset({222, 111}),
+        report_owner_max_rounds=5,
         avatar_url="https://cdn.discordapp.com/avatar.png",
     )
 
@@ -166,7 +171,8 @@ def test_help_embed_uses_runtime_identity_channels_and_bot_mention(persona) -> N
     ]
     assert embed.fields[1].value == "• <#111>\n• <#222>"
     assert "<@999>" in embed.fields[2].value
-    assert "responde directamente" in embed.fields[2].value
+    assert "responda directamente" in embed.fields[2].value
+    assert "5 intervenciones" in embed.fields[2].value
     assert "/mis-reportes" in embed.fields[4].value
     assert "/mi-resumen" in embed.fields[4].value
     assert "/guia" in embed.fields[5].value
@@ -194,6 +200,31 @@ def test_help_embed_describes_unrestricted_channel_scope(persona) -> None:
     )
 
     assert embed.fields[1].value == persona.messages.help.unrestricted_channels
+    assert "intervenciones propias" not in embed.fields[2].value
+
+
+def test_report_info_embed_is_public_facing_and_explains_owner_access(persona) -> None:
+    embed = build_report_info_embed(
+        persona=persona,
+        bot_mention="<@999>",
+        report_channel_ids=frozenset({222, 111}),
+        report_owner_max_rounds=5,
+        avatar_url="https://cdn.discordapp.com/avatar.png",
+    )
+
+    assert embed.title == "📋 Revisión de reportes"
+    assert [field.name for field in embed.fields] == [
+        persona.messages.help.review_scope_title,
+        persona.messages.help.request_review_title,
+        persona.messages.help.thread_behavior_title,
+        persona.messages.help.location_title,
+    ]
+    request_copy = embed.fields[1].value
+    assert "<@999>" in request_copy
+    assert "su propia publicación" in request_copy
+    assert "5 intervenciones" in request_copy
+    assert embed.fields[3].value == "• <#111>\n• <#222>"
+    assert embed.thumbnail.url == "https://cdn.discordapp.com/avatar.png"
 
 
 @pytest.mark.asyncio
@@ -210,6 +241,9 @@ async def test_help_and_command_descriptions_use_selected_persona(settings, pers
     assert embed.fields[0].name == "📋 Las weas q reviso"
     assert embed.fields[1].value == roy.messages.help.unrestricted_channels
     assert cog.charge_search.description == roy.messages.interface.commands.charges_description
+    assert cog.report_info.description == (
+        roy.messages.interface.commands.info_reports_description
+    )
     assert cog.open_report_shame.description == (roy.messages.interface.commands.shame_description)
     assert cog.approved_report_honor.description == (roy.messages.interface.commands.honor_description)
     assert cog.report_errors.description == roy.messages.interface.commands.report_errors_description
@@ -439,6 +473,46 @@ def test_blocked_user_message_uses_the_persona_pool(persona) -> None:
     ]
 
     assert messages == list(persona.messages.access.blocked_user_messages)
+
+
+def test_owner_quota_message_uses_a_distinct_persona_pool(persona) -> None:
+    messages = [
+        build_owner_quota_exhausted_message(
+            messages=persona.messages.access,
+            message_id=index,
+            max_rounds=5,
+        )
+        for index in range(len(persona.messages.access.owner_quota_exhausted_messages))
+    ]
+
+    assert all("5" in message for message in messages)
+    assert all(message not in persona.messages.access.blocked_user_messages for message in messages)
+    assert all("habilitación" not in message for message in messages)
+
+
+@pytest.mark.asyncio
+async def test_owner_quota_notice_has_an_independent_cooldown(settings, persona) -> None:
+    replies: list[str] = []
+
+    async def reply(*, content: str, **_kwargs: object) -> None:
+        replies.append(content)
+
+    message = SimpleNamespace(
+        id=123,
+        guild=SimpleNamespace(id=456),
+        channel=SimpleNamespace(id=789),
+        author=SimpleNamespace(id=321),
+        reply=reply,
+    )
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+
+    await cog._redirect_unauthorized_user(message)  # noqa: SLF001
+    await cog._redirect_owner_quota_exhausted(message, max_rounds=5)  # noqa: SLF001
+
+    assert len(replies) == 2
+    assert "5" in replies[1]
+    assert replies[0] != replies[1]
 
 
 @pytest.mark.asyncio

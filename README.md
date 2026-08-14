@@ -97,6 +97,13 @@ queda abierto para la guild. La política **Usuarios bloqueados del agente** adm
 explícitos o estar deshabilitada y tiene precedencia absoluta: una cuenta incluida no puede activar
 el agente aunque también figure en una lista permitida o posea un rol autorizado.
 
+El módulo dinámico **Acceso del propietario del reporte** añade una excepción acotada: el autor
+humano de una publicación en un canal de reportes explícito puede responder su propio mensaje y
+mencionar al bot, o continuar dentro del hilo nacido de ese reporte. Tiene hasta cinco ejecuciones
+para ese expediente; luego debe continuar personal con acceso completo. La blacklist conserva
+precedencia y el propietario nunca recibe herramientas de directorio, lectura de otros canales,
+reacciones manuales ni menciones salientes.
+
 `REPORT_CHANNEL_IDS` no restringe conversaciones. Define los canales que `/mis-reportes`,
 `/mi-resumen`, `/pendientes`, `/ranking`, `/verguenza`, `/honor` y `/errores-reportes` utilizan como archivo de reportes y los que `/ayuda`
 presenta como destinos habituales. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` siguen siendo aliases
@@ -332,6 +339,8 @@ tool puede cargar selectivamente los adjuntos del mensaje como inputs nativos de
 Comandos disponibles:
 
 - `/ayuda`: presentación, instrucciones y enlaces oficiales visibles para todo el canal.
+- `/info-reportes`: explicación pública y breve del flujo de revisión, incluidas las formas en
+  que el autor puede iniciar o continuar la revisión limitada de su propio expediente.
 - `/guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.
 - `/cargos`: modal privado para buscar por código, título, descripción o categoría en el catálogo
   penal local; muestra detalles y sanciones con paginación cuando corresponde.
@@ -379,6 +388,9 @@ Comandos disponibles:
   permite inspeccionar la revisión activa y administrar borradores, accesos, agente, módulos,
   personas, publicación y rollback mediante botones y formularios. Los intentos no autorizados
   reciben una alerta efímera tomada del pool de la personalidad activa.
+
+En `/config` → **Módulos**, `report_owner_access` acepta `{"max_rounds": 5}` con un valor entre 1 y
+20. Solo puede habilitarse cuando `report_channels` contiene IDs explícitos.
 
 Los comandos de guía, cargos, FAQ, vergüenza, honor, roles, sugerencias y consultas personales son
 deterministas:
@@ -476,6 +488,8 @@ en el entorno o en `.env` y se habilita de forma explícita:
 
 - PostgreSQL persiste configuración, personalidades, auditoría y cada intento estructurado de
   revisión. Los locks del proceso siguen siendo efímeros y se reconstruyen al reiniciar.
+- PostgreSQL reserva también cada ejecución limitada del propietario por reporte y trigger. El
+  contenido continúa viviendo únicamente en Discord.
 - Los callsigns se conservan por servidor y miembro. Al responder un pager se reutiliza el valor
   guardado; si todavía no existe, se solicita una vez y queda disponible para respuestas futuras.
 - Las consultas personales reconstruyen un snapshot desde mensajes y reacciones conservados en

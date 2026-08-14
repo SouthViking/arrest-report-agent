@@ -23,7 +23,7 @@ Cada mutación usa el ID de la interacción como clave idempotente y queda en `c
 Las publicaciones emiten una notificación de PostgreSQL para refrescar el runtime sin redeploy.
 
 Los comandos se registran directamente en la raíz, sin depender del nombre o personalidad del bot.
-Salvo `/ayuda`, `/ts3`, `/info-roles`, los resultados de `/verguenza` y `/honor`, y el expediente publicado
+Salvo `/ayuda`, `/info-reportes`, `/ts3`, `/info-roles`, los resultados de `/verguenza` y `/honor`, y el expediente publicado
 por `/solicitar-roles`, sus respuestas son efímeras: solo las ve quien ejecutó el comando. Los selectores
 de consultas quedan ligados a ese usuario, expiran a los 180 segundos y editan el mensaje existente
 en vez de publicar respuestas adicionales. Los tres botones de una solicitud de roles son la
@@ -36,6 +36,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | Comando | Acceso | Visibilidad | Fuente |
 |---|---|---|---|
 | `/ayuda` | Todos | Pública | Persona seleccionada y configuración del bot |
+| `/info-reportes` | Todos | Pública | Persona, canales y configuración de acceso del propietario |
 | `/guia` | Todos | Efímera | `report_guide.json` |
 | `/cargos` | Todos | Efímera | `delitos.json` |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
@@ -66,6 +67,11 @@ Los comandos generales no aplican `AUTHORIZED_USER_IDS`; están destinados a tod
 puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists centrales antes de
 leer el historial de Discord.
 
+`/info-reportes` no ejecuta IA. Explica las dos entradas disponibles para el autor: responder
+directamente su propia publicación mencionando al bot, o continuar dentro del hilo de ese expediente.
+Cuando `report_owner_access` está habilitado, muestra el límite vigente de intervenciones; si el
+módulo está deshabilitado, omite esa vía sin anunciar una capacidad inexistente.
+
 Los comandos de supervisión comparten `SUPERVISOR_ROLE_IDS`. Ausente, vacío o `*` permite a
 todos; una lista CSV exige que el miembro posea al menos uno de esos roles. La comprobación está
 centralizada y no depende de `AUTHORIZED_USER_IDS`.
@@ -91,6 +97,10 @@ alteran el estado del expediente.
 Publica la presentación de la identidad configurada, capacidades de revisión, canales de guardia,
 forma de invocación, comandos disponibles y enlaces oficiales. Es el único comando deliberadamente
 visible para todo el canal.
+
+También explica que el autor puede iniciar una revisión limitada respondiendo su propio reporte y
+mencionando al bot, o continuar dentro del hilo de ese expediente. Esa vía dispone de cinco
+intervenciones; el acceso completo por usuario o rol no consume ese cupo.
 
 ## `/guia`
 

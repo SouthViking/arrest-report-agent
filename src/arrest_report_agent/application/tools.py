@@ -16,6 +16,7 @@ from agents import (
 from pydantic import BaseModel, ConfigDict, Field
 
 from arrest_report_agent.domain import (
+    AgentAccessLevel,
     AgentActivity,
     ConversationResponseRoute,
     ReviewPublication,
@@ -157,6 +158,7 @@ def build_agent_tools(
     max_file_bytes: int = 10_485_760,
     max_total_file_bytes: int = 52_428_800,
     image_detail: str = "auto",
+    access_level: AgentAccessLevel = AgentAccessLevel.FULL,
 ) -> list[object]:
     """Create tools bound to immutable local knowledge sources."""
 
@@ -553,8 +555,25 @@ def build_agent_tools(
             }
 
         selected_fields = tuple(dict.fromkeys(fields or DEFAULT_MESSAGE_FIELDS))
+        selected_channel_id = (
+            int(channel_id)
+            if channel_id is not None
+            else _default_message_channel_id(ctx.context)
+        )
+        if not _owner_message_query_is_allowed(
+            ctx.context,
+            channel_id=selected_channel_id,
+            message_id=int(message_id) if message_id is not None else None,
+            direction=direction,
+        ):
+            return {
+                "ok": False,
+                "error": "message_outside_active_report",
+                "channel_id": str(selected_channel_id),
+                "messages": [],
+            }
         query = MessageLookupQuery(
-            channel_id=int(channel_id) if channel_id is not None else ctx.context.case.channel_id,
+            channel_id=selected_channel_id,
             message_id=int(message_id) if message_id is not None else None,
             direction=direction,
             limit=limit,
@@ -617,7 +636,21 @@ def build_agent_tools(
         if directory is None:
             return _attachment_tool_error("message_directory_unavailable")
 
-        selected_channel_id = int(channel_id) if channel_id is not None else run_context.case.channel_id
+        selected_channel_id = (
+            int(channel_id)
+            if channel_id is not None
+            else _default_message_channel_id(run_context)
+        )
+        if not _owner_attachment_query_is_allowed(
+            run_context,
+            channel_id=selected_channel_id,
+            message_id=int(message_id),
+        ):
+            return _attachment_tool_error(
+                "message_outside_active_report",
+                channel_id=selected_channel_id,
+                message_id=int(message_id),
+            )
         selected_attachment_ids = tuple(
             dict.fromkeys(int(attachment_id) for attachment_id in (attachment_ids or []))
         )
@@ -852,11 +885,23 @@ def build_agent_tools(
             "interaction_complete": True,
         }
 
-    return [
+    common_tools = [
         get_report_guide,
         search_radio_codes,
         list_charge_index,
         get_charge_details,
+    ]
+    report_tools = [
+        get_messages,
+        get_message_attachments,
+        send_message,
+        finish_interaction,
+        publish_review,
+    ]
+    if access_level is AgentAccessLevel.REPORT_OWNER:
+        return [*common_tools, *report_tools]
+    return [
+        *common_tools,
         list_guild_roles,
         find_guild_members,
         find_channel_members,
@@ -868,6 +913,51 @@ def build_agent_tools(
         finish_interaction,
         publish_review,
     ]
+
+
+def _owner_message_query_is_allowed(
+    run_context: ReviewRunContext,
+    *,
+    channel_id: int,
+    message_id: int | None,
+    direction: MessageDirection,
+) -> bool:
+    """Restrict owner-tier message reads to the active root and thread."""
+
+    if run_context.access_level is AgentAccessLevel.FULL:
+        return True
+    if run_context.case.thread_id is not None and channel_id == run_context.case.thread_id:
+        return True
+    return (
+        channel_id == run_context.case.parent_channel_id
+        and direction == "exact"
+        and message_id == run_context.case.root_message_id
+    )
+
+
+def _default_message_channel_id(run_context: ReviewRunContext) -> int:
+    if (
+        run_context.access_level is AgentAccessLevel.REPORT_OWNER
+        and run_context.case.thread_id is not None
+    ):
+        return run_context.case.thread_id
+    return run_context.case.channel_id
+
+
+def _owner_attachment_query_is_allowed(
+    run_context: ReviewRunContext,
+    *,
+    channel_id: int,
+    message_id: int,
+) -> bool:
+    if run_context.access_level is AgentAccessLevel.FULL:
+        return True
+    if run_context.case.thread_id is not None and channel_id == run_context.case.thread_id:
+        return True
+    return (
+        channel_id == run_context.case.parent_channel_id
+        and message_id == run_context.case.root_message_id
+    )
 
 
 def _attachment_tool_error(

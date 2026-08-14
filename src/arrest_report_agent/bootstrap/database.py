@@ -399,6 +399,16 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         schema_version=1,
                         payload={},
                     ),
+                    GuildFeatureSnapshot(
+                        key="report_owner_access",
+                        enabled=guild_id == 1234674521416663070,
+                        schema_version=1,
+                        payload=(
+                            {"max_rounds": 5}
+                            if guild_id == 1234674521416663070
+                            else {}
+                        ),
+                    ),
                 ),
                 persona_revision_id=placeholder_persona_revision,
             )

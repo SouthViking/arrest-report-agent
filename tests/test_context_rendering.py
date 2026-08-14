@@ -12,6 +12,7 @@ from arrest_report_agent.domain import (
     InteractionMode,
     ReviewCase,
 )
+from arrest_report_agent.domain.errors import ContextUnavailableError
 from arrest_report_agent.infrastructure.discord.context import (
     DiscordContextBuilder,
     DiscordResponseRoute,
@@ -534,6 +535,116 @@ async def test_response_route_is_derived_from_activation_and_channel(settings, p
 
     assert mention_target.response_route is DiscordResponseRoute.AGENT_CHOICE
     assert reply_target.response_route is DiscordResponseRoute.INLINE_REPLY
+
+
+@pytest.mark.asyncio
+async def test_report_owner_bootstrap_is_anchored_to_own_replied_report(
+    settings,
+    persona,
+    monkeypatch,
+) -> None:
+    owner_id = 123
+    report_channel_id = min(settings.report_channel_ids)
+    root = SimpleNamespace(
+        id=700,
+        author=SimpleNamespace(id=owner_id, bot=False),
+        webhook_id=None,
+        thread=None,
+    )
+
+    class FakeTextChannel:
+        id = report_channel_id
+
+        async def fetch_message(self, message_id: int):
+            assert message_id == root.id
+            return root
+
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.TextChannel",
+        FakeTextChannel,
+    )
+    parent = FakeTextChannel()
+    trigger = SimpleNamespace(
+        id=701,
+        author=SimpleNamespace(id=owner_id),
+        channel=parent,
+        reference=SimpleNamespace(
+            message_id=root.id,
+            channel_id=parent.id,
+            resolved=None,
+            cached_message=None,
+        ),
+    )
+
+    target = await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
+        trigger,
+        TriggerActivation.MENTION,
+    )
+
+    assert target.root is root
+    assert target.trigger is trigger
+    assert target.thread is None
+    assert target.response_route is DiscordResponseRoute.THREAD
+
+
+@pytest.mark.asyncio
+async def test_report_owner_thread_requires_canonical_human_root(
+    settings,
+    persona,
+    monkeypatch,
+) -> None:
+    owner_id = 123
+    report_channel_id = min(settings.report_channel_ids)
+    root = SimpleNamespace(
+        id=800,
+        author=SimpleNamespace(id=owner_id, bot=False),
+        webhook_id=None,
+    )
+
+    class FakeTextChannel:
+        id = report_channel_id
+
+        async def fetch_message(self, message_id: int):
+            assert message_id == root.id
+            return root
+
+    class FakeThread:
+        id = root.id
+
+        def __init__(self, parent: FakeTextChannel) -> None:
+            self.parent = parent
+
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.TextChannel",
+        FakeTextChannel,
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.Thread",
+        FakeThread,
+    )
+    thread = FakeThread(FakeTextChannel())
+    trigger = SimpleNamespace(id=801, author=SimpleNamespace(id=owner_id), channel=thread)
+
+    target = await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
+        trigger,
+        TriggerActivation.BOT_REPLY,
+    )
+    assert target.root is root
+    assert target.thread is thread
+
+    root.author.id = 999
+    with pytest.raises(ContextUnavailableError, match="not the report owner"):
+        await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
+            trigger,
+            TriggerActivation.MENTION,
+        )
+    root.author.id = owner_id
+    root.webhook_id = 55
+    with pytest.raises(ContextUnavailableError, match="not published by a human"):
+        await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
+            trigger,
+            TriggerActivation.MENTION,
+        )
 
 
 @pytest.mark.asyncio

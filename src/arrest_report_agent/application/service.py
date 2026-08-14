@@ -20,13 +20,13 @@ from openai.types.shared.reasoning import Reasoning
 
 from arrest_report_agent.config import AppSettings, BotPersona, ResolvedModel
 from arrest_report_agent.config.logging import exception_fields, log_event
-from arrest_report_agent.domain import ReviewCase
+from arrest_report_agent.domain import AgentAccessLevel, ReviewCase
 from arrest_report_agent.knowledge import ChargeCatalog, RadioCodeCatalog, ReportGuide
 
 from .errors import classify_error, public_error_message
 from .hooks import ReviewLifecycleHooks
 from .prompt import PROMPT_VERSION, build_agent_instructions
-from .scope import SCOPE_GUARDRAIL_VERSION, build_scope_guardrail, scope_refusal_message
+from .scope import build_scope_guardrail, scope_refusal_message
 from .service_context import ReviewRunContext
 from .tools import build_agent_tools
 from .usage import summarize_usage
@@ -62,26 +62,52 @@ class ReviewService:
             max_file_bytes=settings.max_file_bytes,
             max_total_file_bytes=settings.max_total_file_bytes,
             image_detail=model.runtime_defaults.image_detail,
+            access_level=AgentAccessLevel.FULL,
+        )
+        owner_tools = build_agent_tools(
+            catalog,
+            guide,
+            self.radio_catalog,
+            max_images_per_review=settings.max_images_per_review,
+            max_image_bytes=settings.max_image_bytes,
+            max_files_per_review=settings.max_files_per_review,
+            max_file_bytes=settings.max_file_bytes,
+            max_total_file_bytes=settings.max_total_file_bytes,
+            image_detail=model.runtime_defaults.image_detail,
+            access_level=AgentAccessLevel.REPORT_OWNER,
         )
         scope_guardrail = build_scope_guardrail(settings, model)
         self.hooks = ReviewLifecycleHooks()
+        model_settings = ModelSettings(
+            reasoning=Reasoning(effort=model.reasoning_effort),
+            verbosity=model.runtime_defaults.text_verbosity,
+            max_tokens=model.runtime_defaults.max_output_tokens,
+            tool_choice="required",
+            parallel_tool_calls=False,
+            retry=ModelRetrySettings(max_retries=settings.openai_max_retries),
+            include_usage=True,
+            extra_args={"service_tier": model.runtime_defaults.service_tier},
+        )
         self.agent: Agent[ReviewRunContext] = Agent(
             name=persona.identity.display_name,
             instructions=build_agent_instructions(persona),
             model=model.id,
-            model_settings=ModelSettings(
-                reasoning=Reasoning(effort=model.reasoning_effort),
-                verbosity=model.runtime_defaults.text_verbosity,
-                max_tokens=model.runtime_defaults.max_output_tokens,
-                tool_choice="required",
-                parallel_tool_calls=False,
-                retry=ModelRetrySettings(max_retries=settings.openai_max_retries),
-                include_usage=True,
-                extra_args={"service_tier": model.runtime_defaults.service_tier},
-            ),
+            model_settings=model_settings,
             tools=tools,  # type: ignore[arg-type]
             input_guardrails=[scope_guardrail],
             tool_use_behavior=StopAtTools(stop_at_tool_names=["finish_interaction", "publish_review"]),
+            reset_tool_choice=False,
+        )
+        self.report_owner_agent: Agent[ReviewRunContext] = Agent(
+            name=persona.identity.display_name,
+            instructions=build_agent_instructions(persona, AgentAccessLevel.REPORT_OWNER),
+            model=model.id,
+            model_settings=model_settings,
+            tools=owner_tools,  # type: ignore[arg-type]
+            input_guardrails=[scope_guardrail],
+            tool_use_behavior=StopAtTools(
+                stop_at_tool_names=["finish_interaction", "publish_review"]
+            ),
             reset_tool_choice=False,
         )
 
@@ -93,7 +119,7 @@ class ReviewService:
             trace_include_sensitive_data=self.settings.openai_trace_include_sensitive_data,
             workflow_name=self.settings.trace_workflow_name,
             group_id=f"discord-report:{case.guild_id}:{case.root_message_id}",
-            trace_metadata=self._trace_metadata(case, run_context.attempt),
+            trace_metadata=self._trace_metadata(case, run_context),
         )
         log_event(
             LOGGER,
@@ -102,13 +128,17 @@ class ReviewService:
             model=self.model.id,
             reasoning_effort=self.model.reasoning_effort,
             service_tier=self.model.runtime_defaults.service_tier,
-            **self._log_metadata(case, run_context.attempt),
+            **self._log_metadata(case, run_context),
         )
         result = None
         try:
             result = await asyncio.wait_for(
                 Runner.run(
-                    self.agent,
+                    (
+                        self.report_owner_agent
+                        if run_context.access_level is AgentAccessLevel.REPORT_OWNER
+                        else self.agent
+                    ),
                     agent_input,  # type: ignore[arg-type]
                     context=run_context,
                     max_turns=self.settings.max_agent_turns,
@@ -142,7 +172,7 @@ class ReviewService:
                 model=self.model.id,
                 reasoning_effort=self.model.reasoning_effort,
                 **usage.to_log_fields(),
-                **self._log_metadata(case, run_context.attempt),
+                **self._log_metadata(case, run_context),
             )
         except InputGuardrailTripwireTriggered as error:
             usage = summarize_usage(run_context.guardrail_usage, self.model)
@@ -153,7 +183,7 @@ class ReviewService:
                 latency_ms=round((time.monotonic() - started_at) * 1000),
                 guardrail_name=error.guardrail_result.guardrail.get_name(),
                 **usage.to_log_fields(),
-                **self._log_metadata(case, run_context.attempt),
+                **self._log_metadata(case, run_context),
             )
             try:
                 await run_context.publisher.send_message(
@@ -172,7 +202,7 @@ class ReviewService:
                     "scope_refusal_publication_failed",
                     exc_info=publication_error,
                     **exception_fields(publication_error),
-                    **self._log_metadata(case, run_context.attempt),
+                    **self._log_metadata(case, run_context),
                 )
         except Exception as error:
             classified = classify_error(error)
@@ -190,7 +220,7 @@ class ReviewService:
                 technical_reference=technical_reference,
                 **usage.to_log_fields(),
                 **exception_fields(error),
-                **self._log_metadata(case, run_context.attempt),
+                **self._log_metadata(case, run_context),
             )
             if run_context.published or run_context.interaction_completed:
                 return
@@ -206,10 +236,14 @@ class ReviewService:
                     exc_info=publication_error,
                     technical_reference=technical_reference,
                     **exception_fields(publication_error),
-                    **self._log_metadata(case, run_context.attempt),
+                    **self._log_metadata(case, run_context),
                 )
 
-    def _log_metadata(self, case: ReviewCase, attempt: int) -> dict[str, Any]:
+    def _log_metadata(
+        self,
+        case: ReviewCase,
+        run_context: ReviewRunContext,
+    ) -> dict[str, Any]:
         """Return filterable Discord identifiers shared by every runner event."""
 
         return {
@@ -221,25 +255,48 @@ class ReviewService:
             "message_id": case.trigger_message_id,
             "root_message_id": case.root_message_id,
             "trigger_message_id": case.trigger_message_id,
-            "attempt": attempt,
+            "attempt": run_context.attempt,
+            "access_level": run_context.access_level.value,
+            "owner_round": run_context.owner_round or "none",
+            "owner_max_rounds": run_context.owner_max_rounds or "none",
+            "owner_reservation_result": run_context.owner_reservation_result or "none",
             "persona_id": self.persona.id,
             "persona_revision": self.persona.revision,
         }
 
-    def _trace_metadata(self, case: ReviewCase, attempt: int) -> dict[str, Any]:
+    def _trace_metadata(
+        self,
+        case: ReviewCase,
+        attempt: int | ReviewRunContext,
+    ) -> dict[str, Any]:
+        if isinstance(attempt, ReviewRunContext):
+            run_context = attempt
+            attempt_number = run_context.attempt
+            access_level = run_context.access_level.value
+            owner_round = str(run_context.owner_round or "")
+            owner_max_rounds = str(run_context.owner_max_rounds or "")
+            owner_reservation_result = run_context.owner_reservation_result or ""
+        else:
+            attempt_number = attempt
+            access_level = AgentAccessLevel.FULL.value
+            owner_round = ""
+            owner_max_rounds = ""
+            owner_reservation_result = ""
         return {
             "environment": self.settings.app_environment,
             "app_version": self.settings.app_version,
             "prompt_version": PROMPT_VERSION,
-            "scope_guardrail_version": SCOPE_GUARDRAIL_VERSION,
             "guild_id": str(case.guild_id),
             "parent_channel_id": str(case.parent_channel_id),
             "thread_id": str(case.thread_id or ""),
             "root_message_id": str(case.root_message_id),
             "trigger_message_id": str(case.trigger_message_id),
             "user_id": str(case.requester_user_id),
-            "review_attempt": str(attempt),
+            "review_attempt": str(attempt_number),
+            "access_level": access_level,
+            "owner_round": owner_round,
+            "owner_max_rounds": owner_max_rounds,
+            "owner_reservation_result": owner_reservation_result,
             "model": self.model.id,
-            "reasoning_effort": self.model.reasoning_effort,
             "persona_id": self.persona.id,
         }

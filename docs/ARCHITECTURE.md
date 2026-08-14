@@ -14,7 +14,9 @@ flowchart LR
     T -->|"guild y usuario o rol habilitados"| C["Contexto acotado de Discord"]
     T -->|"guild no habilitada"| I["Ignorar"]
     T -->|"usuario bloqueado"| L["Respuesta local de bloqueo"]
-    T -->|"usuario no habilitado"| U["Respuesta local de acceso"]
+    T -->|"usuario no habilitado"| U["Validación de propietario y reporte"]
+    U -->|"propietario válido y con cupo"| QO["Agente limitado al expediente"]
+    U -->|"sin acceso o sin cupo"| UA["Respuesta local específica"]
     C --> S["Guardrail textual de alcance e intención"]
     S -->|"claramente ajeno"| O["Respuesta breve sin imágenes"]
     S -->|"permitido o ambiguo"| R["Agente principal multimodal"]
@@ -55,6 +57,14 @@ en lugar de mezclar estaciones en un único ranking. La agregación conserva por
 expedientes sin reacción y aquellos marcados `⏳`, para que la presentación no confunda ausencia de
 revisión con una revisión activa.
 
+Cuando `report_owner_access` está habilitado, esos canales explícitos forman además la frontera del
+acceso limitado. El listener solo concede `report_owner` si el autor responde directamente a su
+propio reporte o habla dentro del hilo cuyo ID coincide con el mensaje raíz. No usa el fallback de
+hilos huérfanos para esta decisión. Antes del guardrail reserva atómicamente una ronda en
+`report_owner_agent_runs`; el trigger único evita ejecuciones duplicadas y un advisory lock impide
+superar el máximo bajo concurrencia. Los fallos anteriores a esa reserva no consumen, mientras que
+cualquier ejecución que ya puede alcanzar OpenAI queda contabilizada aunque falle después.
+
 Una vez superada la política local, `request_scope` clasifica alcance e intención usando solo el
 texto de la solicitud actual y señales compactas de contexto. Es bloqueante
 (`run_in_parallel=False`), usa el modelo soportado con `reasoning=none` y no recibe imágenes. Solo
@@ -89,6 +99,7 @@ modelo no puede escoger una guild ni un canal de publicación.
 - `knowledge`: guía versionada, índice del JSON del PCU y referencia acotada de códigos radiales,
   cargados y validados al iniciar.
 - `application`: prompt, tools, contexto del runner, errores, tracing y orquestación.
+- `report_owner_access`: repositorio transaccional y contratos del cupo permanente por expediente.
 - `infrastructure/discord`: política previa, reconstrucción de hilos, embeds, reacciones y comandos.
 - `infrastructure/postgres`: cliente async, esquema SQLAlchemy, repositorios y caché dinámica.
 - `infrastructure/storage`: contrato de objetos y adaptador S3 para Railway Bucket.
@@ -237,6 +248,13 @@ conserva el bot operativo y permite reintentar solo el campo pendiente en el sig
 El nickname es opcional y `null` significa que no se administra por guild.
 
 ## Herramientas del agente
+
+El servicio construye dos perfiles con el mismo modelo y conocimiento. `full` conserva todas las
+herramientas. `report_owner` recibe solo guía, cargos, códigos radiales, mensajes y adjuntos del
+reporte activo, conversación y publicación estructurada. Las lecturas del canal padre se limitan al
+mensaje raíz; el hilo puede leerse como conversación del expediente. El adaptador elimina menciones
+salientes y no expone directorios, reacciones manuales ni lectura arbitraria de canales. El estado
+✅/❌ solo puede surgir del veredicto de `publish_review`.
 
 - `get_report_guide(sections)`: devuelve solo las secciones solicitadas.
 - `search_radio_codes(queries, categories, fields, match_mode, term_match, fuzzy, limit)`: resuelve

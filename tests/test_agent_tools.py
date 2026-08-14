@@ -26,6 +26,7 @@ from arrest_report_agent.application.ports import (
 from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.application.tools import build_agent_tools
 from arrest_report_agent.domain import (
+    AgentAccessLevel,
     AgentActivity,
     ConversationResponseRoute,
     DiscordAttachment,
@@ -65,6 +66,80 @@ class FakePublisher:
 
     async def publish_failure(self, public_message) -> None:
         raise AssertionError("not expected")
+
+
+@pytest.mark.asyncio
+async def test_report_owner_message_tool_cannot_leave_active_report() -> None:
+    guild_id = 98765432109876543
+    parent_channel_id = 11111111111111111
+    thread_id = 22222222222222222
+    root_message_id = 33333333333333333
+    requester_id = 44444444444444444
+    directory = FakeMessageDirectory(MessageLookupResult(messages=()))
+    run_context = ReviewRunContext(
+        case=ReviewCase(
+            guild_id=guild_id,
+            parent_channel_id=parent_channel_id,
+            channel_id=thread_id,
+            thread_id=thread_id,
+            root_message_id=root_message_id,
+            trigger_message_id=55555555555555555,
+            requester_user_id=requester_id,
+            interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+            messages=[],
+            attachments=[],
+        ),
+        publisher=FakePublisher(),
+        attempt=1,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        message_directory=directory,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+            access_level=AgentAccessLevel.REPORT_OWNER,
+        )
+    }
+    outside_arguments = json.dumps(
+        {
+            "channel_id": "66666666666666666",
+            "message_id": str(root_message_id),
+            "direction": "exact",
+            "limit": 1,
+        }
+    )
+    outside = await tools["get_messages"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="get_messages",
+            tool_call_id="owner-outside",
+            tool_arguments=outside_arguments,
+        ),
+        outside_arguments,
+    )
+    parent_latest_arguments = json.dumps(
+        {
+            "channel_id": str(parent_channel_id),
+            "message_id": None,
+            "direction": "latest",
+            "limit": 10,
+        }
+    )
+    parent_latest = await tools["get_messages"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="get_messages",
+            tool_call_id="owner-parent-latest",
+            tool_arguments=parent_latest_arguments,
+        ),
+        parent_latest_arguments,
+    )
+
+    assert outside["error"] == "message_outside_active_report"
+    assert parent_latest["error"] == "message_outside_active_report"
+    assert directory.calls == []
 
 
 class ActivityRecorder:

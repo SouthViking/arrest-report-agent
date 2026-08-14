@@ -59,6 +59,13 @@ class RequestIntent(StrEnum):
     OUT_OF_SCOPE = "out_of_scope"
 
 
+class AgentAccessLevel(StrEnum):
+    """Capabilities granted to one agent execution."""
+
+    FULL = "full"
+    REPORT_OWNER = "report_owner"
+
+
 class ConversationResponseRoute(StrEnum):
     """Agent-selectable route without exposing arbitrary Discord destinations."""
 

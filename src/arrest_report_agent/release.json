@@ -1,22 +1,22 @@
 {
   "schema_version": 2,
-  "version": "0.5.3",
-  "title": "Referencia oficial de códigos radiales",
-  "summary": "Las revisiones ahora interpretan los códigos radiales con la referencia oficial antes de evaluar los hechos y cargos.",
+  "version": "0.5.4",
+  "title": "Revisión limitada para autores de reportes",
+  "summary": "Ahora cada autor puede pedir ayuda al bot para revisar y corregir su propio reporte directamente desde el expediente.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
       "type": "added",
-      "text": "Se incorporó una búsqueda acotada de códigos de respuesta, códigos 10, situaciones y alfabeto radiofónico APCO."
+      "text": "Responde tu propia publicación y menciona al bot para iniciar una revisión; el trabajo continuará ordenadamente dentro del hilo."
     },
     {
       "type": "improved",
-      "text": "El agente verifica referencias radiales pertinentes antes de interpretar la narrativa o evaluar los cargos."
+      "text": "Si el hilo ya existe, puedes mencionar al bot o responder uno de sus mensajes para seguir corrigiendo tu reporte."
     },
     {
       "type": "improved",
-      "text": "Fechas, horas, callsigns, evidencias y códigos legales ya no se confunden automáticamente con códigos radiales."
+      "text": "Cada reporte incluye hasta cinco intervenciones para su autor; `/info-reportes` explica el flujo completo."
     }
   ]
 }

@@ -39,6 +39,13 @@ blacklist `agent_blocked_users` y el acceso por usuario o rol pasan por una pol�
 reconstruir el contexto. Una mención bloqueada o que no coincide con `agent_users` ni `agent_roles`
 registra solo IDs técnicos mediante `blocked_user_redirect_*` o `unauthorized_user_redirect_*`.
 
+La excepción `report_owner` se valida antes de OpenAI contra el canal padre, el mensaje raíz, su
+autor humano y el hilo canónico. Su input omite el historial general del canal y sus tools no pueden
+leer otros expedientes, enumerar miembros, modificar reacciones manualmente ni generar menciones.
+PostgreSQL conserva IDs operacionales, ronda y estado de cada ejecución, nunca el texto o los
+adjuntos del reporte. Al agotar el cupo se emite un aviso distinto a blacklist, falta de acceso o
+cuota del proveedor, sin llamar al guardrail ni al runner.
+
 ## Logs
 
 Todos los logs, incluidos los de dependencias, se escriben como JSON. Por defecto son legibles en

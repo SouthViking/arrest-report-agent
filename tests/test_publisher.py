@@ -484,6 +484,28 @@ async def test_natural_reply_allows_explicit_user_mentions_only(settings, person
 
 
 @pytest.mark.asyncio
+async def test_report_owner_reply_removes_user_and_role_mentions(settings, persona) -> None:
+    root = FakeRoot()
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(root=root, trigger=root, parent=SimpleNamespace(), thread=None)
+    publisher = DiscordReviewPublisher(
+        bot,
+        settings,
+        target,
+        persona,
+        allow_outgoing_mentions=False,
+    )
+
+    await publisher.send_message(
+        "Que lo vea <@12345678901234567> con <@&22345678901234567>."
+    )
+
+    sent = root.replies[0]
+    assert sent["content"] == "Que lo vea usuario con rol."
+    assert sent["allowed_mentions"].to_dict() == {"parse": []}
+
+
+@pytest.mark.asyncio
 async def test_status_reaction_replaces_only_the_bots_previous_status(settings, persona) -> None:
     guild = SimpleNamespace(id=10)
     root = FakeRoot(guild=guild)

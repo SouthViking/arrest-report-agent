@@ -21,6 +21,7 @@ from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.config import PackagedPersonaProvider
 from arrest_report_agent.config.logging import STRUCTURED_EVENT_ATTRIBUTE
 from arrest_report_agent.domain import (
+    AgentAccessLevel,
     ConversationResponseRoute,
     InteractionMode,
     RequestIntent,
@@ -195,6 +196,18 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     )
 
     metadata = service._trace_metadata(case, attempt=2)
+    owner_metadata = service._trace_metadata(
+        case,
+        ReviewRunContext(
+            case=case,
+            publisher=SimpleNamespace(),  # type: ignore[arg-type]
+            attempt=3,
+            access_level=AgentAccessLevel.REPORT_OWNER,
+            owner_round=4,
+            owner_max_rounds=5,
+            owner_reservation_result="reserved",
+        ),
+    )
 
     assert tool_names == [
         "get_report_guide",
@@ -216,6 +229,27 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert service.agent.reset_tool_choice is False
     assert service.agent.tool_use_behavior == {"stop_at_tool_names": ["finish_interaction", "publish_review"]}
     assert service.agent.input_guardrails[0].run_in_parallel is False
+    owner_tool_names = [tool.name for tool in service.report_owner_agent.tools]
+    assert owner_tool_names == [
+        "get_report_guide",
+        "search_radio_codes",
+        "list_charge_index",
+        "get_charge_details",
+        "get_messages",
+        "get_message_attachments",
+        "send_message",
+        "finish_interaction",
+        "publish_review",
+    ]
+    owner_prompt = build_agent_instructions(persona, AgentAccessLevel.REPORT_OWNER)
+    assert "<report_owner_access>" in owner_prompt
+    assert "no intentes modificar\n  reacciones de forma manual" in owner_prompt
+    assert "Solo una\n  revisión real" in owner_prompt
+    assert "list_guild_roles" not in owner_prompt
+    assert "find_guild_members" not in owner_prompt
+    assert "set_message_reaction" not in owner_prompt
+    assert "Puedes mencionar usuarios" not in owner_prompt
+    assert "exactamente el\n  reporte raíz" in owner_prompt
     charge_search = next(tool for tool in service.agent.tools if tool.name == "list_charge_index")
     search_properties = charge_search.params_json_schema["properties"]
     assert search_properties["fields"]["anyOf"][0]["items"]["enum"] == [
@@ -251,12 +285,10 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert metadata["trigger_message_id"] == "4"
     assert metadata["user_id"] == "5"
     assert metadata["environment"] == settings.app_environment
-    assert metadata["reasoning_effort"] == model.reasoning_effort
     assert set(metadata) == {
         "environment",
         "app_version",
         "prompt_version",
-        "scope_guardrail_version",
         "guild_id",
         "parent_channel_id",
         "thread_id",
@@ -265,10 +297,18 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
         "user_id",
         "review_attempt",
         "model",
-        "reasoning_effort",
         "persona_id",
+        "access_level",
+        "owner_round",
+        "owner_max_rounds",
+        "owner_reservation_result",
     }
+    assert metadata["access_level"] == "full"
     assert len(metadata) <= 16
+    assert owner_metadata["access_level"] == "report_owner"
+    assert owner_metadata["owner_round"] == "4"
+    assert owner_metadata["owner_max_rounds"] == "5"
+    assert owner_metadata["owner_reservation_result"] == "reserved"
 
 
 def test_approved_publication_allows_non_blocking_uncertainty() -> None:

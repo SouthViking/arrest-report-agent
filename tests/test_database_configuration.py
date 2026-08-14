@@ -54,6 +54,70 @@ def test_agent_user_blacklist_requires_explicit_ids_or_disabled_mode() -> None:
         )
 
 
+def test_report_owner_access_requires_explicit_channels_and_bounded_rounds(settings) -> None:
+    agent = GuildAgentConfig(
+        model=settings.openai_model,
+        reasoning_effort=settings.openai_reasoning_effort,
+        review_timeout_seconds=settings.review_timeout_seconds,
+        max_agent_turns=settings.max_agent_turns,
+        max_images_per_review=settings.max_images_per_review,
+        max_image_bytes=settings.max_image_bytes,
+        max_files_per_review=settings.max_files_per_review,
+        max_file_bytes=settings.max_file_bytes,
+        max_total_file_bytes=settings.max_total_file_bytes,
+        thread_context_max_messages=settings.thread_context_max_messages,
+        channel_context_max_messages=settings.channel_context_max_messages,
+        thread_context_max_chars=settings.thread_context_max_chars,
+        thread_context_max_message_chars=settings.thread_context_max_message_chars,
+        thread_context_max_historical_images=settings.thread_context_max_historical_images,
+        thread_context_max_historical_files=settings.thread_context_max_historical_files,
+        thread_auto_archive_minutes=settings.thread_auto_archive_minutes,  # type: ignore[arg-type]
+    )
+    policies = {
+        key: AccessPolicySnapshot(
+            key=key,
+            subject_type=POLICY_SUBJECT_TYPES[key],
+            mode=AccessPolicyMode.DISABLED,
+        )
+        for key in AccessPolicyKey
+    }
+    policies[AccessPolicyKey.REPORT_CHANNELS] = AccessPolicySnapshot(
+        key=AccessPolicyKey.REPORT_CHANNELS,
+        subject_type="channel",
+        mode=AccessPolicyMode.RESTRICTED,
+        ids=(123,),
+    )
+    snapshot = GuildConfigSnapshot(
+        guild_id=1,
+        revision_id=uuid4(),
+        revision=1,
+        agent=agent,
+        policies=policies,
+        features={
+            "report_owner_access": GuildFeatureSnapshot(
+                key="report_owner_access",
+                enabled=True,
+                schema_version=1,
+                payload={"max_rounds": 5},
+            )
+        },
+        persona_revision_id=uuid4(),
+        persona_id="walter_vigil",
+        persona_revision=1,
+    )
+
+    assert GuildRuntimeSettings(settings, snapshot).report_owner_access_max_rounds == 5
+    invalid = snapshot.model_dump()
+    invalid["features"]["report_owner_access"]["payload"] = {"max_rounds": 21}
+    with pytest.raises(ValueError, match="less than or equal to 20"):
+        GuildConfigSnapshot.model_validate(invalid)
+    invalid = snapshot.model_dump()
+    invalid["policies"][AccessPolicyKey.REPORT_CHANNELS]["mode"] = AccessPolicyMode.OPEN
+    invalid["policies"][AccessPolicyKey.REPORT_CHANNELS]["ids"] = ()
+    with pytest.raises(ValueError, match="explicit restricted report channels"):
+        GuildConfigSnapshot.model_validate(invalid)
+
+
 def test_postgres_urls_are_normalized_for_both_drivers() -> None:
     config = PostgresClientConfig(url="postgres://user:secret@host:5432/database")
 
@@ -481,9 +545,14 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 32
-        assert persona["schema_version"] == 28
+        assert persona["revision"] == 33
+        assert persona["schema_version"] == 30
         assert persona["payload"]["messages"]["access"]["blocked_user_messages"]
+        assert persona["payload"]["messages"]["access"]["owner_quota_exhausted_messages"]
+        assert persona["payload"]["messages"]["help"]["owner_request_review"]
+        assert persona["payload"]["messages"]["interface"]["commands"][
+            "info_reports_description"
+        ]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["saved_title"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["removed_title"]
         assert "60F1" in persona["payload"]["messages"]["interface"]["callsigns"]["invalid_format"]

@@ -1,7 +1,7 @@
 {
-  "schema_version": 28,
+  "schema_version": 30,
   "id": "roy_velazco",
-  "revision": 39,
+  "revision": 40,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -120,6 +120,11 @@
         "⛔ **hasta aquí llegaste, campeón.** tu usuario está bloqueado pa usar el agente; mientras no te saquen de la lista no hay conversa.",
         "⛔ **no po.** aparecís bloqueado de forma explícita, así q da lo mismo cuántos roles tengai. arregla eso con un admin primero."
       ],
+      "owner_quota_exhausted_messages": [
+        "🕒 **se acabaron las vueltas, campeón.** ya usaste las {max_rounds} intervenciones de tu reporte. si querís seguir, busca a alguien con acceso autorizado.",
+        "📁 **hasta aquí llegaste con este expediente.** las {max_rounds} rondas del autor ya se gastaron; ahora tiene q continuar alguien del personal autorizado.",
+        "⛔ **no quedan intentos pa este reporte.** ocupaste las {max_rounds} intervenciones disponibles como autor. habla con un autorizado si todavía falta revisar algo."
+      ],
       "scope_refusal": "esa wea queda fuera de mi turno, {form_of_address}. pregúntame por reportes, evidencia, cargos o el manual y ahí conversamos.",
       "supervisor_unauthorized": "🔒 **archivo de supervisión restringido.** bonito intento, pero tu rol no sale en la lista... anda a buscar un mando.",
       "other_member_query": "esta consulta es de otro miembro, sapo.",
@@ -159,6 +164,7 @@
       "unrestricted_channels": "• en todos los canales del server, si dejaron la escoba así",
       "request_review_title": "📣 Cómo pedirme una revisión",
       "request_review": "menciona a {bot_mention} en cualquier canal si tenís una duda. pa pedir revisión, manda el reporte con sus adjuntos y abriré un hilo pa no llenar el canal de papeleo; si respondes uno de mis mensajes, te contesto ahí mismo.",
+      "owner_request_review": "si el reporte es tuyo, también podís responder tu propia publicación y mencionarme, o hablarme dentro de su hilo. tenís hasta {max_rounds} intervenciones propias pa ese reporte.",
       "thread_behavior_title": "🧵 Qué hago con el expediente",
       "thread_behavior": "en el hilo leo el historial reciente y seguimos desde ahí. cuando revise marco ⏳; si está bien dejo ✅ y si dejaron la escoba, ❌ con las correcciones.",
       "personal_commands_title": "🗂️ Tus propios papelitos",
@@ -430,6 +436,7 @@
       },
       "commands": {
         "help_description": "Te explica cómo funciona esta cuestión",
+        "info_reports_description": "Explica cómo pedir y seguir una revisión",
         "guide_description": "Abre la guía sin hacerte buscar el PDF entero",
         "charges_description": "Busca cargos en el código, sin inventar",
         "faq_description": "Responde las dudas q preguntan siempre",

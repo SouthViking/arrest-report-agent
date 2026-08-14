@@ -659,3 +659,35 @@ report_review_findings = sa.Table(
     sa.UniqueConstraint("review_id", "position", name="uq_report_review_finding_position"),
     sa.Index("ix_report_review_finding_issue", "issue_code", "severity"),
 )
+
+report_owner_agent_runs = sa.Table(
+    "report_owner_agent_runs",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("root_message_id", sa.BigInteger, nullable=False),
+    sa.Column("trigger_message_id", sa.BigInteger, nullable=False),
+    sa.Column("owner_user_id", sa.BigInteger, nullable=False),
+    sa.Column("thread_id", sa.BigInteger),
+    sa.Column("status", sa.String(20), nullable=False),
+    sa.Column("started_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("completed_at", sa.DateTime(timezone=True)),
+    sa.Column("failed_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(
+        "status IN ('started','completed','failed')",
+        name="ck_report_owner_agent_run_status",
+    ),
+    sa.UniqueConstraint("trigger_message_id", name="uq_report_owner_agent_run_trigger"),
+    sa.Index(
+        "ix_report_owner_agent_run_usage",
+        "guild_id",
+        "root_message_id",
+        "owner_user_id",
+        "started_at",
+    ),
+)

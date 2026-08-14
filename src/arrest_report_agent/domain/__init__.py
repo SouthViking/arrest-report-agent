@@ -1,6 +1,7 @@
 """Domain models used across Discord and the agent runner."""
 
 from .enums import (
+    AgentAccessLevel,
     AgentActivity,
     ContextState,
     ConversationResponseRoute,
@@ -22,6 +23,7 @@ from .models import (
 )
 
 __all__ = [
+    "AgentAccessLevel",
     "AgentActivity",
     "ChargeAssessment",
     "ContextState",

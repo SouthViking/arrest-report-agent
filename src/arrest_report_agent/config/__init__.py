@@ -9,6 +9,7 @@ from .database import (
     GuildConfigSnapshot,
     GuildFeatureSnapshot,
     GuildRuntimeSettings,
+    ReportOwnerAccessOptions,
 )
 from .model_catalog import ModelCatalog, ResolvedModel
 from .persona import (
@@ -56,6 +57,7 @@ __all__ = [
     "GuildConfigSnapshot",
     "GuildFeatureSnapshot",
     "GuildRuntimeSettings",
+    "ReportOwnerAccessOptions",
     "LoadedPersona",
     "ModelCatalog",
     "PackagedPersonaProvider",

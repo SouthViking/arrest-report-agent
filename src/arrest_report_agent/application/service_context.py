@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from agents.usage import Usage
 
 from arrest_report_agent.domain import (
+    AgentAccessLevel,
     ConversationResponseRoute,
     RequestIntent,
     ReviewCase,
@@ -26,6 +27,10 @@ class ReviewRunContext:
     case: ReviewCase
     publisher: ReviewPublisher
     attempt: int
+    access_level: AgentAccessLevel = AgentAccessLevel.FULL
+    owner_round: int | None = None
+    owner_max_rounds: int | None = None
+    owner_reservation_result: str | None = None
     activity: ActivityTracker | None = None
     member_directory: GuildMemberDirectory | None = None
     message_directory: GuildMessageDirectory | None = None

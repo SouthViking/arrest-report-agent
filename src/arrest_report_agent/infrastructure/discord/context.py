@@ -88,6 +88,72 @@ class DiscordContextBuilder:
             ),
         )
 
+    async def resolve_report_owner_target(
+        self,
+        message: discord.Message,
+        activation: TriggerActivation,
+    ) -> ReviewTarget:
+        """Resolve an owner-only target without any orphan-thread fallback."""
+
+        configured_channels = self.settings.report_channel_allowlist.ids
+        if configured_channels is None:
+            raise ContextUnavailableError("Report owner access requires explicit report channels")
+        if isinstance(message.channel, discord.Thread):
+            thread = message.channel
+            parent = thread.parent
+            if not isinstance(parent, discord.TextChannel) or parent.id not in configured_channels:
+                raise ContextUnavailableError("Thread parent is not an authorized report channel")
+            try:
+                root = await parent.fetch_message(thread.id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
+                raise ContextUnavailableError("Unable to verify the report thread root") from error
+            self._require_human_owner(root, message.author.id)
+            return ReviewTarget(
+                root=root,
+                trigger=message,
+                parent=parent,
+                thread=thread,
+                response_route=DiscordResponseRoute.THREAD,
+            )
+
+        if not isinstance(message.channel, discord.TextChannel):
+            raise ContextUnavailableError("Owner bootstrap is not in a text channel")
+        if message.channel.id not in configured_channels:
+            raise ContextUnavailableError("Owner bootstrap is outside a report channel")
+        if activation is not TriggerActivation.MENTION:
+            raise ContextUnavailableError("Owner bootstrap requires a direct report reply and mention")
+        reference = message.reference
+        if reference is None or reference.message_id is None:
+            raise ContextUnavailableError("Owner bootstrap does not reply to a report")
+        referenced_channel_id = reference.channel_id or message.channel.id
+        if referenced_channel_id != message.channel.id:
+            raise ContextUnavailableError("Owner bootstrap references another channel")
+        resolved = reference.resolved or reference.cached_message
+        if isinstance(resolved, discord.Message):
+            root = resolved
+        else:
+            try:
+                root = await message.channel.fetch_message(reference.message_id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
+                raise ContextUnavailableError("Unable to verify the replied report") from error
+        if root.id == message.id:
+            raise ContextUnavailableError("Owner bootstrap cannot target itself")
+        self._require_human_owner(root, message.author.id)
+        return ReviewTarget(
+            root=root,
+            trigger=message,
+            parent=message.channel,
+            thread=root.thread,
+            response_route=DiscordResponseRoute.THREAD,
+        )
+
+    @staticmethod
+    def _require_human_owner(root: discord.Message, requester_user_id: int) -> None:
+        if root.author.id != requester_user_id:
+            raise ContextUnavailableError("Requester is not the report owner")
+        if root.author.bot or root.webhook_id is not None:
+            raise ContextUnavailableError("Report root was not published by a human owner")
+
     async def _resolve_thread_root(
         self,
         parent: discord.TextChannel,
@@ -127,7 +193,12 @@ class DiscordContextBuilder:
             )
             return root
 
-    async def build_case(self, target: ReviewTarget) -> ReviewCase:
+    async def build_case(
+        self,
+        target: ReviewTarget,
+        *,
+        include_channel_history: bool = True,
+    ) -> ReviewCase:
         raw_messages: dict[int, discord.Message] = {target.root.id: target.root}
         context_state = ContextState.COMPLETE
         notices: list[str] = []
@@ -148,7 +219,7 @@ class DiscordContextBuilder:
             if len(history) >= self.settings.thread_context_max_messages:
                 context_state = ContextState.TRUNCATED
                 notices.append("El historial fue limitado a los mensajes más recientes.")
-        elif self.settings.channel_context_max_messages > 0:
+        elif include_channel_history and self.settings.channel_context_max_messages > 0:
             try:
                 history = [
                     item

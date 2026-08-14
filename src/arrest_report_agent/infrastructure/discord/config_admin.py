@@ -814,6 +814,10 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     label="Notificaciones de despliegue",
                     value="deployment_notifications",
                 ),
+                discord.SelectOption(
+                    label="Acceso del propietario del reporte",
+                    value="report_owner_access",
+                ),
             ],
         )
         self.enabled = discord.ui.StringSelect(
@@ -860,6 +864,8 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 payload["starting_number"] = 1
             if key == "deployment_notifications" and payload:
                 raise ValueError("Este módulo no admite opciones JSON.")
+            if key == "report_owner_access" and "max_rounds" not in payload:
+                payload["max_rounds"] = 5
             feature = GuildFeatureSnapshot(
                 key=key,
                 enabled=self.enabled.values[0] == "true",
