@@ -8,8 +8,6 @@ import pytest
 
 from arrest_report_agent.config import PackagedPersonaProvider, SnowflakeAllowlist
 from arrest_report_agent.infrastructure.discord.cog import (
-    PENAL_CODE_URL,
-    PROCEDURES_MANUAL_URL,
     ReviewCog,
     build_blocked_user_message,
     build_help_embed,
@@ -149,60 +147,30 @@ def test_operational_commands_are_registered_at_the_root() -> None:
     assert not hasattr(ReviewCog, "config")
 
 
-def test_help_embed_uses_runtime_identity_channels_and_bot_mention(persona) -> None:
+def test_help_embed_is_a_compact_feature_directory(persona) -> None:
     embed = build_help_embed(
         persona=persona,
-        bot_mention="<@999>",
-        report_channel_ids=frozenset({222, 111}),
-        report_owner_max_rounds=5,
         avatar_url="https://cdn.discordapp.com/avatar.png",
     )
 
     assert embed.title == f"⭐ {persona.identity.display_name} · {persona.identity.role_title}"
     assert persona.identity.display_name in embed.description
     assert [field.name for field in embed.fields] == [
-        "📋 Qué reviso",
-        "📍 Canales de reportes",
-        "📣 Cómo solicitar una revisión",
-        "🧵 Qué haré con el expediente",
-        "🗂️ Consultas privadas",
-        "📚 Consultas generales",
-        "🛡️ Supervisión",
-        "📚 Documentación oficial",
+        "🧭 Guías por función",
+        "📚 Referencias rápidas",
     ]
-    assert embed.fields[1].value == "• <#111>\n• <#222>"
-    assert "<@999>" in embed.fields[2].value
-    assert "@mención Nombre Apellido" in embed.fields[2].value
-    assert "responder directamente" in embed.fields[2].value
-    assert "5 intervenciones" in embed.fields[2].value
-    assert "/mis-reportes" in embed.fields[4].value
-    assert "/mi-resumen" in embed.fields[4].value
-    assert "/guia" in embed.fields[5].value
-    assert "/cargos" in embed.fields[5].value
-    assert "/faq" in embed.fields[5].value
-    assert "/verguenza" in embed.fields[5].value
-    assert "/honor" in embed.fields[5].value
-    assert "/ts3" in embed.fields[5].value
-    assert "/solicitar-roles" in embed.fields[5].value
-    assert "/info-roles" in embed.fields[5].value
-    assert "/pendientes" in embed.fields[6].value
-    assert "/ranking" in embed.fields[6].value
-    assert embed.fields[7].value == (
-        f"• [Código Penal]({PENAL_CODE_URL})\n• [Manual de Procedimientos]({PROCEDURES_MANUAL_URL})"
-    )
+    assert "/info-reportes" in embed.fields[0].value
+    assert "/info-roles" in embed.fields[0].value
+    assert "/info-pager" in embed.fields[0].value
+    assert "/info-callsigns" in embed.fields[0].value
+    assert "/info-sugerencias" in embed.fields[0].value
+    assert "/guia" in embed.fields[1].value
+    assert "/cargos" in embed.fields[1].value
+    assert "/faq" in embed.fields[1].value
+    assert "/pendientes" not in str(embed.to_dict())
+    assert "/ranking" not in str(embed.to_dict())
     assert embed.thumbnail.url == "https://cdn.discordapp.com/avatar.png"
     assert persona.identity.default_form_of_address in embed.footer.text
-
-
-def test_help_embed_describes_unrestricted_channel_scope(persona) -> None:
-    embed = build_help_embed(
-        persona=persona,
-        bot_mention="<@999>",
-        report_channel_ids=None,
-    )
-
-    assert embed.fields[1].value == persona.messages.help.unrestricted_channels
-    assert "intervenciones propias" not in embed.fields[2].value
 
 
 def test_report_info_embed_is_public_facing_and_explains_owner_access(persona) -> None:
@@ -246,6 +214,30 @@ def test_report_info_embed_does_not_advertise_disabled_owner_access(persona) -> 
     assert not embed.fields
 
 
+@pytest.mark.asyncio
+async def test_report_info_rejects_users_without_full_or_owner_access(settings, persona) -> None:
+    responses: list[dict[str, object]] = []
+
+    async def respond(**kwargs: object) -> None:
+        responses.append(kwargs)
+
+    restricted = settings.model_copy(update={"authorized_user_ids_csv": "321"})
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(bot, restricted, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+    context = SimpleNamespace(
+        guild=SimpleNamespace(id=111),
+        author=SimpleNamespace(id=123, roles=()),
+        interaction=SimpleNamespace(id=456),
+        respond=respond,
+    )
+
+    await ReviewCog.report_info.callback(cog, context)  # type: ignore[arg-type]
+
+    assert responses[0]["ephemeral"] is True
+    assert responses[0]["embed"].title == "⚠️ Acceso restringido"
+    assert persona.identity.default_form_of_address in responses[0]["embed"].description
+
+
 def test_invalid_owner_report_message_explains_exact_format_without_ai(persona) -> None:
     rendered = {
         build_owner_invalid_report_message(
@@ -265,18 +257,12 @@ async def test_help_and_command_descriptions_use_selected_persona(settings, pers
     roy = (await PackagedPersonaProvider().load("roy_velazco")).profile
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     cog = ReviewCog(bot, settings, UnexpectedReviewService(), roy)  # type: ignore[arg-type]
-    embed = build_help_embed(
-        persona=roy,
-        bot_mention="<@999>",
-        report_channel_ids=None,
-    )
+    embed = build_help_embed(persona=roy)
 
-    assert embed.fields[0].name == "📋 Las weas q reviso"
-    assert embed.fields[1].value == roy.messages.help.unrestricted_channels
+    assert embed.fields[0].name == "🧭 Guías por función"
+    assert embed.fields[0].value == roy.messages.help.feature_guides
     assert cog.charge_search.description == roy.messages.interface.commands.charges_description
-    assert cog.report_info.description == (
-        roy.messages.interface.commands.info_reports_description
-    )
+    assert cog.report_info.description == (roy.messages.interface.commands.info_reports_description)
     assert cog.open_report_shame.description == (roy.messages.interface.commands.shame_description)
     assert cog.approved_report_honor.description == (roy.messages.interface.commands.honor_description)
     assert cog.report_errors.description == roy.messages.interface.commands.report_errors_description
@@ -634,10 +620,9 @@ async def test_report_channels_from_other_configured_guilds_are_ignored_and_cach
 
 
 @pytest.mark.asyncio
-async def test_help_only_lists_report_channels_from_the_current_guild(
+async def test_help_does_not_resolve_or_disclose_report_channels(
     settings,
     persona,
-    monkeypatch,
 ) -> None:
     responses: list[dict[str, object]] = []
 
@@ -665,10 +650,6 @@ async def test_help_only_lists_report_channels_from_the_current_guild(
         channels=[FakeAllowedChannel(local_channel_id)],
         foreign_channel_ids={other_channel_id},
     )
-    monkeypatch.setattr(
-        "arrest_report_agent.infrastructure.discord.cog.discord.TextChannel",
-        FakeAllowedChannel,
-    )
     cog = ReviewCog(
         bot,
         multi_guild_settings,
@@ -686,8 +667,9 @@ async def test_help_only_lists_report_channels_from_the_current_guild(
     assert len(responses) == 1
     embed = responses[0]["embed"]
     assert isinstance(embed, discord.Embed)
-    assert f"<#{local_channel_id}>" in embed.fields[1].value
-    assert f"<#{other_channel_id}>" not in embed.fields[1].value
+    assert guild.fetches == []
+    assert f"<#{local_channel_id}>" not in str(embed.to_dict())
+    assert f"<#{other_channel_id}>" not in str(embed.to_dict())
 
 
 @pytest.mark.asyncio

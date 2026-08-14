@@ -49,9 +49,10 @@ una conversación desde cualquier canal visible. Si Discord no incluyó el mensa
 resuelve solo esa referencia antes de decidir; una respuesta a cualquier otra persona se ignora.
 
 La colección `REPORT_CHANNEL_IDS` queda separada del acceso conversacional. El adaptador la usa para
-consultas deterministas de reportes y para `/ayuda`; al presentarla, resuelve cada ID en la guild
-actual y solo muestra canales de texto visibles para el bot y el solicitante. Los IDs de otras guilds,
-eliminados o inaccesibles se omiten y se registran sin bloquear la conversación.
+consultas deterministas de reportes y `/info-reportes`; al presentarla, resuelve cada ID en la guild
+actual y solo muestra canales de texto visibles para el bot y el solicitante. `/ayuda` no necesita
+resolver canales: funciona como un índice estable hacia las guías especializadas. Los IDs de otras
+guilds, eliminados o inaccesibles se omiten y se registran sin bloquear la conversación.
 `/verguenza` y `/honor` conservan ese origen en el resultado y construyen una sección independiente por canal,
 en lugar de mezclar estaciones en un único ranking. La agregación conserva por separado los
 expedientes sin reacción y aquellos marcados `⏳`, para que la presentación no confunda ausencia de

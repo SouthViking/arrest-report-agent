@@ -679,6 +679,50 @@ def test_pager_commands_are_root_commands() -> None:
     assert all(command.parent is None for command in commands)
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("role_ids", "allowed"), (((200,), True), ((999,), False)))
+async def test_info_pager_requires_an_operational_role(
+    settings: AppSettings,
+    persona,
+    role_ids: tuple[int, ...],
+    allowed: bool,
+) -> None:
+    responses: list[dict[str, object]] = []
+    roles = {role_id: SimpleNamespace(id=role_id) for role_id in role_ids}
+    guild = SimpleNamespace(id=1, get_role=roles.get, default_role=None)
+    member = discord.Member(
+        data={"user": {"id": "11"}, "roles": [str(role_id) for role_id in role_ids]},
+        guild=guild,
+        state=SimpleNamespace(store_user=lambda data: SimpleNamespace(id=int(data["id"]))),
+    )
+    runtime = GuildRuntimeSettings(settings, _snapshot(settings, enabled=True))
+    service = PagerService(SimpleNamespace(), SimpleNamespace(), runtime, persona, enabled=True)
+
+    async def channel_summary(_guild: object) -> str:
+        return "• <#100>"
+
+    async def get(_guild_id: int, *, require_enabled: bool = True) -> PagerService:
+        return service
+
+    async def respond(**kwargs: object) -> None:
+        responses.append(kwargs)
+
+    service.allowed_channel_summary = channel_summary  # type: ignore[method-assign]
+    cog = PagerCog(SimpleNamespace(get=get), persona)  # type: ignore[arg-type]
+    context = SimpleNamespace(guild=guild, author=member, respond=respond)
+
+    await PagerCog.info_pager.callback(cog, context)  # type: ignore[arg-type]
+
+    assert responses[0]["ephemeral"] is (not allowed)
+    if allowed:
+        assert responses[0]["embed"].title == "📻 Sistema de pagers"
+    else:
+        assert responses[0]["embed"].title == persona.messages.interface.pagers.alert_title
+        assert responses[0]["embed"].description == (
+            persona.messages.interface.pagers.unauthorized_creator
+        )
+
+
 def test_enabled_pagers_require_restricted_complete_configuration(settings: AppSettings) -> None:
     snapshot = _snapshot(settings, enabled=True)
 

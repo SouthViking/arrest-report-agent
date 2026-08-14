@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 32
-    assert profile.revision == 36
+    assert profile.schema_version == 33
+    assert profile.revision == 37
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -36,8 +36,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 32
-    assert profile.revision == 43
+    assert profile.schema_version == 33
+    assert profile.revision == 44
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -86,26 +86,22 @@ async def test_personas_keep_personality_copy_with_capitalized_titles(loaded_per
     assert roy.messages.interface.review.charge_review_title == "⚖️ Revisión de cargos"
     assert "📭" in walter.messages.interface.supervision.shame_legend
     assert "sin revisión" in roy.messages.interface.supervision.shame_legend
-    assert "/verguenza" in walter.messages.help.general_commands
-    assert "/verguenza" in roy.messages.help.general_commands
-    assert "/honor" in walter.messages.help.general_commands
-    assert "/honor" in roy.messages.help.general_commands
-    assert "/errores-reportes" in walter.messages.help.supervision_commands
-    assert "/errores-reportes" in roy.messages.help.supervision_commands
+    assert "/info-reportes" in walter.messages.help.feature_guides
+    assert "/info-reportes" in roy.messages.help.feature_guides
+    assert "/pendientes" not in walter.messages.help.feature_guides
+    assert "/ranking" not in roy.messages.help.feature_guides
     assert walter.messages.interface.supervision.honor_title == "🏆 Cuadro de honor"
     assert roy.messages.interface.supervision.honor_title == "🏆 Los que sí hicieron la pega"
     assert walter.messages.interface.role_requests.pending_title == "📋 Solicitud de roles"
     assert "supervisión" in roy.messages.interface.role_requests.pending_description.lower()
-    assert "/solicitar-roles" in walter.messages.help.general_commands
-    assert "/info-roles" in roy.messages.help.general_commands
+    assert "/info-roles" in walter.messages.help.feature_guides
+    assert "/info-roles" in roy.messages.help.feature_guides
     assert walter.messages.interface.commands.info_reports_description
     assert roy.messages.interface.commands.info_reports_description
-    assert "/pager" in walter.messages.help.general_commands
-    assert "/info-pager" in roy.messages.help.general_commands
-    assert "/callsign" in walter.messages.help.general_commands
-    assert "/callsign" in roy.messages.help.general_commands
-    assert "/quitar-callsign" in walter.messages.help.general_commands
-    assert "/quitar-callsign" in roy.messages.help.general_commands
+    assert "/info-pager" in walter.messages.help.feature_guides
+    assert "/info-pager" in roy.messages.help.feature_guides
+    assert "/info-callsigns" in walter.messages.help.feature_guides
+    assert "/info-callsigns" in roy.messages.help.feature_guides
     assert "emisor" in walter.messages.interface.pagers.creator_cannot_respond.lower()
     assert "no te anotís" in roy.messages.interface.pagers.creator_cannot_respond
     assert "Llegaste tarde" in roy.messages.interface.pagers.stale
@@ -115,8 +111,8 @@ async def test_personas_keep_personality_copy_with_capitalized_titles(loaded_per
     assert roy.messages.interface.deployments.crashed_description
     assert walter.messages.interface.deployments.ci_failed_description
     assert roy.messages.interface.deployments.ci_failed_description
-    assert "/sugerencia" in walter.messages.help.general_commands
-    assert "/info-sugerencias" in roy.messages.help.general_commands
+    assert "/info-sugerencias" in walter.messages.help.feature_guides
+    assert "/info-sugerencias" in roy.messages.help.feature_guides
     assert "sancionados" in walter.messages.interface.suggestions.info_warning
     assert "cualquier tontera" in roy.messages.interface.suggestions.info_warning
 

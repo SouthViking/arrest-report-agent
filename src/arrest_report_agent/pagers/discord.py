@@ -103,7 +103,7 @@ class PagerService:
             channel.id
         )
 
-    def can_create(self, member: discord.Member) -> bool:
+    def can_create(self, member: object) -> bool:
         return _has_any_role(member, self.settings.pager_creator_role_ids)
 
     def can_close(self, member: discord.Member, pager: Pager) -> bool:
@@ -116,6 +116,15 @@ class PagerService:
 
     def can_respond(self, member: object) -> bool:
         return _has_any_role(member, self.settings.operational_staff_role_ids)
+
+    def can_view_info(self, member: object) -> bool:
+        """Allow the guide only to members who can participate in pager operations."""
+
+        return (
+            self.can_create(member)
+            or self.can_respond(member)
+            or _has_any_role(member, self.settings.pager_closer_role_ids)
+        )
 
     async def saved_callsign(self, member: discord.Member) -> str | None:
         if self.member_profiles is None:
@@ -1143,10 +1152,21 @@ class PagerCog(commands.Cog):
     @discord.slash_command(name="info-pager", description="Explica el sistema de pagers")
     async def info_pager(self, ctx: discord.ApplicationContext) -> None:
         service = await self._service(ctx, require_enabled=False)
-        if service is None:
+        if service is None or not service.enabled:
             await ctx.respond(
-                embed=_generic_alert("Este servidor no tiene configuración de pager."),
+                embed=(
+                    service.alert(service.ui.unavailable)
+                    if service
+                    else _generic_alert("Este servidor no tiene configuración de pager.")
+                ),
                 ephemeral=True,
+            )
+            return
+        if not isinstance(ctx.author, discord.Member) or not service.can_view_info(ctx.author):
+            await ctx.respond(
+                embed=service.alert(service.ui.unauthorized_creator),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
             )
             return
         channels = await service.allowed_channel_summary(ctx.guild)

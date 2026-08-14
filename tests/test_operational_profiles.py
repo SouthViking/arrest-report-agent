@@ -361,19 +361,23 @@ async def test_callsign_directory_embed_is_grouped_and_does_not_expose_stale_mem
 
 
 @pytest.mark.asyncio
-async def test_info_callsigns_is_public_and_personality_aware(persona) -> None:
+async def test_info_callsigns_is_public_for_operational_staff_and_personality_aware(persona) -> None:
     responses: list[dict[str, object]] = []
+    member = _member(11, (200,))
 
     async def cached(_guild_id: int):
-        return SimpleNamespace(persona=SimpleNamespace(profile=persona))
+        return SimpleNamespace(
+            settings=SimpleNamespace(operational_staff_role_ids=(200,)),
+            persona=SimpleNamespace(profile=persona),
+        )
 
     async def respond(**kwargs: object) -> None:
         responses.append(kwargs)
 
     cog = CallsignCog(SimpleNamespace(cached=cached), SimpleNamespace(), persona)
     context = SimpleNamespace(
-        guild=SimpleNamespace(id=1),
-        author=SimpleNamespace(id=11),
+        guild=member.guild,
+        author=member,
         respond=respond,
     )
 
@@ -387,3 +391,27 @@ async def test_info_callsigns_is_public_and_personality_aware(persona) -> None:
     assert "Al emitir `/pager`" in fields["Uso en pagers"]
     assert "Responder / actualizar" in fields["Uso en pagers"]
     assert "automáticamente" in fields["Uso en pagers"]
+
+
+@pytest.mark.asyncio
+async def test_info_callsigns_rejects_non_operational_members_with_persona(persona) -> None:
+    responses: list[dict[str, object]] = []
+    member = _member(11, (999,))
+
+    async def cached(_guild_id: int):
+        return SimpleNamespace(
+            settings=SimpleNamespace(operational_staff_role_ids=(200,)),
+            persona=SimpleNamespace(profile=persona),
+        )
+
+    async def respond(**kwargs: object) -> None:
+        responses.append(kwargs)
+
+    cog = CallsignCog(SimpleNamespace(cached=cached), SimpleNamespace(), persona)
+    context = SimpleNamespace(guild=member.guild, author=member, respond=respond)
+
+    await CallsignCog.info_callsigns.callback(cog, context)  # type: ignore[arg-type]
+
+    assert responses[0]["ephemeral"] is True
+    assert responses[0]["embed"].title == persona.messages.interface.callsigns.alert_title
+    assert responses[0]["embed"].description == persona.messages.interface.callsigns.unauthorized

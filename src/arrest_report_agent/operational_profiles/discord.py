@@ -196,6 +196,16 @@ class CallsignCog(commands.Cog):
         try:
             bundle = await self.provider.cached(ctx.guild.id)
             ui = bundle.persona.profile.messages.interface.callsigns
+            if not isinstance(ctx.author, discord.Member) or not _member_has_any_role(
+                ctx.author,
+                bundle.settings.operational_staff_role_ids,
+            ):
+                await ctx.respond(
+                    embed=_alert(ui.alert_title, ui.unauthorized),
+                    ephemeral=True,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+                return
             embed = discord.Embed(
                 title="📻 Callsigns operativos",
                 description=ui.info_intro,

@@ -1,22 +1,24 @@
 {
   "schema_version": 2,
-  "version": "0.5.8",
-  "title": "Formato claro para solicitar revisiones",
-  "summary": "La revisión propia ahora comienza con un formato simple y recursos mínimos claramente indicados.",
+  "version": "0.5.9",
+  "title": "Ayuda más simple y ordenada",
+  "summary": "El panel de ayuda ahora conduce directamente a la guía de cada función.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
       "type": "improved",
-      "text": "Publica `@mención Nombre Apellido` junto con las imágenes frontal, lateral, reporte de arresto y lista de delitos."
+      "text": "`/ayuda` ahora funciona como un índice breve para encontrar la guía de reportes, roles, pagers, callsigns o sugerencias."
     },
     {
       "type": "improved",
-      "text": "Si falta el formato o el material mínimo, el bot explica cómo corregirlo sin consumir una intervención."
+      "text": "Las consultas rápidas de guía, cargos y preguntas frecuentes siguen disponibles sin recargar el panel principal."
     },
     {
-      "type": "improved",
-      "text": "`/info-reportes` muestra el formato, los recursos requeridos, las formas de entrada y el límite vigente."
+      "type": "security",
+      "text": "Las guías operativas de pagers y callsigns ahora respetan los mismos roles autorizados que sus funciones."
     }
   ]
 }

@@ -44,8 +44,6 @@ from .context import (
     render_agent_input,
 )
 from .general_knowledge import (
-    PENAL_CODE_URL,
-    PROCEDURES_MANUAL_URL,
     ChargeSearchModal,
     FaqNavigationView,
     GuideNavigationView,
@@ -118,20 +116,12 @@ async def maintain_typing_indicator(
 def build_help_embed(
     *,
     persona: BotPersona,
-    bot_mention: str,
-    report_channel_ids: frozenset[int] | None,
-    report_owner_max_rounds: int | None = None,
     avatar_url: str | None = None,
 ) -> discord.Embed:
-    """Introduce the reviewer and explain its workflow in character."""
+    """Render a compact directory for the feature-specific help commands."""
 
     identity = persona.identity
     copy = persona.messages.help
-    channels = (
-        "\n".join(f"• <#{channel_id}>" for channel_id in sorted(report_channel_ids))
-        if report_channel_ids is not None
-        else copy.unrestricted_channels
-    )
     embed = discord.Embed(
         title=copy.title.format(
             display_name=identity.display_name,
@@ -144,57 +134,13 @@ def build_help_embed(
         color=discord.Color.gold(),
     )
     embed.add_field(
-        name=copy.review_scope_title,
-        value=copy.review_scope,
+        name=copy.feature_guides_title,
+        value=copy.feature_guides,
         inline=False,
     )
     embed.add_field(
-        name=copy.location_title,
-        value=channels,
-        inline=False,
-    )
-    embed.add_field(
-        name=copy.request_review_title,
-        value="\n\n".join(
-            part
-            for part in (
-                copy.request_review.format(bot_mention=bot_mention),
-                (
-                    copy.owner_request_review.format(max_rounds=report_owner_max_rounds)
-                    if report_owner_max_rounds is not None
-                    else ""
-                ),
-            )
-            if part
-        ),
-        inline=False,
-    )
-    embed.add_field(
-        name=copy.thread_behavior_title,
-        value=copy.thread_behavior,
-        inline=False,
-    )
-    embed.add_field(
-        name=copy.personal_commands_title,
-        value=copy.personal_commands,
-        inline=False,
-    )
-    embed.add_field(
-        name=copy.general_commands_title,
-        value=copy.general_commands,
-        inline=False,
-    )
-    embed.add_field(
-        name=copy.supervision_commands_title,
-        value=copy.supervision_commands,
-        inline=False,
-    )
-    embed.add_field(
-        name=copy.official_docs_title,
-        value=copy.official_docs.format(
-            penal_code_url=PENAL_CODE_URL,
-            procedures_manual_url=PROCEDURES_MANUAL_URL,
-        ),
+        name=copy.quick_references_title,
+        value=copy.quick_references,
         inline=False,
     )
     embed.set_footer(text=copy.footer.format(form_of_address=identity.default_form_of_address))
@@ -956,27 +902,11 @@ class ReviewCog(commands.Cog):
                 **exception_fields(error),
             )
 
-    @discord.slash_command(name="ayuda", description="Explica cómo solicitar una revisión")
+    @discord.slash_command(name="ayuda", description="Muestra las guías disponibles")
     async def review_help(self, ctx: discord.ApplicationContext) -> None:
         bot_user = self.bot.user
-        report_channel_ids = self.settings.report_channel_allowlist.ids
-        if report_channel_ids is not None:
-            report_channel_ids = frozenset(
-                await self._resolve_report_channels(
-                    guild=ctx.guild,
-                    requester=ctx.author,
-                    channel_ids=report_channel_ids,
-                )
-            )
         embed = build_help_embed(
             persona=self.persona,
-            bot_mention=bot_user.mention if bot_user else self.persona.identity.display_name,
-            report_channel_ids=report_channel_ids,
-            report_owner_max_rounds=getattr(
-                self.settings,
-                "report_owner_access_max_rounds",
-                None,
-            ),
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
         )
         await ctx.respond(embed=embed, ephemeral=False)
@@ -987,6 +917,40 @@ class ReviewCog(commands.Cog):
     )
     async def report_info(self, ctx: discord.ApplicationContext) -> None:
         bot_user = self.bot.user
+        interaction_id = getattr(getattr(ctx, "interaction", None), "id", 0)
+        if self.access_policy.blocks_member(ctx.author):
+            await ctx.respond(
+                embed=discord.Embed(
+                    title="⚠️ Acceso restringido",
+                    description=build_blocked_user_message(
+                        messages=self.persona.messages.access,
+                        message_id=interaction_id,
+                        form_of_address=self.persona.identity.default_form_of_address,
+                    ),
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        owner_access_enabled = (
+            getattr(self.settings, "report_owner_access_max_rounds", None) is not None
+        )
+        if not owner_access_enabled and not self.access_policy.allows_member(ctx.author):
+            await ctx.respond(
+                embed=discord.Embed(
+                    title="⚠️ Acceso restringido",
+                    description=build_unauthorized_user_message(
+                        messages=self.persona.messages.access,
+                        message_id=interaction_id,
+                        form_of_address=self.persona.identity.default_form_of_address,
+                    ),
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
         report_channel_ids = self.settings.report_channel_allowlist.ids
         if report_channel_ids is not None:
             report_channel_ids = frozenset(

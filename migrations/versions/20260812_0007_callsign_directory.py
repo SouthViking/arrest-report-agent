@@ -18,6 +18,24 @@ depends_on: str | Sequence[str] | None = None
 
 PERSONA_REVISIONS = (("walter_vigil", 22), ("roy_velazco", 29))
 PERSONA_SCHEMA_VERSION = 20
+LEGACY_GENERAL_COMMANDS = {
+    "walter_vigil": (
+        "• `/guia`: consulta las reglas de revisión por sección.\n"
+        "• `/cargos`: busca delitos y sanciones en el catálogo.\n"
+        "• `/faq`: resuelve dudas frecuentes del procedimiento.\n"
+        "• `/callsign`: registra o actualiza su callsign operativo.\n"
+        "• `/callsigns`: publica el directorio de callsigns del personal.\n"
+        "• `/info-callsigns`: explica cómo registrar y consultar callsigns."
+    ),
+    "roy_velazco": (
+        "• `/guia`: abre las reglas por sección.\n"
+        "• `/cargos`: busca delitos y sanciones sin inventar.\n"
+        "• `/faq`: responde las preguntas de siempre.\n"
+        "• `/callsign`: guarda tu callsign pa no repetirlo cada vez.\n"
+        "• `/callsigns`: muestra quién usa cada callsign.\n"
+        "• `/info-callsigns`: explica cómo guardar y revisar callsigns."
+    ),
+}
 
 
 def upgrade() -> None:
@@ -45,6 +63,9 @@ def _install_persona_revisions(connection: sa.Connection) -> None:
         payload["revision"] = expected_revision
         payload["schema_version"] = PERSONA_SCHEMA_VERSION
         payload["messages"]["interface"]["callsigns"].pop("invalid_format", None)
+        # Current packaged personas intentionally keep only the compact help directory.
+        # Rebuild the legacy field expected by the following historical migrations.
+        payload["messages"]["help"]["general_commands"] = LEGACY_GENERAL_COMMANDS[slug]
         revision_id = connection.execute(
             sa.text(
                 "SELECT id FROM persona_revisions "

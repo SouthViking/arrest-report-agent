@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 32
+PERSONA_SCHEMA_VERSION = 33
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -206,29 +206,17 @@ class PersonaHelpMessages(FrozenPersonaModel):
 
     description: str = Field(min_length=1, max_length=700)
     title: str = Field(min_length=1, max_length=256)
-    review_scope_title: str = Field(min_length=1, max_length=256)
-    review_scope: str = Field(min_length=1, max_length=900)
-    location_title: str = Field(min_length=1, max_length=256)
     unrestricted_channels: str = Field(min_length=1, max_length=300)
-    request_review_title: str = Field(min_length=1, max_length=256)
-    request_review: str = Field(min_length=1, max_length=900)
-    owner_request_review: str = Field(min_length=1, max_length=500)
     owner_info_intro: str = Field(min_length=1, max_length=500)
     owner_info_start: str = Field(min_length=1, max_length=500)
     owner_info_requirements: str = Field(min_length=1, max_length=500)
     owner_info_continue: str = Field(min_length=1, max_length=500)
     owner_info_limit: str = Field(min_length=1, max_length=300)
     owner_info_unavailable: str = Field(min_length=1, max_length=300)
-    thread_behavior_title: str = Field(min_length=1, max_length=256)
-    thread_behavior: str = Field(min_length=1, max_length=900)
-    personal_commands_title: str = Field(min_length=1, max_length=256)
-    personal_commands: str = Field(min_length=1, max_length=900)
-    general_commands_title: str = Field(min_length=1, max_length=256)
-    general_commands: str = Field(min_length=1, max_length=1024)
-    supervision_commands_title: str = Field(min_length=1, max_length=256)
-    supervision_commands: str = Field(min_length=1, max_length=900)
-    official_docs_title: str = Field(min_length=1, max_length=256)
-    official_docs: str = Field(min_length=1, max_length=900)
+    feature_guides_title: str = Field(min_length=1, max_length=256)
+    feature_guides: str = Field(min_length=1, max_length=1024)
+    quick_references_title: str = Field(min_length=1, max_length=256)
+    quick_references: str = Field(min_length=1, max_length=700)
     footer: str = Field(min_length=1, max_length=500)
 
     @model_validator(mode="after")
@@ -244,16 +232,6 @@ class PersonaHelpMessages(FrozenPersonaModel):
             "help.description",
         )
         _require_template_fields(
-            self.request_review,
-            {"bot_mention"},
-            "help.request_review",
-        )
-        _require_template_fields(
-            self.owner_request_review,
-            {"max_rounds"},
-            "help.owner_request_review",
-        )
-        _require_template_fields(
             self.owner_info_start,
             {"bot_mention"},
             "help.owner_info_start",
@@ -262,11 +240,6 @@ class PersonaHelpMessages(FrozenPersonaModel):
             self.owner_info_limit,
             {"max_rounds"},
             "help.owner_info_limit",
-        )
-        _require_template_fields(
-            self.official_docs,
-            {"penal_code_url", "procedures_manual_url"},
-            "help.official_docs",
         )
         _require_template_fields(
             self.footer,

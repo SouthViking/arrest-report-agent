@@ -343,7 +343,8 @@ tool puede cargar selectivamente los adjuntos del mensaje como inputs nativos de
 
 Comandos disponibles:
 
-- `/ayuda`: presentación, instrucciones y enlaces oficiales visibles para todo el canal.
+- `/ayuda`: índice público y compacto hacia las guías de reportes, roles, pagers, callsigns y
+  sugerencias, junto con accesos rápidos a `/guia`, `/cargos` y `/faq`.
 - `/info-reportes`: guía pública y breve para que el autor inicie o continúe la revisión limitada
   de su propio expediente. Explica el formato `@mención Nombre Apellido`, las cuatro imágenes
   mínimas, el cupo vigente y los canales habilitados.

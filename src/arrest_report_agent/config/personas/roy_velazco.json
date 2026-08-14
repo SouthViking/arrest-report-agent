@@ -1,7 +1,7 @@
 {
-  "schema_version": 32,
+  "schema_version": 33,
   "id": "roy_velazco",
-  "revision": 43,
+  "revision": 44,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -161,31 +161,19 @@
     },
     "help": {
       "title": "⭐ {display_name} · {role_title}",
-      "description": "soy **{display_name}**, **{role_title}** de este turno... sí, yo. reviso expedientes antes q lleguen hechos una desgracia al archivo.",
-      "review_scope_title": "📋 Las weas q reviso",
-      "review_scope": "• Narrativa, cronología y procedimiento.\n• Fotos, evidencia y coherencia del expediente.\n• Cargos declarados contra el catálogo y la guía, pq inventar delitos sale caro.",
-      "location_title": "📍 Dónde busco los reportes",
+      "description": "soy **{display_name}**, **{role_title}** de este turno. elige la guía de la cuestión q necesitai y no te tragai una muralla de comandos.",
       "unrestricted_channels": "• en todos los canales del server, si dejaron la escoba así",
-      "request_review_title": "📣 Cómo pedirme una revisión",
-      "request_review": "menciona a {bot_mention} en cualquier canal si tenís una duda. pa pedir revisión, manda el reporte con sus adjuntos y abriré un hilo pa no llenar el canal de papeleo; si respondes uno de mis mensajes, te contesto ahí mismo.",
-      "owner_request_review": "si el reporte es tuyo, publícalo como **@mención Nombre Apellido** con sus cuatro imágenes mínimas. también podís responder esa publicación o hablarme dentro del hilo. tenís hasta {max_rounds} intervenciones propias pa ese reporte.",
       "owner_info_intro": "si tú publicaste el reporte, podís pedirme ayuda aunque no tengai acceso general. eso sí, solo dentro de tu propio expediente, no te emocionís.",
       "owner_info_start": "manda el mensaje exactamente así: **{bot_mention} Nombre Apellido**. si ya lo publicaste con ese formato, responde directamente esa publicación y llámame. voy a abrir o reutilizar el hilo de la cuestión.",
       "owner_info_requirements": "adjunta mínimo **4 imágenes**: frontal, lateral, reporte de arresto y lista de delitos. si falta el formato o el material, no parte la revisión ni te gasto una intervención.",
       "owner_info_continue": "ya dentro del hilo, mencióname o responde uno de mis mensajes. manda ahí las correcciones, imágenes o archivos nuevos.",
       "owner_info_limit": "tenís hasta **{max_rounds} intervenciones por reporte**. después tiene q seguir alguien autorizado.",
       "owner_info_unavailable": "el acceso directo pa autores de reportes no está habilitado en este server.",
-      "thread_behavior_title": "🧵 Qué hago con el expediente",
-      "thread_behavior": "en el hilo leo el historial reciente y seguimos desde ahí. cuando revise marco ⏳; si está bien dejo ✅ y si dejaron la escoba, ❌ con las correcciones.",
-      "personal_commands_title": "🗂️ Tus propios papelitos",
-      "personal_commands": "• `/mis-reportes`: busca tus publicaciones sin hacerte recorrer medio Discord.\n• `/mi-resumen`: te cuenta cómo vai este mes, si te atrevís.",
-      "general_commands_title": "📚 Dudas y consultas",
-      "general_commands": "• `/guia`: abre las reglas por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las preguntas de siempre.\n• `/verguenza`: publica quién tiene más reportes dando jugo sin el ✅.\n• `/honor`: muestra a los q sí hicieron la pega y juntaron aprobaciones.\n• `/ts3`: deja la IP del TeamSpeak pa los q son staff.\n• `/solicitar-roles`: pide q te agreguen o saquen roles.\n• `/info-roles`: explica la cuestión antes q aprietes cualquier cosa.\n• `/pager`: manda un aviso operativo sin escribir un testamento.\n• `/pager-activos`: muestra los avisos q siguen abiertos.\n• `/mis-pagers`: revisa en privado dónde te metiste.\n• `/info-pager`: explica cómo funciona la cuestión.\n• `/callsign`: guarda tu callsign pa no repetirlo cada vez.\n• `/quitar-callsign`: borra el callsign q dejaste guardado.\n• `/callsigns`: muestra quién usa cada callsign.\n• `/info-callsigns`: explica cómo guardar y revisar callsigns.\n• `/sugerencia`: manda una idea; `/info-sugerencias` explica el buzón.",
-      "supervision_commands_title": "🛡️ Cosas de los mandos",
-      "supervision_commands": "• `/pendientes`: encuentra expedientes botados.\n• `/ranking`: compara quién trabaja y quién puro mira.\n• `/errores-reportes`: muestra qué errores se repiten más.\nNecesitai un rol autorizado, no llorís.",
-      "official_docs_title": "📚 Papeles oficiales",
-      "official_docs": "• [Código Penal]({penal_code_url})\n• [Manual de Procedimientos]({procedures_manual_url})",
-      "footer": "mencióname o respóndeme directo. el papeleo no se arregla solo, {form_of_address}."
+      "feature_guides_title": "🧭 Guías por función",
+      "feature_guides": "• `/info-reportes`: cómo pedir y seguir la revisión de tu reporte.\n• `/info-roles`: cómo pedir q te agreguen o saquen roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo guardar y buscar callsigns.\n• `/info-sugerencias`: cómo mandar una sugerencia.",
+      "quick_references_title": "📚 Referencias rápidas",
+      "quick_references": "• `/guia`: abre el manual de reportes por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las dudas frecuentes de la guía.",
+      "footer": "elige la guía q corresponde antes de venir a adivinar, {form_of_address}."
     },
     "interface": {
       "navigation": {

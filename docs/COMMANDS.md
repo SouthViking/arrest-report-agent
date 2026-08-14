@@ -36,7 +36,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | Comando | Acceso | Visibilidad | Fuente |
 |---|---|---|---|
 | `/ayuda` | Todos | Pública | Persona seleccionada y configuración del bot |
-| `/info-reportes` | Todos | Pública | Persona, canales y configuración de acceso del propietario |
+| `/info-reportes` | Acceso completo o acceso del propietario habilitado | Pública; rechazo efímero | Persona, canales y configuración de acceso del propietario |
 | `/guia` | Todos | Efímera | `report_guide.json` |
 | `/cargos` | Todos | Efímera | `delitos.json` |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
@@ -53,11 +53,11 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/pager` | Roles emisores, en canales habilitados | Modal privado; pager público | PostgreSQL y Discord |
 | `/pager-activos` | Todos en canales de pager | Pública y paginada | PostgreSQL |
 | `/mis-pagers` | Todos en canales de pager | Efímera y paginada | PostgreSQL |
-| `/info-pager` | Todos en una guild configurada | Pública | Persona y configuración actuales |
+| `/info-pager` | Personal habilitado para crear, responder o cerrar pagers | Pública; rechazo efímero | Persona, roles y configuración actuales |
 | `/callsign` | Roles de personal operativo | Efímera | PostgreSQL |
 | `/quitar-callsign` | Roles de personal operativo | Efímera | PostgreSQL |
 | `/callsigns` | Roles de personal operativo | Pública y paginada | PostgreSQL y miembros actuales de Discord |
-| `/info-callsigns` | Todos en una guild configurada | Pública | Persona y configuración actuales |
+| `/info-callsigns` | `operational_staff_roles` | Pública; rechazo efímero | Persona y configuración actuales |
 | `/sugerencia` | Todos en una guild configurada | Modal y confirmación efímeros | PostgreSQL |
 | `/info-sugerencias` | Todos en una guild configurada | Pública | Persona activa |
 | `/sugerencias` | `CONFIG_OWNER_USER_IDS` | Efímera y paginada | PostgreSQL |
@@ -96,13 +96,17 @@ alteran el estado del expediente.
 
 ## `/ayuda`
 
-Publica la presentación de la identidad configurada, capacidades de revisión, canales de guardia,
-forma de invocación, comandos disponibles y enlaces oficiales. Es el único comando deliberadamente
-visible para todo el canal.
+Publica un índice breve y visible para todo el canal. En lugar de repetir el catálogo completo de
+comandos, dirige a la guía de cada función:
 
-También explica que el autor puede iniciar una revisión limitada respondiendo su propio reporte y
-mencionando al bot, o continuar dentro del hilo de ese expediente. Esa vía dispone de cinco
-intervenciones; el acceso completo por usuario o rol no consume ese cupo.
+- `/info-reportes`
+- `/info-roles`
+- `/info-pager`
+- `/info-callsigns`
+- `/info-sugerencias`
+
+Mantiene como referencias rápidas `/guia`, `/cargos` y `/faq`. Los flujos operacionales, comandos
+privados y herramientas de supervisión se explican en su guía especializada cuando corresponde.
 
 ## `/guia`
 

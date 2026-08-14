@@ -545,18 +545,18 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 36
-        assert persona["schema_version"] == 32
+        assert persona["revision"] == 37
+        assert persona["schema_version"] == 33
         assert persona["payload"]["messages"]["access"]["blocked_user_messages"]
         assert persona["payload"]["messages"]["access"]["owner_quota_exhausted_messages"]
         assert persona["payload"]["messages"]["access"]["owner_invalid_report_messages"]
-        assert persona["payload"]["messages"]["help"]["owner_request_review"]
         assert persona["payload"]["messages"]["help"]["owner_info_start"]
         assert persona["payload"]["messages"]["help"]["owner_info_requirements"]
         assert persona["payload"]["messages"]["help"]["owner_info_limit"]
-        assert "@mención Nombre Apellido" in persona["payload"]["messages"]["help"][
-            "owner_request_review"
-        ]
+        assert "/info-reportes" in persona["payload"]["messages"]["help"]["feature_guides"]
+        assert "/info-sugerencias" in persona["payload"]["messages"]["help"]["feature_guides"]
+        assert "/guia" in persona["payload"]["messages"]["help"]["quick_references"]
+        assert "general_commands" not in persona["payload"]["messages"]["help"]
         assert persona["payload"]["messages"]["interface"]["commands"][
             "info_reports_description"
         ]

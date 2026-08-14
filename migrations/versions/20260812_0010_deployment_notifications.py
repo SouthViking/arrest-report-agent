@@ -195,7 +195,7 @@ def _install_personas(connection: sa.Connection) -> None:
         help_messages = payload["messages"]["help"]
         help_messages["general_commands"] = "\n".join(
             line
-            for line in help_messages["general_commands"].splitlines()
+            for line in help_messages.get("general_commands", "").splitlines()
             if "/sugerencia" not in line and "/info-sugerencias" not in line
         )
         existing = connection.execute(
