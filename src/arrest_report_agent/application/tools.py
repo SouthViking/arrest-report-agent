@@ -785,6 +785,56 @@ def build_agent_tools(
         }
 
     @function_tool(failure_error_function=None)
+    async def mention_roles(
+        ctx: RunContextWrapper[ReviewRunContext],
+        role_ids: Annotated[
+            list[DiscordRoleId],
+            Field(min_length=1, max_length=3),
+        ],
+        content: Annotated[str | None, Field(min_length=1, max_length=1700)] = None,
+        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
+    ) -> dict[str, object]:
+        """Mention one to three existing roles and finish the current interaction.
+
+        This capability is available only with full agent access. Resolve every ID first with
+        list_guild_roles and use it only when the current user explicitly requests that those
+        groups be notified. The current Discord server is fixed by the conversation.
+
+        Args:
+            role_ids: Exact unique role IDs returned by list_guild_roles. Never guess IDs and never
+                use @everyone. At most three roles may be notified in one message.
+            content: Optional message shown beneath the role mentions. Do not include mention syntax;
+                the publisher constructs and restricts the actual mentions deterministically.
+            response_route: Use reply for a brief visible notification or thread when requested.
+                Existing replies and threads remain in their current route.
+        """
+
+        run_context = ctx.context
+        if run_context.published:
+            return {"ok": True, "already_completed": "publish_review"}
+        if run_context.interaction_completed:
+            return {"ok": True, "already_completed": "finish_interaction"}
+        selected_route = run_context.selected_response_route or response_route
+        effective_route = await run_context.publisher.mention_roles(
+            _snowflake_tuple(role_ids),
+            content,
+            selected_route,
+        )
+        if run_context.selected_response_route is None:
+            run_context.selected_response_route = effective_route
+        run_context.message_sent = True
+        run_context.messages_sent_count += 1
+        run_context.interaction_completed = True
+        return {
+            "ok": True,
+            "delivery": "discord_role_mention",
+            "roles_mentioned": len(set(role_ids)),
+            "messages_sent": run_context.messages_sent_count,
+            "response_route": effective_route.value,
+            "interaction_complete": True,
+        }
+
+    @function_tool(failure_error_function=None)
     async def publish_review(
         ctx: RunContextWrapper[ReviewRunContext], publication: ReviewPublication
     ) -> dict[str, object]:
@@ -909,6 +959,7 @@ def build_agent_tools(
         get_messages,
         get_message_attachments,
         set_message_reaction,
+        mention_roles,
         send_message,
         finish_interaction,
         publish_review,

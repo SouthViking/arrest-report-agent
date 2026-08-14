@@ -22,6 +22,8 @@ from arrest_report_agent.domain.errors import PublicationError
 from .context import DiscordResponseRoute, ReviewTarget
 
 STATUS_EMOJIS = ("⏳", "✅", "❌", "⚠️")
+MAX_ROLE_MENTIONS_PER_MESSAGE = 3
+MAX_ROLE_NOTIFICATION_CONTENT = 1700
 LOGGER = logging.getLogger(__name__)
 
 
@@ -132,6 +134,87 @@ class DiscordReviewPublisher:
             return effective_route
         except (discord.Forbidden, discord.HTTPException) as error:
             raise PublicationError("Unable to publish agent response") from error
+
+    async def mention_roles(
+        self,
+        role_ids: tuple[int, ...],
+        content: str | None = None,
+        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
+    ) -> ConversationResponseRoute:
+        """Notify a bounded, explicitly resolved set of roles from the active guild."""
+
+        if not self._allow_outgoing_mentions:
+            raise PublicationError("Role mentions are unavailable for this access level")
+        if (
+            not role_ids
+            or len(role_ids) > MAX_ROLE_MENTIONS_PER_MESSAGE
+            or len(role_ids) != len(set(role_ids))
+        ):
+            raise PublicationError("Role mention selection is invalid")
+        guild = self.target.root.guild
+        roles: list[discord.Role] = []
+        for role_id in role_ids:
+            role = guild.get_role(role_id)
+            if role is None or role.id == guild.id or role.is_default():
+                raise PublicationError("Requested role is unavailable for notification")
+            roles.append(role)
+
+        effective_route = self._conversation_route(response_route)
+        destination: discord.TextChannel | discord.Thread = (
+            self.target.thread
+            if self.target.thread is not None
+            else self.target.parent
+        )
+        if any(not _can_mention_role(destination, guild, role) for role in roles):
+            raise PublicationError("Bot cannot mention one or more requested roles")
+
+        rendered_content = _sanitize_role_notification_content(content)
+        mention_line = " ".join(role.mention for role in roles)
+        message = (
+            f"{mention_line}\n\n{rendered_content}"
+            if rendered_content is not None
+            else mention_line
+        )
+        allowed_mentions = discord.AllowedMentions(
+            everyone=False,
+            users=False,
+            roles=roles,
+            replied_user=False,
+        )
+        try:
+            if effective_route is ConversationResponseRoute.THREAD:
+                thread = await self._ensure_thread()
+                if any(not _can_mention_role(thread, guild, role) for role in roles):
+                    raise PublicationError("Bot cannot mention one or more requested roles")
+                await thread.send(content=message, allowed_mentions=allowed_mentions)
+            else:
+                await self.target.trigger.reply(
+                    content=message,
+                    mention_author=False,
+                    allowed_mentions=allowed_mentions,
+                )
+        except PublicationError:
+            raise
+        except (discord.Forbidden, discord.HTTPException) as error:
+            raise PublicationError("Unable to publish requested role notification") from error
+        log_event(
+            LOGGER,
+            "info",
+            "agent_roles_notified",
+            guild_id=guild.id,
+            parent_channel_id=self.target.parent.id,
+            thread_id=(
+                self._thread.id
+                if effective_route is ConversationResponseRoute.THREAD and self._thread is not None
+                else "none"
+            ),
+            root_message_id=self.target.root.id,
+            trigger_message_id=self.target.trigger.id,
+            requester_user_id=self.target.trigger.author.id,
+            role_ids=list(role_ids),
+            role_count=len(roles),
+        )
+        return effective_route
 
     async def set_message_reaction(
         self,
@@ -462,6 +545,36 @@ def _capitalize_heading(value: str) -> str:
         if character.lower() != character.upper():
             return f"{value[:index]}{character.upper()}{value[index + 1 :]}"
     return value
+
+
+def _can_mention_role(
+    channel: discord.TextChannel | discord.Thread,
+    guild: discord.Guild,
+    role: discord.Role,
+) -> bool:
+    if role.mentionable:
+        return True
+    bot_member = guild.me
+    return bool(
+        bot_member is not None
+        and channel.permissions_for(bot_member).mention_everyone
+    )
+
+
+def _sanitize_role_notification_content(content: str | None) -> str | None:
+    if content is None:
+        return None
+    rendered = content.strip()
+    if not rendered or len(rendered) > MAX_ROLE_NOTIFICATION_CONTENT:
+        raise PublicationError("Role notification content is invalid")
+    rendered = re.sub(r"<@&[1-9][0-9]{16,19}>", "rol", rendered)
+    rendered = re.sub(r"<@!?[1-9][0-9]{16,19}>", "usuario", rendered)
+    return re.sub(
+        r"@(everyone|here)\b",
+        lambda match: f"@\u200b{match.group(1)}",
+        rendered,
+        flags=re.IGNORECASE,
+    )
 
 
 def _safe_thread_name(content: str, message_id: int, fallback_template: str) -> str:

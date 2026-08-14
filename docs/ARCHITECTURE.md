@@ -256,6 +256,12 @@ mensaje raíz; el hilo puede leerse como conversación del expediente. El adapta
 salientes y no expone directorios, reacciones manuales ni lectura arbitraria de canales. El estado
 ✅/❌ solo puede surgir del veredicto de `publish_review`.
 
+El perfil `full` puede resolver roles con `list_guild_roles` y finalizar una petición explícita de
+notificación mediante `mention_roles`. Esta tool admite hasta tres IDs de la guild actual, rechaza
+el rol por defecto y verifica que el bot pueda mencionarlos en el canal. El adaptador construye la
+línea de menciones y configura `AllowedMentions` con la lista exacta; el modelo no controla ese
+payload ni puede ampliar sus destinatarios.
+
 - `get_report_guide(sections)`: devuelve solo las secciones solicitadas.
 - `search_radio_codes(queries, categories, fields, match_mode, term_match, fuzzy, limit)`: resuelve
   en una llamada acotada códigos de respuesta, códigos 10, códigos de situación y palabras del

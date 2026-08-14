@@ -58,6 +58,8 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "nombres y roles de otros\nparticipantes" in prompt
     assert "registro `user_id=nombre`" in prompt
     assert "`list_guild_roles`, `find_guild_members` y `find_channel_members`" in prompt
+    assert "usa `mention_roles`" in prompt
+    assert "No rechaces la solicitud solo por la cantidad de miembros" in prompt
     assert "La guild está fijada por la conversación" in prompt
     assert "Usa `get_guild_members` para ampliar metadata" in prompt
     assert "No adivines IDs" in prompt
@@ -221,13 +223,16 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
         "get_messages",
         "get_message_attachments",
         "set_message_reaction",
+        "mention_roles",
         "send_message",
         "finish_interaction",
         "publish_review",
     ]
     assert service.agent.model_settings.tool_choice == "required"
     assert service.agent.reset_tool_choice is False
-    assert service.agent.tool_use_behavior == {"stop_at_tool_names": ["finish_interaction", "publish_review"]}
+    assert service.agent.tool_use_behavior == {
+        "stop_at_tool_names": ["mention_roles", "finish_interaction", "publish_review"]
+    }
     assert service.agent.input_guardrails[0].run_in_parallel is False
     owner_tool_names = [tool.name for tool in service.report_owner_agent.tools]
     assert owner_tool_names == [
@@ -248,6 +253,7 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert "list_guild_roles" not in owner_prompt
     assert "find_guild_members" not in owner_prompt
     assert "set_message_reaction" not in owner_prompt
+    assert "mention_roles" not in owner_tool_names
     assert "Puedes mencionar usuarios" not in owner_prompt
     assert "exactamente el\n  reporte raíz" in owner_prompt
     charge_search = next(tool for tool in service.agent.tools if tool.name == "list_charge_index")

@@ -119,6 +119,14 @@ class RecordingReviewPublisher:
     ) -> ConversationResponseRoute:
         return await self.delegate.send_message(content, response_route)
 
+    async def mention_roles(
+        self,
+        role_ids: tuple[int, ...],
+        content: str | None = None,
+        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
+    ) -> ConversationResponseRoute:
+        return await self.delegate.mention_roles(role_ids, content, response_route)
+
     async def set_message_reaction(
         self,
         message_id: int,

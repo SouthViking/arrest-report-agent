@@ -235,6 +235,14 @@ class ReviewPublisher(Protocol):
     ) -> ConversationResponseRoute:
         """Send a message through a safe route and return the effective route."""
 
+    async def mention_roles(
+        self,
+        role_ids: tuple[int, ...],
+        content: str | None = None,
+        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
+    ) -> ConversationResponseRoute:
+        """Notify explicitly selected roles from the active guild through a safe route."""
+
     async def set_message_reaction(
         self,
         message_id: int,

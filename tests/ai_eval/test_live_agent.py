@@ -13,6 +13,7 @@ from agents import set_default_openai_key
 from pydantic import ValidationError
 
 from arrest_report_agent.application import ReviewRunContext, ReviewService
+from arrest_report_agent.application.ports import GuildRoleProfile, GuildRoleSearchResult
 from arrest_report_agent.config import AppSettings, ModelCatalog, PackagedPersonaProvider
 from arrest_report_agent.domain import (
     AgentAccessLevel,
@@ -44,6 +45,7 @@ class InMemoryPublisher:
         self.messages: list[str] = []
         self.failures: list[str] = []
         self.reactions: list[tuple[int, str]] = []
+        self.role_mentions: list[tuple[tuple[int, ...], str | None]] = []
 
     async def mark_review_started(self) -> None:
         self.review_started += 1
@@ -57,6 +59,15 @@ class InMemoryPublisher:
         response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
     ) -> ConversationResponseRoute:
         self.messages.append(content)
+        return response_route
+
+    async def mention_roles(
+        self,
+        role_ids: tuple[int, ...],
+        content: str | None = None,
+        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
+    ) -> ConversationResponseRoute:
+        self.role_mentions.append((role_ids, content))
         return response_route
 
     async def set_message_reaction(self, message_id: int, emoji: str) -> str:
@@ -77,6 +88,29 @@ class RecordingRadioCodeCatalog:
     def search(self, **arguments: object) -> dict[str, object]:
         self.calls.append(arguments)
         return self.delegate.search(**arguments)  # type: ignore[arg-type]
+
+
+class FieldStaffRoleDirectory:
+    """Expose one deterministic role for a live tool-selection evaluation."""
+
+    role_id = 12345678901234567
+
+    def __init__(self) -> None:
+        self.queries: list[object] = []
+
+    async def search_roles(self, _guild_id: int, query: object) -> GuildRoleSearchResult:
+        self.queries.append(query)
+        return GuildRoleSearchResult(
+            roles=(
+                GuildRoleProfile(
+                    role_id=self.role_id,
+                    name="Field Staff",
+                    position=20,
+                    managed=False,
+                    member_count=18,
+                ),
+            )
+        )
 
 
 @pytest.fixture
@@ -106,6 +140,7 @@ async def _run_agent(
     case: ReviewCase,
     radio_catalog: RecordingRadioCodeCatalog | None = None,
     access_level: AgentAccessLevel = AgentAccessLevel.FULL,
+    member_directory: object | None = None,
 ) -> tuple[ReviewRunContext, InMemoryPublisher]:
     model = ModelCatalog.load_default().resolve(
         settings.openai_model,
@@ -117,6 +152,7 @@ async def _run_agent(
         publisher=publisher,
         attempt=1,
         access_level=access_level,
+        member_directory=member_directory,  # type: ignore[arg-type]
     )
     persona = (await PackagedPersonaProvider().load(settings.bot_persona)).profile
     service = ReviewService(
@@ -610,6 +646,29 @@ async def test_indirect_status_override_updates_root_reaction_without_re_review(
     assert publisher.publications == []
     assert context.interaction_completed
     assert publisher.messages
+
+
+async def test_explicit_group_notification_resolves_and_mentions_role(
+    ai_eval_settings: AppSettings,
+) -> None:
+    directory = FieldStaffRoleDirectory()
+    case = _case(
+        (
+            "user",
+            "Menciona a los Field Staff y diles que revisen este expediente, por favor.",
+        )
+    )
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        member_directory=directory,
+    )
+
+    assert directory.queries
+    assert publisher.role_mentions
+    assert publisher.role_mentions[0][0] == (directory.role_id,)
+    assert context.interaction_completed
 
 
 async def test_re_review_uses_latest_corrected_version(

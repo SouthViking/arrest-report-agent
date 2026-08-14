@@ -95,7 +95,9 @@ class ReviewService:
             model_settings=model_settings,
             tools=tools,  # type: ignore[arg-type]
             input_guardrails=[scope_guardrail],
-            tool_use_behavior=StopAtTools(stop_at_tool_names=["finish_interaction", "publish_review"]),
+            tool_use_behavior=StopAtTools(
+                stop_at_tool_names=["mention_roles", "finish_interaction", "publish_review"]
+            ),
             reset_tool_choice=False,
         )
         self.report_owner_agent: Agent[ReviewRunContext] = Agent(

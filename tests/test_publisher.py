@@ -10,6 +10,7 @@ from arrest_report_agent.domain import (
     ReviewFinding,
     ReviewPublication,
 )
+from arrest_report_agent.domain.errors import PublicationError
 from arrest_report_agent.infrastructure.discord.context import (
     DiscordResponseRoute,
     ReviewTarget,
@@ -79,6 +80,31 @@ class FakeReaction:
     def __init__(self, emoji: str, *, mine: bool) -> None:
         self.emoji = emoji
         self.me = mine
+
+
+class FakeMentionRole:
+    def __init__(self, role_id: int, *, mentionable: bool = False, default: bool = False) -> None:
+        self.id = role_id
+        self.mention = f"<@&{role_id}>"
+        self.mentionable = mentionable
+        self._default = default
+
+    def is_default(self) -> bool:
+        return self._default
+
+
+class FakeMentionChannel:
+    def __init__(self, guild, *, mention_everyone: bool) -> None:
+        self.id = 20
+        self.guild = guild
+        self.mention_everyone = mention_everyone
+        self.sent = []
+
+    def permissions_for(self, _member):
+        return SimpleNamespace(mention_everyone=self.mention_everyone)
+
+    async def send(self, **kwargs) -> None:
+        self.sent.append(kwargs)
 
 
 def publication(verdict: str) -> ReviewPublication:
@@ -481,6 +507,101 @@ async def test_natural_reply_allows_explicit_user_mentions_only(settings, person
     sent = root.replies[0]
     assert sent["content"] == "Que lo revise <@12345678901234567>, por favor."
     assert sent["allowed_mentions"].to_dict() == {"parse": ["users"]}
+
+
+@pytest.mark.asyncio
+async def test_explicit_role_notification_mentions_only_resolved_roles(settings, persona) -> None:
+    field_staff_id = 12345678901234567
+    command_staff_id = 22345678901234567
+    roles = {
+        field_staff_id: FakeMentionRole(field_staff_id),
+        command_staff_id: FakeMentionRole(command_staff_id, mentionable=True),
+    }
+    bot_member = SimpleNamespace(id=999)
+    guild = SimpleNamespace(
+        id=10,
+        me=bot_member,
+        get_role=lambda role_id: roles.get(role_id),
+    )
+    channel = FakeMentionChannel(guild, mention_everyone=True)
+    root = FakeRoot(guild=guild)
+    root.channel = channel
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(root=root, trigger=root, parent=channel, thread=None)
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
+
+    route = await publisher.mention_roles(
+        (field_staff_id, command_staff_id),
+        "Revisen este expediente, por favor.",
+    )
+
+    assert route is ConversationResponseRoute.REPLY
+    sent = root.replies[0]
+    assert sent["content"] == (
+        f"<@&{field_staff_id}> <@&{command_staff_id}>\n\n"
+        "Revisen este expediente, por favor."
+    )
+    assert sent["allowed_mentions"].to_dict() == {
+        "roles": [field_staff_id, command_staff_id],
+        "parse": [],
+    }
+    assert sent["mention_author"] is False
+
+
+@pytest.mark.asyncio
+async def test_role_notification_rejects_default_unknown_and_unmentionable_roles(
+    settings,
+    persona,
+) -> None:
+    role_id = 12345678901234567
+    default_role = FakeMentionRole(10, mentionable=True, default=True)
+    blocked_role = FakeMentionRole(role_id)
+    roles = {10: default_role, role_id: blocked_role}
+    guild = SimpleNamespace(
+        id=10,
+        me=SimpleNamespace(id=999),
+        get_role=lambda selected: roles.get(selected),
+    )
+    channel = FakeMentionChannel(guild, mention_everyone=False)
+    root = FakeRoot(guild=guild)
+    root.channel = channel
+    publisher = DiscordReviewPublisher(
+        SimpleNamespace(user=SimpleNamespace(id=999)),
+        settings,
+        ReviewTarget(root=root, trigger=root, parent=channel, thread=None),
+        persona,
+    )
+
+    with pytest.raises(PublicationError, match="unavailable"):
+        await publisher.mention_roles((10,))
+    with pytest.raises(PublicationError, match="unavailable"):
+        await publisher.mention_roles((32345678901234567,))
+    with pytest.raises(PublicationError, match="cannot mention"):
+        await publisher.mention_roles((role_id,))
+
+
+@pytest.mark.asyncio
+async def test_report_owner_cannot_use_role_notification(settings, persona) -> None:
+    role_id = 12345678901234567
+    role = FakeMentionRole(role_id, mentionable=True)
+    guild = SimpleNamespace(
+        id=10,
+        me=SimpleNamespace(id=999),
+        get_role=lambda _role_id: role,
+    )
+    channel = FakeMentionChannel(guild, mention_everyone=True)
+    root = FakeRoot(guild=guild)
+    root.channel = channel
+    publisher = DiscordReviewPublisher(
+        SimpleNamespace(user=SimpleNamespace(id=999)),
+        settings,
+        ReviewTarget(root=root, trigger=root, parent=channel, thread=None),
+        persona,
+        allow_outgoing_mentions=False,
+    )
+
+    with pytest.raises(PublicationError, match="access level"):
+        await publisher.mention_roles((role_id,))
 
 
 @pytest.mark.asyncio

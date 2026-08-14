@@ -1,22 +1,22 @@
 {
   "schema_version": 2,
-  "version": "0.5.4",
-  "title": "Revisión limitada para autores de reportes",
-  "summary": "Ahora cada autor puede pedir ayuda al bot para revisar y corregir su propio reporte directamente desde el expediente.",
+  "version": "0.5.5",
+  "title": "Menciones de equipos desde el agente",
+  "summary": "El personal con acceso completo puede pedirle al bot que notifique directamente a roles concretos del servidor.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [1241206587079524442],
   "changes": [
     {
       "type": "added",
-      "text": "Responde tu propia publicación y menciona al bot para iniciar una revisión; el trabajo continuará ordenadamente dentro del hilo."
+      "text": "El bot ahora puede encontrar un rol por su nombre y mencionarlo cuando se lo pidas expresamente."
     },
     {
       "type": "improved",
-      "text": "Si el hilo ya existe, puedes mencionar al bot o responder uno de sus mensajes para seguir corrigiendo tu reporte."
+      "text": "La notificación funciona con hasta tres roles existentes y se envía en un único mensaje."
     },
     {
       "type": "improved",
-      "text": "Cada reporte incluye hasta cinco intervenciones para su autor; `/info-reportes` explica el flujo completo."
+      "text": "El acceso limitado para autores de reportes se mantiene sin permisos para mencionar grupos."
     }
   ]
 }

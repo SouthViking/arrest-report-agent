@@ -44,6 +44,7 @@ class FakePublisher:
         self.messages: list[str] = []
         self.routes: list[ConversationResponseRoute] = []
         self.reactions: list[tuple[int, str]] = []
+        self.role_mentions: list[tuple[tuple[int, ...], str | None]] = []
 
     async def mark_review_started(self) -> None:
         self.markers += 1
@@ -57,6 +58,16 @@ class FakePublisher:
         response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
     ) -> ConversationResponseRoute:
         self.messages.append(content)
+        self.routes.append(response_route)
+        return response_route
+
+    async def mention_roles(
+        self,
+        role_ids: tuple[int, ...],
+        content: str | None = None,
+        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
+    ) -> ConversationResponseRoute:
+        self.role_mentions.append((role_ids, content))
         self.routes.append(response_route)
         return response_route
 
@@ -269,6 +280,12 @@ def test_conversation_tools_only_expose_safe_response_routes() -> None:
         assert set(properties) == {"content", "response_route"}
         assert "<@USER_ID>" in properties["content"]["description"]
 
+    mention_properties = tools["mention_roles"].params_json_schema["properties"]
+    assert set(mention_properties) == {"role_ids", "content", "response_route"}
+    assert mention_properties["role_ids"]["minItems"] == 1
+    assert mention_properties["role_ids"]["maxItems"] == 3
+    assert mention_properties["response_route"]["enum"] == ["reply", "thread"]
+
 
 def test_reaction_tool_exposes_only_message_id_and_emoji() -> None:
     tools = {
@@ -285,6 +302,59 @@ def test_reaction_tool_exposes_only_message_id_and_emoji() -> None:
     assert properties["message_id"]["pattern"] == r"^[1-9][0-9]{16,19}$"
     assert properties["emoji"]["minLength"] == 1
     assert properties["emoji"]["maxLength"] == 100
+
+
+@pytest.mark.asyncio
+async def test_role_mention_tool_is_terminal_and_uses_resolved_ids() -> None:
+    publisher = FakePublisher()
+    case = ReviewCase(
+        guild_id=11111111111111111,
+        parent_channel_id=22222222222222222,
+        channel_id=22222222222222222,
+        root_message_id=33333333333333333,
+        trigger_message_id=44444444444444444,
+        requester_user_id=55555555555555555,
+        interaction_mode=InteractionMode.INITIAL_REVIEW,
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(case=case, publisher=publisher, attempt=1)
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+    arguments = json.dumps(
+        {
+            "role_ids": ["66666666666666666", "77777777777777777"],
+            "content": "Field Staff, revisen este expediente.",
+        }
+    )
+
+    result = await tools["mention_roles"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="mention_roles",
+            tool_call_id="call-role-mention",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert publisher.role_mentions == [
+        (
+            (66666666666666666, 77777777777777777),
+            "Field Staff, revisen este expediente.",
+        )
+    ]
+    assert result == {
+        "ok": True,
+        "delivery": "discord_role_mention",
+        "roles_mentioned": 2,
+        "messages_sent": 1,
+        "response_route": "reply",
+        "interaction_complete": True,
+    }
+    assert run_context.interaction_completed
 
 
 def test_member_tool_exposes_bounded_projection_without_guild_argument() -> None:

@@ -104,6 +104,11 @@ para ese expediente; luego debe continuar personal con acceso completo. La black
 precedencia y el propietario nunca recibe herramientas de directorio, lectura de otros canales,
 reacciones manuales ni menciones salientes.
 
+El acceso completo puede resolver roles del servidor por nombre y, ante una solicitud explícita,
+notificar hasta tres mediante la tool terminal `mention_roles`. La publicación valida que cada rol
+pertenezca a la guild actual, bloquea `@everyone`/`@here` y limita `AllowedMentions` a los IDs
+resueltos. Esta capacidad no se expone al acceso limitado del propietario.
+
 `REPORT_CHANNEL_IDS` no restringe conversaciones. Define los canales que `/mis-reportes`,
 `/mi-resumen`, `/pendientes`, `/ranking`, `/verguenza`, `/honor` y `/errores-reportes` utilizan como archivo de reportes y los que `/ayuda`
 presenta como destinos habituales. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` siguen siendo aliases
