@@ -24,6 +24,12 @@ class ReleaseChangeType(StrEnum):
     SECURITY = "security"
 
 
+class ReleaseAcknowledgementType(StrEnum):
+    SUGGESTION = "suggestion"
+    TESTING = "testing"
+    CONTRIBUTION = "contribution"
+
+
 class FrozenReleaseModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
 
@@ -31,6 +37,12 @@ class FrozenReleaseModel(BaseModel):
 class ReleaseChange(FrozenReleaseModel):
     type: ReleaseChangeType
     text: str = Field(min_length=1, max_length=300)
+
+
+class ReleaseAcknowledgement(FrozenReleaseModel):
+    type: ReleaseAcknowledgementType
+    user_id: int = Field(gt=0, le=2**64 - 1)
+    text: str = Field(min_length=1, max_length=150)
 
 
 class ReleaseManifest(FrozenReleaseModel):
@@ -43,6 +55,10 @@ class ReleaseManifest(FrozenReleaseModel):
     repository_url: str = Field(min_length=1, max_length=255)
     changelog_targets: Literal["all"] | tuple[int, ...] = "all"
     changes: tuple[ReleaseChange, ...] = Field(min_length=1, max_length=10)
+    acknowledgements: tuple[ReleaseAcknowledgement, ...] = Field(
+        default=(),
+        max_length=5,
+    )
 
     @field_validator("changelog_targets", mode="before")
     @classmethod
@@ -83,7 +99,7 @@ class ReleaseManifest(FrozenReleaseModel):
 
     @model_validator(mode="after")
     def validate_contract(self) -> ReleaseManifest:
-        if self.schema_version != 2:
+        if self.schema_version != 3:
             raise ValueError("unsupported release manifest schema version")
         if self.version != __version__:
             raise ValueError(

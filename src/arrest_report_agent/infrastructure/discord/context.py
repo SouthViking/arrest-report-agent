@@ -29,7 +29,10 @@ from .trigger import TriggerActivation
 PARTICIPANT_REGISTRY_LIMIT = 10
 REPORT_OWNER_MINIMUM_IMAGE_COUNT = 4
 _REPORT_NAME_TOKEN = r"[^\W\d_]+(?:[-'’][^\W\d_]+)*"
-_REPORT_NAME_PATTERN = re.compile(rf"{_REPORT_NAME_TOKEN}\s+{_REPORT_NAME_TOKEN}")
+_REPORT_EVIDENCE_BAG_SUFFIX = r"(?:\s*-\s*#\d{1,20})?"
+_REPORT_NAME_PATTERN = re.compile(
+    rf"{_REPORT_NAME_TOKEN}\s+{_REPORT_NAME_TOKEN}{_REPORT_EVIDENCE_BAG_SUFFIX}"
+)
 LOGGER = logging.getLogger(__name__)
 
 
@@ -193,7 +196,9 @@ class DiscordContextBuilder:
         if leading_mention is not None:
             normalized = normalized[len(leading_mention) :].strip()
         if _REPORT_NAME_PATTERN.fullmatch(normalized) is None:
-            raise ReportOwnerSubmissionError("Report root does not contain exactly Nombre Apellido")
+            raise ReportOwnerSubmissionError(
+                "Report root does not contain Nombre Apellido with an optional evidence bag"
+            )
 
         image_count = 0
         for attachment in getattr(root, "attachments", ()):

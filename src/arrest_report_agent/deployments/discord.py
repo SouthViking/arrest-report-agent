@@ -12,7 +12,11 @@ import discord
 from arrest_report_agent.config import AccessPolicyKey, AccessPolicyMode, BotPersona
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
-from arrest_report_agent.release import ReleaseChangeType, ReleaseManifest
+from arrest_report_agent.release import (
+    ReleaseAcknowledgementType,
+    ReleaseChangeType,
+    ReleaseManifest,
+)
 
 from .models import DeploymentEventType
 from .repository import (
@@ -30,6 +34,11 @@ CHANGE_ICONS = {
     ReleaseChangeType.IMPROVED: "\U0001f527",
     ReleaseChangeType.FIXED: "\U0001f41b",
     ReleaseChangeType.SECURITY: "\U0001f512",
+}
+ACKNOWLEDGEMENT_ICONS = {
+    ReleaseAcknowledgementType.SUGGESTION: "💡",
+    ReleaseAcknowledgementType.TESTING: "🧪",
+    ReleaseAcknowledgementType.CONTRIBUTION: "🤝",
 }
 
 
@@ -263,6 +272,16 @@ def build_deployment_embed(
             f"{CHANGE_ICONS[change.type]} {change.text}" for change in manifest.changes
         )
         embed.add_field(name="Cambios", value=changes, inline=False)
+        if manifest.acknowledgements:
+            acknowledgements = "\n".join(
+                f"{ACKNOWLEDGEMENT_ICONS[item.type]} <@{item.user_id}> — {item.text}"
+                for item in manifest.acknowledgements
+            )
+            embed.add_field(
+                name="Agradecimientos",
+                value=acknowledgements,
+                inline=False,
+            )
         embed.set_footer(text=messages.release_closing)
     else:
         title, description, color = {

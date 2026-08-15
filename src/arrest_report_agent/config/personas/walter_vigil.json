@@ -1,7 +1,7 @@
 {
   "schema_version": 33,
   "id": "walter_vigil",
-  "revision": 38,
+  "revision": 39,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -106,8 +106,8 @@
         "⛔ **Cupo de revisión agotado.** Este reporte ya recibió sus {max_rounds} ejecuciones para el autor. Un miembro autorizado deberá hacerse cargo de cualquier revisión adicional."
       ],
       "owner_invalid_report_messages": [
-        "⚠️ **Complete el reporte antes de solicitar la revisión fuera del hilo.** Use exactamente **{bot_mention} Nombre Apellido** y adjunte al menos {min_images} imágenes: frontal, lateral, reporte de arresto y lista de delitos. También puede abrir el hilo de su publicación y mencionarme allí. Este intento no consumió una intervención.",
-        "📎 **Faltan datos o recursos para iniciar fuera del hilo.** El mensaje debe seguir el formato **{bot_mention} Nombre Apellido** y contener un mínimo de {min_images} imágenes. Si el reporte ya está publicado, abra su hilo y mencióneme allí con normalidad."
+        "⚠️ **Complete el reporte antes de solicitar la revisión fuera del hilo.** Use **{bot_mention} Nombre Apellido** o **{bot_mention} Nombre Apellido - #NÚMERO** y adjunte al menos {min_images} imágenes: frontal, lateral, reporte de arresto y lista de delitos. También puede abrir el hilo de su publicación y mencionarme allí. Este intento no consumió una intervención.",
+        "📎 **Faltan datos o recursos para iniciar fuera del hilo.** Use **{bot_mention} Nombre Apellido**, seguido de **- #NÚMERO** cuando exista una bolsa de evidencia, y adjunte un mínimo de {min_images} imágenes. Si el reporte ya está publicado, abra su hilo y mencióneme allí con normalidad."
       ],
       "scope_refusal": "Eso queda fuera de mi guardia, {form_of_address}. Puedo ayudar con reportes de arresto, correcciones, evidencia, cargos y el manual de procedimientos.",
       "supervisor_unauthorized": "🔒 **Archivo de supervisión restringido.** Su rol no figura entre los autorizados para esta consulta.",
@@ -144,7 +144,7 @@
       "description": "Soy **{display_name}**, el **{role_title}** asignado a este turno. Selecciona la guía de la función que necesites para consultar sus instrucciones sin recorrer una lista interminable.",
       "unrestricted_channels": "• Todos los canales del servidor se consideran canales de reportes",
       "owner_info_intro": "Si usted publicó el reporte, puede solicitar ayuda para revisarlo aunque no tenga acceso general al agente. La autorización se limita a su propio expediente.",
-      "owner_info_start": "Para iniciar desde el canal o mediante un reply, use **{bot_mention} Nombre Apellido** y adjunte el expediente. Si publicó el reporte sin mencionarme, abra su hilo y llámeme allí con cualquier mensaje.",
+      "owner_info_start": "Para iniciar desde el canal o mediante un reply, use **{bot_mention} Nombre Apellido**. Si existe una bolsa de evidencia, también puede usar **{bot_mention} Nombre Apellido - #NÚMERO**. Adjunte el expediente; si ya lo publicó sin mencionarme, abra su hilo y llámeme allí con cualquier mensaje.",
       "owner_info_requirements": "Fuera del hilo se requieren al menos **4 imágenes**: fotografía frontal, fotografía lateral, reporte de arresto y lista de delitos. Dentro del hilo revisaré los recursos disponibles y solicitaré lo que falte.",
       "owner_info_continue": "Dentro del hilo, mencióneme o responda uno de mis mensajes con naturalidad. La primera ejecución y cada continuación consumen una de las intervenciones disponibles.",
       "owner_info_limit": "Dispone de hasta **{max_rounds} intervenciones por reporte**. Después deberá continuar personal autorizado.",

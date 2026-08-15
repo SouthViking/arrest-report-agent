@@ -61,14 +61,16 @@ def test_railway_payload_normalizes_supported_events_and_identity() -> None:
 def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     manifest = ReleaseManifest.load_packaged()
 
-    assert manifest.version == "0.5.12"
+    assert manifest.version == "0.5.13"
     assert manifest.repository_url == "https://github.com/SouthViking/arrest-report-agent"
     assert manifest.changelog_targets == (1241206587079524442,)
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "formas verbales" in rendered_changes
-    assert "pasado y presente" in rendered_changes
-    assert "quién actuó" in rendered_changes
+    assert "bolsa de evidencia" in rendered_changes
+    assert "880057771347836978" not in rendered_changes
+    assert len(manifest.acknowledgements) == 1
+    assert manifest.acknowledgements[0].user_id == 880057771347836978
+    assert manifest.acknowledgements[0].type.value == "suggestion"
 
 
 def test_release_manifest_rejects_non_github_repository() -> None:
@@ -76,6 +78,24 @@ def test_release_manifest_rejects_non_github_repository() -> None:
     payload["repository_url"] = "https://example.com/SouthViking/arrest-report-agent"
 
     with pytest.raises(ValueError, match="GitHub repository"):
+        ReleaseManifest.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "acknowledgements",
+    [
+        [{"type": "suggestion", "user_id": 0, "text": "Idea"}],
+        [{"type": "unknown", "user_id": 123, "text": "Idea"}],
+        [{"type": "testing", "user_id": 123, "text": ""}],
+    ],
+)
+def test_release_manifest_rejects_invalid_acknowledgements(
+    acknowledgements: object,
+) -> None:
+    payload = ReleaseManifest.load_packaged().model_dump(mode="json")
+    payload["acknowledgements"] = acknowledgements
+
+    with pytest.raises(ValueError):
         ReleaseManifest.model_validate(payload)
 
 
@@ -107,9 +127,14 @@ def test_deployment_embeds_keep_operational_data_and_persona_framing(persona) ->
 
     embed = build_deployment_embed(event, manifest, persona)
 
-    assert embed.title == "🚀 Revisiones más naturales · v0.5.12"
+    assert embed.title == "🚀 Reportes con bolsa de evidencia · v0.5.13"
     assert persona.messages.interface.deployments.release_intro in (embed.description or "")
     assert any(field.name == "Cambios" for field in embed.fields)
+    acknowledgement_field = next(
+        field for field in embed.fields if field.name == "Agradecimientos"
+    )
+    assert "💡 <@880057771347836978>" in acknowledgement_field.value
+    assert "formato con bolsa de evidencia" in acknowledgement_field.value
     deployment_field = next(field for field in embed.fields if field.name == "Despliegue")
     assert (
         "[abcdef12](https://github.com/SouthViking/arrest-report-agent/commit/"
@@ -225,7 +250,7 @@ async def test_success_event_waits_for_the_matching_runtime_and_then_targets_cha
 
     assert repository.processed == [event.id]
     assert [target.channel_id for target in repository.targets] == [456, 789]
-    assert all(target.notification_key.endswith(":0.5.12") for target in repository.targets)
+    assert all(target.notification_key.endswith(":0.5.13") for target in repository.targets)
 
 
 @pytest.mark.asyncio

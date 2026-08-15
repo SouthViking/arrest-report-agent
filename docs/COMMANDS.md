@@ -75,7 +75,8 @@ puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists 
 leer el historial de Discord.
 
 `/info-reportes` no ejecuta IA ni describe el catálogo general de revisión. Explica únicamente cómo
-el autor puede iniciar fuera de un hilo con `@mención Nombre Apellido` y, como mínimo, las imágenes
+el autor puede iniciar fuera de un hilo con `@mención Nombre Apellido` o
+`@mención Nombre Apellido - #NÚMERO` y, como mínimo, las imágenes
 frontal, lateral, reporte de arresto y lista de delitos. También puede publicar primero el reporte sin
 mencionar al bot, abrir su hilo y llamarlo allí con texto libre; en esa vía la primera ejecución del
 agente comienza a consumir el límite vigente. La guía explica además cómo responder su publicación,

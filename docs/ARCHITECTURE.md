@@ -61,7 +61,7 @@ revisión con una revisión activa.
 Cuando `report_owner_access` está habilitado, esos canales explícitos forman además la frontera del
 acceso limitado. El listener solo concede `report_owner` si el autor responde directamente a su
 propio reporte o habla dentro del hilo cuyo ID coincide con el mensaje raíz. El root debe contener
-exactamente `Nombre Apellido` y cuatro imágenes compatibles cuando la entrada ocurre en el canal
+`Nombre Apellido`, opcionalmente seguido de `- #NÚMERO`, y cuatro imágenes compatibles cuando la entrada ocurre en el canal
 padre; la mención debe preceder el nombre cuando el propio reporte activa al bot. Dentro de un hilo
 canónico no se exige formato ni material mínimo: la autoría y el anclaje al canal configurado son la
 frontera determinista. No usa el fallback de hilos huérfanos para esta decisión. Antes del guardrail

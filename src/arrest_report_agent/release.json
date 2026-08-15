@@ -1,20 +1,23 @@
 {
-  "schema_version": 2,
-  "version": "0.5.12",
-  "title": "Revisiones más naturales",
-  "summary": "Las revisiones ahora toleran mejor la forma cotidiana de narrar un procedimiento sin perder claridad.",
+  "schema_version": 3,
+  "version": "0.5.13",
+  "title": "Reportes con bolsa de evidencia",
+  "summary": "Ahora puedes solicitar la revisión de un reporte identificando también su bolsa de evidencia desde el mensaje inicial.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "Los cambios naturales entre pasado y presente ya no generan observaciones cuando la secuencia se entiende con claridad."
-    },
+      "type": "added",
+      "text": "Los reportes aceptan el formato `@mención Nombre Apellido - #NÚMERO` cuando exista una bolsa de evidencia."
+    }
+  ],
+  "acknowledgements": [
     {
-      "type": "improved",
-      "text": "Las formas verbales aisladas solo se señalarán cuando realmente impidan comprender quién actuó, qué ocurrió o en qué orden."
+      "type": "suggestion",
+      "user_id": 880057771347836978,
+      "text": "Propuso incorporar el formato con bolsa de evidencia."
     }
   ]
 }

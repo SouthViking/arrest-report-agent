@@ -399,9 +399,10 @@ Comandos disponibles:
 En `/config` → **Módulos**, `report_owner_access` acepta `{"max_rounds": 5}` con un valor entre 1 y
 20. Solo puede habilitarse cuando `report_channels` contiene IDs explícitos.
 
-Al iniciar el acceso limitado fuera de un hilo, la publicación raíz debe contener exactamente dos
-componentes de nombre y al menos cuatro imágenes compatibles. La publicación directa debe comenzar
-con `@mención Nombre Apellido`; un reply puede apuntar al mismo reporte ya publicado. Un formato o
+Al iniciar el acceso limitado fuera de un hilo, la publicación raíz debe contener dos componentes
+de nombre, una referencia opcional de bolsa de evidencia y al menos cuatro imágenes compatibles. La
+publicación directa debe comenzar con `@mención Nombre Apellido` o
+`@mención Nombre Apellido - #NÚMERO`; un reply puede apuntar al mismo reporte ya publicado. Un formato o
 material incompleto recibe una explicación determinista, sin crear una ejecución de IA ni consumir
 una ronda. Si el autor abre manualmente el hilo de su propio reporte, puede mencionarlo allí con texto
 libre: el hilo canónico, la autoría y el canal de reportes reemplazan esa validación de formato, y la

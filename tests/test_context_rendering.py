@@ -544,10 +544,19 @@ async def test_response_route_is_derived_from_activation_and_channel(settings, p
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "content",
+    [
+        "  <@!999>   José   Pérez-Soto  ",
+        "<@999> José Pérez-Soto - #1842",
+        "<@999> José Pérez-Soto-#1842",
+    ],
+)
 async def test_report_owner_bootstrap_accepts_mention_in_own_root_report(
     settings,
     persona,
     monkeypatch,
+    content: str,
 ) -> None:
     owner_id = 123
     report_channel_id = min(settings.report_channel_ids)
@@ -567,7 +576,7 @@ async def test_report_owner_bootstrap_accepts_mention_in_own_root_report(
         channel=parent,
         reference=None,
         thread=None,
-        content="  <@!999>   José   Pérez-Soto  ",
+        content=content,
         attachments=_owner_report_attachments(),
     )
 
@@ -595,10 +604,13 @@ async def test_report_owner_bootstrap_accepts_mention_in_own_root_report(
 @pytest.mark.parametrize(
     ("content", "image_count", "error_match"),
     [
-        ("<@999> Maikel Santana revisa", 4, "exactly Nombre Apellido"),
+        ("<@999> Maikel Santana revisa", 4, "optional evidence bag"),
+        ("<@999> Maikel Santana - #", 4, "optional evidence bag"),
+        ("<@999> Maikel Santana - #ABC", 4, "optional evidence bag"),
+        ("<@999> Maikel Santana - #123 revisa", 4, "optional evidence bag"),
         ("<@999> Maikel Santana", 3, "fewer than four"),
         ("Maikel Santana", 4, "does not start with the bot mention"),
-        ("<@999> Maikel_ Santana", 4, "exactly Nombre Apellido"),
+        ("<@999> Maikel_ Santana", 4, "optional evidence bag"),
     ],
 )
 async def test_report_owner_root_rejects_nonstandard_submission_without_ai(
@@ -651,7 +663,7 @@ async def test_report_owner_bootstrap_is_anchored_to_own_replied_report(
         author=SimpleNamespace(id=owner_id, bot=False),
         webhook_id=None,
         thread=None,
-        content="Maikel Santana",
+        content="Maikel Santana - #1842",
         attachments=_owner_report_attachments(),
     )
 
