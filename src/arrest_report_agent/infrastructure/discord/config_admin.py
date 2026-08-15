@@ -21,6 +21,10 @@ from arrest_report_agent.config import (
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.cost_monitoring import (
+    CostMonitoringService,
+    build_cost_monitoring_embed,
+)
 from arrest_report_agent.infrastructure.postgres import (
     ConfigurationRepository,
     DatabaseConfigProvider,
@@ -133,9 +137,11 @@ class ConfigurationAdminCog(commands.Cog):
         settings: AppSettings,
         repository: ConfigurationRepository,
         provider: DatabaseConfigProvider,
+        cost_monitoring: CostMonitoringService | None = None,
     ) -> None:
         self.repository = repository
         self.provider = provider
+        self.cost_monitoring = cost_monitoring
         self.owner_ids = frozenset(settings.config_owner_user_ids)
 
     async def _persona(self, guild_id: int) -> BotPersona:
@@ -352,6 +358,54 @@ class ConfigurationAdminCog(commands.Cog):
         draft_id = await self.repository.draft_revision_id(guild_id)
         return build_config_panel_embed(snapshot, draft_id)
 
+    async def publish_cost_monitoring(
+        self,
+        interaction: discord.Interaction,
+        requester_id: int,
+    ) -> None:
+        """Publish an owner-triggered provider summary in the current channel."""
+
+        if not await self.authorize_interaction(
+            interaction,
+            requester_id,
+            owner_only=True,
+        ):
+            return
+        if self.cost_monitoring is None:
+            await self._send_interaction_embed(
+                interaction,
+                discord.Embed(
+                    title="⚠️ Consumo no configurado",
+                    description="No hay proveedores de consumo configurados en este proceso.",
+                    color=discord.Color.red(),
+                ),
+            )
+            return
+        await interaction.response.defer(invisible=True)
+        try:
+            snapshot = await self.cost_monitoring.snapshot()
+            channel = interaction.channel
+            if channel is None:
+                raise LookupError("No pude resolver el canal donde publicar el consumo.")
+            await channel.send(
+                embed=build_cost_monitoring_embed(snapshot),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except Exception as error:
+            await self._interaction_failure(interaction, error, operation="costs.publish")
+            return
+        log_event(
+            LOGGER,
+            "info",
+            "cost_monitoring_published",
+            guild_id=interaction.guild.id if interaction.guild else None,
+            channel_id=interaction.channel_id,
+            user_id=interaction.user.id,
+            interaction_id=interaction.id,
+            openai_included=snapshot.openai is not None,
+            railway_included=snapshot.railway is not None,
+        )
+
     async def draft_policy(
         self,
         guild_id: int,
@@ -391,6 +445,13 @@ class ConfigurationPanelView(discord.ui.View):
         super().__init__(timeout=CONFIG_PANEL_TIMEOUT_SECONDS, disable_on_timeout=True)
         self.cog = cog
         self.requester_id = requester_id
+        if requester_id not in cog.owner_ids or cog.cost_monitoring is None:
+            consumption = discord.utils.get(
+                self.children,
+                custom_id="config:v2:cost-monitoring",
+            )
+            if consumption is not None:
+                self.remove_item(consumption)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return await self.cog.authorize_interaction(interaction, self.requester_id)
@@ -485,6 +546,20 @@ class ConfigurationPanelView(discord.ui.View):
         interaction: discord.Interaction,
     ) -> None:
         await interaction.response.send_modal(RollbackConfigurationModal(self.cog, self.requester_id))
+
+    @discord.ui.button(
+        label="Publicar consumo",
+        emoji="💰",
+        style=discord.ButtonStyle.secondary,
+        custom_id="config:v2:cost-monitoring",
+        row=2,
+    )
+    async def cost_monitoring(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        await self.cog.publish_cost_monitoring(interaction, self.requester_id)
 
 
 class BaseConfigurationModal(discord.ui.DesignerModal):

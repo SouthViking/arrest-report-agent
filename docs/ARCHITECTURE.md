@@ -246,6 +246,11 @@ para cada mutación. Cada interacción vuelve a validar autorización; las deneg
 pool de `messages.access` de la persona de la guild. Las operaciones conservan borradores,
 transacciones, auditoría y publicación por `LISTEN/NOTIFY` sin involucrar al runner.
 
+`cost_monitoring` encapsula clientes de solo lectura para la Admin API de OpenAI y la API GraphQL de
+Railway. El panel muestra su acción únicamente a owners, consulta ambos proveedores en paralelo y
+publica el snapshot resultante en el canal actual. Un fallo parcial omite solo ese proveedor; la caché
+en memoria evita repetir consultas durante la ventana configurada y no persiste datos financieros.
+
 En `on_ready`, `DiscordProfileSynchronizer` aplica username y avatar desde la persona, el banner
 verde musgo global de LSSD y la biografía por guild. Los campos globales se envían por separado para
 que el cooldown de uno no bloquee los demás. Un lock evita duplicados durante reconexiones; un error

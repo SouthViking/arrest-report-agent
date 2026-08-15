@@ -17,10 +17,17 @@ El comando abre un panel efímero con botones para:
 - Importar, publicar, asignar o revertir personas, incluyendo carga de JSON y avatar.
 - Publicar el borrador o restaurar una revisión histórica.
 - Cambiar el perfil global cuando quien opera es owner.
+- Publicar en el canal actual un resumen de consumo de OpenAI y Railway; esta acción solo aparece
+  para `CONFIG_OWNER_USER_IDS` y no crea un comando adicional.
 
 El panel está ligado al solicitante, expira tras quince minutos y revalida permisos en cada acción.
 Cada mutación usa el ID de la interacción como clave idempotente y queda en `config_audit_events`.
 Las publicaciones emiten una notificación de PostgreSQL para refrescar el runtime sin redeploy.
+
+La acción **Publicar consumo** consulta los proveedores configurados, omite cualquier campo que no
+haya sido devuelto y envía un embed público en el canal donde se abrió `/config`. No usa IA. Los
+resultados se conservan en memoria por cinco minutos; las credenciales nunca se muestran ni se
+registran en logs.
 
 Los comandos se registran directamente en la raíz, sin depender del nombre o personalidad del bot.
 Salvo `/ayuda`, `/info-reportes`, `/ts3`, `/info-roles`, los resultados de `/verguenza` y `/honor`, y el expediente publicado

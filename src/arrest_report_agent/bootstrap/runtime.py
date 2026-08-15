@@ -22,6 +22,10 @@ from arrest_report_agent.config import (
     load_global_profile_banner,
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.cost_monitoring import (
+    CostMonitoringService,
+    build_cost_monitoring_service,
+)
 from arrest_report_agent.deployments import (
     DeploymentNotificationWorker,
     DeploymentRepository,
@@ -78,15 +82,14 @@ class Runtime:
     railway_webhook_receiver: RailwayWebhookReceiver | None
     ci_notification_worker: CiNotificationWorker
     github_webhook_receiver: GitHubWebhookReceiver | None
+    cost_monitoring: CostMonitoringService | None
     postgres: PostgresClient
     config_provider: DatabaseConfigProvider
 
     async def health(self) -> dict[str, object]:
         discord_ready = self.bot.is_ready()
         knowledge_ready = (
-            self.catalog.charge_count > 0
-            and bool(self.guide.version)
-            and self.radio_catalog.entry_count > 0
+            self.catalog.charge_count > 0 and bool(self.guide.version) and self.radio_catalog.entry_count > 0
         )
         try:
             database_ready = await self.postgres.ping()
@@ -112,6 +115,8 @@ class Runtime:
     async def close(self) -> None:
         await self.deployment_worker.close()
         await self.ci_notification_worker.close()
+        if self.cost_monitoring is not None:
+            await self.cost_monitoring.close()
         await self.config_provider.close()
         await self.postgres.close()
 
@@ -177,7 +182,15 @@ async def build_runtime(
         report_owner_run_repository=report_owner_run_repository,
     )
     bot.add_cog(review_cog)
-    bot.add_cog(ConfigurationAdminCog(settings, repository, config_provider))
+    cost_monitoring = build_cost_monitoring_service(settings)
+    bot.add_cog(
+        ConfigurationAdminCog(
+            settings,
+            repository,
+            config_provider,
+            cost_monitoring,
+        )
+    )
 
     async def synchronize_global_persona(updated: LoadedPersona) -> None:
         await profile_synchronizer.select_persona(updated)
@@ -334,6 +347,7 @@ async def build_runtime(
         railway_webhook_receiver=railway_webhook_receiver,
         ci_notification_worker=ci_notification_worker,
         github_webhook_receiver=github_webhook_receiver,
+        cost_monitoring=cost_monitoring,
         postgres=postgres,
         config_provider=config_provider,
     )

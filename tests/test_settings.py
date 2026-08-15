@@ -122,7 +122,7 @@ def test_railway_webhook_requires_complete_identity_and_url_safe_secret() -> Non
 
     assert settings.railway_webhook_enabled is True
     assert settings.railway_webhook_identity_is_complete is True
-    assert settings.app_version == "0.5.10"
+    assert settings.app_version == "0.5.11"
 
     with pytest.raises(ValidationError, match="RAILWAY_ENVIRONMENT_ID"):
         AppSettings(**{key: value for key, value in values.items() if key != "RAILWAY_ENVIRONMENT_ID"})
@@ -146,6 +146,50 @@ def test_github_webhook_requires_a_strong_shared_secret() -> None:
             DISCORD_TOKEN="discord",
             OPENAI_API_KEY="openai",
             GITHUB_WEBHOOK_SECRET="too-short",
+        )
+
+
+def test_cost_monitoring_credentials_are_optional_and_independent() -> None:
+    openai = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        OPENAI_ADMIN_KEY="admin",
+        OPENAI_PROJECT_ID="proj_test",
+    )
+    railway = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        RAILWAY_API_TOKEN="workspace-token",
+        RAILWAY_WORKSPACE_ID="workspace-id",
+    )
+
+    assert openai.openai_cost_monitoring_enabled is True
+    assert openai.railway_cost_monitoring_enabled is False
+    assert railway.openai_cost_monitoring_enabled is False
+    assert railway.railway_cost_monitoring_enabled is True
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "message"),
+    [
+        ("OPENAI_PROJECT_ID", "proj_test", "OPENAI_ADMIN_KEY"),
+        ("RAILWAY_API_TOKEN", "token", "RAILWAY_WORKSPACE_ID"),
+        ("RAILWAY_WORKSPACE_ID", "workspace", "RAILWAY_API_TOKEN"),
+    ],
+)
+def test_cost_monitoring_rejects_incomplete_credentials(
+    key: str,
+    value: str,
+    message: str,
+) -> None:
+    with pytest.raises(ValidationError, match=message):
+        AppSettings(
+            _env_file=None,
+            DISCORD_TOKEN="discord",
+            OPENAI_API_KEY="openai",
+            **{key: value},
         )
 
 

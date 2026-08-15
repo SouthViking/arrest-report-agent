@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import inspect
+from datetime import UTC, datetime
+from decimal import Decimal
 from types import SimpleNamespace
 from uuid import UUID
 
@@ -13,6 +15,10 @@ from arrest_report_agent.config import (
     AccessPolicySnapshot,
     GuildAgentConfig,
     ModelCatalog,
+)
+from arrest_report_agent.cost_monitoring import (
+    CostMonitoringSnapshot,
+    OpenAICostSnapshot,
 )
 from arrest_report_agent.infrastructure.discord.config_admin import (
     AccessPolicyModal,
@@ -105,8 +111,9 @@ class FakeInteractionResponse:
     def is_done(self) -> bool:
         return self.done
 
-    async def defer(self, *, ephemeral: bool) -> None:
-        assert ephemeral is True
+    async def defer(self, *, ephemeral: bool = False, invisible: bool = True) -> None:
+        self.ephemeral = ephemeral
+        self.invisible = invisible
         self.done = True
 
 
@@ -126,6 +133,29 @@ class FakeInteraction:
         self.user = SimpleNamespace(id=user_id)
         self.response = FakeInteractionResponse()
         self.followup = FakeFollowup()
+        self.channel = FakeChannel()
+        self.channel_id = 300
+
+
+class FakeChannel:
+    def __init__(self) -> None:
+        self.messages: list[dict[str, object]] = []
+
+    async def send(self, **kwargs: object) -> None:
+        self.messages.append(kwargs)
+
+
+class FakeCostMonitoring:
+    async def snapshot(self) -> CostMonitoringSnapshot:
+        return CostMonitoringSnapshot(
+            fetched_at=datetime(2026, 8, 15, 12, tzinfo=UTC),
+            openai=OpenAICostSnapshot(
+                current_spend=Decimal("1.25"),
+                hard_limit=Decimal("10"),
+                remaining=Decimal("8.75"),
+                limit_scope="project",
+            ),
+        )
 
 
 def agent_config(settings) -> GuildAgentConfig:
@@ -273,3 +303,52 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
     assert persona_modal.title == "Administrar personas"
     assert [option.value for option in persona_modal.action.options][-1] == "global"
     assert RollbackConfigurationModal(cog, 42).title == "Restaurar configuración"
+
+
+@pytest.mark.asyncio
+async def test_owner_can_publish_cost_monitoring_from_the_private_panel(settings, persona) -> None:
+    owner_settings = settings.model_copy(update={"config_owner_user_ids_csv": "42"})
+    provider = FakeProvider(persona, agent_config(settings))
+    cog = ConfigurationAdminCog(
+        owner_settings,
+        FakeRepository(),  # type: ignore[arg-type]
+        provider,  # type: ignore[arg-type]
+        FakeCostMonitoring(),  # type: ignore[arg-type]
+    )
+    panel = ConfigurationPanelView(cog, requester_id=42)
+    button = next(child for child in panel.children if child.label == "Publicar consumo")
+    interaction = FakeInteraction(user_id=42)
+
+    await button.callback(interaction)  # type: ignore[arg-type]
+
+    assert interaction.response.done is True
+    assert interaction.response.invisible is True
+    assert interaction.response.ephemeral is False
+    assert len(interaction.channel.messages) == 1
+    message = interaction.channel.messages[0]
+    allowed_mentions = message["allowed_mentions"]
+    assert isinstance(allowed_mentions, discord.AllowedMentions)
+    assert allowed_mentions.everyone is False
+    assert allowed_mentions.users is False
+    assert allowed_mentions.roles is False
+    embed = message["embed"]
+    assert isinstance(embed, discord.Embed)
+    assert embed.title == "💰 Estado de consumo"
+
+
+@pytest.mark.asyncio
+async def test_cost_monitoring_action_is_hidden_from_non_owner_config_admins(
+    settings,
+    persona,
+) -> None:
+    owner_settings = settings.model_copy(update={"config_owner_user_ids_csv": "42"})
+    cog = ConfigurationAdminCog(
+        owner_settings,
+        FakeRepository(),  # type: ignore[arg-type]
+        FakeProvider(persona, agent_config(settings)),  # type: ignore[arg-type]
+        FakeCostMonitoring(),  # type: ignore[arg-type]
+    )
+
+    panel = ConfigurationPanelView(cog, requester_id=99)
+
+    assert "Publicar consumo" not in [child.label for child in panel.children]

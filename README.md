@@ -439,6 +439,12 @@ el contenido exacto del FAQ.
 | `RAILWAY_SERVICE_ID` | vacío | Servicio Railway autorizado; obligatorio al habilitar el webhook. |
 | `RAILWAY_GIT_COMMIT_SHA` | Railway | SHA inyectado por Railway para que solo la nueva revisión anuncie un despliegue exitoso. |
 | `GITHUB_WEBHOOK_SECRET` | vacío | Secreto compartido de 32 a 256 caracteres para validar con HMAC-SHA256 el webhook nativo de GitHub. Vacío deshabilita el receptor. |
+| `OPENAI_ADMIN_KEY` | vacío | Admin API key separada y de solo backend para consultar costos y límites de OpenAI desde el panel owner-only. |
+| `OPENAI_PROJECT_ID` | vacío | Proyecto de OpenAI que acota el gasto y el límite; sin él se usa el alcance de organización. |
+| `RAILWAY_API_TOKEN` | vacío | Token de Railway limitado al workspace consultado por el monitor de consumo. |
+| `RAILWAY_WORKSPACE_ID` | vacío | Workspace de Railway cuyo uso, estimación y hard limit se consultan. |
+| `COST_MONITOR_TIMEOUT_SECONDS` | `10` | Timeout individual de las consultas de consumo. |
+| `COST_MONITOR_CACHE_SECONDS` | `300` | Vigencia en memoria del último resumen válido para evitar consultas repetidas. |
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
 | `REPORT_CHANNEL_IDS` | `*` | Canales usados por búsquedas, resúmenes, rankings, supervisión y ayuda; no restringe menciones. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` quedan como aliases compatibles. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |

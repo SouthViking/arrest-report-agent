@@ -193,6 +193,22 @@ class AppSettings(BaseSettings):
         default=None,
         alias="GITHUB_WEBHOOK_SECRET",
     )
+    openai_admin_key: SecretStr | None = Field(default=None, alias="OPENAI_ADMIN_KEY")
+    openai_project_id: str | None = Field(default=None, alias="OPENAI_PROJECT_ID")
+    railway_api_token: SecretStr | None = Field(default=None, alias="RAILWAY_API_TOKEN")
+    railway_workspace_id: str | None = Field(default=None, alias="RAILWAY_WORKSPACE_ID")
+    cost_monitor_timeout_seconds: float = Field(
+        default=10.0,
+        alias="COST_MONITOR_TIMEOUT_SECONDS",
+        gt=0,
+        le=60,
+    )
+    cost_monitor_cache_seconds: int = Field(
+        default=300,
+        alias="COST_MONITOR_CACHE_SECONDS",
+        ge=0,
+        le=3600,
+    )
 
     openai_model: str = Field(default="gpt-5.6-terra", alias="OPENAI_MODEL", min_length=1)
     openai_reasoning_effort: str = Field(default="medium", alias="OPENAI_REASONING_EFFORT", min_length=1)
@@ -256,11 +272,21 @@ class AppSettings(BaseSettings):
             return None
         return SecretStr(value.get_secret_value().strip())
 
+    @field_validator("openai_admin_key", "railway_api_token")
+    @classmethod
+    def normalize_optional_provider_secret(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None:
+            return None
+        normalized = value.get_secret_value().strip()
+        return SecretStr(normalized) if normalized else None
+
     @field_validator(
         "railway_project_id",
         "railway_environment_id",
         "railway_service_id",
         "railway_git_commit_sha",
+        "railway_workspace_id",
+        "openai_project_id",
     )
     @classmethod
     def normalize_optional_railway_value(cls, value: str | None) -> str | None:
@@ -306,9 +332,7 @@ class AppSettings(BaseSettings):
             assert secret is not None
             secret_value = secret.get_secret_value().strip()
             if not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", secret_value):
-                raise ValueError(
-                    "RAILWAY_WEBHOOK_SECRET must be 43-128 URL-safe characters"
-                )
+                raise ValueError("RAILWAY_WEBHOOK_SECRET must be 43-128 URL-safe characters")
             if not self.railway_webhook_identity_is_complete:
                 raise ValueError(
                     "RAILWAY_PROJECT_ID, RAILWAY_ENVIRONMENT_ID and RAILWAY_SERVICE_ID "
@@ -319,6 +343,14 @@ class AppSettings(BaseSettings):
             assert secret is not None
             if not 32 <= len(secret.get_secret_value()) <= 256:
                 raise ValueError("GITHUB_WEBHOOK_SECRET must contain 32-256 characters")
+        if self.openai_project_id and not self.openai_cost_monitoring_enabled:
+            raise ValueError("OPENAI_ADMIN_KEY is required when OPENAI_PROJECT_ID is configured")
+        railway_cost_values = (
+            self.railway_api_token is not None,
+            self.railway_workspace_id is not None,
+        )
+        if any(railway_cost_values) and not all(railway_cost_values):
+            raise ValueError("RAILWAY_API_TOKEN and RAILWAY_WORKSPACE_ID must be configured together")
         return self
 
     @property
@@ -327,16 +359,22 @@ class AppSettings(BaseSettings):
 
     @property
     def railway_webhook_enabled(self) -> bool:
-        return bool(
-            self.railway_webhook_secret
-            and self.railway_webhook_secret.get_secret_value().strip()
-        )
+        return bool(self.railway_webhook_secret and self.railway_webhook_secret.get_secret_value().strip())
 
     @property
     def github_webhook_enabled(self) -> bool:
+        return bool(self.github_webhook_secret and self.github_webhook_secret.get_secret_value().strip())
+
+    @property
+    def openai_cost_monitoring_enabled(self) -> bool:
+        return bool(self.openai_admin_key and self.openai_admin_key.get_secret_value().strip())
+
+    @property
+    def railway_cost_monitoring_enabled(self) -> bool:
         return bool(
-            self.github_webhook_secret
-            and self.github_webhook_secret.get_secret_value().strip()
+            self.railway_api_token
+            and self.railway_api_token.get_secret_value().strip()
+            and self.railway_workspace_id
         )
 
     @property
