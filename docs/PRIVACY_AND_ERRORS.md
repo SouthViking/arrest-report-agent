@@ -40,8 +40,9 @@ reconstruir el contexto. Una mención bloqueada o que no coincide con `agent_use
 registra solo IDs técnicos mediante `blocked_user_redirect_*` o `unauthorized_user_redirect_*`.
 
 La excepción `report_owner` se valida antes de OpenAI contra el canal padre, el mensaje raíz, su
-autor humano, el hilo canónico, el formato `Nombre Apellido` y cuatro imágenes compatibles como
-mínimo. Un reporte incompleto recibe un aviso determinista y no reserva una ronda. Su input omite el
+autor humano y el hilo canónico. Fuera de un hilo también valida el formato `Nombre Apellido` y
+cuatro imágenes compatibles como mínimo. Un reporte incompleto recibe un aviso determinista y no
+reserva una ronda. Su input omite el
 historial general del canal y sus tools no pueden
 leer otros expedientes, enumerar miembros, modificar reacciones manualmente ni generar menciones.
 PostgreSQL conserva IDs operacionales, ronda y estado de cada ejecución, nunca el texto o los

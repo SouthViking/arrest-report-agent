@@ -1,24 +1,22 @@
 {
   "schema_version": 2,
-  "version": "0.5.9",
-  "title": "Ayuda más simple y ordenada",
-  "summary": "El panel de ayuda ahora conduce directamente a la guía de cada función.",
+  "version": "0.5.10",
+  "title": "Revisiones más naturales desde el hilo",
+  "summary": "Los autores pueden publicar su reporte normalmente y pedir la revisión dentro de su propio hilo.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
       "type": "improved",
-      "text": "`/ayuda` ahora funciona como un índice breve para encontrar la guía de reportes, roles, pagers, callsigns o sugerencias."
+      "text": "Puedes publicar tu reporte sin mencionar al bot ni modificar el texto para adaptarlo a un formato especial."
     },
     {
       "type": "improved",
-      "text": "Las consultas rápidas de guía, cargos y preguntas frecuentes siguen disponibles sin recargar el panel principal."
+      "text": "Abre el hilo de tu propia publicación y menciona al bot allí con naturalidad para comenzar o continuar la revisión."
     },
     {
-      "type": "security",
-      "text": "Las guías operativas de pagers y callsigns ahora respetan los mismos roles autorizados que sus funciones."
+      "type": "improved",
+      "text": "Cada autor conserva el límite de intervenciones de su expediente; el formato guiado sigue disponible para iniciar directamente desde el canal."
     }
   ]
 }

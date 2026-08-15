@@ -193,8 +193,9 @@ def test_report_info_embed_is_public_facing_and_explains_owner_access(persona) -
     ]
     assert "<@999>" in embed.fields[0].value
     assert "Nombre Apellido" in embed.fields[0].value
-    assert "Si ya lo publicó" in embed.fields[0].value
+    assert "sin mencionarme" in embed.fields[0].value
     assert "4 imágenes" in embed.fields[1].value
+    assert "Dentro del hilo" in embed.fields[1].value
     assert "Dentro del hilo" in embed.fields[2].value
     assert "5 intervenciones" in embed.fields[3].value
     assert embed.fields[4].value == "• <#111>\n• <#222>"

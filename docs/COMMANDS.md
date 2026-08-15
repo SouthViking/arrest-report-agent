@@ -68,9 +68,11 @@ puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists 
 leer el historial de Discord.
 
 `/info-reportes` no ejecuta IA ni describe el catálogo general de revisión. Explica únicamente cómo
-el autor debe publicar `@mención Nombre Apellido` junto con, como mínimo, las imágenes frontal,
-lateral, reporte de arresto y lista de delitos; también explica cómo responder su publicación más
-tarde, continuar dentro del hilo, adjuntar correcciones y consultar el límite vigente. Si
+el autor puede iniciar fuera de un hilo con `@mención Nombre Apellido` y, como mínimo, las imágenes
+frontal, lateral, reporte de arresto y lista de delitos. También puede publicar primero el reporte sin
+mencionar al bot, abrir su hilo y llamarlo allí con texto libre; en esa vía la primera ejecución del
+agente comienza a consumir el límite vigente. La guía explica además cómo responder su publicación,
+adjuntar correcciones y continuar la conversación. Si
 `report_owner_access` está deshabilitado, informa que la capacidad no está disponible sin enseñar
 pasos que no funcionarían.
 

@@ -115,7 +115,6 @@ class DiscordContextBuilder:
             except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
                 raise ContextUnavailableError("Unable to verify the report thread root") from error
             self._require_human_owner(root, message.author.id)
-            self._require_report_submission(root, bot_user_id=bot_user_id)
             return ReviewTarget(
                 root=root,
                 trigger=message,

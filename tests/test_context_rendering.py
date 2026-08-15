@@ -24,8 +24,7 @@ from arrest_report_agent.infrastructure.discord.trigger import TriggerActivation
 
 def _owner_report_attachments(count: int = 4) -> list[SimpleNamespace]:
     return [
-        SimpleNamespace(filename=f"report-{index}.png", content_type="image/png")
-        for index in range(count)
+        SimpleNamespace(filename=f"report-{index}.png", content_type="image/png") for index in range(count)
     ]
 
 
@@ -704,8 +703,8 @@ async def test_report_owner_thread_requires_canonical_human_root(
         id=800,
         author=SimpleNamespace(id=owner_id, bot=False),
         webhook_id=None,
-        content="<@999> Maikel Santana",
-        attachments=_owner_report_attachments(),
+        content="Reporte publicado sin mencionar al bot ni usar un formato especial",
+        attachments=[],
     )
 
     class FakeTextChannel:
@@ -734,7 +733,7 @@ async def test_report_owner_thread_requires_canonical_human_root(
 
     target = await DiscordContextBuilder(settings, persona).resolve_report_owner_target(
         trigger,
-        TriggerActivation.BOT_REPLY,
+        TriggerActivation.MENTION,
         bot_user_id=999,
     )
     assert target.root is root

@@ -1,7 +1,7 @@
 {
   "schema_version": 33,
   "id": "roy_velazco",
-  "revision": 44,
+  "revision": 45,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -126,8 +126,8 @@
         "⛔ **no quedan intentos pa este reporte.** ocupaste las {max_rounds} intervenciones disponibles como autor. habla con un autorizado si todavía falta revisar algo."
       ],
       "owner_invalid_report_messages": [
-        "⚠️ **así no parte la revisión po.** manda exactamente **{bot_mention} Nombre Apellido** y adjunta al menos {min_images} imágenes: frontal, lateral, reporte de arresto y delitos. no te gasté una vuelta por este intento.",
-        "📎 **te faltó armar el expediente.** el formato es **{bot_mention} Nombre Apellido** y van mínimo {min_images} imágenes: frontal, lateral, reporte de arresto y lista de delitos. arréglalo y vuelve a llamarme."
+        "⚠️ **así no parte fuera del hilo po.** manda exactamente **{bot_mention} Nombre Apellido** y adjunta al menos {min_images} imágenes: frontal, lateral, reporte de arresto y delitos. si ya publicaste la cuestión, abre su hilo y llámame ahí. no te gasté una vuelta.",
+        "📎 **te faltó armar la entrada fuera del hilo.** usa **{bot_mention} Nombre Apellido** con mínimo {min_images} imágenes, o abre el hilo de tu reporte y háblame ahí como persona normal."
       ],
       "scope_refusal": "esa wea queda fuera de mi turno, {form_of_address}. pregúntame por reportes, evidencia, cargos o el manual y ahí conversamos.",
       "supervisor_unauthorized": "🔒 **archivo de supervisión restringido.** bonito intento, pero tu rol no sale en la lista... anda a buscar un mando.",
@@ -164,9 +164,9 @@
       "description": "soy **{display_name}**, **{role_title}** de este turno. elige la guía de la cuestión q necesitai y no te tragai una muralla de comandos.",
       "unrestricted_channels": "• en todos los canales del server, si dejaron la escoba así",
       "owner_info_intro": "si tú publicaste el reporte, podís pedirme ayuda aunque no tengai acceso general. eso sí, solo dentro de tu propio expediente, no te emocionís.",
-      "owner_info_start": "manda el mensaje exactamente así: **{bot_mention} Nombre Apellido**. si ya lo publicaste con ese formato, responde directamente esa publicación y llámame. voy a abrir o reutilizar el hilo de la cuestión.",
-      "owner_info_requirements": "adjunta mínimo **4 imágenes**: frontal, lateral, reporte de arresto y lista de delitos. si falta el formato o el material, no parte la revisión ni te gasto una intervención.",
-      "owner_info_continue": "ya dentro del hilo, mencióname o responde uno de mis mensajes. manda ahí las correcciones, imágenes o archivos nuevos.",
+      "owner_info_start": "pa partir desde el canal o con un reply, usa **{bot_mention} Nombre Apellido** y adjunta el expediente. si ya lo publicaste sin llamarme, abre su hilo y mencióname ahí con cualquier mensaje.",
+      "owner_info_requirements": "fuera del hilo van mínimo **4 imágenes**: frontal, lateral, reporte de arresto y lista de delitos. dentro del hilo reviso lo que haya y te digo si falta algo.",
+      "owner_info_continue": "ya dentro del hilo, mencióname o responde uno de mis mensajes como querai. la primera ejecución y cada continuación gastan una de tus intervenciones.",
       "owner_info_limit": "tenís hasta **{max_rounds} intervenciones por reporte**. después tiene q seguir alguien autorizado.",
       "owner_info_unavailable": "el acceso directo pa autores de reportes no está habilitado en este server.",
       "feature_guides_title": "🧭 Guías por función",
