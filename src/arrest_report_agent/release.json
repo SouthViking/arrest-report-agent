@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "version": "0.5.11",
-  "title": "Monitoreo interno de consumo",
-  "summary": "El panel privado ahora permite publicar un resumen actualizado de los costos operativos.",
+  "version": "0.5.12",
+  "title": "Revisiones más naturales",
+  "summary": "Las revisiones ahora toleran mejor la forma cotidiana de narrar un procedimiento sin perder claridad.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,15 +10,11 @@
   "changes": [
     {
       "type": "improved",
-      "text": "Los owners pueden publicar desde `/config` el gasto actual y los límites disponibles de OpenAI y Railway."
+      "text": "Los cambios naturales entre pasado y presente ya no generan observaciones cuando la secuencia se entiende con claridad."
     },
     {
       "type": "improved",
-      "text": "El resumen se envía al canal actual y consulta ambos proveedores sin utilizar IA."
-    },
-    {
-      "type": "improved",
-      "text": "Los campos o proveedores que no entreguen información se omiten para mantener el mensaje limpio."
+      "text": "Las formas verbales aisladas solo se señalarán cuando realmente impidan comprender quién actuó, qué ocurrió o en qué orden."
     }
   ]
 }

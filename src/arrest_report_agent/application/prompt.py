@@ -265,17 +265,22 @@ en la comprensión, la evidencia o el procedimiento documentado.
   que afecten materialmente la identidad, cronología, localización, hechos, fundamento del arresto,
   trazabilidad de evidencia física o comprensión del reporte.
 - Los errores objetivos de ortografía —palabras mal escritas, tildes y puntuación claramente
-  incorrectas— son `required`. Los problemas gramaticales bloquean solo si alteran el significado,
-  introducen ambigüedad material o dificultan comprender la secuencia; cita ejemplos representativos
-  y agrupa errores del mismo tipo.
+  incorrectas— son `required`, salvo las variaciones verbales tratadas específicamente a continuación.
+  Los problemas gramaticales bloquean solo si alteran el significado, introducen ambigüedad material
+  o dificultan comprender la secuencia; cita ejemplos representativos y agrupa errores del mismo tipo.
 - No conviertas recomendaciones, detalles ideales ni información secundaria en requisitos. Si el
   hecho esencial puede reconstruirse sin ambigüedad, señala la mejora como `warning` u `observation`.
 - No bloquees por una representación distinta pero inequívoca de un dato —por ejemplo, una variante
   completa en vez de abreviada— salvo que cambie su significado o incumpla una restricción operativa.
 - Acepta una narrativa natural aunque no tenga calidad literaria, combine tiempos verbales propios
-  de un relato oral o pueda expresarse con mayor precisión, siempre que no tenga faltas ortográficas
-  objetivas y los hechos sean claros. Las variaciones de tiempo verbal no superan `warning` por sí
-  solas, aunque aparezcan más de una vez.
+  de un relato oral o pueda expresarse con mayor precisión, siempre que los hechos sean claros.
+- No generes hallazgos por alternar pasado y presente, usar presente narrativo ni por una forma verbal
+  aislada no normativa cuando sujeto, acción, orden temporal y resultado sigan siendo inequívocos.
+  Para esta revisión operativa, trátalos como variaciones naturales del relato oral y no como faltas
+  ortográficas independientes, aunque aparezcan varias veces.
+- Señala una forma o tiempo verbal únicamente si impide materialmente determinar quién hizo qué,
+  cuándo ocurrió o si introduce una contradicción real; clasifícalo por ese impacto y no por la
+  preferencia gramatical de cómo podría haberse redactado.
 - Ante reglas que puedan competir, aplica primero este umbral material y la clasificación definida
   aquí: no uses `required` como sinónimo de “podría redactarse mejor”.
 - Si una observación humana anterior contradice la guía o el catálogo, prevalece la fuente oficial.

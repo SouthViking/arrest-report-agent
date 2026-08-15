@@ -111,7 +111,10 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "No conviertas recomendaciones, detalles ideales" in prompt
     assert "una variante\n  completa en vez de abreviada" in prompt
     assert "aunque no tenga calidad literaria" in prompt
-    assert "Las variaciones de tiempo verbal no superan `warning`" in prompt
+    assert "No generes hallazgos por alternar pasado y presente" in prompt
+    assert "una forma verbal\n  aislada no normativa" in prompt
+    assert "sujeto, acción, orden temporal y resultado sigan siendo inequívocos" in prompt
+    assert "únicamente si impide materialmente determinar quién hizo qué" in prompt
     assert "no uses `required` como sinónimo" in prompt
     assert "Contrasta cada cargo por el significado de los hechos" in prompt
     assert "usa `search_radio_codes` antes de interpretar" in prompt

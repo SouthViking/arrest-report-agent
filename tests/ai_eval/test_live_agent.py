@@ -403,6 +403,51 @@ Revisa el expediente completo.""",
 
     assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
     assert not any(finding.severity.value == "required" for finding in publication.findings)
+    assert not any(
+        any(
+            term
+            in (f"{finding.title} {finding.detail} {finding.recommendation} {finding.evidence or ''}").lower()
+            for term in ("tiempo verbal", "presente narrativo", "conjugación", "me incorporo")
+        )
+        for finding in publication.findings
+    ), publication.model_dump(mode="json")
+
+
+async def test_clear_isolated_nonstandard_verbal_forms_are_not_reported(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            """Solicito revisión. Las fotografías reglamentarias están presentes y son legibles.
+
+Yo, ayudante Elena Torres, bajo la asignación 241W, conducí la unidad por Jefferson el 05/08/2026
+a las 22:15. Observé un Sultan negro circulando sin luces y le ordené detenerse con luces y sirena.
+El conductor se detuvo en Forum Drive. Cuando descendí de la unidad, volvió a encender el vehículo
+y huyó hacia Idlewood. Lo seguí durante ocho minutos hasta que chocó contra una barrera. Retení al
+conductor, Daniel Vega, sin lesiones y después lo trasladé a la estación de Ganton. No se recolectó
+evidencia física.
+
+Cargos declarados:
+- CV-2801 — Evadir a un oficial de la paz.
+
+Revisa el expediente completo.""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+    rendered_findings = " ".join(
+        f"{finding.title} {finding.detail} {finding.recommendation} {finding.evidence or ''}".lower()
+        for finding in publication.findings
+    )
+
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+    assert not any(finding.severity.value == "required" for finding in publication.findings)
+    assert not any(
+        term in rendered_findings
+        for term in ("conducí", "retení", "conjugación", "forma verbal", "tiempo verbal")
+    ), publication.model_dump(mode="json")
 
 
 async def test_accepts_adjacent_booking_date_without_false_chronology_error(
