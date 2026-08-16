@@ -21,7 +21,13 @@ from openai.types.shared.reasoning import Reasoning
 from arrest_report_agent.config import AppSettings, BotPersona, ResolvedModel
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import AgentAccessLevel, ReviewCase
-from arrest_report_agent.knowledge import ChargeCatalog, RadioCodeCatalog, ReportGuide
+from arrest_report_agent.knowledge import (
+    ChargeCatalog,
+    ChargeCatalogProvider,
+    RadioCodeCatalog,
+    ReportGuide,
+    as_charge_catalog_provider,
+)
 
 from .errors import classify_error, public_error_message
 from .hooks import ReviewLifecycleHooks
@@ -40,20 +46,20 @@ class ReviewService:
     def __init__(
         self,
         settings: AppSettings,
-        catalog: ChargeCatalog,
+        catalog: ChargeCatalog | ChargeCatalogProvider,
         guide: ReportGuide,
         model: ResolvedModel,
         persona: BotPersona,
         radio_catalog: RadioCodeCatalog | None = None,
     ) -> None:
         self.settings = settings
-        self.catalog = catalog
+        self.catalog_provider = as_charge_catalog_provider(catalog)
         self.guide = guide
         self.model = model
         self.persona = persona
         self.radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
         tools = build_agent_tools(
-            catalog,
+            self.catalog_provider,
             guide,
             self.radio_catalog,
             max_images_per_review=settings.max_images_per_review,
@@ -65,7 +71,7 @@ class ReviewService:
             access_level=AgentAccessLevel.FULL,
         )
         owner_tools = build_agent_tools(
-            catalog,
+            self.catalog_provider,
             guide,
             self.radio_catalog,
             max_images_per_review=settings.max_images_per_review,
@@ -100,6 +106,7 @@ class ReviewService:
             ),
             reset_tool_choice=False,
         )
+
         self.report_owner_agent: Agent[ReviewRunContext] = Agent(
             name=persona.identity.display_name,
             instructions=build_agent_instructions(persona, AgentAccessLevel.REPORT_OWNER),
@@ -113,7 +120,15 @@ class ReviewService:
             reset_tool_choice=False,
         )
 
+    @property
+    def catalog(self) -> ChargeCatalog:
+        """Return the active catalog for deterministic command invocations."""
+
+        return self.catalog_provider.snapshot().catalog
+
     async def review(self, run_context: ReviewRunContext, agent_input: list[dict[str, Any]]) -> None:
+        if run_context.charge_catalog_snapshot is None:
+            run_context.charge_catalog_snapshot = self.catalog_provider.snapshot()
         started_at = time.monotonic()
         case = run_context.case
         run_config = RunConfig(
@@ -264,6 +279,16 @@ class ReviewService:
             "owner_reservation_result": run_context.owner_reservation_result or "none",
             "persona_id": self.persona.id,
             "persona_revision": self.persona.revision,
+            "charge_catalog_source": (
+                run_context.charge_catalog_snapshot.source.value
+                if run_context.charge_catalog_snapshot is not None
+                else "unknown"
+            ),
+            "charge_catalog_hash": (
+                run_context.charge_catalog_snapshot.catalog.source_hash
+                if run_context.charge_catalog_snapshot is not None
+                else "unknown"
+            ),
         }
 
     def _trace_metadata(

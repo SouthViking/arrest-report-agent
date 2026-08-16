@@ -1,25 +1,24 @@
 {
   "schema_version": 3,
-  "version": "0.5.15",
-  "title": "Preguntas configurables del manual",
-  "summary": "Los ejercicios del manual ahora se pueden adaptar por dificultad, tipo y tiempo disponible antes de publicarlos.",
+  "version": "0.5.16",
+  "title": "Código penal sincronizable",
+  "summary": "El bot queda preparado para consultar el código penal actualizado desde SARP sin perder el respaldo local.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
-    1234675609536430152,
     1241206587079524442
   ],
   "changes": [
     {
       "type": "added",
-      "text": "`/pregunta-manual` ahora abre un formulario para elegir la dificultad y el tipo de pregunta."
+      "text": "La consulta del código penal puede activarse mediante la integración oficial de SARP."
     },
     {
       "type": "added",
-      "text": "El plazo puede configurarse en 10, 15 o 30 segundos, o en 1, 3 o 5 minutos."
+      "text": "`/cargos` y las revisiones del agente utilizan la misma versión sincronizada de los cargos."
     },
     {
       "type": "added",
-      "text": "Si nadie responde a tiempo, la pregunta se cierra en el mismo mensaje y muestra la solución del manual."
+      "text": "Si SARP no está disponible, el bot continúa funcionando con la última versión válida o con su catálogo local."
     }
   ],
   "acknowledgements": []

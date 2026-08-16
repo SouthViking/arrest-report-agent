@@ -13,6 +13,7 @@ from arrest_report_agent.domain import (
     ReviewCase,
     ReviewPublication,
 )
+from arrest_report_agent.knowledge import ChargeCatalogSnapshot
 
 from .ports import (
     ActivityTracker,
@@ -31,6 +32,7 @@ class ReviewRunContext:
     owner_round: int | None = None
     owner_max_rounds: int | None = None
     owner_reservation_result: str | None = None
+    charge_catalog_snapshot: ChargeCatalogSnapshot | None = None
     activity: ActivityTracker | None = None
     member_directory: GuildMemberDirectory | None = None
     message_directory: GuildMessageDirectory | None = None

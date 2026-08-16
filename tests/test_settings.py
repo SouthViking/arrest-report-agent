@@ -122,7 +122,7 @@ def test_railway_webhook_requires_complete_identity_and_url_safe_secret() -> Non
 
     assert settings.railway_webhook_enabled is True
     assert settings.railway_webhook_identity_is_complete is True
-    assert settings.app_version == "0.5.15"
+    assert settings.app_version == "0.5.16"
 
     with pytest.raises(ValidationError, match="RAILWAY_ENVIRONMENT_ID"):
         AppSettings(**{key: value for key, value in values.items() if key != "RAILWAY_ENVIRONMENT_ID"})
@@ -169,6 +169,63 @@ def test_cost_monitoring_credentials_are_optional_and_independent() -> None:
     assert openai.railway_cost_monitoring_enabled is False
     assert railway.openai_cost_monitoring_enabled is False
     assert railway.railway_cost_monitoring_enabled is True
+
+
+def test_sarp_client_settings_are_optional_normalized_and_secret() -> None:
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        SARP_API_ENABLED="true",
+        SARP_API_TOKEN="  sarp_secret  ",
+        SARP_API_BASE_URL="https://api.sarp.es/api/",
+        SARP_API_TIMEOUT_SECONDS="12",
+        SARP_API_MAX_RETRIES="3",
+    )
+
+    assert settings.sarp_api_token is not None
+    assert settings.sarp_api_enabled is True
+    assert settings.sarp_api_token.get_secret_value() == "sarp_secret"
+    assert "sarp_secret" not in repr(settings)
+    assert settings.sarp_api_base_url == "https://api.sarp.es/api"
+    assert settings.sarp_api_timeout_seconds == 12
+    assert settings.sarp_api_max_retries == 3
+
+
+def test_sarp_api_is_disabled_by_default_and_enabled_mode_requires_token() -> None:
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+    )
+    assert settings.sarp_api_enabled is False
+
+    with pytest.raises(ValidationError, match="SARP_API_TOKEN"):
+        AppSettings(
+            _env_file=None,
+            DISCORD_TOKEN="discord",
+            OPENAI_API_KEY="openai",
+            SARP_API_ENABLED="true",
+        )
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "api.sarp.es/api",
+        "http://api.sarp.es/api",
+        "https://user:password@api.sarp.es/api",
+        "https://api.sarp.es/api?token=secret",
+    ],
+)
+def test_sarp_client_settings_reject_unsafe_base_urls(base_url: str) -> None:
+    with pytest.raises(ValidationError, match="SARP_API_BASE_URL"):
+        AppSettings(
+            _env_file=None,
+            DISCORD_TOKEN="discord",
+            OPENAI_API_KEY="openai",
+            SARP_API_BASE_URL=base_url,
+        )
 
 
 @pytest.mark.parametrize(

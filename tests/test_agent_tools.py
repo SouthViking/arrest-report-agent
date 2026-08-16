@@ -34,7 +34,43 @@ from arrest_report_agent.domain import (
     ReviewCase,
     ReviewVerdict,
 )
-from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+from arrest_report_agent.knowledge import (
+    ChargeCatalog,
+    ChargeCatalogSnapshot,
+    ChargeCatalogSource,
+    ReportGuide,
+)
+from arrest_report_agent.knowledge.catalog import Charge, ChargeCategory
+
+
+def _catalog(identifier: int, title: str) -> ChargeCatalog:
+    return ChargeCatalog(
+        [
+            ChargeCategory(
+                id=identifier,
+                title=title,
+                charges=[
+                    Charge(
+                        id=identifier,
+                        category=identifier,
+                        code=f"TEST-{identifier}",
+                        charge=title,
+                        type="Test",
+                        description=title,
+                    )
+                ],
+            )
+        ],
+        f"hash-{identifier}",
+    )
+
+
+class MutableCatalogProvider:
+    def __init__(self, snapshot: ChargeCatalogSnapshot) -> None:
+        self.current = snapshot
+
+    def snapshot(self) -> ChargeCatalogSnapshot:
+        return self.current
 
 
 class FakePublisher:
@@ -1484,3 +1520,46 @@ async def test_knowledge_tools_promote_the_interaction_activity() -> None:
 
     assert activity.activities == [AgentActivity.KNOWLEDGE]
     assert {item["code"] for item in result["results"]} == {"211", "10-15", "O"}
+
+
+@pytest.mark.asyncio
+async def test_charge_tools_keep_the_catalog_snapshot_pinned_to_the_agent_run() -> None:
+    first = ChargeCatalogSnapshot(_catalog(901, "Catálogo inicial"), ChargeCatalogSource.SARP)
+    second = ChargeCatalogSnapshot(_catalog(902, "Catálogo nuevo"), ChargeCatalogSource.SARP)
+    provider = MutableCatalogProvider(first)
+    case = ReviewCase(
+        guild_id=11111111111111111,
+        parent_channel_id=22222222222222222,
+        channel_id=22222222222222222,
+        root_message_id=33333333333333333,
+        trigger_message_id=44444444444444444,
+        requester_user_id=55555555555555555,
+        interaction_mode=InteractionMode.INITIAL_REVIEW,
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=FakePublisher(),
+        attempt=1,
+        charge_catalog_snapshot=provider.snapshot(),
+    )
+    provider.current = second
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(provider, ReportGuide.load_default())
+    }
+    arguments = json.dumps({"charge_ids": [901]})
+
+    result = await tools["get_charge_details"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="get_charge_details",
+            tool_call_id="pinned-catalog",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert result["charges"][0]["title"] == "Catálogo inicial"
+    assert result["missing_ids"] == []

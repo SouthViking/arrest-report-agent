@@ -42,7 +42,18 @@ from arrest_report_agent.infrastructure.postgres import (
     DatabaseConfigProvider,
     PostgresClient,
 )
-from arrest_report_agent.knowledge import ChargeCatalog, RadioCodeCatalog, ReportGuide
+from arrest_report_agent.infrastructure.sarp import (
+    SarpClient,
+    SarpClientConfig,
+    SarpPenalCodeProvider,
+)
+from arrest_report_agent.knowledge import (
+    ChargeCatalog,
+    ChargeCatalogProvider,
+    RadioCodeCatalog,
+    ReportGuide,
+    StaticChargeCatalogProvider,
+)
 from arrest_report_agent.manual_quiz import (
     ManualQuizCog,
     ManualQuizRepository,
@@ -74,7 +85,8 @@ LOGGER = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class Runtime:
     bot: discord.Bot
-    catalog: ChargeCatalog
+    catalog_provider: ChargeCatalogProvider
+    sarp_penal_code_provider: SarpPenalCodeProvider | None
     guide: ReportGuide
     radio_catalog: RadioCodeCatalog
     model: ResolvedModel
@@ -91,10 +103,19 @@ class Runtime:
     postgres: PostgresClient
     config_provider: DatabaseConfigProvider
 
+    @property
+    def catalog(self) -> ChargeCatalog:
+        """Return the current shared charge catalog snapshot."""
+
+        return self.catalog_provider.snapshot().catalog
+
     async def health(self) -> dict[str, object]:
         discord_ready = self.bot.is_ready()
+        catalog_snapshot = self.catalog_provider.snapshot()
         knowledge_ready = (
-            self.catalog.charge_count > 0 and bool(self.guide.version) and self.radio_catalog.entry_count > 0
+            catalog_snapshot.catalog.charge_count > 0
+            and bool(self.guide.version)
+            and self.radio_catalog.entry_count > 0
         )
         try:
             database_ready = await self.postgres.ping()
@@ -105,7 +126,9 @@ class Runtime:
             "discord": discord_ready,
             "database": database_ready,
             "knowledge": knowledge_ready,
-            "charges": self.catalog.charge_count,
+            "charges": catalog_snapshot.catalog.charge_count,
+            "charge_catalog_source": catalog_snapshot.source.value,
+            "sarp_api": self.sarp_penal_code_provider is not None,
             "radio_codes": self.radio_catalog.entry_count,
             "persona": self.persona.profile.id,
             "persona_revision": self.persona.profile.revision,
@@ -123,6 +146,8 @@ class Runtime:
         if self.cost_monitoring is not None:
             await self.cost_monitoring.close()
         await self.config_provider.close()
+        if self.sarp_penal_code_provider is not None:
+            await self.sarp_penal_code_provider.close()
         await self.postgres.close()
 
 
@@ -135,7 +160,26 @@ async def build_runtime(
     release_manifest = ReleaseManifest.load_packaged()
     postgres = build_postgres_client(settings)
     await postgres.open()
-    catalog = ChargeCatalog.load_default()
+    local_catalog = ChargeCatalog.load_default()
+    sarp_penal_code_provider: SarpPenalCodeProvider | None = None
+    if settings.sarp_api_enabled:
+        sarp_penal_code_provider = SarpPenalCodeProvider(
+            SarpClient(SarpClientConfig.from_settings(settings)),
+            local_catalog,
+        )
+        catalog_provider: ChargeCatalogProvider = sarp_penal_code_provider
+    else:
+        catalog_provider = StaticChargeCatalogProvider(local_catalog)
+    catalog_snapshot = catalog_provider.snapshot()
+    log_event(
+        LOGGER,
+        "info",
+        "charge_catalog_provider_initialized",
+        sarp_api_enabled=settings.sarp_api_enabled,
+        active_source=catalog_snapshot.source.value,
+        charge_count=catalog_snapshot.catalog.charge_count,
+        source_hash=catalog_snapshot.catalog.source_hash,
+    )
     guide = ReportGuide.load_default()
     radio_catalog = RadioCodeCatalog.load_default()
     model_catalog = ModelCatalog.load_default()
@@ -144,18 +188,22 @@ async def build_runtime(
         postgres,
         repository,
         settings,
-        catalog,
+        catalog_provider,
         guide,
         model_catalog,
         radio_catalog,
     )
     try:
+        if sarp_penal_code_provider is not None:
+            await sarp_penal_code_provider.start()
         await config_provider.start()
         persona = await config_provider.global_persona()
         guild_ids = await config_provider.guild_ids()
         initial_bundle = await config_provider.get(guild_ids[0])
     except Exception:
         await config_provider.close()
+        if sarp_penal_code_provider is not None:
+            await sarp_penal_code_provider.close()
         await postgres.close()
         raise
     log_event(
@@ -348,7 +396,8 @@ async def build_runtime(
     )
     return Runtime(
         bot=bot,
-        catalog=catalog,
+        catalog_provider=catalog_provider,
+        sarp_penal_code_provider=sarp_penal_code_provider,
         guide=guide,
         radio_catalog=radio_catalog,
         model=model,

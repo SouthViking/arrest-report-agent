@@ -23,6 +23,7 @@ from arrest_report_agent.domain import (
 )
 from arrest_report_agent.knowledge import (
     ChargeCatalog,
+    ChargeCatalogProvider,
     ChargeMatchMode,
     ChargeSearchField,
     RadioCodeCatalog,
@@ -31,6 +32,7 @@ from arrest_report_agent.knowledge import (
     RadioSearchField,
     RadioTermMatch,
     ReportGuide,
+    as_charge_catalog_provider,
 )
 
 from .ports import (
@@ -148,7 +150,7 @@ class GuildMemberFilters(BaseModel):
 
 
 def build_agent_tools(
-    catalog: ChargeCatalog,
+    catalog: ChargeCatalog | ChargeCatalogProvider,
     guide: ReportGuide,
     radio_catalog: RadioCodeCatalog | None = None,
     *,
@@ -160,9 +162,15 @@ def build_agent_tools(
     image_detail: str = "auto",
     access_level: AgentAccessLevel = AgentAccessLevel.FULL,
 ) -> list[object]:
-    """Create tools bound to immutable local knowledge sources."""
+    """Create tools bound to immutable knowledge snapshots."""
 
     resolved_radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
+    charge_catalog_provider = as_charge_catalog_provider(catalog)
+
+    def charge_catalog_for(run_context: ReviewRunContext) -> ChargeCatalog:
+        if run_context.charge_catalog_snapshot is not None:
+            return run_context.charge_catalog_snapshot.catalog
+        return charge_catalog_provider.snapshot().catalog
 
     @function_tool
     async def get_report_guide(
@@ -252,7 +260,7 @@ def build_agent_tools(
         """
 
         await _mark_knowledge_activity(ctx.context)
-        return catalog.list_index(
+        return charge_catalog_for(ctx.context).list_index(
             category_ids=category_ids,
             query=query,
             fields=fields,
@@ -272,7 +280,7 @@ def build_agent_tools(
         """
 
         await _mark_knowledge_activity(ctx.context)
-        return catalog.get_details(charge_ids)
+        return charge_catalog_for(ctx.context).get_details(charge_ids)
 
     @function_tool
     async def list_guild_roles(

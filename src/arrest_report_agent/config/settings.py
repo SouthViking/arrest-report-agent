@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from functools import lru_cache
+from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -209,6 +210,25 @@ class AppSettings(BaseSettings):
         ge=0,
         le=3600,
     )
+    sarp_api_token: SecretStr | None = Field(default=None, alias="SARP_API_TOKEN")
+    sarp_api_enabled: bool = Field(default=False, alias="SARP_API_ENABLED")
+    sarp_api_base_url: str = Field(
+        default="https://api.sarp.es/api",
+        alias="SARP_API_BASE_URL",
+        min_length=1,
+    )
+    sarp_api_timeout_seconds: float = Field(
+        default=10.0,
+        alias="SARP_API_TIMEOUT_SECONDS",
+        gt=0,
+        le=120,
+    )
+    sarp_api_max_retries: int = Field(
+        default=2,
+        alias="SARP_API_MAX_RETRIES",
+        ge=0,
+        le=10,
+    )
 
     openai_model: str = Field(default="gpt-5.6-terra", alias="OPENAI_MODEL", min_length=1)
     openai_reasoning_effort: str = Field(default="medium", alias="OPENAI_REASONING_EFFORT", min_length=1)
@@ -272,13 +292,26 @@ class AppSettings(BaseSettings):
             return None
         return SecretStr(value.get_secret_value().strip())
 
-    @field_validator("openai_admin_key", "railway_api_token")
+    @field_validator("openai_admin_key", "railway_api_token", "sarp_api_token")
     @classmethod
     def normalize_optional_provider_secret(cls, value: SecretStr | None) -> SecretStr | None:
         if value is None:
             return None
         normalized = value.get_secret_value().strip()
         return SecretStr(normalized) if normalized else None
+
+    @field_validator("sarp_api_base_url")
+    @classmethod
+    def normalize_sarp_api_base_url(cls, value: str) -> str:
+        normalized = value.strip().rstrip("/")
+        parsed = urlsplit(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("SARP_API_BASE_URL must be an HTTP(S) URL")
+        if parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise ValueError("SARP_API_BASE_URL cannot contain credentials, query or fragment")
+        if parsed.scheme != "https" and parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
+            raise ValueError("SARP_API_BASE_URL must use HTTPS outside local tests")
+        return normalized
 
     @field_validator(
         "railway_project_id",
@@ -351,6 +384,8 @@ class AppSettings(BaseSettings):
         )
         if any(railway_cost_values) and not all(railway_cost_values):
             raise ValueError("RAILWAY_API_TOKEN and RAILWAY_WORKSPACE_ID must be configured together")
+        if self.sarp_api_enabled and self.sarp_api_token is None:
+            raise ValueError("SARP_API_TOKEN is required when SARP_API_ENABLED is true")
         return self
 
     @property

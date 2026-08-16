@@ -1,6 +1,13 @@
 """Local, versioned knowledge sources."""
 
 from .catalog import ChargeCatalog, ChargeMatchMode, ChargeSearchField
+from .catalog_provider import (
+    ChargeCatalogProvider,
+    ChargeCatalogSnapshot,
+    ChargeCatalogSource,
+    StaticChargeCatalogProvider,
+    as_charge_catalog_provider,
+)
 from .guide import ReportGuide
 from .radio import (
     RadioCodeCatalog,
@@ -12,6 +19,9 @@ from .radio import (
 
 __all__ = [
     "ChargeCatalog",
+    "ChargeCatalogProvider",
+    "ChargeCatalogSnapshot",
+    "ChargeCatalogSource",
     "ChargeMatchMode",
     "ChargeSearchField",
     "RadioCodeCatalog",
@@ -20,4 +30,6 @@ __all__ = [
     "RadioSearchField",
     "RadioTermMatch",
     "ReportGuide",
+    "StaticChargeCatalogProvider",
+    "as_charge_catalog_provider",
 ]

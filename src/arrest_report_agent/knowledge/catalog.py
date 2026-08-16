@@ -47,7 +47,7 @@ class Charge(BaseModel):
     parole: int | float | None = None
     fine: int | float | None = None
     points: int | float | None = None
-    updated_at: str
+    updated_at: str | None = None
 
 
 class ChargeCategory(BaseModel):
@@ -56,7 +56,7 @@ class ChargeCategory(BaseModel):
     id: int
     title: str
     description: str | None = None
-    updated_at: str
+    updated_at: str | None = None
     charges: list[Charge] = Field(default_factory=list)
 
 
@@ -67,9 +67,16 @@ class ChargeCatalog:
         self.categories = tuple(categories)
         self.source_hash = source_hash
         self._categories_by_id = {category.id: category for category in categories}
+        if len(self._categories_by_id) != len(categories):
+            raise ValueError("Charge category IDs must be globally unique")
         charges = [charge for category in categories for charge in category.charges]
         if len({charge.id for charge in charges}) != len(charges):
             raise ValueError("Charge IDs must be globally unique")
+        orphan_categories = {
+            charge.category for charge in charges if charge.category not in self._categories_by_id
+        }
+        if orphan_categories:
+            raise ValueError(f"Charges reference unknown categories: {sorted(orphan_categories)}")
         self._charges_by_id = {charge.id: charge for charge in charges}
         self._search_documents = {
             charge.id: _search_document(charge, self._categories_by_id[charge.category]) for charge in charges

@@ -19,7 +19,13 @@ from arrest_report_agent.config import (
     ResolvedModel,
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
-from arrest_report_agent.knowledge import ChargeCatalog, RadioCodeCatalog, ReportGuide
+from arrest_report_agent.knowledge import (
+    ChargeCatalog,
+    ChargeCatalogProvider,
+    RadioCodeCatalog,
+    ReportGuide,
+    as_charge_catalog_provider,
+)
 
 from .client import PostgresClient
 from .repository import CONFIG_NOTIFY_CHANNEL, ConfigurationRepository
@@ -44,7 +50,7 @@ class DatabaseConfigProvider:
         client: PostgresClient,
         repository: ConfigurationRepository,
         process_settings: AppSettings,
-        catalog: ChargeCatalog,
+        catalog: ChargeCatalog | ChargeCatalogProvider,
         guide: ReportGuide,
         model_catalog: ModelCatalog,
         radio_catalog: RadioCodeCatalog | None = None,
@@ -52,7 +58,7 @@ class DatabaseConfigProvider:
         self.client = client
         self.repository = repository
         self.process_settings = process_settings
-        self.catalog = catalog
+        self.catalog_provider = as_charge_catalog_provider(catalog)
         self.guide = guide
         self.radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
         self.model_catalog = model_catalog
@@ -119,7 +125,7 @@ class DatabaseConfigProvider:
             )
             service = ReviewService(
                 settings,  # type: ignore[arg-type]
-                self.catalog,
+                self.catalog_provider,
                 self.guide,
                 model,
                 persona.profile,

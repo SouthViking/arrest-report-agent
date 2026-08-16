@@ -468,6 +468,11 @@ el contenido exacto del FAQ.
 | `RAILWAY_WORKSPACE_ID` | vacío | Workspace de Railway cuyo uso, estimación y hard limit se consultan. |
 | `COST_MONITOR_TIMEOUT_SECONDS` | `10` | Timeout individual de las consultas de consumo. |
 | `COST_MONITOR_CACHE_SECONDS` | `300` | Vigencia en memoria del último resumen válido para evitar consultas repetidas. |
+| `SARP_API_ENABLED` | `false` | Kill switch global. Apagado evita crear el cliente o realizar solicitudes; el código penal permanece local. |
+| `SARP_API_TOKEN` | vacío | Token personal enviado exclusivamente como `Authorization: Bearer`; obligatorio al activar SARP y nunca registrado. |
+| `SARP_API_BASE_URL` | `https://api.sarp.es/api` | Base HTTPS de la API comunitaria de SARP. |
+| `SARP_API_TIMEOUT_SECONDS` | `10` | Timeout total de cada intento contra SARP. |
+| `SARP_API_MAX_RETRIES` | `2` | Reintentos máximos para lecturas seguras ante transporte, rate limit o errores transitorios. |
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
 | `REPORT_CHANNEL_IDS` | `*` | Canales usados por búsquedas, resúmenes, rankings, supervisión y ayuda; no restringe menciones. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` quedan como aliases compatibles. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
@@ -495,6 +500,12 @@ el contenido exacto del FAQ.
 | `THREAD_CONTEXT_MAX_HISTORICAL_FILES` | `2` | Archivos previos reutilizados como contexto. |
 | `OPENAI_TRACING_ENABLED` | `true` | Habilita traces del Agents SDK. |
 | `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA` | `false` | Excluye mensajes, imágenes, archivos y tool payloads del trace. |
+
+Con `SARP_API_ENABLED=true`, el runtime obtiene `GET /police/penal-code` al arrancar y lo refresca
+en segundo plano. `/cargos` y las tools del agente comparten el mismo snapshot: una caída temporal
+conserva el último catálogo remoto válido y, si todavía no existe uno, usa `delitos.json`. Cada
+revisión fija su snapshot al comenzar, por lo que una actualización no mezcla fuentes a mitad de
+una ejecución.
 
 El catálogo versionado
 [`models.json`](src/arrest_report_agent/config/data/models.json) contiene las capacidades, defaults y
