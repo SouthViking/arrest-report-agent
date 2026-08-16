@@ -1,6 +1,6 @@
 """Deterministic manual-learning quiz subsystem."""
 
-from .discord import ManualQuizCog, ManualQuizView
+from .discord import ManualQuizCog, ManualQuizConfigurationModal, ManualQuizView
 from .models import (
     MVP_ANSWER_MODES,
     ActiveQuizSessionError,
@@ -9,6 +9,7 @@ from .models import (
     QuizCategory,
     QuizCooldownError,
     QuizDifficulty,
+    QuizDurationSeconds,
     QuizOption,
     QuizQuestion,
     QuizQuestionStatus,
@@ -20,6 +21,7 @@ __all__ = [
     "MVP_ANSWER_MODES",
     "ActiveQuizSessionError",
     "ManualQuizCog",
+    "ManualQuizConfigurationModal",
     "ManualQuizRepository",
     "ManualQuizSessionRegistry",
     "ManualQuizView",
@@ -28,6 +30,7 @@ __all__ = [
     "QuizCategory",
     "QuizCooldownError",
     "QuizDifficulty",
+    "QuizDurationSeconds",
     "QuizOption",
     "QuizQuestion",
     "QuizQuestionStatus",

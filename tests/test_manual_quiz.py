@@ -24,6 +24,7 @@ from arrest_report_agent.infrastructure.postgres.schema import (
 from arrest_report_agent.manual_quiz import (
     ActiveQuizSessionError,
     ManualQuizCog,
+    ManualQuizConfigurationModal,
     ManualQuizRepository,
     ManualQuizSessionRegistry,
     ManualQuizView,
@@ -31,11 +32,16 @@ from arrest_report_agent.manual_quiz import (
     QuizCategory,
     QuizCooldownError,
     QuizDifficulty,
+    QuizDurationSeconds,
     QuizOption,
     QuizQuestion,
     QuizQuestionStatus,
 )
-from arrest_report_agent.manual_quiz.discord import build_question_embed, build_result_embed
+from arrest_report_agent.manual_quiz.discord import (
+    build_question_embed,
+    build_result_embed,
+    build_timeout_embed,
+)
 
 SEED_SQL_PATH = Path(__file__).parents[1] / "scripts" / "seed_manual_quiz_questions.sql"
 
@@ -56,6 +62,7 @@ def _question(
     question_id: UUID | None = None,
     guild_id: int = 1,
     answer_mode: QuizAnswerMode = QuizAnswerMode.SINGLE_CHOICE,
+    difficulty: QuizDifficulty = QuizDifficulty.BASIC,
 ) -> QuizQuestion:
     now = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
     return QuizQuestion(
@@ -64,7 +71,7 @@ def _question(
         slug="qa_question",
         answer_mode=answer_mode,
         category=QuizCategory.PROCEDURE,
-        difficulty=QuizDifficulty.BASIC,
+        difficulty=difficulty,
         prompt="¿Cuál es el procedimiento correcto?",
         explanation="La alternativa A corresponde al procedimiento descrito en el manual.",
         source_reference="Manual LSSD · Sección II",
@@ -129,9 +136,7 @@ def test_manual_quiz_seed_contains_a_varied_validated_question_bank() -> None:
         "single_choice": 51,
         "true_false": 19,
     }
-    assert set(str(item["category"]) for item in payload) == {
-        category.value for category in QuizCategory
-    }
+    assert set(str(item["category"]) for item in payload) == {category.value for category in QuizCategory}
 
     for item in payload:
         raw_options = item["options"]
@@ -171,13 +176,18 @@ class _QuestionPool:
         guild_id: int,
         *,
         exclude_question_ids: set[UUID] | tuple[UUID, ...] = (),
+        answer_mode: QuizAnswerMode | None = None,
+        difficulty: QuizDifficulty | None = None,
     ) -> QuizQuestion | None:
         excluded = set(exclude_question_ids)
         return next(
             (
                 question
                 for question in self.questions
-                if question.guild_id == guild_id and question.id not in excluded
+                if question.guild_id == guild_id
+                and question.id not in excluded
+                and (answer_mode is None or question.answer_mode is answer_mode)
+                and (difficulty is None or question.difficulty is difficulty)
             ),
             None,
         )
@@ -199,6 +209,29 @@ async def test_manual_quiz_sessions_prevent_concurrency_and_repeat_only_after_cy
     assert await sessions.reserve(1, 11) == second
     await sessions.release(1, 11, second.id)
     assert await sessions.reserve(1, 11) == first
+
+
+@pytest.mark.asyncio
+async def test_manual_quiz_sessions_apply_type_and_difficulty_filters() -> None:
+    basic = _question(question_id=uuid4())
+    intermediate_true_false = _question(
+        question_id=uuid4(),
+        answer_mode=QuizAnswerMode.TRUE_FALSE,
+        difficulty=QuizDifficulty.INTERMEDIATE,
+    )
+    sessions = ManualQuizSessionRegistry(  # type: ignore[arg-type]
+        _QuestionPool((basic, intermediate_true_false)),
+        cooldown_seconds=0,
+    )
+
+    selected = await sessions.reserve(
+        1,
+        11,
+        answer_mode=QuizAnswerMode.TRUE_FALSE,
+        difficulty=QuizDifficulty.INTERMEDIATE,
+    )
+
+    assert selected == intermediate_true_false
 
 
 @pytest.mark.asyncio
@@ -260,10 +293,9 @@ async def test_manual_quiz_command_rejects_non_operational_member_without_queryi
 
 
 @pytest.mark.asyncio
-async def test_manual_quiz_command_publishes_question_for_operational_member(persona) -> None:
-    responses: list[dict[str, object]] = []
+async def test_manual_quiz_command_opens_configuration_modal_for_operational_member(persona) -> None:
+    modals: list[discord.ui.Modal] = []
     member = _member(11, (200,))
-    question = _question()
 
     async def cached(_guild_id: int):
         return SimpleNamespace(
@@ -271,30 +303,117 @@ async def test_manual_quiz_command_publishes_question_for_operational_member(per
             persona=SimpleNamespace(profile=persona),
         )
 
-    async def reserve(_guild_id: int, _user_id: int) -> QuizQuestion:
-        return question
-
-    async def respond(**kwargs: object) -> None:
-        responses.append(kwargs)
+    async def send_modal(modal: discord.ui.Modal) -> None:
+        modals.append(modal)
 
     cog = ManualQuizCog(
         SimpleNamespace(cached=cached),
-        SimpleNamespace(reserve=reserve),
+        SimpleNamespace(),
         persona,
     )
     context = SimpleNamespace(
         guild=member.guild,
         author=member,
         channel=SimpleNamespace(id=22),
-        respond=respond,
+        send_modal=send_modal,
     )
 
     await ManualQuizCog.manual_question.callback(cog, context)  # type: ignore[arg-type]
 
-    assert responses[0]["ephemeral"] is False
-    assert isinstance(responses[0]["view"], ManualQuizView)
-    assert question.prompt in responses[0]["embed"].fields[0].value
-    assert "Respuesta abierta" in responses[0]["embed"].footer.text
+    assert len(modals) == 1
+    assert isinstance(modals[0], ManualQuizConfigurationModal)
+
+
+@pytest.mark.asyncio
+async def test_manual_quiz_configuration_modal_passes_selected_filters(persona) -> None:
+    member = _member(11, (200,))
+    calls: list[dict[str, object]] = []
+
+    async def publish_question(
+        interaction: object,
+        selected_member: discord.Member,
+        **kwargs: object,
+    ) -> None:
+        calls.append({"interaction": interaction, "member": selected_member, **kwargs})
+
+    cog = SimpleNamespace(
+        publish_question=publish_question,
+        default_persona=persona,
+    )
+    modal = ManualQuizConfigurationModal(cog=cog, requester_id=member.id)  # type: ignore[arg-type]
+    modal.difficulty._interaction = SimpleNamespace(data={})  # noqa: SLF001
+    modal.difficulty._selected_values = [QuizDifficulty.ADVANCED.value]  # noqa: SLF001
+    modal.answer_mode._interaction = SimpleNamespace(data={})  # noqa: SLF001
+    modal.answer_mode._selected_values = [QuizAnswerMode.TRUE_FALSE.value]  # noqa: SLF001
+    modal.duration._interaction = SimpleNamespace(data={})  # noqa: SLF001
+    modal.duration._selected_values = [str(QuizDurationSeconds.FIFTEEN.value)]  # noqa: SLF001
+    interaction = SimpleNamespace(user=member)
+
+    await modal.callback(interaction)  # type: ignore[arg-type]
+
+    assert calls[0]["difficulty"] is QuizDifficulty.ADVANCED
+    assert calls[0]["answer_mode"] is QuizAnswerMode.TRUE_FALSE
+    assert calls[0]["duration"] is QuizDurationSeconds.FIFTEEN
+
+
+@pytest.mark.asyncio
+async def test_manual_quiz_publish_uses_selected_filters_and_duration(persona) -> None:
+    member = _member(11, (200,))
+    question = _question(
+        answer_mode=QuizAnswerMode.TRUE_FALSE,
+        difficulty=QuizDifficulty.INTERMEDIATE,
+    )
+    reservations: list[dict[str, object]] = []
+    sent: list[dict[str, object]] = []
+
+    async def cached(_guild_id: int):
+        return SimpleNamespace(
+            settings=SimpleNamespace(operational_staff_role_ids=(200,)),
+            persona=SimpleNamespace(profile=persona),
+        )
+
+    async def reserve(guild_id: int, user_id: int, **kwargs: object) -> QuizQuestion:
+        reservations.append({"guild_id": guild_id, "user_id": user_id, **kwargs})
+        return question
+
+    async def send_message(**kwargs: object) -> None:
+        sent.append(kwargs)
+
+    async def original_response() -> object:
+        return SimpleNamespace(edit=lambda **_kwargs: None)
+
+    interaction = SimpleNamespace(
+        guild=member.guild,
+        channel=SimpleNamespace(id=22),
+        response=SimpleNamespace(send_message=send_message, is_done=lambda: False),
+        original_response=original_response,
+    )
+    cog = ManualQuizCog(
+        SimpleNamespace(cached=cached),
+        SimpleNamespace(reserve=reserve),
+        persona,
+    )
+
+    await cog.publish_question(
+        interaction,  # type: ignore[arg-type]
+        member,
+        answer_mode=QuizAnswerMode.TRUE_FALSE,
+        difficulty=QuizDifficulty.INTERMEDIATE,
+        duration=QuizDurationSeconds.FIFTEEN,
+    )
+
+    assert reservations == [
+        {
+            "guild_id": 1,
+            "user_id": 11,
+            "answer_mode": QuizAnswerMode.TRUE_FALSE,
+            "difficulty": QuizDifficulty.INTERMEDIATE,
+        }
+    ]
+    assert sent[0]["ephemeral"] is False
+    assert isinstance(sent[0]["view"], ManualQuizView)
+    assert sent[0]["view"].duration_seconds is QuizDurationSeconds.FIFTEEN
+    assert "15 segundos" in sent[0]["embed"].footer.text
 
 
 @pytest.mark.asyncio
@@ -311,6 +430,7 @@ async def test_manual_quiz_view_accepts_first_public_answer_and_edits_same_messa
         question=question,
         ui=persona.messages.interface.manual_quiz,
         sessions=SimpleNamespace(release=release),  # type: ignore[arg-type]
+        duration_seconds=QuizDurationSeconds.THREE_MINUTES,
     )
     edits: list[dict[str, object]] = []
 
@@ -324,9 +444,7 @@ async def test_manual_quiz_view_accepts_first_public_answer_and_edits_same_messa
     await view.submit(public_interaction, question.options[1].id)  # type: ignore[arg-type]
 
     assert edits[0]["embed"].title == "❌ Respuesta incorrecta"
-    assert any(
-        field.name == "Respuesta de Bob Deputy" for field in edits[0]["embed"].fields
-    )
+    assert any(field.name == "Respuesta de Bob Deputy" for field in edits[0]["embed"].fields)
     assert any(field.name == "Explicación" for field in edits[0]["embed"].fields)
     assert all(item.disabled for item in view.children)
     assert releases == [(1, 11, question.id)]
@@ -343,17 +461,81 @@ async def test_manual_quiz_view_accepts_first_public_answer_and_edits_same_messa
     await view.submit(late_interaction, question.options[0].id)  # type: ignore[arg-type]
 
     assert late_responses[0]["ephemeral"] is True
-    assert (
-        late_responses[0]["embed"].description
-        == persona.messages.interface.manual_quiz.already_answered
+    assert late_responses[0]["embed"].description == persona.messages.interface.manual_quiz.already_answered
+
+
+@pytest.mark.asyncio
+async def test_manual_quiz_timeout_edits_same_message_and_releases_session(persona) -> None:
+    question = _question()
+    releases: list[tuple[int, int, UUID]] = []
+    edits: list[dict[str, object]] = []
+
+    async def release(guild_id: int, user_id: int, question_id: UUID) -> None:
+        releases.append((guild_id, user_id, question_id))
+
+    async def edit(**kwargs: object) -> None:
+        edits.append(kwargs)
+
+    view = ManualQuizView(
+        publisher_id=11,
+        guild_id=1,
+        question=question,
+        ui=persona.messages.interface.manual_quiz,
+        sessions=SimpleNamespace(release=release),  # type: ignore[arg-type]
+        duration_seconds=QuizDurationSeconds.TEN,
     )
+    view.message = SimpleNamespace(edit=edit)
+
+    await view.on_timeout()
+
+    assert edits[0]["embed"].title == "⌛ Tiempo agotado"
+    assert any(field.name == "Respuesta correcta" for field in edits[0]["embed"].fields)
+    assert all(item.disabled for item in view.children)
+    assert releases == [(1, 11, question.id)]
+
+
+@pytest.mark.asyncio
+async def test_manual_quiz_rejects_answer_after_fixed_deadline(persona) -> None:
+    question = _question()
+    releases: list[tuple[int, int, UUID]] = []
+    edits: list[dict[str, object]] = []
+
+    async def release(guild_id: int, user_id: int, question_id: UUID) -> None:
+        releases.append((guild_id, user_id, question_id))
+
+    async def edit_message(**kwargs: object) -> None:
+        edits.append(kwargs)
+
+    view = ManualQuizView(
+        publisher_id=11,
+        guild_id=1,
+        question=question,
+        ui=persona.messages.interface.manual_quiz,
+        sessions=SimpleNamespace(release=release),  # type: ignore[arg-type]
+        duration_seconds=QuizDurationSeconds.TEN,
+    )
+    view.expires_at = 0
+    interaction = SimpleNamespace(
+        response=SimpleNamespace(edit_message=edit_message),
+        user=SimpleNamespace(id=12, display_name="Bob Deputy"),
+    )
+
+    await view.submit(interaction, question.options[0].id)  # type: ignore[arg-type]
+
+    assert edits[0]["embed"].title == "⌛ Tiempo agotado"
+    assert releases == [(1, 11, question.id)]
 
 
 def test_manual_quiz_embeds_keep_formal_data_and_personality_copy(persona) -> None:
     question = _question()
     ui = persona.messages.interface.manual_quiz
 
-    pending = build_question_embed(question, ui, publisher_name="Alice Deputy")
+    pending = build_question_embed(
+        question,
+        ui,
+        publisher_name="Alice Deputy",
+        duration_seconds=QuizDurationSeconds.FIFTEEN,
+    )
     result = build_result_embed(
         question,
         question.options[0],
@@ -361,16 +543,24 @@ def test_manual_quiz_embeds_keep_formal_data_and_personality_copy(persona) -> No
         respondent_id=12,
         respondent_name="Bob Deputy",
     )
+    timed_out = build_timeout_embed(
+        question,
+        ui,
+        duration_seconds=QuizDurationSeconds.FIFTEEN,
+        publisher_id=11,
+    )
 
     assert pending.description == ui.question_intro
     assert "Dificultad Básica" in pending.footer.text
-    assert "Respuesta abierta" in pending.footer.text
+    assert "Respuesta abierta durante 15 segundos" in pending.footer.text
     assert pending.author.name == "Publicada por Alice Deputy"
     assert result.title == "✅ Respuesta correcta"
     assert result.description in ui.correct_messages
     assert result.fields[1].name == "Respuesta de Bob Deputy"
     assert question.source_reference in result.fields[-1].value
     assert "no registra puntaje" in result.footer.text
+    assert timed_out.description in ui.expired_messages
+    assert "15 segundos" in timed_out.footer.text
 
 
 @pytest.mark.asyncio
@@ -389,9 +579,7 @@ async def test_manual_quiz_repository_reads_active_mvp_question_from_postgres(
     now = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
     try:
         await client.execute(discord_guilds.delete().where(discord_guilds.c.discord_id == guild_id))
-        await client.execute(
-            discord_guilds.insert().values(discord_id=guild_id, name="Manual quiz QA")
-        )
+        await client.execute(discord_guilds.insert().values(discord_id=guild_id, name="Manual quiz QA"))
         await client.execute(
             manual_quiz_questions.insert().values(
                 id=question_id,
@@ -437,10 +625,13 @@ async def test_manual_quiz_repository_reads_active_mvp_question_from_postgres(
         assert loaded.id == question_id
         assert loaded.slug == "integration_question"
         assert loaded.correct_options[0].text == "Correcta"
-        assert await repository.random_active(
-            guild_id,
-            exclude_question_ids=(question_id,),
-        ) is None
+        assert (
+            await repository.random_active(
+                guild_id,
+                exclude_question_ids=(question_id,),
+            )
+            is None
+        )
     finally:
         await client.execute(discord_guilds.delete().where(discord_guilds.c.discord_id == guild_id))
         await client.close()

@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.5.14",
-  "title": "Preguntas abiertas del manual",
-  "summary": "El personal operativo ahora puede publicar ejercicios breves del manual para que cualquier miembro del canal participe.",
+  "version": "0.5.15",
+  "title": "Preguntas configurables del manual",
+  "summary": "Los ejercicios del manual ahora se pueden adaptar por dificultad, tipo y tiempo disponible antes de publicarlos.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1234675609536430152,
@@ -11,15 +11,15 @@
   "changes": [
     {
       "type": "added",
-      "text": "El nuevo comando `/pregunta-manual` publica preguntas visibles para todo el canal."
+      "text": "`/pregunta-manual` ahora abre un formulario para elegir la dificultad y el tipo de pregunta."
     },
     {
       "type": "added",
-      "text": "Cualquier miembro puede responder; la primera respuesta cierra el ejercicio y muestra la explicación del manual."
+      "text": "El plazo puede configurarse en 10, 15 o 30 segundos, o en 1, 3 o 5 minutos."
     },
     {
       "type": "added",
-      "text": "El banco inicial incorpora 70 preguntas de procedimientos, comunicaciones, normativa, reportes y organización."
+      "text": "Si nadie responde a tiempo, la pregunta se cierra en el mismo mensaje y muestra la solución del manual."
     }
   ],
   "acknowledgements": []

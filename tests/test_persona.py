@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 34
-    assert profile.revision == 40
+    assert profile.schema_version == 35
+    assert profile.revision == 41
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -36,8 +36,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 34
-    assert profile.revision == 47
+    assert profile.schema_version == 35
+    assert profile.revision == 48
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -119,6 +119,8 @@ async def test_personas_keep_personality_copy_with_capitalized_titles(loaded_per
     assert "/pregunta-manual" in roy.messages.help.quick_references
     assert len(walter.messages.interface.manual_quiz.correct_messages) == 3
     assert len(roy.messages.interface.manual_quiz.incorrect_messages) == 3
+    assert len(walter.messages.interface.manual_quiz.expired_messages) == 3
+    assert len(roy.messages.interface.manual_quiz.expired_messages) == 3
     assert "{seconds}" in walter.messages.interface.manual_quiz.cooldown
     assert walter.messages.interface.commands.manual_question_description
     assert roy.messages.interface.commands.manual_question_description

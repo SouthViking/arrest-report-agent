@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -37,6 +37,17 @@ class QuizDifficulty(StrEnum):
     BASIC = "basic"
     INTERMEDIATE = "intermediate"
     ADVANCED = "advanced"
+
+
+class QuizDurationSeconds(IntEnum):
+    """Bounded public-answer windows offered by the configuration modal."""
+
+    TEN = 10
+    FIFTEEN = 15
+    THIRTY = 30
+    ONE_MINUTE = 60
+    THREE_MINUTES = 180
+    FIVE_MINUTES = 300
 
 
 class QuizQuestionStatus(StrEnum):

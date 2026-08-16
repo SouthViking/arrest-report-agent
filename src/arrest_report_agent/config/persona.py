@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 34
+PERSONA_SCHEMA_VERSION = 35
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -775,6 +775,7 @@ class PersonaManualQuizMessages(FrozenPersonaModel):
     alert_title: str = Field(min_length=1, max_length=256)
     unauthorized: str = Field(min_length=1, max_length=400)
     no_questions: str = Field(min_length=1, max_length=400)
+    no_matching_questions: str = Field(min_length=1, max_length=400)
     active_question: str = Field(min_length=1, max_length=400)
     cooldown: str = Field(min_length=1, max_length=400)
     already_answered: str = Field(min_length=1, max_length=400)
@@ -783,8 +784,9 @@ class PersonaManualQuizMessages(FrozenPersonaModel):
     selector_placeholder: str = Field(min_length=1, max_length=100)
     correct_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
     incorrect_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
+    expired_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
 
-    @field_validator("correct_messages", "incorrect_messages")
+    @field_validator("correct_messages", "incorrect_messages", "expired_messages")
     @classmethod
     def reject_empty_pool_items(cls, values: tuple[str, ...]) -> tuple[str, ...]:
         if any(not value.strip() for value in values):

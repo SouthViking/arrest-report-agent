@@ -391,10 +391,11 @@ Comandos disponibles:
 - `/sugerencias`: abre el buzón efímero y paginado; está reservado a `CONFIG_OWNER_USER_IDS`.
 - `/estado-sugerencia`: cambia de forma efímera una sugerencia entre pendiente y archivada; está
   reservado a `CONFIG_OWNER_USER_IDS`.
-- `/pregunta-manual`: permite al personal de `operational_staff_roles` publicar una pregunta de
-  práctica del catálogo PostgreSQL. Cualquier miembro puede responder y la primera respuesta cierra
-  el ejercicio; el resultado, explicación y referencia quedan visibles para el canal. Este MVP no
-  conserva puntajes ni intentos.
+- `/pregunta-manual`: abre un formulario privado para que el personal de `operational_staff_roles`
+  seleccione dificultad, tipo y un plazo de 10 segundos a 5 minutos antes de publicar una pregunta
+  del catálogo PostgreSQL. Cualquier miembro puede responder y la primera respuesta cierra el
+  ejercicio; si vence el plazo, el mismo mensaje se cierra y muestra la solución. El resultado,
+  explicación y referencia quedan visibles para el canal. Este MVP no conserva puntajes ni intentos.
   El seed inicial incorpora 70 preguntas curadas del manual entre selección única y
   verdadero/falso.
 - `/config`: abre un panel efímero sin argumentos, reservado a owners o roles `config_admin_roles`;

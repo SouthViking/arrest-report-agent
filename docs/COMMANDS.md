@@ -121,19 +121,22 @@ privados y herramientas de supervisión se explican en su guía especializada cu
 
 ## `/pregunta-manual`
 
-Publica una pregunta de práctica en el canal donde se ejecuta. Solo los miembros incluidos en
-`operational_staff_roles` pueden solicitarla, pero cualquier miembro puede responder. La primera
-respuesta válida cierra el ejercicio, deshabilita sus componentes y deja el resultado visible para
-todo el canal.
+Abre un formulario privado y luego publica una pregunta de práctica en el canal donde se ejecuta.
+Solo los miembros incluidos en `operational_staff_roles` pueden solicitarla, pero cualquier miembro
+puede responder. El formulario permite elegir dificultad aleatoria, básica, intermedia o avanzada;
+tipo aleatorio, selección única o verdadero/falso; y un plazo de 10, 15 o 30 segundos, o 1, 3 o 5
+minutos. La primera respuesta válida cierra el ejercicio, deshabilita sus componentes y deja el
+resultado visible para todo el canal.
 
 El catálogo vive en PostgreSQL y se carga por guild. El seed inicial contiene 70 preguntas de
 selección única y verdadero/falso, distribuidas entre organización, aspectos legales, procedimientos,
 escenarios, detección de errores, códigos radiales, alfabeto fonético y reportes. Las preguntas
 activas se seleccionan sin repetir para el mismo usuario hasta agotar el conjunto disponible. Solo
 puede mantener una pregunta pendiente y
-debe esperar 30 segundos antes de pedir otra. El mensaje expira a los tres minutos, se corrige en el
-mismo embed y muestra la explicación y la referencia del manual. Este MVP no registra respuestas,
-puntajes, precisión ni rankings, y nunca llama a OpenAI.
+debe esperar 30 segundos antes de pedir otra. Si nadie responde dentro del plazo seleccionado, el
+mismo embed cambia a `Tiempo agotado`, deshabilita las respuestas y muestra la solución, explicación
+y referencia del manual. Este MVP no registra respuestas, puntajes, precisión ni rankings, y nunca
+llama a OpenAI.
 
 El esquema admite categorías, dificultad, revisión y distintos modos de respuesta. La interfaz
 inicial activa únicamente selección única y verdadero/falso; los modos futuros permanecen fuera de

@@ -1,7 +1,7 @@
 {
-  "schema_version": 34,
+  "schema_version": 35,
   "id": "walter_vigil",
-  "revision": 40,
+  "revision": 41,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -390,6 +390,7 @@
         "alert_title": "⚠️ Entrenamiento no disponible",
         "unauthorized": "Este ejercicio está reservado al personal operativo autorizado.",
         "no_questions": "Todavía no hay preguntas activas para este servidor.",
+        "no_matching_questions": "No hay preguntas activas que coincidan con la dificultad y el tipo seleccionados.",
         "active_question": "Ya publicó una pregunta pendiente. Espere a que alguien la responda o a que expire antes de solicitar otra.",
         "cooldown": "Espere {seconds} segundos antes de solicitar otra pregunta.",
         "already_answered": "La pregunta ya fue respondida.",
@@ -405,6 +406,11 @@
           "La respuesta no es correcta. Revise la explicación antes de intentarlo nuevamente.",
           "Esa alternativa no corresponde. Tome nota del fundamento indicado.",
           "No es la opción esperada. El detalle de la corrección queda a continuación."
+        ],
+        "expired_messages": [
+          "Se agotó el tiempo disponible. Revise la respuesta correcta y su fundamento antes de continuar.",
+          "El ejercicio se cerró sin respuesta. Utilice la explicación para preparar el siguiente intento.",
+          "Terminó el plazo de respuesta. La solución y su referencia quedan disponibles a continuación."
         ]
       },
       "review": {

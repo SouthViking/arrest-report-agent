@@ -11,7 +11,9 @@ from uuid import UUID
 from .models import (
     ActiveQuizSessionError,
     NoQuizQuestionsError,
+    QuizAnswerMode,
     QuizCooldownError,
+    QuizDifficulty,
     QuizQuestion,
 )
 from .repository import ManualQuizRepository
@@ -37,7 +39,14 @@ class ManualQuizSessionRegistry:
         self._last_started: dict[tuple[int, int], float] = {}
         self._lock = asyncio.Lock()
 
-    async def reserve(self, guild_id: int, user_id: int) -> QuizQuestion:
+    async def reserve(
+        self,
+        guild_id: int,
+        user_id: int,
+        *,
+        answer_mode: QuizAnswerMode | None = None,
+        difficulty: QuizDifficulty | None = None,
+    ) -> QuizQuestion:
         key = (guild_id, user_id)
         async with self._lock:
             if key in self._active:
@@ -53,10 +62,16 @@ class ManualQuizSessionRegistry:
             question = await self.repository.random_active(
                 guild_id,
                 exclude_question_ids=seen,
+                answer_mode=answer_mode,
+                difficulty=difficulty,
             )
             if question is None and seen:
                 seen.clear()
-                question = await self.repository.random_active(guild_id)
+                question = await self.repository.random_active(
+                    guild_id,
+                    answer_mode=answer_mode,
+                    difficulty=difficulty,
+                )
             if question is None:
                 raise NoQuizQuestionsError
 

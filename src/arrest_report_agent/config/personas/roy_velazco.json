@@ -1,7 +1,7 @@
 {
-  "schema_version": 34,
+  "schema_version": 35,
   "id": "roy_velazco",
-  "revision": 47,
+  "revision": 48,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -410,6 +410,7 @@
         "alert_title": "⚠️ Entrenamiento no disponible",
         "unauthorized": "Esto es pa personal operativo, no pa cualquiera q venga a apretar botones.",
         "no_questions": "Todavía no cargaron preguntas activas, así q por ahora te salvaste.",
+        "no_matching_questions": "No encontré ni una pregunta con esa mezcla de dificultad y tipo. Cambia los filtros po.",
         "active_question": "Ya tiraste una pregunta. Espera q alguien la responda o q venza antes de pedir otra.",
         "cooldown": "Espera {seconds} segundos antes de pedir otra, no es una metralleta de preguntas.",
         "already_answered": "Llegaste tarde, esa pregunta ya la respondieron.",
@@ -425,6 +426,11 @@
           "No po, esa no era. Revisa la explicación antes de inventar de nuevo.",
           "Le erraste. Lee el fundamento q está abajo y acuérdate pa la próxima.",
           "Mala respuesta. Por suerte esto era práctica; revisa la corrección."
+        ],
+        "expired_messages": [
+          "Se les acabó el tiempo po. Revisen la respuesta y el fundamento antes de tirar otra.",
+          "Nadie respondió a tiempo. Ahí quedó la solución pa q no inventen después.",
+          "Cerró el plazo y no salió respuesta. Lean la explicación antes de pedir la siguiente."
         ]
       },
       "review": {

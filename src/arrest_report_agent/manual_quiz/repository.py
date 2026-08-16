@@ -13,7 +13,13 @@ from arrest_report_agent.infrastructure.postgres.schema import (
     manual_quiz_questions,
 )
 
-from .models import MVP_ANSWER_MODES, QuizOption, QuizQuestion
+from .models import (
+    MVP_ANSWER_MODES,
+    QuizAnswerMode,
+    QuizDifficulty,
+    QuizOption,
+    QuizQuestion,
+)
 
 
 class ManualQuizRepository:
@@ -27,18 +33,20 @@ class ManualQuizRepository:
         guild_id: int,
         *,
         exclude_question_ids: Collection[UUID] = (),
+        answer_mode: QuizAnswerMode | None = None,
+        difficulty: QuizDifficulty | None = None,
     ) -> QuizQuestion | None:
         statement = sa.select(manual_quiz_questions).where(
             manual_quiz_questions.c.guild_id == guild_id,
             manual_quiz_questions.c.status == "active",
-            manual_quiz_questions.c.answer_mode.in_(
-                tuple(mode.value for mode in MVP_ANSWER_MODES)
-            ),
+            manual_quiz_questions.c.answer_mode.in_(tuple(mode.value for mode in MVP_ANSWER_MODES)),
         )
+        if answer_mode is not None:
+            statement = statement.where(manual_quiz_questions.c.answer_mode == answer_mode.value)
+        if difficulty is not None:
+            statement = statement.where(manual_quiz_questions.c.difficulty == difficulty.value)
         if exclude_question_ids:
-            statement = statement.where(
-                manual_quiz_questions.c.id.not_in(tuple(exclude_question_ids))
-            )
+            statement = statement.where(manual_quiz_questions.c.id.not_in(tuple(exclude_question_ids)))
         row = await self.client.fetch_one(statement.order_by(sa.func.random()).limit(1))
         if row is None:
             return None
