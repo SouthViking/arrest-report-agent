@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 33
+PERSONA_SCHEMA_VERSION = 34
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -769,6 +769,38 @@ class PersonaSuggestionMessages(FrozenPersonaModel):
         return self
 
 
+class PersonaManualQuizMessages(FrozenPersonaModel):
+    """Personality-aware copy for deterministic questions about the manual."""
+
+    alert_title: str = Field(min_length=1, max_length=256)
+    unauthorized: str = Field(min_length=1, max_length=400)
+    no_questions: str = Field(min_length=1, max_length=400)
+    active_question: str = Field(min_length=1, max_length=400)
+    cooldown: str = Field(min_length=1, max_length=400)
+    already_answered: str = Field(min_length=1, max_length=400)
+    operation_failed: str = Field(min_length=1, max_length=400)
+    question_intro: str = Field(min_length=1, max_length=500)
+    selector_placeholder: str = Field(min_length=1, max_length=100)
+    correct_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
+    incorrect_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
+
+    @field_validator("correct_messages", "incorrect_messages")
+    @classmethod
+    def reject_empty_pool_items(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        if any(not value.strip() for value in values):
+            raise ValueError("manual quiz message pools cannot contain empty items")
+        return values
+
+    @model_validator(mode="after")
+    def validate_templates(self) -> PersonaManualQuizMessages:
+        _require_template_fields(
+            self.cooldown,
+            {"seconds"},
+            "interface.manual_quiz.cooldown",
+        )
+        return self
+
+
 class PersonaReviewMessages(FrozenPersonaModel):
     """Personality-aware framing around formal structured review data."""
 
@@ -854,6 +886,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     info_suggestions_description: str = Field(min_length=1, max_length=100)
     suggestions_description: str = Field(min_length=1, max_length=100)
     suggestion_status_description: str = Field(min_length=1, max_length=100)
+    manual_question_description: str = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaCommandMessages:
@@ -877,6 +910,7 @@ class PersonaInterfaceMessages(FrozenPersonaModel):
     callsigns: PersonaCallsignMessages
     deployments: PersonaDeploymentMessages
     suggestions: PersonaSuggestionMessages
+    manual_quiz: PersonaManualQuizMessages
     review: PersonaReviewMessages
     commands: PersonaCommandMessages
 

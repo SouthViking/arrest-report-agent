@@ -43,6 +43,11 @@ from arrest_report_agent.infrastructure.postgres import (
     PostgresClient,
 )
 from arrest_report_agent.knowledge import ChargeCatalog, RadioCodeCatalog, ReportGuide
+from arrest_report_agent.manual_quiz import (
+    ManualQuizCog,
+    ManualQuizRepository,
+    ManualQuizSessionRegistry,
+)
 from arrest_report_agent.operational_profiles import CallsignCog, MemberProfileRepository
 from arrest_report_agent.pagers import (
     PagerCog,
@@ -256,6 +261,15 @@ async def build_runtime(
     bot.add_view(PagerControlsView())
     bot.add_cog(PagerCog(pager_registry, persona.profile))
     bot.add_cog(CallsignCog(config_provider, member_profile_repository, persona.profile))
+    manual_quiz_repository = ManualQuizRepository(postgres)
+    manual_quiz_sessions = ManualQuizSessionRegistry(manual_quiz_repository)
+    bot.add_cog(ManualQuizCog(config_provider, manual_quiz_sessions, persona.profile))
+    log_event(
+        LOGGER,
+        "info",
+        "manual_quiz_subsystem_registered",
+        configured_guilds=len(guild_ids),
+    )
     pagers_enabled = bool(pager_bundles)
     log_event(
         LOGGER,

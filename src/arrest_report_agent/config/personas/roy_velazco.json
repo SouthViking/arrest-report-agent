@@ -1,7 +1,7 @@
 {
-  "schema_version": 33,
+  "schema_version": 34,
   "id": "roy_velazco",
-  "revision": 46,
+  "revision": 47,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -172,7 +172,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo pedir y seguir la revisión de tu reporte.\n• `/info-roles`: cómo pedir q te agreguen o saquen roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo guardar y buscar callsigns.\n• `/info-sugerencias`: cómo mandar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: abre el manual de reportes por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las dudas frecuentes de la guía.",
+      "quick_references": "• `/guia`: abre el manual de reportes por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las dudas frecuentes de la guía.\n• `/pregunta-manual`: demuestra si leíste algo del manual.",
       "footer": "elige la guía q corresponde antes de venir a adivinar, {form_of_address}."
     },
     "interface": {
@@ -406,6 +406,27 @@
         "info_limit": "Podís mantener hasta **{limit} sugerencias pendientes** al mismo tiempo. Cuando las archiven, mandai nuevas.",
         "info_warning": "El spam, las bromas y el uso malintencionado serán sancionados. Usa este espacio pa aportar, no pa mandar cualquier tontera."
       },
+      "manual_quiz": {
+        "alert_title": "⚠️ Entrenamiento no disponible",
+        "unauthorized": "Esto es pa personal operativo, no pa cualquiera q venga a apretar botones.",
+        "no_questions": "Todavía no cargaron preguntas activas, así q por ahora te salvaste.",
+        "active_question": "Ya tiraste una pregunta. Espera q alguien la responda o q venza antes de pedir otra.",
+        "cooldown": "Espera {seconds} segundos antes de pedir otra, no es una metralleta de preguntas.",
+        "already_answered": "Llegaste tarde, esa pregunta ya la respondieron.",
+        "operation_failed": "Se trabó la cuestión y no pude preparar o corregir la pregunta.",
+        "question_intro": "A ver cuánto del manual se les quedó... el primero q responda cierra la cuestión.",
+        "selector_placeholder": "Elige una respuesta",
+        "correct_messages": [
+          "Bien po, esa sí te la sabíai.",
+          "Correcto. Al menos una parte del manual no la pasaste de largo.",
+          "Buena, esa era. Podís pedir otra cuando estés listo."
+        ],
+        "incorrect_messages": [
+          "No po, esa no era. Revisa la explicación antes de inventar de nuevo.",
+          "Le erraste. Lee el fundamento q está abajo y acuérdate pa la próxima.",
+          "Mala respuesta. Por suerte esto era práctica; revisa la corrección."
+        ]
+      },
       "review": {
         "failure_next_step_title": "Y ahora qué",
         "escalation_notice": "📣 q venga un supervisor: {roles}",
@@ -462,7 +483,8 @@
         "suggestion_description": "Manda una sugerencia privada pa revisión",
         "info_suggestions_description": "Explica cómo mandar una sugerencia",
         "suggestions_description": "Abre el buzón privado de sugerencias",
-        "suggestion_status_description": "Cambia en privado el estado de una sugerencia"
+        "suggestion_status_description": "Cambia en privado el estado de una sugerencia",
+        "manual_question_description": "Prueba cuánto cachai del manual de la facción"
       }
     }
   }

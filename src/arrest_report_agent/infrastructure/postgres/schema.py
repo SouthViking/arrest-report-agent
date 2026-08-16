@@ -691,3 +691,98 @@ report_owner_agent_runs = sa.Table(
         "started_at",
     ),
 )
+
+manual_quiz_questions = sa.Table(
+    "manual_quiz_questions",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("slug", sa.String(120), nullable=False),
+    sa.Column("answer_mode", sa.String(30), nullable=False),
+    sa.Column("category", sa.String(30), nullable=False),
+    sa.Column("difficulty", sa.String(20), nullable=False),
+    sa.Column("prompt", sa.Text, nullable=False),
+    sa.Column("explanation", sa.Text, nullable=False),
+    sa.Column("source_reference", sa.String(300), nullable=False),
+    sa.Column("status", sa.String(20), nullable=False, server_default="draft"),
+    sa.Column("revision", sa.Integer, nullable=False, server_default="1"),
+    sa.Column("created_by", sa.BigInteger),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint(
+        "slug ~ '^[a-z0-9]+(_[a-z0-9]+)*$'",
+        name="ck_manual_quiz_slug_format",
+    ),
+    sa.CheckConstraint(
+        "answer_mode IN ('single_choice','true_false','multiple_select','short_answer',"
+        "'ordering','matching')",
+        name="ck_manual_quiz_answer_mode",
+    ),
+    sa.CheckConstraint(
+        "category IN ('general','radio_code','procedure','scenario','identify_error','legal',"
+        "'reports')",
+        name="ck_manual_quiz_category",
+    ),
+    sa.CheckConstraint(
+        "difficulty IN ('basic','intermediate','advanced')",
+        name="ck_manual_quiz_difficulty",
+    ),
+    sa.CheckConstraint(
+        "status IN ('draft','active','archived')",
+        name="ck_manual_quiz_status",
+    ),
+    sa.CheckConstraint("revision > 0", name="ck_manual_quiz_revision_positive"),
+    sa.CheckConstraint(
+        "char_length(prompt) BETWEEN 1 AND 1500",
+        name="ck_manual_quiz_prompt_length",
+    ),
+    sa.CheckConstraint(
+        "char_length(explanation) BETWEEN 1 AND 1500",
+        name="ck_manual_quiz_explanation_length",
+    ),
+    sa.CheckConstraint(
+        "char_length(source_reference) BETWEEN 1 AND 300",
+        name="ck_manual_quiz_source_length",
+    ),
+    sa.Index(
+        "ix_manual_quiz_guild_status_mode",
+        "guild_id",
+        "status",
+        "answer_mode",
+    ),
+    sa.UniqueConstraint("guild_id", "slug", name="uq_manual_quiz_guild_slug"),
+)
+
+manual_quiz_options = sa.Table(
+    "manual_quiz_options",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "question_id",
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("manual_quiz_questions.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("position", sa.Integer, nullable=False),
+    sa.Column("text", sa.String(300), nullable=False),
+    sa.Column("is_correct", sa.Boolean, nullable=False, server_default=sa.false()),
+    sa.CheckConstraint(
+        "position BETWEEN 0 AND 24",
+        name="ck_manual_quiz_option_position",
+    ),
+    sa.CheckConstraint(
+        "char_length(text) BETWEEN 1 AND 300",
+        name="ck_manual_quiz_option_text_length",
+    ),
+    sa.UniqueConstraint(
+        "question_id",
+        "position",
+        name="uq_manual_quiz_option_position",
+    ),
+    sa.Index("ix_manual_quiz_option_question", "question_id", "position"),
+)

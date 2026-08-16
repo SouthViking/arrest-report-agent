@@ -80,5 +80,6 @@ module = [
     "arrest_report_agent.role_requests.discord",
     "arrest_report_agent.pagers.discord",
     "arrest_report_agent.review_analytics.discord",
+    "arrest_report_agent.manual_quiz.discord",
 ]
 ignore_errors = true

@@ -391,6 +391,12 @@ Comandos disponibles:
 - `/sugerencias`: abre el buzón efímero y paginado; está reservado a `CONFIG_OWNER_USER_IDS`.
 - `/estado-sugerencia`: cambia de forma efímera una sugerencia entre pendiente y archivada; está
   reservado a `CONFIG_OWNER_USER_IDS`.
+- `/pregunta-manual`: permite al personal de `operational_staff_roles` publicar una pregunta de
+  práctica del catálogo PostgreSQL. Cualquier miembro puede responder y la primera respuesta cierra
+  el ejercicio; el resultado, explicación y referencia quedan visibles para el canal. Este MVP no
+  conserva puntajes ni intentos.
+  El seed inicial incorpora 70 preguntas curadas del manual entre selección única y
+  verdadero/falso.
 - `/config`: abre un panel efímero sin argumentos, reservado a owners o roles `config_admin_roles`;
   permite inspeccionar la revisión activa y administrar borradores, accesos, agente, módulos,
   personas, publicación y rollback mediante botones y formularios. Los intentos no autorizados
@@ -419,6 +425,21 @@ cambios.
 Aunque su lógica y sus datos son deterministas, todo el texto visual que rodea esas consultas se toma
 de `messages.interface` en la persona activa. Esto incluye opciones generales, placeholders, títulos,
 botones, enlaces, paginación y resúmenes.
+
+### Cargar el banco inicial de preguntas
+
+Después de aplicar las migraciones, el catálogo se carga para una guild concreta con:
+
+```bash
+psql "$DATABASE_URL" \
+  --set=guild_id=1234674521416663070 \
+  --file=scripts/seed_manual_quiz_questions.sql
+```
+
+El archivo valida que la guild exista, carga 70 preguntas activas con sus alternativas y puede
+ejecutarse nuevamente sin duplicarlas. La clave estable `slug` permite corregir preguntas existentes
+e incrementar su revisión solo cuando cambia su contenido. No altera otras guilds ni preguntas
+creadas fuera de ese seed.
 
 Consulta [Comandos de Discord](docs/COMMANDS.md) para conocer acceso, navegación, fuentes, límites y
 el contenido exacto del FAQ.

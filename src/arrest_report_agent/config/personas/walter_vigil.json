@@ -1,7 +1,7 @@
 {
-  "schema_version": 33,
+  "schema_version": 34,
   "id": "walter_vigil",
-  "revision": 39,
+  "revision": 40,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -152,7 +152,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo solicitar y continuar la revisión de tu reporte.\n• `/info-roles`: cómo pedir altas o bajas de roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo registrar y consultar callsigns.\n• `/info-sugerencias`: cómo enviar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.",
+      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.",
       "footer": "Elige la guía correspondiente y sigue sus indicaciones, {form_of_address}."
     },
     "interface": {
@@ -386,6 +386,27 @@
         "info_limit": "Puede mantener hasta **{limit} sugerencias pendientes** al mismo tiempo. Cuando sean archivadas podrá enviar nuevas.",
         "info_warning": "El spam, las bromas y el uso malintencionado serán sancionados. Utilice este espacio para realizar aportes legítimos."
       },
+      "manual_quiz": {
+        "alert_title": "⚠️ Entrenamiento no disponible",
+        "unauthorized": "Este ejercicio está reservado al personal operativo autorizado.",
+        "no_questions": "Todavía no hay preguntas activas para este servidor.",
+        "active_question": "Ya publicó una pregunta pendiente. Espere a que alguien la responda o a que expire antes de solicitar otra.",
+        "cooldown": "Espere {seconds} segundos antes de solicitar otra pregunta.",
+        "already_answered": "La pregunta ya fue respondida.",
+        "operation_failed": "No pude preparar o corregir la pregunta en este momento.",
+        "question_intro": "Revise el caso y seleccione la respuesta que considere correcta. La primera respuesta cerrará el ejercicio.",
+        "selector_placeholder": "Seleccione una respuesta",
+        "correct_messages": [
+          "Respuesta correcta. Buen criterio.",
+          "Correcto. Ese es el procedimiento esperado.",
+          "Bien resuelto. Puede continuar con la siguiente cuando esté listo."
+        ],
+        "incorrect_messages": [
+          "La respuesta no es correcta. Revise la explicación antes de intentarlo nuevamente.",
+          "Esa alternativa no corresponde. Tome nota del fundamento indicado.",
+          "No es la opción esperada. El detalle de la corrección queda a continuación."
+        ]
+      },
       "review": {
         "failure_next_step_title": "Siguiente paso",
         "escalation_notice": "📣 Se requiere supervisión: {roles}",
@@ -442,7 +463,8 @@
         "suggestion_description": "Envía una sugerencia privada para revisión",
         "info_suggestions_description": "Explica cómo enviar una sugerencia",
         "suggestions_description": "Abre el buzón privado de sugerencias",
-        "suggestion_status_description": "Actualiza en privado el estado de una sugerencia"
+        "suggestion_status_description": "Actualiza en privado el estado de una sugerencia",
+        "manual_question_description": "Practica el contenido del manual de la facción"
       }
     }
   }

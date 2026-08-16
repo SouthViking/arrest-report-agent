@@ -69,6 +69,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/info-sugerencias` | Todos en una guild configurada | Pública | Persona activa |
 | `/sugerencias` | `CONFIG_OWNER_USER_IDS` | Efímera y paginada | PostgreSQL |
 | `/estado-sugerencia` | `CONFIG_OWNER_USER_IDS` | Modal y confirmación efímeros | PostgreSQL |
+| `/pregunta-manual` | `operational_staff_roles` | Pregunta y resultado públicos | Catálogo PostgreSQL |
 
 Los comandos generales no aplican `AUTHORIZED_USER_IDS`; están destinados a todos los miembros que
 puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists centrales antes de
@@ -115,8 +116,31 @@ comandos, dirige a la guía de cada función:
 - `/info-callsigns`
 - `/info-sugerencias`
 
-Mantiene como referencias rápidas `/guia`, `/cargos` y `/faq`. Los flujos operacionales, comandos
+Mantiene como referencias rápidas `/guia`, `/cargos`, `/faq` y `/pregunta-manual`. Los flujos operacionales, comandos
 privados y herramientas de supervisión se explican en su guía especializada cuando corresponde.
+
+## `/pregunta-manual`
+
+Publica una pregunta de práctica en el canal donde se ejecuta. Solo los miembros incluidos en
+`operational_staff_roles` pueden solicitarla, pero cualquier miembro puede responder. La primera
+respuesta válida cierra el ejercicio, deshabilita sus componentes y deja el resultado visible para
+todo el canal.
+
+El catálogo vive en PostgreSQL y se carga por guild. El seed inicial contiene 70 preguntas de
+selección única y verdadero/falso, distribuidas entre organización, aspectos legales, procedimientos,
+escenarios, detección de errores, códigos radiales, alfabeto fonético y reportes. Las preguntas
+activas se seleccionan sin repetir para el mismo usuario hasta agotar el conjunto disponible. Solo
+puede mantener una pregunta pendiente y
+debe esperar 30 segundos antes de pedir otra. El mensaje expira a los tres minutos, se corrige en el
+mismo embed y muestra la explicación y la referencia del manual. Este MVP no registra respuestas,
+puntajes, precisión ni rankings, y nunca llama a OpenAI.
+
+El esquema admite categorías, dificultad, revisión y distintos modos de respuesta. La interfaz
+inicial activa únicamente selección única y verdadero/falso; los modos futuros permanecen fuera de
+la consulta hasta contar con su interacción y validación correspondientes.
+
+El catálogo inicial se instala de forma idempotente mediante
+`scripts/seed_manual_quiz_questions.sql`, pasando el snowflake de la guild como variable `guild_id`.
 
 ## `/guia`
 

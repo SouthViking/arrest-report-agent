@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.5.13",
-  "title": "Reportes con bolsa de evidencia",
-  "summary": "Ahora puedes solicitar la revisión de un reporte identificando también su bolsa de evidencia desde el mensaje inicial.",
+  "version": "0.5.14",
+  "title": "Preguntas abiertas del manual",
+  "summary": "El personal operativo ahora puede publicar ejercicios breves del manual para que cualquier miembro del canal participe.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1234675609536430152,
@@ -11,14 +11,16 @@
   "changes": [
     {
       "type": "added",
-      "text": "Los reportes aceptan el formato `@mención Nombre Apellido - #NÚMERO` cuando exista una bolsa de evidencia."
+      "text": "El nuevo comando `/pregunta-manual` publica preguntas visibles para todo el canal."
+    },
+    {
+      "type": "added",
+      "text": "Cualquier miembro puede responder; la primera respuesta cierra el ejercicio y muestra la explicación del manual."
+    },
+    {
+      "type": "added",
+      "text": "El banco inicial incorpora 70 preguntas de procedimientos, comunicaciones, normativa, reportes y organización."
     }
   ],
-  "acknowledgements": [
-    {
-      "type": "suggestion",
-      "user_id": 880057771347836978,
-      "text": "Propuso incorporar el formato con bolsa de evidencia."
-    }
-  ]
+  "acknowledgements": []
 }
