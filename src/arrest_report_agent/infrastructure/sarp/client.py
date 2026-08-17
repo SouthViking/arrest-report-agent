@@ -28,7 +28,18 @@ from .errors import (
     SarpTransportError,
     build_api_error,
 )
-from .models import SarpEnvelope, SarpPenalCodePayload, SarpRateLimit, SarpResponse
+from .models import (
+    SarpArrestPage,
+    SarpCharacterPossessions,
+    SarpCharacterPreview,
+    SarpCharacterSearchResult,
+    SarpEnvelope,
+    SarpFinePage,
+    SarpPenalCodePayload,
+    SarpRateLimit,
+    SarpResponse,
+    SarpWarrantPage,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -41,6 +52,12 @@ PayloadT = TypeVar("PayloadT")
 SAFE_RETRY_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 DEFAULT_BASE_URL = "https://api.gta-rol.com/api"
 PENAL_CODE_PAYLOAD_ADAPTER = TypeAdapter(SarpPenalCodePayload)
+CHARACTER_SEARCH_PAYLOAD_ADAPTER = TypeAdapter(list[SarpCharacterSearchResult])
+CHARACTER_PREVIEW_PAYLOAD_ADAPTER = TypeAdapter(SarpCharacterPreview)
+CHARACTER_POSSESSIONS_PAYLOAD_ADAPTER = TypeAdapter(SarpCharacterPossessions)
+FINE_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFinePage)
+WARRANT_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpWarrantPage)
+ARREST_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpArrestPage)
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,6 +244,109 @@ class SarpClient:
         )
         return response.payload
 
+    async def search_characters(self, name: str) -> list[SarpCharacterSearchResult]:
+        """Search character names using the documented prefix endpoint."""
+
+        normalized_name = name.strip()
+        if not normalized_name or len(normalized_name) > 100:
+            raise ValueError("Character search name must contain between 1 and 100 characters")
+        response = await self.request(
+            "GET",
+            "/character/search",
+            params={"name": normalized_name},
+            payload_adapter=CHARACTER_SEARCH_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def get_character_preview(self, character_id: int) -> SarpCharacterPreview:
+        """Fetch one public character profile."""
+
+        _require_positive_id(character_id, "character_id")
+        response = await self.request(
+            "GET",
+            f"/character/preview/{character_id}",
+            payload_adapter=CHARACTER_PREVIEW_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def get_character_possessions(self, character_id: int) -> SarpCharacterPossessions:
+        """Fetch the public registered possessions of one character."""
+
+        _require_positive_id(character_id, "character_id")
+        response = await self.request(
+            "GET",
+            f"/character/preview/{character_id}/possessions",
+            payload_adapter=CHARACTER_POSSESSIONS_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def list_unpaid_fines(
+        self,
+        character_id: int,
+        *,
+        page: int = 1,
+        limit: int = 100,
+    ) -> SarpFinePage:
+        """List unpaid fines for one character."""
+
+        _require_positive_id(character_id, "character_id")
+        _validate_page(page, limit)
+        response = await self.request(
+            "GET",
+            "/police/fines",
+            params={
+                "character_id": character_id,
+                "is_paid": 0,
+                "page": page,
+                "limit": limit,
+            },
+            payload_adapter=FINE_PAGE_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def list_active_warrants(
+        self,
+        character_id: int,
+        *,
+        page: int = 1,
+        limit: int = 25,
+    ) -> SarpWarrantPage:
+        """List active, non-confidential warrants for one suspect."""
+
+        _require_positive_id(character_id, "character_id")
+        _validate_page(page, limit)
+        response = await self.request(
+            "GET",
+            "/police/warrants",
+            params={
+                "suspect_id": character_id,
+                "status": 1,
+                "page": page,
+                "limit": limit,
+            },
+            payload_adapter=WARRANT_PAGE_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def list_arrests(
+        self,
+        character_id: int,
+        *,
+        page: int = 1,
+        limit: int = 3,
+    ) -> SarpArrestPage:
+        """List recent arrest records for one suspect."""
+
+        _require_positive_id(character_id, "character_id")
+        _validate_page(page, limit)
+        response = await self.request(
+            "GET",
+            "/police/arrests",
+            params={"suspect_id": character_id, "page": page, "limit": limit},
+            payload_adapter=ARREST_PAGE_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
     async def _request_once(
         self,
         method: str,
@@ -375,6 +495,18 @@ def _normalize_path(raw_path: str) -> str:
     if any(any(character in segment for character in "\r\n") for segment in segments):
         raise ValueError("SARP request path contains invalid control characters")
     return "/" + "/".join(segments)
+
+
+def _require_positive_id(value: int, label: str) -> None:
+    if isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{label} must be a positive integer")
+
+
+def _validate_page(page: int, limit: int) -> None:
+    if isinstance(page, bool) or page < 1:
+        raise ValueError("page must be a positive integer")
+    if isinstance(limit, bool) or not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
 
 
 def _request_id(headers: Mapping[str, str]) -> str | None:

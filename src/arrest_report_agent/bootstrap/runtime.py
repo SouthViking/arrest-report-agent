@@ -59,6 +59,7 @@ from arrest_report_agent.manual_quiz import (
     ManualQuizRepository,
     ManualQuizSessionRegistry,
 )
+from arrest_report_agent.mdc import MdcCog, MdcService
 from arrest_report_agent.operational_profiles import CallsignCog, MemberProfileRepository
 from arrest_report_agent.pagers import (
     PagerCog,
@@ -162,9 +163,11 @@ async def build_runtime(
     await postgres.open()
     local_catalog = ChargeCatalog.load_default()
     sarp_penal_code_provider: SarpPenalCodeProvider | None = None
+    sarp_client: SarpClient | None = None
     if settings.sarp_api_enabled:
+        sarp_client = SarpClient(SarpClientConfig.from_settings(settings))
         sarp_penal_code_provider = SarpPenalCodeProvider(
-            SarpClient(SarpClientConfig.from_settings(settings)),
+            sarp_client,
             local_catalog,
         )
         catalog_provider: ChargeCatalogProvider = sarp_penal_code_provider
@@ -312,6 +315,14 @@ async def build_runtime(
     manual_quiz_repository = ManualQuizRepository(postgres)
     manual_quiz_sessions = ManualQuizSessionRegistry(manual_quiz_repository)
     bot.add_cog(ManualQuizCog(config_provider, manual_quiz_sessions, persona.profile))
+    if sarp_client is not None:
+        bot.add_cog(MdcCog(config_provider, MdcService(sarp_client), persona.profile))
+        log_event(
+            LOGGER,
+            "info",
+            "mdc_subsystem_registered",
+            configured_guilds=len(guild_ids),
+        )
     log_event(
         LOGGER,
         "info",

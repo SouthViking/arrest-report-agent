@@ -1,7 +1,7 @@
 {
-  "schema_version": 35,
+  "schema_version": 36,
   "id": "walter_vigil",
-  "revision": 41,
+  "revision": 42,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -152,7 +152,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo solicitar y continuar la revisión de tu reporte.\n• `/info-roles`: cómo pedir altas o bajas de roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo registrar y consultar callsigns.\n• `/info-sugerencias`: cómo enviar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.",
+      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/mdc`: consulta antecedentes y registros operativos de un personaje.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.",
       "footer": "Elige la guía correspondiente y sigue sus indicaciones, {form_of_address}."
     },
     "interface": {
@@ -413,6 +413,15 @@
           "Terminó el plazo de respuesta. La solución y su referencia quedan disponibles a continuación."
         ]
       },
+      "mdc": {
+        "alert_title": "⚠️ Consulta MDC no disponible",
+        "unauthorized": "La consulta del MDC está reservada al personal operativo autorizado.",
+        "not_found": "No encontré una coincidencia exacta para **{name}**. Revise que haya escrito el nombre completo del personaje.",
+        "ambiguous": "La búsqueda de **{name}** devolvió más de una coincidencia exacta y no puedo elegir por usted.",
+        "operation_failed": "No pude completar la consulta del MDC en este momento. Inténtelo nuevamente más tarde.",
+        "result_intro": "Consulta operativa para **{name}**. Revise los registros disponibles antes de continuar con el procedimiento.",
+        "partial_warning": "No pude obtener: **{sections}**. El resto de la consulta sigue siendo válido."
+      },
       "review": {
         "failure_next_step_title": "Siguiente paso",
         "escalation_notice": "📣 Se requiere supervisión: {roles}",
@@ -470,7 +479,8 @@
         "info_suggestions_description": "Explica cómo enviar una sugerencia",
         "suggestions_description": "Abre el buzón privado de sugerencias",
         "suggestion_status_description": "Actualiza en privado el estado de una sugerencia",
-        "manual_question_description": "Practica el contenido del manual de la facción"
+        "manual_question_description": "Practica el contenido del manual de la facción",
+        "mdc_description": "Consulta registros operativos de un personaje"
       }
     }
   }

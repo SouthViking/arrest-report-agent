@@ -353,7 +353,11 @@ Comandos disponibles:
   mínimas, el cupo vigente y los canales habilitados.
 - `/guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.
 - `/cargos`: modal privado para buscar por código, título, descripción o categoría en el catálogo
-  penal local; muestra detalles y sanciones con paginación cuando corresponde.
+  penal activo; muestra detalles y sanciones con paginación cuando corresponde.
+- `/mdc`: cuando la integración SARP está activa, abre un modal privado para que el personal de
+  `operational_staff_roles` busque el nombre exacto de un personaje y publica una ficha operativa
+  sin IDs internos ni datos OOC. Las secciones independientes conservan resultados parciales ante
+  rate limits o fallos de la API.
 - `/faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
 - `/verguenza`: abre un modal para elegir mes actual o los últimos 7, 30 o 90 días, y publica por
   cada canal configurado un top 10 de quienes acumulan más expedientes que todavía no alcanzan el
@@ -504,11 +508,12 @@ el contenido exacto del FAQ.
 | `OPENAI_TRACING_ENABLED` | `true` | Habilita traces del Agents SDK. |
 | `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA` | `false` | Excluye mensajes, imágenes, archivos y tool payloads del trace. |
 
-Con `SARP_API_ENABLED=true`, el runtime obtiene `GET /police/penal-code` al arrancar y lo refresca
-en segundo plano. `/cargos` y las tools del agente comparten el mismo snapshot: una caída temporal
+Con `SARP_API_ENABLED=true`, el runtime obtiene `GET /police/penal-code` al arrancar, lo refresca
+en segundo plano y registra `/mdc`. `/cargos` y las tools del agente comparten el mismo snapshot: una caída temporal
 conserva el último catálogo remoto válido y, si todavía no existe uno, usa `delitos.json`. Cada
 revisión fija su snapshot al comenzar, por lo que una actualización no mezcla fuentes a mitad de
-una ejecución.
+una ejecución. `/mdc` consulta en vivo la búsqueda exacta, perfil IC, posesiones y registros
+policiales; no persiste sus resultados y solo muestra como no disponible la sección remota que falle.
 
 El catálogo versionado
 [`models.json`](src/arrest_report_agent/config/data/models.json) contiene las capacidades, defaults y

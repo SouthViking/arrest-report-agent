@@ -134,6 +134,12 @@ guía y el catálogo versionados mediante vistas efímeras ligadas al usuario: l
 editan el mismo mensaje, mientras que la búsqueda de cargos resuelve localmente código, título,
 categoría y descripción con un límite acotado de resultados.
 
+El subsistema `mdc` también es determinista, pero consulta datos operativos en vivo mediante el
+cliente SARP compartido. Resuelve primero una coincidencia exacta y luego ejecuta en paralelo las
+lecturas de perfil IC, posesiones, multas, órdenes y arrestos. Su modelo de dominio descarta IDs y
+campos OOC antes de llegar al renderer de Discord; cada sección tolera fallos de forma independiente
+y no se conserva en PostgreSQL.
+
 `/verguenza` comparte el finder determinista: abre un modal privado para elegir mes actual o los
 últimos 7, 30 o 90 días y después publica un top 10 visible para el canal. Filtra primero todo reporte
 que ya tenga ✅ y agrupa los estados restantes por autor dentro del periodo. La consulta respeta la

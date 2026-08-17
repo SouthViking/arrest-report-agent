@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 PayloadT = TypeVar("PayloadT")
 
@@ -107,3 +108,160 @@ class SarpPenalCodePayload(BaseModel):
                 f"SARP penal-code charges reference unknown categories: {sorted(unknown_categories)}"
             )
         return self
+
+
+class SarpCharacterSearchResult(BaseModel):
+    """Compact character identity returned by the prefix-search endpoint."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    name: str = Field(min_length=1, max_length=100)
+
+
+class SarpCharacterPreview(BaseModel):
+    """Public character data; consumers must explicitly project IC-safe fields."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    name: str = Field(min_length=1, max_length=100)
+    jailed: int | bool | None = None
+
+
+class SarpCharacterVehicle(BaseModel):
+    """Vehicle included in a character's public possessions."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    model: int | str | None = None
+    model_name: str | None = None
+    name: str | None = None
+    plate: str | None = None
+    ownership_type: str | None = None
+
+
+class SarpCharacterProperty(BaseModel):
+    """Property included in a character's public possessions."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    name: str | None = None
+    address: str | None = None
+    type: int | str | None = None
+    subtype: int | str | None = None
+
+
+class SarpCharacterPossessions(BaseModel):
+    """Public vehicles and properties owned by one character."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    properties: list[SarpCharacterProperty] = Field(default_factory=list)
+    vehicles: list[SarpCharacterVehicle] = Field(default_factory=list)
+
+
+class SarpPoliceCharge(BaseModel):
+    """Compact charge embedded in police arrest and warrant records."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    charge_id: int = Field(gt=0)
+    code: str | None = None
+    charge: str = Field(min_length=1)
+    type: str | None = None
+    hours: int | float | None = None
+    fine: int | float | None = None
+
+
+class SarpFine(BaseModel):
+    """Fine issued to a character."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    character_id: int = Field(gt=0)
+    fine: str = Field(min_length=1)
+    cost: int | float = Field(ge=0)
+    is_paid: int | bool
+    paid_at: datetime | None = None
+    created_at: datetime | None = None
+
+
+class SarpFinePage(BaseModel):
+    """Paginated fine list."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    items: list[SarpFine] = Field(default_factory=list)
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    limit: int = Field(ge=1, le=100)
+    pages: int = Field(ge=0)
+
+
+class SarpWarrant(BaseModel):
+    """Non-confidential warrant returned by the police API."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
+
+    id: int = Field(gt=0)
+    suspect_id: int = Field(gt=0)
+    description: str = ""
+    types: tuple[str, ...] = Field(default_factory=tuple, alias="type")
+    risk: str | None = None
+    status: int
+    closed_at: datetime | None = None
+    created_at: datetime | None = None
+    charges: list[SarpPoliceCharge] = Field(default_factory=list)
+
+    @field_validator("types", mode="before")
+    @classmethod
+    def normalize_types(cls, value: object) -> object:
+        if value is None:
+            return ()
+        if isinstance(value, str):
+            return (value,)
+        return value
+
+    @property
+    def active(self) -> bool:
+        return self.status == 1 and self.closed_at is None
+
+
+class SarpWarrantPage(BaseModel):
+    """Paginated non-confidential warrant list."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    items: list[SarpWarrant] = Field(default_factory=list)
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    limit: int = Field(ge=1, le=100)
+    pages: int = Field(ge=0)
+
+
+class SarpArrest(BaseModel):
+    """Police arrest record for one suspect."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    suspect_id: int = Field(gt=0)
+    description: str = ""
+    created_at: datetime | None = None
+    charges: list[SarpPoliceCharge] = Field(default_factory=list)
+
+
+class SarpArrestPage(BaseModel):
+    """Paginated police arrest list."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    items: list[SarpArrest] = Field(default_factory=list)
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    limit: int = Field(ge=1, le=100)
+    pages: int = Field(ge=0)

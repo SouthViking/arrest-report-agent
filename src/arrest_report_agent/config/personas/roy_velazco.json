@@ -1,7 +1,7 @@
 {
-  "schema_version": 35,
+  "schema_version": 36,
   "id": "roy_velazco",
-  "revision": 48,
+  "revision": 49,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -172,7 +172,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo pedir y seguir la revisión de tu reporte.\n• `/info-roles`: cómo pedir q te agreguen o saquen roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo guardar y buscar callsigns.\n• `/info-sugerencias`: cómo mandar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: abre el manual de reportes por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las dudas frecuentes de la guía.\n• `/pregunta-manual`: demuestra si leíste algo del manual.",
+      "quick_references": "• `/guia`: abre el manual de reportes por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/mdc`: busca antecedentes y registros operativos de un personaje.\n• `/faq`: responde las dudas frecuentes de la guía.\n• `/pregunta-manual`: demuestra si leíste algo del manual.",
       "footer": "elige la guía q corresponde antes de venir a adivinar, {form_of_address}."
     },
     "interface": {
@@ -433,6 +433,15 @@
           "Cerró el plazo y no salió respuesta. Lean la explicación antes de pedir la siguiente."
         ]
       },
+      "mdc": {
+        "alert_title": "⚠️ El MDC no pescó",
+        "unauthorized": "El MDC es pa personal operativo, no pa cualquiera q venga a sapear gente.",
+        "not_found": "No encontré a **{name}** de forma exacta. Escribe bien el nombre completo antes de echarle la culpa a la máquina.",
+        "ambiguous": "La búsqueda de **{name}** devolvió más de una coincidencia exacta. No voy a adivinar cuál queríai.",
+        "operation_failed": "Se cayó la consulta del MDC. Inténtalo de nuevo más rato y no inventís datos mientras tanto.",
+        "result_intro": "Ahí tenís la ficha operativa de **{name}**. Revisa lo q aparece antes de tomar decisiones.",
+        "partial_warning": "No pude sacar **{sections}**. Lo demás sí llegó, así q no botís toda la consulta por eso."
+      },
       "review": {
         "failure_next_step_title": "Y ahora qué",
         "escalation_notice": "📣 q venga un supervisor: {roles}",
@@ -490,7 +499,8 @@
         "info_suggestions_description": "Explica cómo mandar una sugerencia",
         "suggestions_description": "Abre el buzón privado de sugerencias",
         "suggestion_status_description": "Cambia en privado el estado de una sugerencia",
-        "manual_question_description": "Prueba cuánto cachai del manual de la facción"
+        "manual_question_description": "Prueba cuánto cachai del manual de la facción",
+        "mdc_description": "Busca registros operativos de un personaje"
       }
     }
   }

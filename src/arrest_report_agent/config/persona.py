@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 35
+PERSONA_SCHEMA_VERSION = 36
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -803,6 +803,30 @@ class PersonaManualQuizMessages(FrozenPersonaModel):
         return self
 
 
+class PersonaMdcMessages(FrozenPersonaModel):
+    """Personality-aware copy around deterministic MDC data."""
+
+    alert_title: str = Field(min_length=1, max_length=256)
+    unauthorized: str = Field(min_length=1, max_length=400)
+    not_found: str = Field(min_length=1, max_length=400)
+    ambiguous: str = Field(min_length=1, max_length=400)
+    operation_failed: str = Field(min_length=1, max_length=400)
+    result_intro: str = Field(min_length=1, max_length=500)
+    partial_warning: str = Field(min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_templates(self) -> PersonaMdcMessages:
+        _require_template_fields(self.not_found, {"name"}, "interface.mdc.not_found")
+        _require_template_fields(self.ambiguous, {"name"}, "interface.mdc.ambiguous")
+        _require_template_fields(self.result_intro, {"name"}, "interface.mdc.result_intro")
+        _require_template_fields(
+            self.partial_warning,
+            {"sections"},
+            "interface.mdc.partial_warning",
+        )
+        return self
+
+
 class PersonaReviewMessages(FrozenPersonaModel):
     """Personality-aware framing around formal structured review data."""
 
@@ -889,6 +913,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     suggestions_description: str = Field(min_length=1, max_length=100)
     suggestion_status_description: str = Field(min_length=1, max_length=100)
     manual_question_description: str = Field(min_length=1, max_length=100)
+    mdc_description: str = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaCommandMessages:
@@ -913,6 +938,7 @@ class PersonaInterfaceMessages(FrozenPersonaModel):
     deployments: PersonaDeploymentMessages
     suggestions: PersonaSuggestionMessages
     manual_quiz: PersonaManualQuizMessages
+    mdc: PersonaMdcMessages
     review: PersonaReviewMessages
     commands: PersonaCommandMessages
 

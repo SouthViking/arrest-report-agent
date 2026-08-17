@@ -1,20 +1,26 @@
 {
   "schema_version": 3,
-  "version": "0.5.18",
-  "title": "Código penal conectado a la API actual",
-  "summary": "La integración policial ya consulta el código penal desde la nueva API y conserva todos los cargos disponibles.",
+  "version": "0.6.0",
+  "title": "Nuevo acceso al MDC",
+  "summary": "El personal operativo ahora puede consultar información policial de un personaje directamente desde Discord.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
-      "type": "fixed",
-      "text": "La sincronización utiliza la nueva dirección pública de la API de SARP."
+      "type": "added",
+      "text": "Se agregó `/mdc`, con búsqueda exacta por nombre mediante un formulario privado."
     },
     {
-      "type": "fixed",
-      "text": "Los cargos sin categoría asignada también se conservan y quedan disponibles para búsquedas y revisiones."
+      "type": "added",
+      "text": "La consulta muestra estado de custodia, órdenes activas, multas pendientes, vehículos, propiedades y antecedentes disponibles."
+    },
+    {
+      "type": "improved",
+      "text": "Si una parte de la consulta no está disponible, el MDC conserva y muestra el resto de la información."
+    },
+    {
+      "type": "security",
+      "text": "El comando está limitado al personal operativo y no muestra información administrativa o ajena al personaje."
     }
   ],
   "acknowledgements": []

@@ -45,7 +45,8 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/ayuda` | Todos | Pública | Persona seleccionada y configuración del bot |
 | `/info-reportes` | Acceso completo o acceso del propietario habilitado | Pública; rechazo efímero | Persona, canales y configuración de acceso del propietario |
 | `/guia` | Todos | Efímera | `report_guide.json` |
-| `/cargos` | Todos | Efímera | `delitos.json` |
+| `/cargos` | Todos | Efímera | Catálogo SARP con fallback `delitos.json` |
+| `/mdc` | `operational_staff_roles`; solo si SARP está activo | Modal privado; resultado público | API SARP en vivo |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
 | `/verguenza` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/honor` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
@@ -116,8 +117,21 @@ comandos, dirige a la guía de cada función:
 - `/info-callsigns`
 - `/info-sugerencias`
 
-Mantiene como referencias rápidas `/guia`, `/cargos`, `/faq` y `/pregunta-manual`. Los flujos operacionales, comandos
+Mantiene como referencias rápidas `/guia`, `/cargos`, `/mdc`, `/faq` y `/pregunta-manual`. Los flujos operacionales, comandos
 privados y herramientas de supervisión se explican en su guía especializada cuando corresponde.
+
+## `/mdc`
+
+Se registra únicamente con `SARP_API_ENABLED=true`. El personal incluido en
+`operational_staff_roles` abre un formulario privado, indica el nombre exacto del personaje y recibe
+una ficha pública en el mismo canal. La coincidencia ignora mayúsculas, espacios repetidos y la
+diferencia entre espacios y guiones bajos, pero nunca elige mediante búsqueda difusa.
+
+La ficha proyecta solo información utilizable IC: estado de custodia, órdenes activas, multas
+impagas, vehículos, propiedades y antecedentes de arresto. No expone el ID interno del personaje,
+cuenta, nivel ni otros campos OOC. Después de resolver el personaje, las secciones se consultan en
+paralelo; un rate limit o error parcial se identifica en el embed sin descartar las demás secciones.
+Si la búsqueda inicial falla, no se publica una ficha. Los errores y rechazos de acceso son efímeros.
 
 ## `/pregunta-manual`
 

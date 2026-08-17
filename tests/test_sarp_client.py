@@ -191,6 +191,113 @@ async def test_get_penal_code_uses_documented_endpoint_and_returns_typed_payload
     assert payload.charges[0].charge == "Evasión"
 
 
+async def test_mdc_endpoints_use_documented_paths_filters_and_typed_payloads() -> None:
+    seen: list[tuple[str, dict[str, str]]] = []
+
+    async def handler(request: web.Request) -> web.Response:
+        seen.append((request.path, dict(request.query)))
+        payloads: dict[str, object] = {
+            "/api/character/search": [{"id": 44, "name": "Terry_McKenzie"}],
+            "/api/character/preview/44": {
+                "id": 44,
+                "name": "Terry_McKenzie",
+                "jailed": 0,
+                "level": 99,
+                "account_id": 9001,
+            },
+            "/api/character/preview/44/possessions": {
+                "properties": [],
+                "vehicles": [
+                    {
+                        "id": 5,
+                        "model": 596,
+                        "model_name": "Premier",
+                        "plate": "LS-1234",
+                    }
+                ],
+            },
+            "/api/police/fines": {
+                "items": [
+                    {
+                        "id": 6,
+                        "character_id": 44,
+                        "fine": "Conducción temeraria",
+                        "cost": 1500,
+                        "is_paid": 0,
+                    }
+                ],
+                "total": 1,
+                "page": 1,
+                "limit": 100,
+                "pages": 1,
+            },
+            "/api/police/warrants": {
+                "items": [
+                    {
+                        "id": 7,
+                        "suspect_id": 44,
+                        "description": "Detención pendiente",
+                        "type": ["arrest"],
+                        "status": 1,
+                        "charges": [],
+                    }
+                ],
+                "total": 1,
+                "page": 1,
+                "limit": 25,
+                "pages": 1,
+            },
+            "/api/police/arrests": {
+                "items": [{"id": 8, "suspect_id": 44, "charges": []}],
+                "total": 1,
+                "page": 1,
+                "limit": 3,
+                "pages": 1,
+            },
+        }
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "test",
+                "payload": payloads[request.path],
+            }
+        )
+
+    async with serve_sarp(handler) as base_url, SarpClient(
+        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
+    ) as client:
+        search = await client.search_characters("Terry_McKenzie")
+        preview = await client.get_character_preview(44)
+        possessions = await client.get_character_possessions(44)
+        fines = await client.list_unpaid_fines(44)
+        warrants = await client.list_active_warrants(44)
+        arrests = await client.list_arrests(44)
+
+    assert search[0].name == "Terry_McKenzie"
+    assert preview.jailed == 0
+    assert not hasattr(preview, "level")
+    assert possessions.vehicles[0].plate == "LS-1234"
+    assert fines.items[0].cost == 1500
+    assert warrants.items[0].types == ("arrest",)
+    assert warrants.items[0].active is True
+    assert arrests.total == 1
+    assert seen == [
+        ("/api/character/search", {"name": "Terry_McKenzie"}),
+        ("/api/character/preview/44", {}),
+        ("/api/character/preview/44/possessions", {}),
+        (
+            "/api/police/fines",
+            {"character_id": "44", "is_paid": "0", "page": "1", "limit": "100"},
+        ),
+        (
+            "/api/police/warrants",
+            {"suspect_id": "44", "status": "1", "page": "1", "limit": "25"},
+        ),
+        ("/api/police/arrests", {"suspect_id": "44", "page": "1", "limit": "3"}),
+    ]
+
+
 async def test_penal_code_keeps_uncategorized_charges_returned_by_current_api() -> None:
     payload = SarpPenalCodePayload.model_validate(
         {
