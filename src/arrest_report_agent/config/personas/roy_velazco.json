@@ -1,7 +1,7 @@
 {
-  "schema_version": 36,
+  "schema_version": 37,
   "id": "roy_velazco",
-  "revision": 49,
+  "revision": 50,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -170,9 +170,9 @@
       "owner_info_limit": "tenís hasta **{max_rounds} intervenciones por reporte**. después tiene q seguir alguien autorizado.",
       "owner_info_unavailable": "el acceso directo pa autores de reportes no está habilitado en este server.",
       "feature_guides_title": "🧭 Guías por función",
-      "feature_guides": "• `/info-reportes`: cómo pedir y seguir la revisión de tu reporte.\n• `/info-roles`: cómo pedir q te agreguen o saquen roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo guardar y buscar callsigns.\n• `/info-sugerencias`: cómo mandar una sugerencia.",
+      "feature_guides": "• `/info-reportes`: cómo pedir y seguir la revisión de tu reporte.\n• `/info-roles`: cómo pedir q te agreguen o saquen roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo guardar y buscar callsigns.\n• `/info-mdc`: cómo buscar una ficha y decidir quién la ve.\n• `/info-sugerencias`: cómo mandar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: abre el manual de reportes por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/mdc`: busca antecedentes y registros operativos de un personaje.\n• `/faq`: responde las dudas frecuentes de la guía.\n• `/pregunta-manual`: demuestra si leíste algo del manual.",
+      "quick_references": "• `/guia`: abre el manual de reportes por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las dudas frecuentes de la guía.\n• `/pregunta-manual`: demuestra si leíste algo del manual.",
       "footer": "elige la guía q corresponde antes de venir a adivinar, {form_of_address}."
     },
     "interface": {
@@ -440,7 +440,11 @@
         "ambiguous": "La búsqueda de **{name}** devolvió más de una coincidencia exacta. No voy a adivinar cuál queríai.",
         "operation_failed": "Se cayó la consulta del MDC. Inténtalo de nuevo más rato y no inventís datos mientras tanto.",
         "result_intro": "Ahí tenís la ficha operativa de **{name}**. Revisa lo q aparece antes de tomar decisiones.",
-        "partial_warning": "No pude sacar **{sections}**. Lo demás sí llegó, así q no botís toda la consulta por eso."
+        "partial_warning": "No pude sacar **{sections}**. Lo demás sí llegó, así q no botís toda la consulta por eso.",
+        "info_description": "El MDC sirve pa revisar la ficha operativa disponible de un personaje sin andar inventando datos.",
+        "info_usage": "Usa `/mdc`, escribe el **nombre exacto del personaje** en el formulario y manda la consulta.",
+        "info_visibility": "Elige **Visible para todos** si querís dejar la ficha en el canal o **Solo para mí** si la necesitai privada.",
+        "info_results": "Te muestra custodia, órdenes, multas, vehículos, propiedades y antecedentes disponibles. Si una parte falla, te aviso cuál fue y dejo el resto igual."
       },
       "review": {
         "failure_next_step_title": "Y ahora qué",
@@ -500,7 +504,8 @@
         "suggestions_description": "Abre el buzón privado de sugerencias",
         "suggestion_status_description": "Cambia en privado el estado de una sugerencia",
         "manual_question_description": "Prueba cuánto cachai del manual de la facción",
-        "mdc_description": "Busca registros operativos de un personaje"
+        "mdc_description": "Busca registros operativos de un personaje",
+        "info_mdc_description": "Explica cómo usar el MDC y decidir quién ve la ficha"
       }
     }
   }

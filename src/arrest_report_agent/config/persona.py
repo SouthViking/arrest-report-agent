@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 36
+PERSONA_SCHEMA_VERSION = 37
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -813,6 +813,10 @@ class PersonaMdcMessages(FrozenPersonaModel):
     operation_failed: str = Field(min_length=1, max_length=400)
     result_intro: str = Field(min_length=1, max_length=500)
     partial_warning: str = Field(min_length=1, max_length=500)
+    info_description: str = Field(min_length=1, max_length=600)
+    info_usage: str = Field(min_length=1, max_length=800)
+    info_visibility: str = Field(min_length=1, max_length=600)
+    info_results: str = Field(min_length=1, max_length=800)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaMdcMessages:
@@ -914,6 +918,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     suggestion_status_description: str = Field(min_length=1, max_length=100)
     manual_question_description: str = Field(min_length=1, max_length=100)
     mdc_description: str = Field(min_length=1, max_length=100)
+    info_mdc_description: str = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaCommandMessages:

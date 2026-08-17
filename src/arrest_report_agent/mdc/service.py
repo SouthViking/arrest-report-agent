@@ -202,7 +202,7 @@ def _build_record(
     )
     properties = tuple(
         MdcProperty(
-            name=_first_text(property_.name, "Propiedad registrada"),
+            name=_optional_text(property_.name),
             address=_optional_text(property_.address),
         )
         for property_ in (possessions.properties if possessions is not None else ())
@@ -271,7 +271,9 @@ def _optional_text(value: object) -> str | None:
     if value is None:
         return None
     normalized = str(value).strip()
-    return normalized or None
+    if not normalized or normalized.casefold() == "null":
+        return None
+    return normalized
 
 
 def _first_text(*values: object) -> str:

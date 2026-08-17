@@ -1,6 +1,6 @@
 """Deterministic Mobile Data Computer subsystem."""
 
-from .discord import MdcCog, MdcSearchModal, build_mdc_embed
+from .discord import MdcCog, MdcSearchModal, MdcVisibility, build_mdc_embed, build_mdc_info_embed
 from .models import (
     MdcArrest,
     MdcCharacterAmbiguousError,
@@ -32,9 +32,11 @@ __all__ = [
     "MdcSection",
     "MdcSearchModal",
     "MdcService",
+    "MdcVisibility",
     "MdcVehicle",
     "MdcWarrant",
     "character_name_key",
     "normalize_character_name",
     "build_mdc_embed",
+    "build_mdc_info_embed",
 ]

@@ -575,8 +575,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 42
-        assert persona["schema_version"] == 36
+        assert persona["revision"] == 43
+        assert persona["schema_version"] == 37
         assert persona["payload"]["messages"]["access"]["blocked_user_messages"]
         assert persona["payload"]["messages"]["access"]["owner_quota_exhausted_messages"]
         assert persona["payload"]["messages"]["access"]["owner_invalid_report_messages"]
@@ -605,9 +605,14 @@ async def _assert_callsign_migration(
         assert persona["payload"]["messages"]["interface"]["manual_quiz"]["correct_messages"]
         assert persona["payload"]["messages"]["interface"]["manual_quiz"]["expired_messages"]
         assert "/pregunta-manual" in persona["payload"]["messages"]["help"]["quick_references"]
-        assert "/mdc" in persona["payload"]["messages"]["help"]["quick_references"]
+        assert "/info-mdc" in persona["payload"]["messages"]["help"]["feature_guides"]
+        assert "/mdc" not in persona["payload"]["messages"]["help"]["quick_references"]
         assert persona["payload"]["messages"]["interface"]["mdc"]["result_intro"]
+        assert persona["payload"]["messages"]["interface"]["mdc"]["info_visibility"]
         assert persona["payload"]["messages"]["interface"]["commands"]["mdc_description"]
+        assert persona["payload"]["messages"]["interface"]["commands"][
+            "info_mdc_description"
+        ]
         assert persona["payload"]["messages"]["interface"]["commands"]["teamspeak_unauthorized"]
         table = await client.fetch_one(sa.text("SELECT to_regclass('public.guild_member_profiles') AS name"))
         assert table is not None and table["name"] == "guild_member_profiles"

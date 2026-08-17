@@ -40,7 +40,7 @@ class MdcVehicle(FrozenMdcModel):
 
 
 class MdcProperty(FrozenMdcModel):
-    name: str = Field(min_length=1, max_length=150)
+    name: str | None = Field(default=None, max_length=150)
     address: str | None = Field(default=None, max_length=200)
 
 

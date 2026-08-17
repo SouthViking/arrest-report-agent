@@ -1,26 +1,26 @@
 {
   "schema_version": 3,
-  "version": "0.6.0",
-  "title": "Nuevo acceso al MDC",
-  "summary": "El personal operativo ahora puede consultar información policial de un personaje directamente desde Discord.",
+  "version": "0.6.1",
+  "title": "Consultas del MDC más claras y privadas",
+  "summary": "El personal operativo puede decidir quién ve cada consulta y cuenta con una guía breve para utilizar el MDC.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
       "type": "added",
-      "text": "Se agregó `/mdc`, con búsqueda exacta por nombre mediante un formulario privado."
+      "text": "El formulario de `/mdc` permite elegir entre publicar la ficha en el canal o verla de forma privada."
     },
     {
       "type": "added",
-      "text": "La consulta muestra estado de custodia, órdenes activas, multas pendientes, vehículos, propiedades y antecedentes disponibles."
+      "text": "Se agregó `/info-mdc` con instrucciones breves sobre la búsqueda, la visibilidad y los datos disponibles."
     },
     {
       "type": "improved",
-      "text": "Si una parte de la consulta no está disponible, el MDC conserva y muestra el resto de la información."
+      "text": "Cada ficha muestra quién realizó la consulta sin generar una notificación adicional."
     },
     {
-      "type": "security",
-      "text": "El comando está limitado al personal operativo y no muestra información administrativa o ajena al personaje."
+      "type": "fixed",
+      "text": "Las propiedades sin nombre ahora muestran correctamente su dirección en vez del valor `NULL`."
     }
   ],
   "acknowledgements": []

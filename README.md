@@ -354,10 +354,12 @@ Comandos disponibles:
 - `/guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.
 - `/cargos`: modal privado para buscar por código, título, descripción o categoría en el catálogo
   penal activo; muestra detalles y sanciones con paginación cuando corresponde.
-- `/mdc`: cuando la integración SARP está activa, abre un modal privado para que el personal de
-  `operational_staff_roles` busque el nombre exacto de un personaje y publica una ficha operativa
-  sin IDs internos ni datos OOC. Las secciones independientes conservan resultados parciales ante
-  rate limits o fallos de la API.
+- `/mdc`: cuando la integración SARP está activa, abre un modal para que el personal de
+  `operational_staff_roles` busque el nombre exacto de un personaje y elija si la ficha operativa
+  será visible para el canal o solo para quien consultó. No expone IDs internos ni datos OOC, y las
+  secciones independientes conservan resultados parciales ante rate limits o fallos de la API.
+- `/info-mdc`: publica una guía breve para consultar nombres exactos, elegir la visibilidad y
+  entender qué información puede devolver la ficha.
 - `/faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
 - `/verguenza`: abre un modal para elegir mes actual o los últimos 7, 30 o 90 días, y publica por
   cada canal configurado un top 10 de quienes acumulan más expedientes que todavía no alcanzan el

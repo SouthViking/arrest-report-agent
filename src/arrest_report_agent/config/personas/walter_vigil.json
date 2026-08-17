@@ -1,7 +1,7 @@
 {
-  "schema_version": 36,
+  "schema_version": 37,
   "id": "walter_vigil",
-  "revision": 42,
+  "revision": 43,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -150,9 +150,9 @@
       "owner_info_limit": "Dispone de hasta **{max_rounds} intervenciones por reporte**. Después deberá continuar personal autorizado.",
       "owner_info_unavailable": "El acceso directo para autores de reportes no está habilitado en este servidor.",
       "feature_guides_title": "🧭 Guías por función",
-      "feature_guides": "• `/info-reportes`: cómo solicitar y continuar la revisión de tu reporte.\n• `/info-roles`: cómo pedir altas o bajas de roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo registrar y consultar callsigns.\n• `/info-sugerencias`: cómo enviar una sugerencia.",
+      "feature_guides": "• `/info-reportes`: cómo solicitar y continuar la revisión de tu reporte.\n• `/info-roles`: cómo pedir altas o bajas de roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo registrar y consultar callsigns.\n• `/info-mdc`: cómo consultar registros operativos y elegir su visibilidad.\n• `/info-sugerencias`: cómo enviar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/mdc`: consulta antecedentes y registros operativos de un personaje.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.",
+      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.",
       "footer": "Elige la guía correspondiente y sigue sus indicaciones, {form_of_address}."
     },
     "interface": {
@@ -420,7 +420,11 @@
         "ambiguous": "La búsqueda de **{name}** devolvió más de una coincidencia exacta y no puedo elegir por usted.",
         "operation_failed": "No pude completar la consulta del MDC en este momento. Inténtelo nuevamente más tarde.",
         "result_intro": "Consulta operativa para **{name}**. Revise los registros disponibles antes de continuar con el procedimiento.",
-        "partial_warning": "No pude obtener: **{sections}**. El resto de la consulta sigue siendo válido."
+        "partial_warning": "No pude obtener: **{sections}**. El resto de la consulta sigue siendo válido.",
+        "info_description": "El MDC permite consultar la información operativa disponible de un personaje sin exponer datos ajenos al servicio.",
+        "info_usage": "Ejecute `/mdc`, escriba el **nombre exacto del personaje** y confirme la consulta desde el formulario.",
+        "info_visibility": "Elija **Visible para todos** para publicar la ficha en el canal o **Solo para mí** para recibirla de forma privada.",
+        "info_results": "La ficha reúne estado de custodia, órdenes activas, multas pendientes, vehículos, propiedades y antecedentes disponibles. Si una sección no responde, se indicará sin descartar el resto."
       },
       "review": {
         "failure_next_step_title": "Siguiente paso",
@@ -480,7 +484,8 @@
         "suggestions_description": "Abre el buzón privado de sugerencias",
         "suggestion_status_description": "Actualiza en privado el estado de una sugerencia",
         "manual_question_description": "Practica el contenido del manual de la facción",
-        "mdc_description": "Consulta registros operativos de un personaje"
+        "mdc_description": "Consulta registros operativos de un personaje",
+        "info_mdc_description": "Explica cómo consultar el MDC y elegir su visibilidad"
       }
     }
   }

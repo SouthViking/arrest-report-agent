@@ -163,10 +163,12 @@ def test_help_embed_is_a_compact_feature_directory(persona) -> None:
     assert "/info-roles" in embed.fields[0].value
     assert "/info-pager" in embed.fields[0].value
     assert "/info-callsigns" in embed.fields[0].value
+    assert "/info-mdc" in embed.fields[0].value
     assert "/info-sugerencias" in embed.fields[0].value
     assert "/guia" in embed.fields[1].value
     assert "/cargos" in embed.fields[1].value
     assert "/faq" in embed.fields[1].value
+    assert "/mdc" not in embed.fields[1].value
     assert "/pendientes" not in str(embed.to_dict())
     assert "/ranking" not in str(embed.to_dict())
     assert embed.thumbnail.url == "https://cdn.discordapp.com/avatar.png"

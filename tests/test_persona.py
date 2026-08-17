@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 36
-    assert profile.revision == 42
+    assert profile.schema_version == 37
+    assert profile.revision == 43
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -36,8 +36,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 36
-    assert profile.revision == 49
+    assert profile.schema_version == 37
+    assert profile.revision == 50
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -124,12 +124,18 @@ async def test_personas_keep_personality_copy_with_capitalized_titles(loaded_per
     assert "{seconds}" in walter.messages.interface.manual_quiz.cooldown
     assert walter.messages.interface.commands.manual_question_description
     assert roy.messages.interface.commands.manual_question_description
-    assert "/mdc" in walter.messages.help.quick_references
-    assert "/mdc" in roy.messages.help.quick_references
+    assert "/info-mdc" in walter.messages.help.feature_guides
+    assert "/info-mdc" in roy.messages.help.feature_guides
+    assert "/mdc" not in walter.messages.help.quick_references
+    assert "/mdc" not in roy.messages.help.quick_references
     assert walter.messages.interface.commands.mdc_description
     assert roy.messages.interface.commands.mdc_description
+    assert walter.messages.interface.commands.info_mdc_description
+    assert roy.messages.interface.commands.info_mdc_description
     assert "{name}" in walter.messages.interface.mdc.result_intro
     assert "{sections}" in roy.messages.interface.mdc.partial_warning
+    assert "Solo para mí" in walter.messages.interface.mdc.info_visibility
+    assert "Solo para mí" in roy.messages.interface.mdc.info_visibility
 
 
 @pytest.mark.asyncio

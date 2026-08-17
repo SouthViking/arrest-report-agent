@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from contextlib import suppress
 from datetime import UTC, datetime
+from enum import StrEnum
 
 import discord
 from discord.ext import commands
@@ -36,6 +37,11 @@ SECTION_LABELS = {
 }
 
 
+class MdcVisibility(StrEnum):
+    PUBLIC = "public"
+    PRIVATE = "private"
+
+
 class MdcCog(commands.Cog):
     """Expose the SARP police data projection to configured operational staff."""
 
@@ -49,6 +55,7 @@ class MdcCog(commands.Cog):
         self.service = service
         self.default_persona = persona
         self.mdc.description = persona.messages.interface.commands.mdc_description
+        self.info_mdc.description = persona.messages.interface.commands.info_mdc_description
 
     @discord.slash_command(name="mdc", description="Consulta un personaje en el MDC")
     async def mdc(self, ctx: discord.ApplicationContext) -> None:
@@ -83,11 +90,49 @@ class MdcCog(commands.Cog):
                 ephemeral=True,
             )
 
+    @discord.slash_command(name="info-mdc", description="Explica cómo funciona el MDC")
+    async def info_mdc(self, ctx: discord.ApplicationContext) -> None:
+        if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+            await ctx.respond(
+                embed=_generic_alert("Este comando solo funciona dentro de un servidor."),
+                ephemeral=True,
+            )
+            return
+        try:
+            bundle = await self.provider.cached(ctx.guild.id)
+            ui = bundle.persona.profile.messages.interface.mdc
+            if not _member_has_any_role(ctx.author, bundle.settings.operational_staff_role_ids):
+                await ctx.respond(embed=_alert(ui.alert_title, ui.unauthorized), ephemeral=True)
+                return
+            await ctx.respond(
+                embed=build_mdc_info_embed(ui),
+                ephemeral=False,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "mdc_info_command_failed",
+                guild_id=ctx.guild.id,
+                user_id=ctx.author.id,
+                exc_info=error,
+                **exception_fields(error),
+            )
+            await ctx.respond(
+                embed=_alert(
+                    self.default_persona.messages.interface.mdc.alert_title,
+                    self.default_persona.messages.interface.mdc.operation_failed,
+                ),
+                ephemeral=True,
+            )
+
     async def search(
         self,
         interaction: discord.Interaction,
         requester_id: int,
         raw_name: str,
+        visibility: MdcVisibility = MdcVisibility.PUBLIC,
     ) -> None:
         if (
             interaction.guild is None
@@ -117,12 +162,16 @@ class MdcCog(commands.Cog):
             normalized_name = normalize_character_name(raw_name)
             await interaction.response.defer(ephemeral=True)
             record = await self.service.lookup_exact(normalized_name)
-            await interaction.channel.send(
-                embed=build_mdc_embed(record, ui),
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
-            with suppress(discord.HTTPException):
-                await interaction.delete_original_response()
+            embed = build_mdc_embed(record, ui, requester_id=user_id)
+            if visibility is MdcVisibility.PRIVATE:
+                await interaction.edit_original_response(embed=embed)
+            else:
+                await interaction.channel.send(
+                    embed=embed,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+                with suppress(discord.HTTPException):
+                    await interaction.delete_original_response()
             log_event(
                 LOGGER,
                 "info",
@@ -130,6 +179,7 @@ class MdcCog(commands.Cog):
                 guild_id=guild_id,
                 channel_id=interaction.channel.id,
                 user_id=user_id,
+                visibility=visibility.value,
                 partial=bool(record.unavailable_sections),
                 unavailable_sections=[section.value for section in record.unavailable_sections],
             )
@@ -177,23 +227,67 @@ class MdcSearchModal(discord.ui.DesignerModal):
         self.cog = cog
         self.requester_id = requester_id
         self.name = discord.ui.InputText(
-            custom_id="mdc:v1:name",
+            custom_id="mdc:v2:name",
             placeholder="Ej.: Nombre Apellido",
             min_length=3,
             max_length=100,
         )
+        self.visibility = discord.ui.StringSelect(  # type: ignore[type-var]
+            custom_id="mdc:v2:visibility",
+            options=[
+                discord.SelectOption(
+                    label="Visible para todos",
+                    value=MdcVisibility.PUBLIC.value,
+                    emoji="🌐",
+                    default=True,
+                ),
+                discord.SelectOption(
+                    label="Solo para mí",
+                    value=MdcVisibility.PRIVATE.value,
+                    emoji="🔒",
+                ),
+            ],
+            min_values=1,
+            max_values=1,
+        )
         super().__init__(
             discord.ui.Label("Nombre exacto del personaje", self.name),
+            discord.ui.Label("Quién puede ver el resultado", self.visibility),
             title="Consultar MDC",
-            custom_id=f"mdc:v1:search:{requester_id}",
+            custom_id=f"mdc:v2:search:{requester_id}",
             timeout=MODAL_TIMEOUT_SECONDS,
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        await self.cog.search(interaction, self.requester_id, self.name.value or "")
+        visibility = next(iter(self.visibility.values or ()), MdcVisibility.PUBLIC.value)
+        await self.cog.search(
+            interaction,
+            self.requester_id,
+            self.name.value or "",
+            MdcVisibility(visibility),
+        )
 
 
-def build_mdc_embed(record: MdcRecord, ui: PersonaMdcMessages) -> discord.Embed:
+def build_mdc_info_embed(ui: PersonaMdcMessages) -> discord.Embed:
+    """Explain the public and private deterministic MDC workflow."""
+
+    embed = discord.Embed(
+        title="🖥️ Cómo usar el MDC",
+        description=ui.info_description,
+        color=discord.Color.gold(),
+    )
+    embed.add_field(name="🔎 Cómo consultar", value=ui.info_usage, inline=False)
+    embed.add_field(name="👁️ Visibilidad", value=ui.info_visibility, inline=False)
+    embed.add_field(name="📋 Información disponible", value=ui.info_results, inline=False)
+    return embed
+
+
+def build_mdc_embed(
+    record: MdcRecord,
+    ui: PersonaMdcMessages,
+    *,
+    requester_id: int,
+) -> discord.Embed:
     """Render a bounded public record without leaking transport identifiers or OOC fields."""
 
     safe_name = _safe_name(record.name)
@@ -238,6 +332,11 @@ def build_mdc_embed(record: MdcRecord, ui: PersonaMdcMessages) -> discord.Embed:
             value=_format_arrests(record.arrests),
             inline=False,
         )
+    embed.add_field(
+        name="👤 Consulta realizada por",
+        value=f"<@{requester_id}>",
+        inline=False,
+    )
     if record.unavailable_sections:
         sections = ", ".join(SECTION_LABELS[section] for section in record.unavailable_sections)
         embed.add_field(
@@ -287,10 +386,14 @@ def _format_vehicles(record: MdcRecord) -> str:
 def _format_properties(record: MdcRecord) -> str:
     if not record.properties:
         return "Sin propiedades registradas."
-    lines = [
-        f"• {_clean(item.name)}" + (f" · {_clean(item.address)}" if item.address else "")
-        for item in record.properties[:MAX_LISTED_ITEMS]
-    ]
+    lines = []
+    for item in record.properties[:MAX_LISTED_ITEMS]:
+        details = [
+            text
+            for value in (item.name, item.address)
+            if (text := _clean_optional(value)) is not None
+        ]
+        lines.append(f"• {' · '.join(details) if details else 'Propiedad registrada'}")
     return _with_remaining(lines, len(record.properties))
 
 
@@ -326,6 +429,15 @@ def _safe_name(value: str) -> str:
 
 def _clean(value: object) -> str:
     return discord.utils.escape_markdown(str(value).strip())
+
+
+def _clean_optional(value: object) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized or normalized.casefold() == "null":
+        return None
+    return discord.utils.escape_markdown(normalized)
 
 
 def _record_color(record: MdcRecord) -> discord.Color:
