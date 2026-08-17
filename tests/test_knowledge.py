@@ -133,6 +133,8 @@ def test_evidence_guide_treats_recordings_as_roleplay_and_requires_bag_reference
 
     assert "entorno narrativo de roleplay" in evidence["role_environment"][0]
     assert "No exigir" in evidence["role_environment"][1]
+    assert "no obliga a identificarlos individualmente" in evidence["role_environment"][3]
+    assert "operativos masivos" in evidence["role_environment"][4]
     assert "número de la bolsa" in evidence["evidence_bag_reference"]["rule"]
     assert "#NÚMERO" in evidence["evidence_bag_reference"]["suggested_format"]
 
@@ -148,6 +150,8 @@ def test_charge_guide_filters_historical_rows_by_identity_and_proximity() -> Non
     assert "tras cruzar medianoche" in rendered
     assert "no constituye por sí sola una contradicción" in rendered
     assert "Ignorar filas claramente antiguas" in rendered
+    assert "no exigir que se transcriba una voz de alto" in rendered
+    assert "detención física previa" in rendered
 
 
 def test_review_calibration_uses_semantic_coverage_and_material_threshold() -> None:

@@ -1,24 +1,21 @@
 {
   "schema_version": 3,
-  "version": "0.5.16",
-  "title": "Código penal sincronizable",
-  "summary": "El bot queda preparado para consultar el código penal actualizado desde SARP sin perder el respaldo local.",
+  "version": "0.5.17",
+  "title": "Revisiones con mejor criterio operativo",
+  "summary": "Las revisiones ahora distinguen mejor los hechos relevantes de los detalles opcionales en procedimientos y operativos grupales.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
+    1234675609536430152,
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "La consulta del código penal puede activarse mediante la integración oficial de SARP."
+      "type": "improved",
+      "text": "La evasión puede quedar sustentada por una huida clara durante la intervención, sin exigir una frase literal de voz de alto."
     },
     {
-      "type": "added",
-      "text": "`/cargos` y las revisiones del agente utilizan la misma versión sincronizada de los cargos."
-    },
-    {
-      "type": "added",
-      "text": "Si SARP no está disponible, el bot continúa funcionando con la última versión válida o con su catálogo local."
+      "type": "improved",
+      "text": "En operativos grupales, mencionar las cámaras de los ayudantes ya no obliga a identificar a cada participante si su actuación individual no es relevante."
     }
   ],
   "acknowledgements": []

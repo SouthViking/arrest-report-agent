@@ -125,9 +125,13 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "sin asignarle un significado inventado" in prompt
     assert "no por palabras,\n  fórmulas o frases rituales" in prompt
     assert "La ausencia de una frase aislada no vuelve un cargo `unsupported`" in prompt
+    assert "No exijas que el reporte transcriba\n  una voz de alto" in prompt
+    assert "ni que declare una detención física previa" in prompt
     assert "detalle inferible o de contexto adicional" in prompt
     assert "No audites cada paso procedimental implícito" in prompt
     assert "autorizaciones, comunicaciones" in prompt
+    assert "no obliga a individualizar a cada\n  funcionario" in prompt
+    assert "operativos masivos" in prompt
     assert "los cargos del arresto ya son inmutables" in prompt
     assert "ningún\n  `unsupported`, `uncertain` o `not_found` bloquea" in prompt
     assert "sin pedir cambiarlo" in prompt

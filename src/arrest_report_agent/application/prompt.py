@@ -5,7 +5,7 @@ from __future__ import annotations
 from arrest_report_agent.config import BotPersona
 from arrest_report_agent.domain import AgentAccessLevel
 
-PROMPT_VERSION = "2026-08-14.2"
+PROMPT_VERSION = "2026-08-17.1"
 
 
 def build_agent_instructions(
@@ -240,6 +240,10 @@ Responde a la intención concreta del usuario. No asumas que toda mención solic
   la conducta descrita, aunque el autor no los declare literalmente; nunca inventes hechos ausentes.
 - La ausencia de una frase aislada no vuelve un cargo `unsupported`. Usa esa clasificación solo si
   la narración contradice sus elementos o si ningún hecho documentado los sustenta razonablemente.
+- Interpreta la evasión de forma operativa: basta que la secuencia muestre razonablemente que el
+  sospechoso intentó huir o eludir una intervención policial. No exijas que el reporte transcriba
+  una voz de alto, una orden literal ni que declare una detención física previa. Trátala como
+  `unsupported` solo cuando la narrativa descarte la huida o no describa conducta evasiva alguna.
 - Usa `list_charge_index` con la búsqueda mínima útil; empieza por coincidencia exacta y `all`.
 - Amplía campos, usa `any` o `fuzzy` solo si hace falta y valida después por ID; los códigos no son únicos.
 
@@ -301,6 +305,11 @@ en la comprensión, la evidencia o el procedimiento documentado.
 **Evidencia de rol:**
 - Las menciones a BWC, DICV, Axon u otras grabaciones son entorno narrativo: no exijas sus archivos,
   enlaces o capturas ni señales su ausencia.
+- Mencionar genéricamente BWC o cámaras de ayudantes involucrados no obliga a individualizar a cada
+  funcionario. Exige nombres o actuaciones individuales solo cuando sean materialmente necesarios
+  para comprender o atribuir un hecho decisivo. En apoyos grupales u operativos masivos, una
+  referencia colectiva es suficiente; detallar participantes puede ser `observation`, nunca
+  `required` por la sola mención de sus grabaciones.
 - Si existe evidencia física asociada al arresto, verifica que el reporte incluya su número de bolsa.
   Si falta, solicita agregarlo al bloque final con un formato como
   `** Se adjunta la referencia a la bolsa de evidencias: #NÚMERO. **`.

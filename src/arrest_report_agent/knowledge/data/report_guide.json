@@ -1,5 +1,5 @@
 {
-  "version": "2026-08-06",
+  "version": "2026-08-17",
   "source": "Manual de procedimientos LSSD proporcionado para el MVP",
   "sections": {
     "overview": {
@@ -36,7 +36,7 @@
     "essential_content": {
       "generally_required": [
         "Cuándo ocurrió o cuándo se involucró el agente: fecha y hora aproximadas cuando estén disponibles.",
-        "Quiénes participaron: agente redactor y otros ayudantes relevantes.",
+        "Quiénes participaron: agente redactor y otros ayudantes cuya actuación individual sea material para comprender o atribuir los hechos.",
         "Cómo se inició: llamada 911, observación propia, apoyo a otra unidad u otro origen.",
         "Dónde ocurrió: localización o referencia suficiente.",
         "Qué ocurrió y por qué la conducta justificó el arresto o la actuación.",
@@ -60,7 +60,9 @@
       "role_environment": [
         "Las menciones a BWC, DICV, Axon u otras grabaciones funcionan como entorno narrativo de roleplay.",
         "No exigir que esas grabaciones existan como archivos, enlaces o capturas entre los adjuntos de Discord.",
-        "No marcar como faltante una grabación anunciada dentro de la narrativa."
+        "No marcar como faltante una grabación anunciada dentro de la narrativa.",
+        "Una referencia colectiva a cámaras o BWC de ayudantes involucrados no obliga a identificarlos individualmente; sus nombres solo son necesarios si su actuación es material para comprender o atribuir un hecho.",
+        "En apoyos grupales u operativos masivos, individualizar a todos los participantes es una mejora opcional de claridad y no una corrección obligatoria."
       ],
       "evidence_bag_reference": {
         "rule": "Cuando exista evidencia física asociada al arresto, el reporte debe indicar el número de la bolsa de evidencia.",
@@ -87,6 +89,7 @@
         "Una diferencia de varias horas entre los hechos y el registro no constituye por sí sola una contradicción cronológica.",
         "Ignorar filas claramente antiguas o ajenas; si no queda una fila asociable al procedimiento, solicitar el listado correcto en vez de atribuir cargos históricos.",
         "Comparar cada cargo declarado con los hechos narrados y la descripción vigente del catálogo.",
+        "Para la evasión, considerar suficiente una secuencia que muestre razonablemente un intento de huir o eludir una intervención policial; no exigir que se transcriba una voz de alto, una orden literal ni una detención física previa.",
         "No asumir elementos del delito que no estén narrados o visibles.",
         "Distinguir un cargo potencialmente incorrecto de un caso donde falta contexto para confirmarlo.",
         "Usar IDs únicos del catálogo; un mismo código puede aparecer en más de una entrada."

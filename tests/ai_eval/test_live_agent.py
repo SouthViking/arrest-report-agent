@@ -377,6 +377,78 @@ Revisa el expediente completo.""",
     assert not any(finding.severity.value == "required" for finding in publication.findings)
 
 
+async def test_supports_evasion_without_requiring_an_explicit_halt_or_prior_custody(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            """Solicito la revisión de este expediente transcrito. Las fotografías reglamentarias
+están presentes y son legibles.
+
+Yo, ayudante Elena Torres, bajo la asignación 241W, acudí a un robo en Jefferson el 05/08/2026 a
+las 22:15. Al descender de la patrulla para intervenir, Daniel Vega salió corriendo del lugar al
+advertir la presencia policial y trató de perderme entre los callejones de Idlewood. Lo perseguí
+durante varios minutos hasta alcanzarlo, identificarlo y arrestarlo sin lesiones. Después lo
+trasladé a la estación de Ganton. No se recolectó evidencia física.
+
+Cargos declarados:
+- CV-2801 — Evadir a un oficial de la paz.
+
+Revisa el expediente completo.""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+    assert any(charge.alignment == "supported" for charge in publication.charges)
+    assert not any(
+        finding.severity.value == "required"
+        and any(
+            term in f"{finding.title} {finding.detail} {finding.recommendation}".lower()
+            for term in ("voz de alto", "orden de detenerse", "detención previa", "custodia previa")
+        )
+        for finding in publication.findings
+    )
+
+
+async def test_mass_operation_does_not_require_naming_every_helper_mentioned_by_bwc(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            """Revisa únicamente la narrativa. Las fotografías reglamentarias están presentes y
+son legibles.
+
+Yo, ayudante Elena Torres, bajo la asignación 241W, respondí el 05/08/2026 a las 22:15 a un
+operativo masivo en Jefferson donde varias unidades contenían una pelea. Observé directamente a
+Daniel Vega golpear a una persona caída. Intervine, lo separé del grupo y lo arresté sin lesiones.
+Los demás ayudantes aseguraron el perímetro y atendieron al resto de involucrados. Trasladé a Vega
+a la estación de Ganton. No se recolectó evidencia física.
+
+**Se adjuntan grabaciones de las BWC de los ayudantes involucrados.**""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+    participant_findings = [
+        finding
+        for finding in publication.findings
+        if any(
+            term in f"{finding.title} {finding.detail} {finding.recommendation}".lower()
+            for term in ("ayudantes", "funcionarios", "participantes", "bwc")
+        )
+    ]
+
+    assert publication.review_scope is ReviewScope.NARRATIVE
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+    assert not any(finding.severity.value == "required" for finding in participant_findings)
+
+
 async def test_nonprofessional_but_clear_narrative_does_not_block_approval(
     ai_eval_settings: AppSettings,
 ) -> None:
