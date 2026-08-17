@@ -363,6 +363,11 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 mode=AccessPolicyMode.DISABLED,
             ),
             AccessPolicySnapshot(
+                key=AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS,
+                subject_type="channel",
+                mode=AccessPolicyMode.DISABLED,
+            ),
+            AccessPolicySnapshot(
                 key=AccessPolicyKey.CI_FAILURE_NOTIFICATION_CHANNELS,
                 subject_type="channel",
                 mode=AccessPolicyMode.DISABLED,

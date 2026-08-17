@@ -300,9 +300,16 @@ def test_callsign_alphabet_migration_adds_chat_without_replacing_deployment_chan
         asyncio.run(
             _assert_ci_failure_channels(database_url, (1241206587079524442,))
         )
+        asyncio.run(
+            _assert_deployment_incident_channels(
+                database_url,
+                (1241206587079524442,),
+            )
+        )
         command.downgrade(alembic, "20260813_0013")
         asyncio.run(_assert_deployment_channels(database_url, (1241206587079524442,)))
         asyncio.run(_assert_ci_failure_channels(database_url, ()))
+        asyncio.run(_assert_deployment_incident_channels(database_url, ()))
     finally:
         command.downgrade(alembic, "base")
         if previous is None:
@@ -392,6 +399,29 @@ async def _assert_ci_failure_channels(database_url: str, expected: tuple[int, ..
                 "JOIN guild_access_policy_members gapm ON gapm.policy_id = gap.id "
                 "WHERE dg.discord_id = 1234674521416663070 "
                 "AND gap.policy_key = 'ci_failure_notification_channels' "
+                "ORDER BY gapm.snowflake_id"
+            )
+        )
+        assert tuple(int(row["snowflake_id"]) for row in rows) == expected
+    finally:
+        await client.close()
+
+
+async def _assert_deployment_incident_channels(
+    database_url: str,
+    expected: tuple[int, ...],
+) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(
+            sa.text(
+                "SELECT gapm.snowflake_id FROM discord_guilds dg "
+                "JOIN guild_access_policies gap "
+                "ON gap.config_revision_id = dg.active_config_revision_id "
+                "JOIN guild_access_policy_members gapm ON gapm.policy_id = gap.id "
+                "WHERE dg.discord_id = 1234674521416663070 "
+                "AND gap.policy_key = 'deployment_incident_notification_channels' "
                 "ORDER BY gapm.snowflake_id"
             )
         )

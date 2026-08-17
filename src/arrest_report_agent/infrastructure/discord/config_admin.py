@@ -50,6 +50,9 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
     AccessPolicyKey.PAGER_CLOSER_ROLES: "Responsables de cierre de pagers",
     AccessPolicyKey.OPERATIONAL_STAFF_ROLES: "Personal operativo con callsign",
     AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: "Canales de despliegues",
+    AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: (
+        "Canales de incidentes de despliegue"
+    ),
     AccessPolicyKey.CI_FAILURE_NOTIFICATION_CHANNELS: "Canales de errores de CI",
 }
 FEATURE_LABELS = {

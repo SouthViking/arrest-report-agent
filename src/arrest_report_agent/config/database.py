@@ -39,6 +39,9 @@ class AccessPolicyKey(StrEnum):
     PAGER_CLOSER_ROLES = "pager_closer_roles"
     OPERATIONAL_STAFF_ROLES = "operational_staff_roles"
     DEPLOYMENT_NOTIFICATION_CHANNELS = "deployment_notification_channels"
+    DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS = (
+        "deployment_incident_notification_channels"
+    )
     CI_FAILURE_NOTIFICATION_CHANNELS = "ci_failure_notification_channels"
 
 
@@ -60,6 +63,7 @@ POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] 
     AccessPolicyKey.PAGER_CLOSER_ROLES: "role",
     AccessPolicyKey.OPERATIONAL_STAFF_ROLES: "role",
     AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: "channel",
+    AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: "channel",
     AccessPolicyKey.CI_FAILURE_NOTIFICATION_CHANNELS: "channel",
 }
 
@@ -175,6 +179,13 @@ class GuildConfigSnapshot(FrozenConfigModel):
                 raise ValueError(
                     "enabled deployment_notifications requires restricted deployment channels"
                 )
+            incident_channels = self.policies[
+                AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS
+            ]
+            if incident_channels.mode is AccessPolicyMode.OPEN:
+                raise ValueError(
+                    "deployment incident notification channels cannot be open"
+                )
         owner_feature = self.features.get("report_owner_access")
         if owner_feature is not None and owner_feature.enabled:
             if owner_feature.schema_version != 1:
@@ -278,6 +289,13 @@ class GuildRuntimeSettings:
     @property
     def deployment_notification_channel_ids(self) -> tuple[int, ...]:
         policy = self.snapshot.policy(AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS)
+        return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
+    def deployment_incident_notification_channel_ids(self) -> tuple[int, ...]:
+        policy = self.snapshot.policy(
+            AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS
+        )
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
 
     @property

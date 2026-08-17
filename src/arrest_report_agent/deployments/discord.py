@@ -127,9 +127,12 @@ class DeploymentNotificationWorker:
             feature = bundle.snapshot.features.get("deployment_notifications")
             if feature is None or not feature.enabled:
                 continue
-            policy = bundle.snapshot.policies.get(
+            policy_key = (
                 AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS
+                if event.event_type is DeploymentEventType.DEPLOYED
+                else AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS
             )
+            policy = bundle.snapshot.policies.get(policy_key)
             if policy is None or policy.mode is not AccessPolicyMode.RESTRICTED:
                 continue
             channel_ids = policy.ids

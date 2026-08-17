@@ -295,7 +295,7 @@ async def test_success_changelog_targets_only_selected_configured_channels() -> 
 
 
 @pytest.mark.asyncio
-async def test_failure_alerts_ignore_changelog_channel_selection() -> None:
+async def test_failure_alerts_use_only_dedicated_incident_channels() -> None:
     event = DeploymentEventRecord(
         id=UUID("00000000-0000-0000-0000-000000000008"),
         event_type=DeploymentEventType.FAILED,
@@ -311,11 +311,15 @@ async def test_failure_alerts_ignore_changelog_channel_selection() -> None:
         timestamp=datetime.now(UTC),
     )
     repository = FakeDeploymentRepository()
-    policy = SimpleNamespace(mode=AccessPolicyMode.RESTRICTED, ids=(456, 789))
+    release_policy = SimpleNamespace(mode=AccessPolicyMode.RESTRICTED, ids=(456, 789))
+    incident_policy = SimpleNamespace(mode=AccessPolicyMode.RESTRICTED, ids=(789,))
     bundle = SimpleNamespace(
         snapshot=SimpleNamespace(
             features={"deployment_notifications": SimpleNamespace(enabled=True)},
-            policies={AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: policy},
+            policies={
+                AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: release_policy,
+                AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: incident_policy,
+            },
         )
     )
     provider = SimpleNamespace(
@@ -334,7 +338,7 @@ async def test_failure_alerts_ignore_changelog_channel_selection() -> None:
 
     await worker._prepare_event(event)  # noqa: SLF001
 
-    assert [target.channel_id for target in repository.targets] == [456, 789]
+    assert [target.channel_id for target in repository.targets] == [789]
 
 
 async def _async_value(value: object) -> object:

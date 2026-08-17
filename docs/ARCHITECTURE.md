@@ -191,6 +191,12 @@ auditoría, mientras la ejecución, intento y repositorio forman la clave idempo
 política `ci_failure_notification_channels` resuelve los destinos sin reutilizar canales públicos de
 changelog o despliegue.
 
+Los despliegues exitosos resuelven la política `deployment_notification_channels` y luego la
+intersectan con `changelog_targets` del release. Los eventos `failed`, `crashed` y `oom_killed`
+resuelven exclusivamente `deployment_incident_notification_channels`, evitando que una alerta
+operacional se publique por accidente en canales públicos de changelog. Los fallos de GitHub
+Actions mantienen su política separada `ci_failure_notification_channels`.
+
 ## Solicitudes de roles
 
 La feature `role_requests` y sus políticas viven en la revisión activa. Un registro dinámico resuelve

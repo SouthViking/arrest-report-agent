@@ -254,8 +254,9 @@ manifest estricto [`release.json`](src/arrest_report_agent/release.json). El man
 título, resumen, hasta diez cambios tipados y `changelog_targets`; no contiene copy de una persona.
 `changelog_targets` acepta `"all"` para publicar en todos los canales configurados o una lista de
 IDs para publicar solo en esa intersección. Nunca permite enviar a un canal que no esté autorizado
-por la política **Canales de despliegues** de su guild. Las alertas de fallo continúan llegando a
-todos los canales configurados, independientemente de esta selección.
+por la política **Canales de despliegues** de su guild. Las alertas `failed`, `crashed` y
+`oom_killed` utilizan exclusivamente la política independiente **Canales de incidentes de
+despliegue** y nunca reutilizan destinos públicos del changelog.
 
 El receptor se habilita únicamente cuando están presentes `RAILWAY_WEBHOOK_SECRET` y los IDs del
 proyecto, entorno y servicio. La URL que se configura en Railway es:
@@ -279,8 +280,10 @@ canal y versión tiene una clave idempotente, y los errores transitorios de Disc
 backoff. Las alertas de fallo no publican secretos, logs ni mensajes de commit.
 
 Para activarlo en una guild, usa `/config`, crea un borrador, configura **Canales de despliegues** en
-modo restringido, habilita **Notificaciones de despliegue** con schema `1` y opciones `{}`, y publica
-el borrador. Hasta entonces la migración lo deja explícitamente deshabilitado.
+modo restringido y, si deseas alertas operacionales, configura **Canales de incidentes de
+despliegue** en modo restringido. Luego habilita **Notificaciones de despliegue** con schema `1` y
+opciones `{}` y publica el borrador. La migración restringe los incidentes de LSSD únicamente a
+`lssd-bot-git` y los deja deshabilitados en las demás guilds.
 
 ### Alertas de GitHub Actions
 
