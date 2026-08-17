@@ -23,6 +23,7 @@ from arrest_report_agent.infrastructure.sarp import (
     SarpPenalCodeProvider,
     SarpRateLimitError,
     SarpServerError,
+    build_charge_catalog,
 )
 from arrest_report_agent.knowledge import ChargeCatalog, ChargeCatalogSource
 from arrest_report_agent.knowledge.catalog import Charge, ChargeCategory
@@ -188,6 +189,35 @@ async def test_get_penal_code_uses_documented_endpoint_and_returns_typed_payload
 
     assert payload.categories[0].id == 4
     assert payload.charges[0].charge == "Evasión"
+
+
+async def test_penal_code_keeps_uncategorized_charges_returned_by_current_api() -> None:
+    payload = SarpPenalCodePayload.model_validate(
+        {
+            "categories": [
+                {
+                    "id": 4,
+                    "title": "Delitos contra la autoridad",
+                }
+            ],
+            "charges": [
+                {
+                    "id": 89,
+                    "category": 0,
+                    "category_title": None,
+                    "code": "CP-189",
+                    "charge": "Homicidio en primer grado",
+                    "type": "GRAVE",
+                }
+            ],
+        }
+    )
+
+    catalog = build_charge_catalog(payload)
+
+    assert catalog.charge_count == 1
+    assert catalog.get_details([89])["missing_ids"] == []
+    assert catalog.list_index(query="Homicidio")["results"][0]["category"] == "Sin categoría"
 
 
 async def test_penal_code_provider_uses_remote_then_last_valid_snapshot_on_failure() -> None:

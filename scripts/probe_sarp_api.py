@@ -7,7 +7,7 @@ import sys
 
 import requests
 
-API_URL = "https://api.sarp.es/api/police/fines"
+API_URL = "https://api.gta-rol.com/api/police/fines"
 
 
 def main() -> int:

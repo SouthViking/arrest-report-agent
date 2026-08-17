@@ -39,7 +39,7 @@ Sleep = Callable[[float], Awaitable[None]]
 PayloadT = TypeVar("PayloadT")
 
 SAFE_RETRY_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
-DEFAULT_BASE_URL = "https://api.sarp.es/api"
+DEFAULT_BASE_URL = "https://api.gta-rol.com/api"
 PENAL_CODE_PAYLOAD_ADAPTER = TypeAdapter(SarpPenalCodePayload)
 
 

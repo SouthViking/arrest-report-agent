@@ -61,8 +61,8 @@ class SarpPenalCodeCharge(BaseModel):
     model_config = ConfigDict(extra="ignore", frozen=True)
 
     id: int = Field(gt=0)
-    category: int = Field(gt=0)
-    category_title: str = Field(min_length=1)
+    category: int = Field(ge=0)
+    category_title: str | None = Field(default=None, min_length=1)
     code: str = Field(min_length=1)
     charge: str = Field(min_length=1)
     description: str = ""
@@ -72,6 +72,12 @@ class SarpPenalCodeCharge(BaseModel):
     parole: int | float | None = None
     fine: int | float | None = None
     points: int | float | None = None
+
+    @model_validator(mode="after")
+    def validate_category_title(self) -> SarpPenalCodeCharge:
+        if self.category != 0 and self.category_title is None:
+            raise ValueError("SARP categorized charges must include category_title")
+        return self
 
 
 class SarpPenalCodePayload(BaseModel):
@@ -92,7 +98,9 @@ class SarpPenalCodePayload(BaseModel):
         if len(set(charge_ids)) != len(charge_ids):
             raise ValueError("SARP penal-code charge IDs must be unique")
         unknown_categories = {
-            charge.category for charge in self.charges if charge.category not in category_id_set
+            charge.category
+            for charge in self.charges
+            if charge.category != 0 and charge.category not in category_id_set
         }
         if unknown_categories:
             raise ValueError(

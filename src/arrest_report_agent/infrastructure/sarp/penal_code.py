@@ -133,9 +133,12 @@ class SarpPenalCodeProvider:
 def build_charge_catalog(payload: SarpPenalCodePayload) -> ChargeCatalog:
     """Adapt the flat SARP payload to the existing shared catalog contract."""
 
+    has_uncategorized_charges = any(charge.category == 0 for charge in payload.charges)
     charges_by_category: dict[int, list[Charge]] = {
         category.id: [] for category in payload.categories
     }
+    if has_uncategorized_charges:
+        charges_by_category[0] = []
     for charge in payload.charges:
         charges_by_category[charge.category].append(
             Charge(
@@ -151,7 +154,7 @@ def build_charge_catalog(payload: SarpPenalCodePayload) -> ChargeCatalog:
                 points=charge.points,
             )
         )
-    categories = [
+    catalog_categories = [
         ChargeCategory(
             id=category.id,
             title=category.title,
@@ -160,10 +163,19 @@ def build_charge_catalog(payload: SarpPenalCodePayload) -> ChargeCatalog:
         )
         for category in payload.categories
     ]
+    if has_uncategorized_charges:
+        catalog_categories.append(
+            ChargeCategory(
+                id=0,
+                title="Sin categoría",
+                description="Cargos vigentes que la API no asigna a una categoría.",
+                charges=charges_by_category[0],
+            )
+        )
     canonical = json.dumps(
         payload.model_dump(mode="json"),
         ensure_ascii=False,
         separators=(",", ":"),
         sort_keys=True,
     ).encode()
-    return ChargeCatalog(categories, hashlib.sha256(canonical).hexdigest())
+    return ChargeCatalog(catalog_categories, hashlib.sha256(canonical).hexdigest())

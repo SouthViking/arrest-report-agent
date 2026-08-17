@@ -213,7 +213,7 @@ class AppSettings(BaseSettings):
     sarp_api_token: SecretStr | None = Field(default=None, alias="SARP_API_TOKEN")
     sarp_api_enabled: bool = Field(default=False, alias="SARP_API_ENABLED")
     sarp_api_base_url: str = Field(
-        default="https://api.sarp.es/api",
+        default="https://api.gta-rol.com/api",
         alias="SARP_API_BASE_URL",
         min_length=1,
     )

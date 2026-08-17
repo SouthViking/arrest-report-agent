@@ -473,7 +473,7 @@ el contenido exacto del FAQ.
 | `COST_MONITOR_CACHE_SECONDS` | `300` | Vigencia en memoria del último resumen válido para evitar consultas repetidas. |
 | `SARP_API_ENABLED` | `false` | Kill switch global. Apagado evita crear el cliente o realizar solicitudes; el código penal permanece local. |
 | `SARP_API_TOKEN` | vacío | Token personal enviado exclusivamente como `Authorization: Bearer`; obligatorio al activar SARP y nunca registrado. |
-| `SARP_API_BASE_URL` | `https://api.sarp.es/api` | Base HTTPS de la API comunitaria de SARP. |
+| `SARP_API_BASE_URL` | `https://api.gta-rol.com/api` | Base HTTPS de la API comunitaria de SARP. |
 | `SARP_API_TIMEOUT_SECONDS` | `10` | Timeout total de cada intento contra SARP. |
 | `SARP_API_MAX_RETRIES` | `2` | Reintentos máximos para lecturas seguras ante transporte, rate limit o errores transitorios. |
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |

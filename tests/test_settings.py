@@ -122,7 +122,7 @@ def test_railway_webhook_requires_complete_identity_and_url_safe_secret() -> Non
 
     assert settings.railway_webhook_enabled is True
     assert settings.railway_webhook_identity_is_complete is True
-    assert settings.app_version == "0.5.17"
+    assert settings.app_version == "0.5.18"
 
     with pytest.raises(ValidationError, match="RAILWAY_ENVIRONMENT_ID"):
         AppSettings(**{key: value for key, value in values.items() if key != "RAILWAY_ENVIRONMENT_ID"})
@@ -178,7 +178,7 @@ def test_sarp_client_settings_are_optional_normalized_and_secret() -> None:
         OPENAI_API_KEY="openai",
         SARP_API_ENABLED="true",
         SARP_API_TOKEN="  sarp_secret  ",
-        SARP_API_BASE_URL="https://api.sarp.es/api/",
+        SARP_API_BASE_URL="https://api.gta-rol.com/api/",
         SARP_API_TIMEOUT_SECONDS="12",
         SARP_API_MAX_RETRIES="3",
     )
@@ -187,7 +187,7 @@ def test_sarp_client_settings_are_optional_normalized_and_secret() -> None:
     assert settings.sarp_api_enabled is True
     assert settings.sarp_api_token.get_secret_value() == "sarp_secret"
     assert "sarp_secret" not in repr(settings)
-    assert settings.sarp_api_base_url == "https://api.sarp.es/api"
+    assert settings.sarp_api_base_url == "https://api.gta-rol.com/api"
     assert settings.sarp_api_timeout_seconds == 12
     assert settings.sarp_api_max_retries == 3
 
@@ -212,10 +212,10 @@ def test_sarp_api_is_disabled_by_default_and_enabled_mode_requires_token() -> No
 @pytest.mark.parametrize(
     "base_url",
     [
-        "api.sarp.es/api",
-        "http://api.sarp.es/api",
-        "https://user:password@api.sarp.es/api",
-        "https://api.sarp.es/api?token=secret",
+        "api.gta-rol.com/api",
+        "http://api.gta-rol.com/api",
+        "https://user:password@api.gta-rol.com/api",
+        "https://api.gta-rol.com/api?token=secret",
     ],
 )
 def test_sarp_client_settings_reject_unsafe_base_urls(base_url: str) -> None:
