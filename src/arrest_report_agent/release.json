@@ -1,26 +1,26 @@
 {
   "schema_version": 3,
-  "version": "0.6.1",
-  "title": "Consultas del MDC más claras y privadas",
-  "summary": "El personal operativo puede decidir quién ve cada consulta y cuenta con una guía breve para utilizar el MDC.",
+  "version": "0.6.2",
+  "title": "Corrección de respuestas del MDC",
+  "summary": "Las consultas privadas y los avisos por nombres incorrectos vuelven a responder correctamente desde el formulario del MDC.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
-      "type": "added",
-      "text": "El formulario de `/mdc` permite elegir entre publicar la ficha en el canal o verla de forma privada."
-    },
-    {
-      "type": "added",
-      "text": "Se agregó `/info-mdc` con instrucciones breves sobre la búsqueda, la visibilidad y los datos disponibles."
-    },
-    {
-      "type": "improved",
-      "text": "Cada ficha muestra quién realizó la consulta sin generar una notificación adicional."
+      "type": "fixed",
+      "text": "La opción **Solo para mí** vuelve a entregar la ficha de manera privada sin fallar al finalizar la consulta."
     },
     {
       "type": "fixed",
-      "text": "Las propiedades sin nombre ahora muestran correctamente su dirección en vez del valor `NULL`."
+      "text": "Los nombres inexistentes o mal escritos muestran nuevamente el aviso correspondiente."
+    },
+    {
+      "type": "improved",
+      "text": "Las consultas públicas muestran la referencia nativa de quién utilizó `/mdc`."
+    },
+    {
+      "type": "improved",
+      "text": "Los avisos del MDC respetan la visibilidad seleccionada en el formulario."
     }
   ],
   "acknowledgements": []

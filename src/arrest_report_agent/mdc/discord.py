@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from contextlib import suppress
 from datetime import UTC, datetime
 from enum import StrEnum
 
@@ -160,18 +159,15 @@ class MdcCog(commands.Cog):
                 )
                 return
             normalized_name = normalize_character_name(raw_name)
-            await interaction.response.defer(ephemeral=True)
+            private = visibility is MdcVisibility.PRIVATE
+            await interaction.response.defer(ephemeral=private)
             record = await self.service.lookup_exact(normalized_name)
-            embed = build_mdc_embed(record, ui, requester_id=user_id)
-            if visibility is MdcVisibility.PRIVATE:
-                await interaction.edit_original_response(embed=embed)
-            else:
-                await interaction.channel.send(
-                    embed=embed,
-                    allowed_mentions=discord.AllowedMentions.none(),
-                )
-                with suppress(discord.HTTPException):
-                    await interaction.delete_original_response()
+            embed = build_mdc_embed(record, ui)
+            await interaction.followup.send(
+                embed=embed,
+                ephemeral=private,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
             log_event(
                 LOGGER,
                 "info",
@@ -188,12 +184,14 @@ class MdcCog(commands.Cog):
                 interaction,
                 ui,
                 ui.not_found.format(name=_safe_name(raw_name)),
+                visibility,
             )
         except MdcCharacterAmbiguousError:
             await self._send_lookup_error(
                 interaction,
                 ui,
                 ui.ambiguous.format(name=_safe_name(raw_name)),
+                visibility,
             )
         except Exception as error:
             log_event(
@@ -205,19 +203,33 @@ class MdcCog(commands.Cog):
                 exc_info=error,
                 **exception_fields(error),
             )
-            await self._send_lookup_error(interaction, ui, ui.operation_failed)
+            await self._send_lookup_error(
+                interaction,
+                ui,
+                ui.operation_failed,
+                visibility,
+            )
 
     @staticmethod
     async def _send_lookup_error(
         interaction: discord.Interaction,
         ui: PersonaMdcMessages,
         description: str,
+        visibility: MdcVisibility,
     ) -> None:
         embed = _alert(ui.alert_title, description)
         if interaction.response.is_done():
-            await interaction.edit_original_response(embed=embed)
+            await interaction.followup.send(
+                embed=embed,
+                ephemeral=visibility is MdcVisibility.PRIVATE,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
         else:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.response.send_message(
+                embed=embed,
+                ephemeral=visibility is MdcVisibility.PRIVATE,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
 
 
 class MdcSearchModal(discord.ui.DesignerModal):
@@ -285,8 +297,6 @@ def build_mdc_info_embed(ui: PersonaMdcMessages) -> discord.Embed:
 def build_mdc_embed(
     record: MdcRecord,
     ui: PersonaMdcMessages,
-    *,
-    requester_id: int,
 ) -> discord.Embed:
     """Render a bounded public record without leaking transport identifiers or OOC fields."""
 
@@ -332,11 +342,6 @@ def build_mdc_embed(
             value=_format_arrests(record.arrests),
             inline=False,
         )
-    embed.add_field(
-        name="👤 Consulta realizada por",
-        value=f"<@{requester_id}>",
-        inline=False,
-    )
     if record.unavailable_sections:
         sections = ", ".join(SECTION_LABELS[section] for section in record.unavailable_sections)
         embed.add_field(

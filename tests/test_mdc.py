@@ -227,7 +227,7 @@ def test_mdc_embed_is_public_safe_and_marks_partial_sections(persona) -> None:
         unavailable_sections=(MdcSection.FINES,),
     )
 
-    embed = build_mdc_embed(record, persona.messages.interface.mdc, requester_id=11)
+    embed = build_mdc_embed(record, persona.messages.interface.mdc)
     rendered = "\n".join(
         [embed.title or "", embed.description or ""]
         + [f"{field.name}\n{field.value}" for field in embed.fields]
@@ -238,7 +238,6 @@ def test_mdc_embed_is_public_safe_and_marks_partial_sections(persona) -> None:
     assert "multas pendientes" in rendered
     assert "ID" not in rendered
     assert "nivel" not in rendered.lower()
-    assert "Consulta realizada por\n<@11>" in rendered
     assert embed.image is None
 
 
@@ -274,7 +273,7 @@ def test_mdc_embed_omits_null_property_name(persona) -> None:
         ),
     )
 
-    embed = build_mdc_embed(record, persona.messages.interface.mdc, requester_id=11)
+    embed = build_mdc_embed(record, persona.messages.interface.mdc)
     properties = next(field.value for field in embed.fields if field.name.startswith("🏠"))
 
     assert properties == "• Alamosa Avenue, Marina, Los Santos 313, San Andreas"
@@ -386,11 +385,10 @@ async def test_mdc_info_rejects_non_operational_member(persona) -> None:
     assert responses[0]["embed"].description == persona.messages.interface.mdc.unauthorized
 
 
-async def test_mdc_modal_search_publishes_success_and_removes_ephemeral_placeholder(persona) -> None:
+async def test_mdc_modal_search_publishes_public_interaction_response(persona) -> None:
     member = _member(11, (200,))
-    sent: list[dict[str, object]] = []
+    followups: list[dict[str, object]] = []
     deferred: list[dict[str, object]] = []
-    deleted: list[bool] = []
 
     async def cached(_guild_id: int):
         return SimpleNamespace(
@@ -401,22 +399,18 @@ async def test_mdc_modal_search_publishes_success_and_removes_ephemeral_placehol
     async def lookup_exact(_name: str) -> MdcRecord:
         return MdcRecord(name="Terry McKenzie", incarcerated=False)
 
-    async def send(**kwargs: object) -> None:
-        sent.append(kwargs)
+    async def followup_send(**kwargs: object) -> None:
+        followups.append(kwargs)
 
     async def defer(**kwargs: object) -> None:
         deferred.append(kwargs)
 
-    async def delete_original_response() -> None:
-        deleted.append(True)
-
-    channel = SimpleNamespace(id=22, send=send)
     interaction = SimpleNamespace(
         guild=member.guild,
-        channel=channel,
+        channel=SimpleNamespace(id=22),
         user=member,
         response=SimpleNamespace(defer=defer, is_done=lambda: True),
-        delete_original_response=delete_original_response,
+        followup=SimpleNamespace(send=followup_send),
     )
     cog = MdcCog(
         SimpleNamespace(cached=cached),
@@ -426,24 +420,17 @@ async def test_mdc_modal_search_publishes_success_and_removes_ephemeral_placehol
 
     await cog.search(interaction, requester_id=11, raw_name="Terry McKenzie")
 
-    assert deferred == [{"ephemeral": True}]
-    assert deleted == [True]
-    assert sent[0]["embed"].title == "🖥️ MDC · Terry McKenzie"
-    requester = next(
-        field.value
-        for field in sent[0]["embed"].fields
-        if field.name == "👤 Consulta realizada por"
-    )
-    assert requester == "<@11>"
-    assert sent[0]["allowed_mentions"].everyone is False
-    assert sent[0]["allowed_mentions"].roles is False
+    assert deferred == [{"ephemeral": False}]
+    assert followups[0]["ephemeral"] is False
+    assert followups[0]["embed"].title == "🖥️ MDC · Terry McKenzie"
+    assert followups[0]["allowed_mentions"].everyone is False
+    assert followups[0]["allowed_mentions"].roles is False
 
 
 async def test_mdc_modal_search_can_keep_result_private(persona) -> None:
     member = _member(11, (200,))
-    sent: list[dict[str, object]] = []
-    edited: list[dict[str, object]] = []
-    deleted: list[bool] = []
+    followups: list[dict[str, object]] = []
+    deferred: list[dict[str, object]] = []
 
     async def cached(_guild_id: int):
         return SimpleNamespace(
@@ -454,25 +441,18 @@ async def test_mdc_modal_search_can_keep_result_private(persona) -> None:
     async def lookup_exact(_name: str) -> MdcRecord:
         return MdcRecord(name="Terry McKenzie", incarcerated=False)
 
-    async def send(**kwargs: object) -> None:
-        sent.append(kwargs)
+    async def defer(**kwargs: object) -> None:
+        deferred.append(kwargs)
 
-    async def defer(**_kwargs: object) -> None:
-        return None
-
-    async def edit_original_response(**kwargs: object) -> None:
-        edited.append(kwargs)
-
-    async def delete_original_response() -> None:
-        deleted.append(True)
+    async def followup_send(**kwargs: object) -> None:
+        followups.append(kwargs)
 
     interaction = SimpleNamespace(
         guild=member.guild,
-        channel=SimpleNamespace(id=22, send=send),
+        channel=SimpleNamespace(id=22),
         user=member,
         response=SimpleNamespace(defer=defer, is_done=lambda: True),
-        edit_original_response=edit_original_response,
-        delete_original_response=delete_original_response,
+        followup=SimpleNamespace(send=followup_send),
     )
     cog = MdcCog(
         SimpleNamespace(cached=cached),
@@ -487,9 +467,67 @@ async def test_mdc_modal_search_can_keep_result_private(persona) -> None:
         visibility=MdcVisibility.PRIVATE,
     )
 
-    assert sent == []
-    assert deleted == []
-    assert edited[0]["embed"].title == "🖥️ MDC · Terry McKenzie"
+    assert deferred == [{"ephemeral": True}]
+    assert followups[0]["embed"].title == "🖥️ MDC · Terry McKenzie"
+    assert followups[0]["ephemeral"] is True
+    assert followups[0]["allowed_mentions"].everyone is False
+
+
+@pytest.mark.parametrize(
+    ("visibility", "expected_ephemeral"),
+    (
+        (MdcVisibility.PUBLIC, False),
+        (MdcVisibility.PRIVATE, True),
+    ),
+)
+async def test_mdc_not_found_follows_selected_visibility(
+    persona,
+    visibility: MdcVisibility,
+    expected_ephemeral: bool,
+) -> None:
+    member = _member(11, (200,))
+    followups: list[dict[str, object]] = []
+    deferred: list[dict[str, object]] = []
+
+    async def cached(_guild_id: int):
+        return SimpleNamespace(
+            settings=SimpleNamespace(operational_staff_role_ids=(200,)),
+            persona=SimpleNamespace(profile=persona),
+        )
+
+    async def lookup_exact(_name: str) -> MdcRecord:
+        raise MdcCharacterNotFoundError
+
+    async def defer(**kwargs: object) -> None:
+        deferred.append(kwargs)
+
+    async def followup_send(**kwargs: object) -> None:
+        followups.append(kwargs)
+
+    interaction = SimpleNamespace(
+        guild=member.guild,
+        channel=SimpleNamespace(id=22),
+        user=member,
+        response=SimpleNamespace(defer=defer, is_done=lambda: True),
+        followup=SimpleNamespace(send=followup_send),
+    )
+    cog = MdcCog(
+        SimpleNamespace(cached=cached),
+        SimpleNamespace(lookup_exact=lookup_exact),
+        persona,
+    )
+
+    await cog.search(
+        interaction,
+        requester_id=11,
+        raw_name="Nombre Inexistente",
+        visibility=visibility,
+    )
+
+    assert deferred == [{"ephemeral": expected_ephemeral}]
+    assert followups[0]["ephemeral"] is expected_ephemeral
+    assert followups[0]["embed"].title == persona.messages.interface.mdc.alert_title
+    assert "Nombre Inexistente" in followups[0]["embed"].description
 
 
 async def test_mdc_form_has_fixed_exact_name_copy(persona) -> None:
