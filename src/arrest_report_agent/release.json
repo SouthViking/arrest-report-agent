@@ -1,20 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.8.1",
-  "title": "Búsqueda mejorada de miembros",
-  "summary": "El bot ahora reconoce mejor a miembros que utilizan nombres abreviados o varios personajes en su apodo de Discord.",
+  "version": "0.9.0",
+  "title": "Seguimiento de reportes pendientes",
+  "summary": "El personal operativo ahora puede detectar rápidamente los reportes de arresto que todavía parecen incompletos.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "Las búsquedas relacionan nombres completos con formatos abreviados como «D. Apellido» y apodos que contienen varios personajes."
+      "type": "added",
+      "text": "El nuevo comando /reportes-pendientes permite revisar un período y resume reportes revisados, pendientes y nivel de cumplimiento."
     },
     {
-      "type": "fixed",
-      "text": "Cuando existen varias coincidencias posibles, el bot solicita precisión en lugar de mencionar a una persona arbitrariamente."
+      "type": "improved",
+      "text": "Cada consulta puede publicarse para todos o mantenerse privada, con estados por antigüedad y navegación cuando existen muchos resultados."
     }
   ],
   "acknowledgements": []

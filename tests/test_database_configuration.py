@@ -31,6 +31,7 @@ from arrest_report_agent.config import (
     GuildRuntimeSettings,
     ModelCatalog,
     PackagedPersonaProvider,
+    PendingArrestReportsOptions,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
 from arrest_report_agent.deployments import DeploymentRepository, RailwayDeploymentEvent
@@ -59,6 +60,16 @@ def test_arrest_lookup_configuration_requires_positive_faction_id() -> None:
     assert ArrestReportLookupOptions(faction_id=3).faction_id == 3
     with pytest.raises(ValueError, match="greater than 0"):
         ArrestReportLookupOptions(faction_id=0)
+
+
+def test_pending_arrest_reports_options_are_bounded() -> None:
+    options = PendingArrestReportsOptions(faction_id=3)
+    assert options.max_range_days == 90
+    assert options.max_records == 1000
+    with pytest.raises(ValueError, match="less than or equal to 365"):
+        PendingArrestReportsOptions(faction_id=3, max_range_days=366)
+    with pytest.raises(ValueError, match="greater than or equal to 50"):
+        PendingArrestReportsOptions(faction_id=3, max_records=49)
 
 
 def test_arrest_lookup_runtime_requires_valid_enabled_payload(settings) -> None:
@@ -537,6 +548,25 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         )
         assert binding_table is not None
         assert binding_table["name"] == "report_arrest_bindings"
+        pending_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.enabled, feature.payload "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'pending_arrest_reports' "
+                "ORDER BY revision.guild_id"
+            )
+        )
+        pending = {int(row["guild_id"]): row for row in pending_rows}
+        assert pending[1234674521416663070]["enabled"] is True
+        assert pending[1234674521416663070]["payload"] == {
+            "faction_id": 3,
+            "max_range_days": 90,
+            "max_records": 1000,
+        }
+        assert pending[999]["enabled"] is False
+        assert pending[999]["payload"] == {}
     finally:
         await client.close()
 
@@ -798,8 +828,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 44
-        assert persona["schema_version"] == 38
+        assert persona["revision"] == 45
+        assert persona["schema_version"] == 39
         assert persona["payload"]["messages"]["access"]["blocked_user_messages"]
         assert persona["payload"]["messages"]["access"]["owner_quota_exhausted_messages"]
         assert persona["payload"]["messages"]["access"]["owner_invalid_report_messages"]
@@ -843,6 +873,15 @@ async def _assert_callsign_migration(
             "connected_members_description"
         ]
         assert "/conectados" in persona["payload"]["messages"]["help"][
+            "quick_references"
+        ]
+        assert persona["payload"]["messages"]["interface"]["pending_arrest_reports"][
+            "result_intro"
+        ]
+        assert persona["payload"]["messages"]["interface"]["commands"][
+            "pending_arrest_reports_description"
+        ]
+        assert "/reportes-pendientes" in persona["payload"]["messages"]["help"][
             "quick_references"
         ]
         assert persona["payload"]["messages"]["interface"]["commands"]["teamspeak_unauthorized"]

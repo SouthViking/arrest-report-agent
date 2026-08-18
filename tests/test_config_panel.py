@@ -311,6 +311,9 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
     assert "faction_status" in {
         option.value for option in feature_modal.key.options
     }
+    assert "pending_arrest_reports" in {
+        option.value for option in feature_modal.key.options
+    }
     persona_modal = PersonaConfigurationModal(cog, 42, include_global_profile=True)
     assert persona_modal.title == "Administrar personas"
     assert [option.value for option in persona_modal.action.options][-1] == "global"

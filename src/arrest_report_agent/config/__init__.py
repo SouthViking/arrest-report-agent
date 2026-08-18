@@ -11,6 +11,7 @@ from .database import (
     GuildConfigSnapshot,
     GuildFeatureSnapshot,
     GuildRuntimeSettings,
+    PendingArrestReportsOptions,
     ReportOwnerAccessOptions,
 )
 from .model_catalog import ModelCatalog, ResolvedModel
@@ -38,6 +39,7 @@ from .persona import (
     PersonaMessages,
     PersonaNavigationMessages,
     PersonaPagerMessages,
+    PersonaPendingArrestReportsMessages,
     PersonaPersonalReportMessages,
     PersonaPresence,
     PersonaProvider,
@@ -64,6 +66,7 @@ __all__ = [
     "GuildConfigSnapshot",
     "GuildFeatureSnapshot",
     "GuildRuntimeSettings",
+    "PendingArrestReportsOptions",
     "ReportOwnerAccessOptions",
     "LoadedPersona",
     "ModelCatalog",
@@ -87,6 +90,7 @@ __all__ = [
     "PersonaMessages",
     "PersonaNavigationMessages",
     "PersonaPagerMessages",
+    "PersonaPendingArrestReportsMessages",
     "PersonaPersonalReportMessages",
     "PersonaPresence",
     "PersonaProvider",

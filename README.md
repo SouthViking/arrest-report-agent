@@ -368,6 +368,11 @@ Comandos disponibles:
   secciones independientes conservan resultados parciales ante rate limits o fallos de la API.
 - `/info-mdc`: publica una guía breve para consultar nombres exactos, elegir la visibilidad y
   entender qué información puede devolver la ficha.
+- `/conectados`: publica para `operational_staff_roles` el personal conectado y en servicio.
+- `/reportes-pendientes`: abre un formulario para que `operational_staff_roles` seleccione un
+  período de hasta 90 días y decida si el resultado será público o privado. Revisa hasta 1.000
+  arrestos de SARP sin IA y muestra en un solo embed los que parecen incompletos, ordenados del más
+  antiguo al más reciente y clasificados por antigüedad.
 - `/faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
 - `/verguenza`: abre un modal para elegir mes actual o los últimos 7, 30 o 90 días, y publica por
   cada canal configurado un top 10 de quienes acumulan más expedientes que todavía no alcanzan el
@@ -424,6 +429,10 @@ En `/config` → **Módulos**, `report_owner_access` acepta `{"max_rounds": 5}` 
 20. Solo puede habilitarse cuando `report_channels` contiene IDs explícitos.
 `arrest_report_lookup` acepta `{"faction_id": 3}` y habilita las tools SARP del agente para esa
 guild. El interruptor global `SARP_API_ENABLED` debe estar activo; no requiere variables nuevas.
+`pending_arrest_reports` acepta
+`{"faction_id": 3, "max_range_days": 90, "max_records": 1000}` y habilita la consulta manual
+determinista. Reutiliza `operational_staff_roles`, funciona en cualquier canal y tampoco agrega
+variables de entorno.
 
 Al iniciar el acceso limitado fuera de un hilo, la publicación raíz debe contener dos componentes
 de nombre, una referencia opcional de bolsa de evidencia y al menos cuatro imágenes compatibles. La
@@ -522,7 +531,7 @@ el contenido exacto del FAQ.
 | `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA` | `false` | Excluye mensajes, imágenes, archivos y tool payloads del trace. |
 
 Con `SARP_API_ENABLED=true`, el runtime obtiene `GET /police/penal-code` al arrancar, lo refresca
-en segundo plano y registra `/mdc` y `/conectados`. `/cargos` y las tools del agente comparten el mismo snapshot: una caída temporal
+en segundo plano y registra `/mdc`, `/conectados` y `/reportes-pendientes`. `/cargos` y las tools del agente comparten el mismo snapshot: una caída temporal
 conserva el último catálogo remoto válido y, si todavía no existe uno, usa `delitos.json`. Cada
 revisión fija su snapshot al comenzar, por lo que una actualización no mezcla fuentes a mitad de
 una ejecución. `/mdc` consulta en vivo la búsqueda exacta, perfil IC, posesiones y registros
@@ -540,6 +549,12 @@ de cada guild. Obtiene el roster completo con `GET /my-faction/faction/:factionI
 sola vista los totales de conectados, personal en servicio y porcentaje de cobertura, junto con la
 lista alfabética de conectados. La API se consulta una sola vez y el resultado se comparte durante
 quince segundos para proteger el límite del proveedor.
+
+`/reportes-pendientes` usa el módulo dinámico `pending_arrest_reports`. Descarga de forma paginada
+los reportes del período elegido, considera terminadas las narrativas que comienzan con `Yo` y marca
+determinísticamente textos vacíos, placeholders, repeticiones o descripciones breves no estándar.
+No guarda narrativas ni resultados: PostgreSQL conserva solamente la configuración del módulo. El
+formulario permite publicar el embed en el canal o recibirlo de forma efímera.
 
 El módulo dinámico `service_calls` consulta `GET /police/emergency-calls` únicamente cuando la
 política `service_call_channels` contiene al menos un canal explícito. La primera sincronización fija

@@ -1,0 +1,330 @@
+from __future__ import annotations
+
+from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
+
+import discord
+import pytest
+
+from arrest_report_agent.infrastructure.sarp import (
+    SarpFactionArrestSearchPayload,
+    SarpFactionArrestSummary,
+)
+from arrest_report_agent.pending_arrest_reports import (
+    PendingArrestReport,
+    PendingArrestReportCog,
+    PendingArrestReportModal,
+    PendingArrestReportScan,
+    PendingArrestReportService,
+    PendingReportReason,
+    PendingReportScanTooLargeError,
+    PendingReportStatus,
+    PendingReportVisibility,
+    build_pending_arrest_reports_embed,
+    status_for_age,
+    unfinished_reason,
+)
+from arrest_report_agent.pending_arrest_reports.discord import (
+    PendingReportPeriod,
+    _resolve_date_range,
+)
+
+
+def _summary(
+    report_id: int,
+    *,
+    description: str,
+    created_at: datetime,
+) -> SarpFactionArrestSummary:
+    return SarpFactionArrestSummary(
+        id=report_id,
+        police_id=100 + report_id,
+        police_name=f"Officer_{report_id}",
+        suspect_id=200 + report_id,
+        suspect_name=f"Suspect_{report_id}",
+        description=description,
+        created_at=created_at,
+    )
+
+
+def _member(user_id: int, role_ids: tuple[int, ...]) -> discord.Member:
+    roles = {role_id: SimpleNamespace(id=role_id) for role_id in role_ids}
+    guild = SimpleNamespace(id=1, get_role=roles.get, default_role=None)
+    state = SimpleNamespace(store_user=lambda data: SimpleNamespace(id=int(data["id"])))
+    return discord.Member(
+        data={"user": {"id": str(user_id)}, "roles": [str(role_id) for role_id in role_ids]},
+        guild=guild,
+        state=state,
+    )
+
+
+@pytest.mark.parametrize(
+    "description",
+    (
+        "Yo, Walter Vigil, procedí a detener al sospechoso tras observar los hechos.",
+        "  yo Walter Vigil mantuve al sospechoso bajo custodia.",
+        "YO, Walter Vigil informa lo ocurrido.",
+        "La unidad observó los hechos y continuó con una narrativa extensa " * 8,
+    ),
+)
+def test_finished_narratives_are_not_flagged(description: str) -> None:
+    assert unfinished_reason(description) is None
+
+
+@pytest.mark.parametrize(
+    ("description", "reason"),
+    (
+        ("", PendingReportReason.EMPTY),
+        ("rellenar", PendingReportReason.PLACEHOLDER),
+        ("Todo...", PendingReportReason.PLACEHOLDER),
+        ("aaaaaaa", PendingReportReason.REPEATED_CONTENT),
+        ("línea pendiente\nlínea pendiente", PendingReportReason.REPEATED_CONTENT),
+        ("Se detuvo al sujeto.", PendingReportReason.SHORT_NONSTANDARD),
+    ),
+)
+def test_unfinished_narratives_are_classified(
+    description: str,
+    reason: PendingReportReason,
+) -> None:
+    assert unfinished_reason(description) is reason
+
+
+def test_age_status_boundaries_are_deterministic() -> None:
+    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
+
+    assert status_for_age(now - timedelta(hours=17, minutes=59), now=now) is (
+        PendingReportStatus.ON_TIME
+    )
+    assert status_for_age(now - timedelta(hours=18), now=now) is (
+        PendingReportStatus.NEAR_DEADLINE
+    )
+    assert status_for_age(now - timedelta(hours=24), now=now) is (
+        PendingReportStatus.OVER_NORMAL_LIMIT
+    )
+    assert status_for_age(now - timedelta(hours=48), now=now) is (
+        PendingReportStatus.OVER_MAXIMUM_LIMIT
+    )
+
+
+@pytest.mark.asyncio
+async def test_service_paginates_classifies_and_orders_oldest_first() -> None:
+    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
+    reports = [
+        _summary(
+            index,
+            description=(
+                "pendiente"
+                if index in {1, 51}
+                else "Yo, Officer Example, redacté un informe completo."
+            ),
+            created_at=now - timedelta(hours=index),
+        )
+        for index in range(1, 52)
+    ]
+    calls: list[dict[str, object]] = []
+
+    async def search(_faction_id: int, **kwargs: object) -> SarpFactionArrestSearchPayload:
+        calls.append(kwargs)
+        page = int(kwargs["page"])
+        start = (page - 1) * 50
+        return SarpFactionArrestSearchPayload(data=reports[start : start + 50], total=51)
+
+    service = PendingArrestReportService(
+        SimpleNamespace(search_faction_arrests=search)
+    )
+    result = await service.scan(
+        faction_id=3,
+        date_from=date(2026, 8, 1),
+        date_to=date(2026, 8, 18),
+        now=now,
+    )
+
+    assert [report.report_id for report in result.pending_reports] == [51, 1]
+    assert result.total_reports == 51
+    assert len(calls) == 2
+    assert calls[0]["date_to"] == date(2026, 8, 19)
+    assert calls[0]["limit"] == 50
+
+
+@pytest.mark.asyncio
+async def test_service_rejects_source_sets_above_configured_limit() -> None:
+    async def search(_faction_id: int, **_kwargs: object) -> SarpFactionArrestSearchPayload:
+        return SarpFactionArrestSearchPayload(data=[], total=1001)
+
+    service = PendingArrestReportService(
+        SimpleNamespace(search_faction_arrests=search)
+    )
+    with pytest.raises(PendingReportScanTooLargeError) as captured:
+        await service.scan(
+            faction_id=3,
+            date_from=date(2026, 8, 1),
+            date_to=date(2026, 8, 18),
+            max_records=1000,
+        )
+    assert captured.value.total == 1001
+    assert captured.value.limit == 1000
+
+
+@pytest.mark.asyncio
+async def test_command_rejects_members_outside_operational_staff(persona) -> None:
+    responses: list[dict[str, object]] = []
+    member = _member(11, (999,))
+
+    async def cached(_guild_id: int):
+        return SimpleNamespace(
+            settings=SimpleNamespace(
+                operational_staff_role_ids=(200,),
+                pending_arrest_reports_faction_id=3,
+            ),
+            persona=SimpleNamespace(profile=persona),
+        )
+
+    async def respond(**kwargs: object) -> None:
+        responses.append(kwargs)
+
+    cog = PendingArrestReportCog(
+        SimpleNamespace(cached=cached),
+        SimpleNamespace(),
+        persona,
+    )
+    context = SimpleNamespace(guild=member.guild, author=member, respond=respond)
+
+    await PendingArrestReportCog.pending_arrest_reports.callback(  # type: ignore[arg-type]
+        cog,
+        context,
+    )
+
+    assert responses[0]["ephemeral"] is True
+    assert responses[0]["embed"].description == (
+        persona.messages.interface.pending_arrest_reports.unauthorized
+    )
+
+
+@pytest.mark.asyncio
+async def test_command_opens_modal_for_operational_staff_in_any_channel(persona) -> None:
+    modals: list[PendingArrestReportModal] = []
+    member = _member(11, (200,))
+
+    async def cached(_guild_id: int):
+        return SimpleNamespace(
+            settings=SimpleNamespace(
+                operational_staff_role_ids=(200,),
+                pending_arrest_reports_faction_id=3,
+            ),
+            persona=SimpleNamespace(profile=persona),
+        )
+
+    async def send_modal(modal: PendingArrestReportModal) -> None:
+        modals.append(modal)
+
+    cog = PendingArrestReportCog(
+        SimpleNamespace(cached=cached),
+        SimpleNamespace(),
+        persona,
+    )
+    context = SimpleNamespace(
+        guild=member.guild,
+        author=member,
+        send_modal=send_modal,
+    )
+
+    await PendingArrestReportCog.pending_arrest_reports.callback(  # type: ignore[arg-type]
+        cog,
+        context,
+    )
+
+    assert len(modals) == 1
+    assert modals[0].requester_id == member.id
+
+
+@pytest.mark.asyncio
+async def test_modal_requires_visibility_choice_and_offers_both_scopes() -> None:
+    modal = PendingArrestReportModal(SimpleNamespace(), requester_id=42)
+
+    assert modal.title == "Buscar reportes pendientes"
+    assert {option.value for option in modal.visibility.options} == {
+        PendingReportVisibility.PUBLIC.value,
+        PendingReportVisibility.PRIVATE.value,
+    }
+    assert next(option for option in modal.visibility.options if option.default).value == "public"
+
+
+def test_custom_range_validation_is_bounded() -> None:
+    assert _resolve_date_range(
+        PendingReportPeriod.CUSTOM,
+        "2026-08-01",
+        "2026-08-18",
+        max_days=90,
+    ) == (date(2026, 8, 1), date(2026, 8, 18))
+    with pytest.raises(ValueError):
+        _resolve_date_range(
+            PendingReportPeriod.CUSTOM,
+            "2026-01-01",
+            "2026-08-18",
+            max_days=90,
+        )
+    with pytest.raises(ValueError):
+        _resolve_date_range(
+            PendingReportPeriod.CUSTOM,
+            "18-08-2026",
+            "2026-08-18",
+            max_days=90,
+        )
+
+
+def test_embed_is_single_compact_page_with_worst_status_color(persona) -> None:
+    created_at = datetime(2026, 8, 17, 10, tzinfo=UTC)
+    reports = tuple(
+        PendingArrestReport(
+            report_id=index,
+            officer_name=f"Officer {index}",
+            suspect_name=f"Suspect {index}",
+            created_at=created_at - timedelta(hours=index),
+            status=(
+                PendingReportStatus.OVER_MAXIMUM_LIMIT
+                if index == 1
+                else PendingReportStatus.ON_TIME
+            ),
+            reason=PendingReportReason.PLACEHOLDER,
+        )
+        for index in range(1, 17)
+    )
+    result = PendingArrestReportScan(
+        faction_id=3,
+        date_from=date(2026, 8, 1),
+        date_to=date(2026, 8, 18),
+        total_reports=20,
+        pending_reports=reports,
+    )
+
+    embed = build_pending_arrest_reports_embed(
+        result,
+        ui=persona.messages.interface.pending_arrest_reports,
+    )
+
+    assert embed.color == discord.Color.red()
+    assert len(embed.fields) == 18
+    assert embed.fields[0].name == "📄 Revisados"
+    assert embed.fields[1].name == "⏳ Pendientes"
+    assert embed.fields[2].name == "✅ Cumplimiento"
+    assert embed.fields[2].value == "**20,0 %**"
+    assert embed.footer.text == "Página 1 de 2"
+    assert "<t:" in embed.fields[3].value
+
+
+def test_embed_without_pending_reports_is_green(persona) -> None:
+    result = PendingArrestReportScan(
+        faction_id=3,
+        date_from=date(2026, 8, 1),
+        date_to=date(2026, 8, 18),
+        total_reports=4,
+    )
+
+    embed = build_pending_arrest_reports_embed(
+        result,
+        ui=persona.messages.interface.pending_arrest_reports,
+    )
+
+    assert embed.color == discord.Color.green()
+    assert embed.fields[1].value == "**0**"
+    assert embed.fields[2].value == "**100,0 %**"

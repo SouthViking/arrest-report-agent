@@ -1,7 +1,7 @@
 {
-  "schema_version": 38,
+  "schema_version": 39,
   "id": "walter_vigil",
-  "revision": 44,
+  "revision": 45,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -152,7 +152,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo solicitar y continuar la revisión de tu reporte.\n• `/info-roles`: cómo pedir altas o bajas de roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo registrar y consultar callsigns.\n• `/info-mdc`: cómo consultar registros operativos y elegir su visibilidad.\n• `/info-sugerencias`: cómo enviar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.",
+      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/reportes-pendientes`: detecta reportes de arresto que parecen incompletos.",
       "footer": "Elige la guía correspondiente y sigue sus indicaciones, {form_of_address}."
     },
     "interface": {
@@ -434,6 +434,19 @@
         "connected_intro": "Estado actual del personal conectado y en servicio.",
         "no_connected": "No aparece ningún miembro de la facción conectado en este momento."
       },
+      "pending_arrest_reports": {
+        "alert_title": "⚠️ Reportes pendientes no disponibles",
+        "unauthorized": "Esta consulta está reservada al personal operativo autorizado.",
+        "unavailable": "La consulta de reportes pendientes no está habilitada para este servidor.",
+        "operation_failed": "No pude revisar los reportes de arresto en este momento. Inténtelo nuevamente más tarde.",
+        "invalid_range": "Seleccione fechas válidas en formato AAAA-MM-DD, sin superar el período máximo permitido.",
+        "busy": "Ya hay una consulta de reportes pendientes en curso para este servidor.",
+        "too_many_reports": "El período contiene más de {limit} reportes. Seleccione un rango más acotado.",
+        "result_intro": "Estado de los reportes que todavía parecen incompletos.",
+        "no_pending": "No detecté reportes incompletos dentro del período seleccionado.",
+        "extension_warning": "Los casos entre 24 y 48 horas pueden contar con una prórroga informada por otras vías.",
+        "other_query": "Solo quien inició la consulta puede cambiar esta página."
+      },
       "review": {
         "failure_next_step_title": "Siguiente paso",
         "escalation_notice": "📣 Se requiere supervisión: {roles}",
@@ -494,7 +507,8 @@
         "manual_question_description": "Practica el contenido del manual de la facción",
         "mdc_description": "Consulta registros operativos de un personaje",
         "info_mdc_description": "Explica cómo consultar el MDC y elegir su visibilidad",
-        "connected_members_description": "Resume el personal conectado y en servicio"
+        "connected_members_description": "Resume el personal conectado y en servicio",
+        "pending_arrest_reports_description": "Detecta reportes de arresto que parecen incompletos"
       }
     }
   }

@@ -19,8 +19,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     profile = loaded_persona.profile
 
     assert profile.id == "walter_vigil"
-    assert profile.schema_version == 38
-    assert profile.revision == 44
+    assert profile.schema_version == 39
+    assert profile.revision == 45
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -36,8 +36,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     profile = loaded.profile
 
     assert profile.id == "roy_velazco"
-    assert profile.schema_version == 38
-    assert profile.revision == 51
+    assert profile.schema_version == 39
+    assert profile.revision == 52
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -98,6 +98,10 @@ async def test_personas_keep_personality_copy_with_capitalized_titles(loaded_per
     assert "/info-roles" in roy.messages.help.feature_guides
     assert walter.messages.interface.commands.info_reports_description
     assert roy.messages.interface.commands.info_reports_description
+    assert "/reportes-pendientes" in walter.messages.help.quick_references
+    assert "/reportes-pendientes" in roy.messages.help.quick_references
+    assert walter.messages.interface.pending_arrest_reports.result_intro
+    assert roy.messages.interface.pending_arrest_reports.result_intro
     assert "/info-pager" in walter.messages.help.feature_guides
     assert "/info-pager" in roy.messages.help.feature_guides
     assert "/info-callsigns" in walter.messages.help.feature_guides

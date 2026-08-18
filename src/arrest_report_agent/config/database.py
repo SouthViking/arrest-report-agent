@@ -135,6 +135,12 @@ class ArrestReportLookupOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
 
 
+class PendingArrestReportsOptions(FrozenConfigModel):
+    faction_id: int = Field(gt=0)
+    max_range_days: int = Field(default=90, ge=1, le=365)
+    max_records: int = Field(default=1_000, ge=50, le=5_000)
+
+
 class GuildConfigSnapshot(FrozenConfigModel):
     guild_id: int = Field(gt=0)
     revision_id: UUID
@@ -227,6 +233,11 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if arrest_lookup_feature.schema_version != 1:
                 raise ValueError("arrest_report_lookup requires feature schema version 1")
             ArrestReportLookupOptions.model_validate(arrest_lookup_feature.payload)
+        pending_reports_feature = self.features.get("pending_arrest_reports")
+        if pending_reports_feature is not None and pending_reports_feature.enabled:
+            if pending_reports_feature.schema_version != 1:
+                raise ValueError("pending_arrest_reports requires feature schema version 1")
+            PendingArrestReportsOptions.model_validate(pending_reports_feature.payload)
         return self
 
     def policy(self, key: AccessPolicyKey) -> AccessPolicySnapshot:
@@ -347,6 +358,28 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return ArrestReportLookupOptions.model_validate(feature.payload).faction_id
+
+    @property
+    def pending_arrest_reports_options(self) -> PendingArrestReportsOptions | None:
+        feature = self.snapshot.features.get("pending_arrest_reports")
+        if feature is None or not feature.enabled:
+            return None
+        return PendingArrestReportsOptions.model_validate(feature.payload)
+
+    @property
+    def pending_arrest_reports_faction_id(self) -> int | None:
+        options = self.pending_arrest_reports_options
+        return options.faction_id if options is not None else None
+
+    @property
+    def pending_arrest_reports_max_range_days(self) -> int:
+        options = self.pending_arrest_reports_options
+        return options.max_range_days if options is not None else 90
+
+    @property
+    def pending_arrest_reports_max_records(self) -> int:
+        options = self.pending_arrest_reports_options
+        return options.max_records if options is not None else 1_000
 
     @property
     def pager_starting_number(self) -> int:

@@ -68,6 +68,10 @@ from arrest_report_agent.pagers import (
     PagerRepository,
     PagerServiceRegistry,
 )
+from arrest_report_agent.pending_arrest_reports import (
+    PendingArrestReportCog,
+    PendingArrestReportService,
+)
 from arrest_report_agent.release import ReleaseManifest
 from arrest_report_agent.report_owner_access import ReportOwnerRunRepository
 from arrest_report_agent.review_analytics import ReportReviewRepository
@@ -361,6 +365,13 @@ async def build_runtime(
             FactionStatusCog(
                 config_provider,
                 FactionStatusService(sarp_client),
+                persona.profile,
+            )
+        )
+        bot.add_cog(
+            PendingArrestReportCog(
+                config_provider,
+                PendingArrestReportService(sarp_client),
                 persona.profile,
             )
         )

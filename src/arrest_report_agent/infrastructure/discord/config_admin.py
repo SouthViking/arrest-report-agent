@@ -64,6 +64,7 @@ FEATURE_LABELS = {
     "service_calls": "Llamadas de servicio",
     "faction_status": "Estado de facción",
     "arrest_report_lookup": "Consulta de reportes de arresto",
+    "pending_arrest_reports": "Reportes de arresto pendientes",
 }
 MODE_LABELS = {
     AccessPolicyMode.OPEN: "abierta",
@@ -912,6 +913,10 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     label="Consulta de reportes de arresto",
                     value="arrest_report_lookup",
                 ),
+                discord.SelectOption(
+                    label="Reportes de arresto pendientes",
+                    value="pending_arrest_reports",
+                ),
             ],
         )
         self.enabled = discord.ui.StringSelect(
@@ -972,6 +977,11 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 and "faction_id" not in payload
             ):
                 raise ValueError("Consulta de arrestos requiere `faction_id`.")
+            if key == "pending_arrest_reports":
+                payload.setdefault("max_range_days", 90)
+                payload.setdefault("max_records", 1000)
+                if self.enabled.values[0] == "true" and "faction_id" not in payload:
+                    raise ValueError("Reportes pendientes requiere `faction_id`.")
             if key == "report_owner_access" and "max_rounds" not in payload:
                 payload["max_rounds"] = 5
             feature = GuildFeatureSnapshot(

@@ -36,6 +36,10 @@ habilita al agente completo para buscar y vincular arrestos de esa facción. En 
 vinculado, el propietario con acceso limitado solo puede consultar su referencia vigente al pedir
 una nueva revisión. Si SARP está apagado globalmente, estas tools no se registran.
 
+El módulo **Reportes de arresto pendientes** recibe
+`{"faction_id": 3, "max_range_days": 90, "max_records": 1000}`. Habilita la consulta manual
+determinista, reutiliza `operational_staff_roles` y no requiere una política de canales.
+
 La acción **Publicar consumo** consulta los proveedores configurados, omite cualquier campo que no
 haya sido devuelto y envía un embed público en el canal donde se abrió `/config`. No usa IA. Los
 resultados se conservan en memoria por cinco minutos; las credenciales nunca se muestran ni se
@@ -61,6 +65,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/mdc` | `operational_staff_roles`; solo si SARP está activo | Modal privado; resultado público o efímero | API SARP en vivo |
 | `/info-mdc` | `operational_staff_roles`; solo si SARP está activo | Pública; rechazo efímero | Persona activa |
 | `/conectados` | `operational_staff_roles`; módulo `faction_status` activo | Pública; rechazo efímero | Nómina de la facción en SARP |
+| `/reportes-pendientes` | `operational_staff_roles`; módulo `pending_arrest_reports` activo | Modal privado; resultado público o efímero | Reportes de la facción en SARP |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
 | `/verguenza` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/honor` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
@@ -146,6 +151,19 @@ servicio. Se muestran como máximo diez nombres por grupo y cada sección indica
 
 La consulta recupera la nómina completa mediante una sola solicitud agrupada. Un caché compartido de
 quince segundos evita multiplicar consumo cuando varias personas ejecutan el comando al mismo tiempo.
+
+## `/reportes-pendientes`
+
+Funciona en cualquier canal y solo para miembros incluidos en `operational_staff_roles`. El modal
+permite elegir los últimos 7, 14, 30 o 90 días, o un rango personalizado `AAAA-MM-DD`, y seleccionar
+si el resultado será visible para todos o únicamente para quien consultó.
+
+La consulta no usa IA ni persiste el contenido. Lee hasta el máximo configurado, considera completa
+una narrativa que comienza con `Yo` y detecta como posibles pendientes los textos vacíos, placeholders,
+repeticiones y descripciones breves no estándar. El embed resume revisados, pendientes y cumplimiento;
+ordena los pendientes del más antiguo al más reciente y usa `🟢`, `🟡`, `🟠` y `🔴` para los tramos
+menores de 18 horas, 18–24, 24–48 y superiores a 48 horas. Si hay más de quince resultados, los
+botones de página quedan reservados a quien inició la consulta.
 
 ## `/mdc`
 
