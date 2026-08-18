@@ -1,20 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.9.2",
-  "title": "Estados de actividad más precisos",
-  "summary": "El estado del bot ahora refleja con mayor precisión la tarea que está realizando durante cada interacción.",
+  "version": "0.9.3",
+  "title": "Más contexto en miembros conectados",
+  "summary": "El resumen de la facción ahora muestra también cuántas personas están conectadas en el servidor.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
       "type": "improved",
-      "text": "Se distinguen consultas de manual y códigos, personal, registros, evidencias, revisión de expedientes y preparación de respuestas."
-    },
-    {
-      "type": "improved",
-      "text": "Cuando existen varias interacciones simultáneas, se muestra la actividad de mayor prioridad y el estado vuelve a guardia al finalizar."
+      "text": "El comando /conectados reúne en una sola línea los usuarios del servidor, miembros conectados, personal en servicio y actividad operativa."
     }
   ],
   "acknowledgements": []

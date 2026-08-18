@@ -18,6 +18,7 @@ class FactionPresenceSnapshot:
     faction_id: int
     total_members: int
     connected_members: tuple[FactionPresenceMember, ...]
+    server_connected_count: int | None = None
 
     @property
     def connected_count(self) -> int:

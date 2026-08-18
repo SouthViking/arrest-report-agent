@@ -11,7 +11,11 @@ from arrest_report_agent.faction_status import (
     FactionStatusService,
     build_faction_status_embed,
 )
-from arrest_report_agent.infrastructure.sarp import SarpFactionDetail, SarpFactionRank
+from arrest_report_agent.infrastructure.sarp import (
+    SarpFactionDetail,
+    SarpFactionRank,
+    SarpGlobalMetrics,
+)
 from arrest_report_agent.infrastructure.sarp.errors import SarpTransportError
 
 
@@ -80,9 +84,14 @@ def _ranks() -> list[SarpFactionRank]:
     ]
 
 
+def _global_metrics(online: int = 109) -> SarpGlobalMetrics:
+    return SarpGlobalMetrics(onlineAccountCounter=online)
+
+
 async def test_faction_status_service_projects_both_states_and_coalesces_cache() -> None:
     detail_calls: list[int] = []
     rank_calls: list[int] = []
+    metrics_calls = 0
 
     async def get_faction_detail(faction_id: int) -> SarpFactionDetail:
         detail_calls.append(faction_id)
@@ -92,10 +101,16 @@ async def test_faction_status_service_projects_both_states_and_coalesces_cache()
         rank_calls.append(faction_id)
         return _ranks()
 
+    async def get_global_metrics() -> SarpGlobalMetrics:
+        nonlocal metrics_calls
+        metrics_calls += 1
+        return _global_metrics()
+
     service = FactionStatusService(
         SimpleNamespace(
             get_faction_detail=get_faction_detail,
             get_faction_ranks=get_faction_ranks,
+            get_global_metrics=get_global_metrics,
         ),
         cache_seconds=30,
         rank_cache_seconds=300,
@@ -122,14 +137,17 @@ async def test_faction_status_service_projects_both_states_and_coalesces_cache()
     assert first.on_duty_count == 1
     assert first.duty_percentage == 50
     assert first.total_members == 3
+    assert first.server_connected_count == 109
     assert second == first
     assert detail_calls == [3]
     assert rank_calls == [3]
+    assert metrics_calls == 1
 
 
 async def test_faction_rank_cache_outlives_the_live_roster_cache() -> None:
     detail_calls = 0
     rank_calls = 0
+    metrics_calls = 0
 
     async def get_faction_detail(_faction_id: int) -> SarpFactionDetail:
         nonlocal detail_calls
@@ -141,10 +159,16 @@ async def test_faction_rank_cache_outlives_the_live_roster_cache() -> None:
         rank_calls += 1
         return _ranks()
 
+    async def get_global_metrics() -> SarpGlobalMetrics:
+        nonlocal metrics_calls
+        metrics_calls += 1
+        return _global_metrics()
+
     service = FactionStatusService(
         SimpleNamespace(
             get_faction_detail=get_faction_detail,
             get_faction_ranks=get_faction_ranks,
+            get_global_metrics=get_global_metrics,
         ),
         cache_seconds=0,
         rank_cache_seconds=300,
@@ -155,6 +179,7 @@ async def test_faction_rank_cache_outlives_the_live_roster_cache() -> None:
 
     assert detail_calls == 2
     assert rank_calls == 1
+    assert metrics_calls == 1
 
 
 async def test_faction_status_keeps_working_when_rank_catalog_is_unavailable() -> None:
@@ -164,10 +189,14 @@ async def test_faction_status_keeps_working_when_rank_catalog_is_unavailable() -
     async def get_faction_ranks(_faction_id: int) -> list[SarpFactionRank]:
         raise SarpTransportError("GET", "/my-faction/ranks/3")
 
+    async def get_global_metrics() -> SarpGlobalMetrics:
+        return _global_metrics()
+
     service = FactionStatusService(
         SimpleNamespace(
             get_faction_detail=get_faction_detail,
             get_faction_ranks=get_faction_ranks,
+            get_global_metrics=get_global_metrics,
         ),
     )
 
@@ -175,6 +204,30 @@ async def test_faction_status_keeps_working_when_rank_catalog_is_unavailable() -
 
     assert snapshot.connected_count == 2
     assert all(member.rank_name == "Rango desconocido" for member in snapshot.connected_members)
+
+
+async def test_faction_status_keeps_working_when_global_metrics_are_unavailable() -> None:
+    async def get_faction_detail(_faction_id: int) -> SarpFactionDetail:
+        return _detail()
+
+    async def get_faction_ranks(_faction_id: int) -> list[SarpFactionRank]:
+        return _ranks()
+
+    async def get_global_metrics() -> SarpGlobalMetrics:
+        raise SarpTransportError("GET", "/public/global-metrics")
+
+    service = FactionStatusService(
+        SimpleNamespace(
+            get_faction_detail=get_faction_detail,
+            get_faction_ranks=get_faction_ranks,
+            get_global_metrics=get_global_metrics,
+        ),
+    )
+
+    snapshot = await service.query(3)
+
+    assert snapshot.connected_count == 2
+    assert snapshot.server_connected_count is None
 
 
 def test_faction_status_embed_is_bounded_and_reports_remaining_members(persona) -> None:
@@ -185,6 +238,7 @@ def test_faction_status_embed_is_bounded_and_reports_remaining_members(persona) 
             FactionPresenceMember(f"Miembro {index:02d}", on_duty=index % 2 == 0)
             for index in range(25)
         ),
+        server_connected_count=407,
     )
 
     embed = build_faction_status_embed(
@@ -193,26 +247,22 @@ def test_faction_status_embed_is_bounded_and_reports_remaining_members(persona) 
     )
 
     assert embed.title == "👥 Estado de la facción"
-    assert [field.name for field in embed.fields[:3]] == [
-        "Conectados",
-        "En servicio",
-        "Actividad operativa",
-    ]
-    assert embed.fields[0].value == "**25**"
-    assert embed.fields[1].value == "**13**"
-    assert embed.fields[2].value == "**52%**"
-    assert embed.fields[3].name == "🟢 En servicio · 13"
-    assert len(embed.fields[3].value.splitlines()) == 11
-    assert embed.fields[3].value.startswith(
+    assert "🌐 **Servidor:** 407" in embed.description
+    assert "🟢 **Facción:** 25" in embed.description
+    assert "🚓 **Servicio:** 13" in embed.description
+    assert "📊 **Actividad:** 52%" in embed.description
+    assert embed.fields[0].name == "🟢 En servicio · 13"
+    assert len(embed.fields[0].value.splitlines()) == 11
+    assert embed.fields[0].value.startswith(
         "Rango desconocido · Miembro 00\nRango desconocido · Miembro 02"
     )
-    assert embed.fields[3].value.endswith("… y 3 más.")
-    assert embed.fields[4].name == "▫️ Conectados, fuera de servicio · 12"
-    assert len(embed.fields[4].value.splitlines()) == 11
-    assert embed.fields[4].value.startswith(
+    assert embed.fields[0].value.endswith("… y 3 más.")
+    assert embed.fields[1].name == "▫️ Conectados, fuera de servicio · 12"
+    assert len(embed.fields[1].value.splitlines()) == 11
+    assert embed.fields[1].value.startswith(
         "Rango desconocido · Miembro 01\nRango desconocido · Miembro 03"
     )
-    assert embed.fields[4].value.endswith("… y 2 más.")
+    assert embed.fields[1].value.endswith("… y 2 más.")
 
 
 def test_faction_status_embed_handles_empty_state_without_dividing_by_zero(persona) -> None:
@@ -228,10 +278,12 @@ def test_faction_status_embed_handles_empty_state_without_dividing_by_zero(perso
     )
 
     assert embed.title == "👥 Estado de la facción"
-    assert embed.description == persona.messages.interface.faction_status.no_connected
-    assert embed.fields[0].value == "**0**"
-    assert embed.fields[1].value == "**0**"
-    assert embed.fields[2].value == "**0%**"
+    assert embed.description.startswith(persona.messages.interface.faction_status.no_connected)
+    assert "🌐 **Servidor:** No disponible" in embed.description
+    assert "🟢 **Facción:** 0" in embed.description
+    assert "🚓 **Servicio:** 0" in embed.description
+    assert "📊 **Actividad:** 0%" in embed.description
+    assert embed.fields == []
 
 
 async def test_connected_command_rejects_non_operational_member(persona) -> None:

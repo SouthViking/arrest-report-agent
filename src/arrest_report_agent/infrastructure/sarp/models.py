@@ -44,6 +44,14 @@ class SarpResponse[PayloadT]:
     request_id: str | None = None
 
 
+class SarpGlobalMetrics(BaseModel):
+    """Public server-wide metrics exposed by the SARP API."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
+
+    online_account_counter: int = Field(alias="onlineAccountCounter", ge=0)
+
+
 class SarpPenalCodeCategory(BaseModel):
     """Category returned by the documented police penal-code endpoint."""
 

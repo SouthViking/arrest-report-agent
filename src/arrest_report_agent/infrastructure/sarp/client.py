@@ -41,6 +41,7 @@ from .models import (
     SarpFactionDetail,
     SarpFactionRank,
     SarpFinePage,
+    SarpGlobalMetrics,
     SarpPenalCodePayload,
     SarpRateLimit,
     SarpResponse,
@@ -69,6 +70,7 @@ FACTION_ARREST_SEARCH_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionArrestSearchPaylo
 EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpEmergencyCallPage)
 FACTION_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionDetail)
 FACTION_RANKS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionRank])
+GLOBAL_METRICS_PAYLOAD_ADAPTER = TypeAdapter(SarpGlobalMetrics)
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,6 +254,16 @@ class SarpClient:
             "GET",
             "/police/penal-code",
             payload_adapter=PENAL_CODE_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def get_global_metrics(self) -> SarpGlobalMetrics:
+        """Fetch public server-wide metrics, including connected accounts."""
+
+        response = await self.request(
+            "GET",
+            "/public/global-metrics",
+            payload_adapter=GLOBAL_METRICS_PAYLOAD_ADAPTER,
         )
         return response.payload
 

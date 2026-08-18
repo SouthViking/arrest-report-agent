@@ -87,6 +87,7 @@ class FactionStatusCog(commands.Cog):
                 connected_members=snapshot.connected_count,
                 on_duty_members=snapshot.on_duty_count,
                 total_members=snapshot.total_members,
+                server_connected_accounts=snapshot.server_connected_count,
             )
         except Exception as error:
             log_event(
@@ -111,26 +112,23 @@ def build_faction_status_embed(
 ) -> discord.Embed:
     """Render a bounded faction presence list ordered by hierarchy and name."""
 
+    introduction = ui.connected_intro if snapshot.connected_members else ui.no_connected
+    server_count = (
+        str(snapshot.server_connected_count)
+        if snapshot.server_connected_count is not None
+        else "No disponible"
+    )
+    summary = (
+        f"🌐 **Servidor:** {server_count} · "
+        f"🟢 **Facción:** {snapshot.connected_count} · "
+        f"🚓 **Servicio:** {snapshot.on_duty_count} · "
+        f"📊 **Actividad:** {snapshot.duty_percentage}%"
+    )
     embed = discord.Embed(
         title="👥 Estado de la facción",
-        description=ui.connected_intro if snapshot.connected_members else ui.no_connected,
+        description=f"{introduction}\n\n{summary}",
         color=discord.Color.green(),
         timestamp=datetime.now(UTC),
-    )
-    embed.add_field(
-        name="Conectados",
-        value=f"**{snapshot.connected_count}**",
-        inline=True,
-    )
-    embed.add_field(
-        name="En servicio",
-        value=f"**{snapshot.on_duty_count}**",
-        inline=True,
-    )
-    embed.add_field(
-        name="Actividad operativa",
-        value=f"**{snapshot.duty_percentage}%**",
-        inline=True,
     )
     if snapshot.connected_members:
         on_duty = tuple(_member_label(member) for member in snapshot.connected_members if member.on_duty)

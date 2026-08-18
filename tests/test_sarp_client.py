@@ -20,6 +20,7 @@ from arrest_report_agent.infrastructure.sarp import (
     SarpFactionDetail,
     SarpFactionRank,
     SarpForbiddenError,
+    SarpGlobalMetrics,
     SarpInvalidResponseError,
     SarpNotFoundError,
     SarpPenalCodePayload,
@@ -192,6 +193,30 @@ async def test_get_penal_code_uses_documented_endpoint_and_returns_typed_payload
 
     assert payload.categories[0].id == 4
     assert payload.charges[0].charge == "Evasión"
+
+
+async def test_global_metrics_endpoint_returns_connected_account_counter() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/public/global-metrics"
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "home",
+                "payload": {
+                    "onlineAccountCounter": 109,
+                    "weeklyPeakPlayers": 200,
+                    "accountCounter": 13250,
+                },
+            }
+        )
+
+    async with serve_sarp(handler) as base_url, SarpClient(
+        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
+    ) as client:
+        metrics = await client.get_global_metrics()
+
+    assert metrics == SarpGlobalMetrics(onlineAccountCounter=109)
 
 
 async def test_mdc_endpoints_use_documented_paths_filters_and_typed_payloads() -> None:
