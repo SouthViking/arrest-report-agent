@@ -154,11 +154,11 @@ def _alphabetical_key(value: str) -> str:
 
 
 def _rank_order(rank: int | None, ranks: tuple[SarpFactionRank, ...]) -> int:
-    if rank is None or not 0 <= rank < len(ranks):
+    if rank is None or not 1 <= rank <= len(ranks):
         return -1
     return rank
 
 
 def _rank_name(rank: int | None, ranks: tuple[SarpFactionRank, ...]) -> str:
     order = _rank_order(rank, ranks)
-    return ranks[order].name if order >= 0 else UNKNOWN_RANK
+    return ranks[order - 1].name if order >= 1 else UNKNOWN_RANK

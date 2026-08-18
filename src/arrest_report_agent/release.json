@@ -1,20 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.7.3",
-  "title": "Rangos en el estado de facción",
-  "summary": "La consulta de personal conectado ahora identifica el rango oficial de cada miembro y respeta la jerarquía de la facción.",
+  "version": "0.7.4",
+  "title": "Corrección de rangos en conectados",
+  "summary": "Los rangos mostrados por `/conectados` ahora corresponden exactamente al grado actual de cada miembro.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "`/conectados` muestra el rango junto al nombre y ordena al personal de mayor a menor jerarquía; los miembros del mismo rango se ordenan alfabéticamente."
-    },
-    {
-      "type": "improved",
-      "text": "El catálogo de rangos se conserva temporalmente para reducir consultas a la API y mantener disponible el listado ante una falla transitoria."
+      "type": "fixed",
+      "text": "Se corrigió el desfase que mostraba el rango inmediatamente superior al que correspondía; por ejemplo, Lieutenant ya no aparece como Captain."
     }
   ],
   "acknowledgements": []

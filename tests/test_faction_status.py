@@ -35,14 +35,14 @@ def _detail() -> SarpFactionDetail:
                     "name": "Zachary_Wilcox",
                     "online": 1,
                     "factionduty": 0,
-                    "rank": 3,
+                    "rank": 8,
                 },
                 {
                     "id": 2,
                     "name": "Álvaro_Mendez",
                     "online": 1,
                     "factionduty": 1,
-                    "rank": 1,
+                    "rank": 2,
                 },
                 {
                     "id": 3,
@@ -57,7 +57,17 @@ def _detail() -> SarpFactionDetail:
 
 
 def _ranks() -> list[SarpFactionRank]:
-    names = ("Employee", "Deputy Sheriff", "Sheriff's Sergeant", "Sheriff's Lieutenant")
+    names = (
+        "Employee",
+        "Deputy Sheriff",
+        "Deputy Sheriff (Bonus I)",
+        "Deputy Sheriff (Bonus II)",
+        "Sheriff's Detective",
+        "Sheriff's Senior Detective",
+        "Sheriff's Sergeant",
+        "Sheriff's Lieutenant",
+        "Sheriff's Captain",
+    )
     return [
         SarpFactionRank(
             id=20 + index,
@@ -99,13 +109,13 @@ async def test_faction_status_service_projects_both_states_and_coalesces_cache()
             "Zachary Wilcox",
             on_duty=False,
             rank_name="Sheriff's Lieutenant",
-            rank_order=3,
+            rank_order=8,
         ),
         FactionPresenceMember(
             "Álvaro Mendez",
             on_duty=True,
             rank_name="Deputy Sheriff",
-            rank_order=1,
+            rank_order=2,
         ),
     )
     assert first.connected_count == 2
