@@ -1,7 +1,7 @@
 {
-  "schema_version": 39,
+  "schema_version": 40,
   "id": "roy_velazco",
-  "revision": 52,
+  "revision": 53,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -103,8 +103,12 @@
   "presence": {
     "idle": "🌙 De guardia",
     "conversation": "📻 Atendiendo por radio",
-    "knowledge": "🔎 Revisando el código",
-    "review": "📂 Revisando expedientes"
+    "knowledge": "📚 Revisando manual y códigos",
+    "personnel": "👥 Buscando al personal",
+    "records": "🗃️ Revisando registros",
+    "evidence": "🖼️ Mirando las evidencias",
+    "review": "📂 Revisando expedientes",
+    "response": "✍️ Armando la respuesta"
   },
   "messages": {
     "access": {

@@ -20,14 +20,22 @@ class PresenceMode(StrEnum):
     IDLE = "idle"
     CONVERSATION = AgentActivity.CONVERSATION
     KNOWLEDGE = AgentActivity.KNOWLEDGE
+    PERSONNEL = AgentActivity.PERSONNEL
+    RECORDS = AgentActivity.RECORDS
+    EVIDENCE = AgentActivity.EVIDENCE
     REVIEW = AgentActivity.REVIEW
+    RESPONSE = AgentActivity.RESPONSE
 
 
 PRESENCE_PRIORITY = {
     PresenceMode.IDLE: 0,
     PresenceMode.CONVERSATION: 1,
-    PresenceMode.KNOWLEDGE: 2,
-    PresenceMode.REVIEW: 3,
+    PresenceMode.PERSONNEL: 2,
+    PresenceMode.KNOWLEDGE: 3,
+    PresenceMode.RECORDS: 4,
+    PresenceMode.EVIDENCE: 5,
+    PresenceMode.REVIEW: 6,
+    PresenceMode.RESPONSE: 7,
 }
 
 
@@ -39,10 +47,10 @@ class PresenceLease:
         self._token = token
         self._closed = False
 
-    async def promote(self, activity: AgentActivity) -> None:
+    async def transition(self, activity: AgentActivity) -> None:
         if self._closed:
             return
-        await self._owner._promote(self._token, PresenceMode(activity.value))
+        await self._owner._transition(self._token, PresenceMode(activity.value))
 
     async def close(self) -> None:
         if self._closed:
@@ -61,14 +69,22 @@ class ReviewPresence:
         idle_text: str,
         conversation_text: str,
         knowledge_text: str,
+        personnel_text: str,
+        records_text: str,
+        evidence_text: str,
         review_text: str,
+        response_text: str,
     ) -> None:
         self.bot = bot
         self._activity_text = {
             PresenceMode.IDLE: idle_text,
             PresenceMode.CONVERSATION: conversation_text,
             PresenceMode.KNOWLEDGE: knowledge_text,
+            PresenceMode.PERSONNEL: personnel_text,
+            PresenceMode.RECORDS: records_text,
+            PresenceMode.EVIDENCE: evidence_text,
             PresenceMode.REVIEW: review_text,
+            PresenceMode.RESPONSE: response_text,
         }
         self._active: dict[int, PresenceMode] = {}
         self._next_token = 0
@@ -99,14 +115,22 @@ class ReviewPresence:
         idle_text: str,
         conversation_text: str,
         knowledge_text: str,
+        personnel_text: str,
+        records_text: str,
+        evidence_text: str,
         review_text: str,
+        response_text: str,
     ) -> None:
         async with self._lock:
             self._activity_text = {
                 PresenceMode.IDLE: idle_text,
                 PresenceMode.CONVERSATION: conversation_text,
                 PresenceMode.KNOWLEDGE: knowledge_text,
+                PresenceMode.PERSONNEL: personnel_text,
+                PresenceMode.RECORDS: records_text,
+                PresenceMode.EVIDENCE: evidence_text,
                 PresenceMode.REVIEW: review_text,
+                PresenceMode.RESPONSE: response_text,
             }
             await self._publish(self.mode, force=True)
 
@@ -128,10 +152,10 @@ class ReviewPresence:
             await self._publish(self.mode)
             return PresenceLease(self, token)
 
-    async def _promote(self, token: int, mode: PresenceMode) -> None:
+    async def _transition(self, token: int, mode: PresenceMode) -> None:
         async with self._lock:
             current = self._active.get(token)
-            if current is None or PRESENCE_PRIORITY[mode] <= PRESENCE_PRIORITY[current]:
+            if current is None or current is mode:
                 return
             self._active[token] = mode
             await self._publish(self.mode)

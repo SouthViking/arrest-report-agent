@@ -36,8 +36,8 @@ también sin ejecutar el agente.
 - Resuelve bajo demanda códigos de respuesta, códigos 10, códigos de situación y el alfabeto
   radiofónico APCO desde una referencia oficial acotada, sin inyectar el manual completo al prompt.
 - Mantiene el indicador nativo de escritura mientras procesa una solicitud.
-- Muestra una presencia global priorizada: `⭐ De guardia`, `📻 Atendiendo consultas`,
-  `🔎 Consultando el código` o `📂 Revisando expedientes`. Las ejecuciones paralelas no se pisan.
+- Muestra una presencia global por fase: guardia, conversación, consulta de manual, personal,
+  registros, evidencias, revisión y preparación de respuesta. Las ejecuciones paralelas no se pisan.
 - Al iniciar, sincroniza por separado el nombre y avatar de la personalidad, el banner global LSSD
   y la biografía por servidor; una falla cosmética se registra, no bloquea los demás campos y no
   impide que el bot atienda.

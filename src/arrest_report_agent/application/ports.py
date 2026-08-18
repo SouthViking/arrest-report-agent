@@ -14,8 +14,8 @@ from arrest_report_agent.domain import (
 
 
 class ActivityTracker(Protocol):
-    async def promote(self, activity: AgentActivity) -> None:
-        """Promote one active interaction without downgrading higher-priority work."""
+    async def transition(self, activity: AgentActivity) -> None:
+        """Move one active interaction to its current user-facing phase."""
 
 
 @dataclass(frozen=True)

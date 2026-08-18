@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.9.1",
-  "title": "Reportes pendientes agrupados",
-  "summary": "La consulta de reportes pendientes ahora organiza los resultados por agente para facilitar su lectura.",
+  "version": "0.9.2",
+  "title": "Estados de actividad más precisos",
+  "summary": "El estado del bot ahora refleja con mayor precisión la tarea que está realizando durante cada interacción.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,11 @@
   "changes": [
     {
       "type": "improved",
-      "text": "Los agentes aparecen ordenados por cantidad de reportes pendientes y cada grupo muestra primero sus casos más antiguos."
+      "text": "Se distinguen consultas de manual y códigos, personal, registros, evidencias, revisión de expedientes y preparación de respuestas."
     },
     {
       "type": "improved",
-      "text": "La presentación utiliza una lista compacta con sospechoso, antigüedad y continuidad del agente entre páginas."
+      "text": "Cuando existen varias interacciones simultáneas, se muestra la actividad de mayor prioridad y el estado vuelve a guardia al finalizar."
     }
   ],
   "acknowledgements": []

@@ -194,7 +194,7 @@ class ActivityRecorder:
     def __init__(self) -> None:
         self.activities: list[AgentActivity] = []
 
-    async def promote(self, activity: AgentActivity) -> None:
+    async def transition(self, activity: AgentActivity) -> None:
         self.activities.append(activity)
 
 
@@ -661,6 +661,7 @@ async def test_member_discovery_tools_bind_guild_and_channel_to_active_case() ->
         tool.name: tool
         for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
     }
+    run_context.activity = ActivityRecorder()
 
     role_arguments = json.dumps(
         {
@@ -780,6 +781,8 @@ async def test_member_discovery_tools_bind_guild_and_channel_to_active_case() ->
     assert call[3].membership == "recent_participants"
     assert channel_output["channel_id"] == str(channel_id)
     assert channel_output["membership"] == "recent_participants"
+    assert isinstance(run_context.activity, ActivityRecorder)
+    assert run_context.activity.activities == [AgentActivity.PERSONNEL] * 3
 
 
 def test_message_tool_exposes_selection_filters_without_guild_argument() -> None:
@@ -1148,6 +1151,7 @@ async def test_message_tool_uses_run_scope_and_projects_results() -> None:
         tool.name: tool
         for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
     }
+    run_context.activity = ActivityRecorder()
     arguments = json.dumps(
         {
             "channel_id": str(selected_channel_id),
@@ -1282,6 +1286,8 @@ async def test_message_tool_uses_run_scope_and_projects_results() -> None:
         "embeds",
         "attachments",
     ]
+    assert isinstance(run_context.activity, ActivityRecorder)
+    assert run_context.activity.activities == [AgentActivity.EVIDENCE] * 2
 
 
 @pytest.mark.asyncio
@@ -1353,7 +1359,13 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
         messages=[],
         attachments=[],
     )
-    run_context = ReviewRunContext(case=case, publisher=publisher, attempt=1)
+    activity = ActivityRecorder()
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=publisher,
+        attempt=1,
+        activity=activity,
+    )
     tools = {
         tool.name: tool
         for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
@@ -1388,6 +1400,7 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
         "review_scope": "full",
         "verdict": "approved",
     }
+    assert activity.activities == [AgentActivity.RESPONSE]
 
 
 @pytest.mark.asyncio

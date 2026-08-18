@@ -24,7 +24,7 @@ from arrest_report_agent.arrest_reports import (
     ArrestReportBindingRepository,
     SarpArrestReportLookup,
 )
-from arrest_report_agent.domain import AgentAccessLevel, InteractionMode, ReviewCase
+from arrest_report_agent.domain import AgentAccessLevel, AgentActivity, InteractionMode, ReviewCase
 from arrest_report_agent.infrastructure.postgres import PostgresClient, PostgresClientConfig
 from arrest_report_agent.infrastructure.postgres.schema import discord_guilds
 from arrest_report_agent.infrastructure.sarp import (
@@ -43,6 +43,14 @@ class FakePublisher:
     async def publish(self, _publication: object) -> None: ...
 
     async def publish_failure(self, _message: str) -> None: ...
+
+
+class ActivityRecorder:
+    def __init__(self) -> None:
+        self.activities: list[AgentActivity] = []
+
+    async def transition(self, activity: AgentActivity) -> None:
+        self.activities.append(activity)
 
 
 class FakeArrestLookup:
@@ -256,6 +264,8 @@ async def test_full_agent_can_search_fetch_and_replace_thread_binding() -> None:
     lookup = FakeArrestLookup()
     tools = _tools(lookup, AgentAccessLevel.FULL)
     context = _context()
+    activity = ActivityRecorder()
+    context.activity = activity
     search_args = json.dumps(
         {
             "suspect_name": "Terry McKenzie",
@@ -305,6 +315,7 @@ async def test_full_agent_can_search_fetch_and_replace_thread_binding() -> None:
             "trigger_message_id": 55555555555555555,
         }
     ]
+    assert activity.activities == [AgentActivity.RECORDS, AgentActivity.RECORDS]
 
 
 @pytest.mark.asyncio

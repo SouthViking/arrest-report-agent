@@ -189,7 +189,7 @@ def build_agent_tools(
             sections: Names from available_sections returned by this tool.
         """
 
-        await _mark_knowledge_activity(ctx.context)
+        await _set_activity(ctx.context, AgentActivity.KNOWLEDGE)
         return guide.get(sections)
 
     @function_tool
@@ -228,7 +228,7 @@ def build_agent_tools(
             limit: Maximum combined results, from 1 to 50.
         """
 
-        await _mark_knowledge_activity(ctx.context)
+        await _set_activity(ctx.context, AgentActivity.KNOWLEDGE)
         return resolved_radio_catalog.search(
             queries=queries,
             categories=categories,
@@ -266,7 +266,7 @@ def build_agent_tools(
             limit: Maximum compact results, from 1 to 100.
         """
 
-        await _mark_knowledge_activity(ctx.context)
+        await _set_activity(ctx.context, AgentActivity.KNOWLEDGE)
         return charge_catalog_for(ctx.context).list_index(
             category_ids=category_ids,
             query=query,
@@ -286,7 +286,7 @@ def build_agent_tools(
             charge_ids: Stable IDs obtained from list_charge_index, never ambiguous codes.
         """
 
-        await _mark_knowledge_activity(ctx.context)
+        await _set_activity(ctx.context, AgentActivity.KNOWLEDGE)
         return charge_catalog_for(ctx.context).get_details(charge_ids)
 
     @function_tool
@@ -323,7 +323,7 @@ def build_agent_tools(
             cursor: Opaque next_cursor from a previous call using identical filters and sorting.
         """
 
-        await _mark_knowledge_activity(ctx.context)
+        await _set_activity(ctx.context, AgentActivity.PERSONNEL)
         directory = ctx.context.member_directory
         if directory is None:
             return _directory_error("member_directory_unavailable", "roles")
@@ -381,7 +381,7 @@ def build_agent_tools(
             cursor: Opaque next_cursor from a previous call using identical filters and sorting.
         """
 
-        await _mark_knowledge_activity(ctx.context)
+        await _set_activity(ctx.context, AgentActivity.PERSONNEL)
         directory = ctx.context.member_directory
         if directory is None:
             return _directory_error("member_directory_unavailable", "members")
@@ -427,7 +427,7 @@ def build_agent_tools(
             cursor: Opaque next_cursor from a previous call using identical filters and sorting.
         """
 
-        await _mark_knowledge_activity(ctx.context)
+        await _set_activity(ctx.context, AgentActivity.PERSONNEL)
         run_context = ctx.context
         directory = run_context.member_directory
         if directory is None:
@@ -480,7 +480,7 @@ def build_agent_tools(
             fields: Optional fields to return; defaults to display_name and roles.
         """
 
-        await _mark_knowledge_activity(ctx.context)
+        await _set_activity(ctx.context, AgentActivity.PERSONNEL)
         directory = ctx.context.member_directory
         if directory is None:
             return {
@@ -554,7 +554,7 @@ def build_agent_tools(
             fields: Optional output projection; defaults to content, author, embeds and attachments.
         """
 
-        await _mark_knowledge_activity(ctx.context)
+        await _set_activity(ctx.context, AgentActivity.EVIDENCE)
         if (direction == "latest" and message_id is not None) or (
             direction != "latest" and message_id is None
         ):
@@ -647,7 +647,7 @@ def build_agent_tools(
             attachment_ids: Optional one to ten attachment IDs from that exact message.
         """
 
-        await _mark_knowledge_activity(ctx.context)
+        await _set_activity(ctx.context, AgentActivity.EVIDENCE)
         run_context = ctx.context
         directory = run_context.message_directory
         if directory is None:
@@ -831,6 +831,7 @@ def build_agent_tools(
             return {"ok": True, "already_completed": "publish_review"}
         if run_context.interaction_completed:
             return {"ok": True, "already_completed": "finish_interaction"}
+        await _set_activity(run_context, AgentActivity.RESPONSE)
         selected_route = run_context.selected_response_route or response_route
         effective_route = await run_context.publisher.mention_roles(
             _snowflake_tuple(role_ids),
@@ -864,6 +865,7 @@ def build_agent_tools(
         run_context = ctx.context
         if run_context.published:
             return {"ok": True, "already_published": True}
+        await _set_activity(run_context, AgentActivity.RESPONSE)
         await run_context.publisher.publish(publication)
         run_context.published = True
         run_context.publication = publication
@@ -897,6 +899,7 @@ def build_agent_tools(
             return {"ok": True, "already_completed": "publish_review"}
         if run_context.interaction_completed:
             return {"ok": True, "already_completed": "finish_interaction"}
+        await _set_activity(run_context, AgentActivity.RESPONSE)
         effective_route = await _send_conversation_message(
             run_context,
             content,
@@ -936,6 +939,7 @@ def build_agent_tools(
             return {"ok": True, "already_completed": "publish_review"}
         if run_context.interaction_completed:
             return {"ok": True, "already_completed": "finish_interaction"}
+        await _set_activity(run_context, AgentActivity.RESPONSE)
         effective_route = await _send_conversation_message(
             run_context,
             content,
@@ -983,7 +987,7 @@ def build_agent_tools(
         if run_context.arrest_search_calls >= MAX_ARREST_SEARCH_CALLS_PER_RUN:
             return {"ok": False, "error": "run_search_limit_reached"}
         run_context.arrest_search_calls += 1
-        await _mark_knowledge_activity(run_context)
+        await _set_activity(run_context, AgentActivity.RECORDS)
         result = await arrest_report_lookup.search(
             ArrestReportSearchQuery(
                 suspect_name=suspect_name,
@@ -1049,7 +1053,7 @@ def build_agent_tools(
         if run_context.arrest_detail_calls >= MAX_ARREST_DETAIL_CALLS_PER_RUN:
             return {"ok": False, "error": "run_detail_limit_reached"}
         run_context.arrest_detail_calls += 1
-        await _mark_knowledge_activity(run_context)
+        await _set_activity(run_context, AgentActivity.RECORDS)
         result = await arrest_report_lookup.get(report_id)
         if result.error is not None or result.report is None:
             payload: dict[str, object] = {
@@ -1103,7 +1107,7 @@ def build_agent_tools(
         if run_context.arrest_detail_calls >= MAX_ARREST_DETAIL_CALLS_PER_RUN:
             return {"ok": False, "error": "run_detail_limit_reached"}
         run_context.arrest_detail_calls += 1
-        await _mark_knowledge_activity(run_context)
+        await _set_activity(run_context, AgentActivity.RECORDS)
         result = await arrest_report_lookup.get_current(
             guild_id=run_context.case.guild_id,
             root_message_id=run_context.case.root_message_id,
@@ -1319,9 +1323,12 @@ def _arrest_detail_payload(
     }
 
 
-async def _mark_knowledge_activity(run_context: ReviewRunContext) -> None:
+async def _set_activity(
+    run_context: ReviewRunContext,
+    activity: AgentActivity,
+) -> None:
     if run_context.activity is not None:
-        await run_context.activity.promote(AgentActivity.KNOWLEDGE)
+        await run_context.activity.transition(activity)
 
 
 async def _send_conversation_message(

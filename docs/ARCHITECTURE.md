@@ -394,11 +394,13 @@ ronda adicional de modelo que requería una tool no terminal.
 ## Presencia global
 
 `ReviewPresence` asigna una sesión a cada interacción y publica la actividad de mayor prioridad:
-`review > knowledge > conversation > idle`. Una sesión solo puede promocionarse, por lo que una
-búsqueda de conocimiento no degrada una revisión. Al terminar la actividad prioritaria se recupera
-la siguiente que siga activa; el último cierre vuelve a reposo. Solo se llama a Discord cuando cambia
-el modo global. `on_ready` resincroniza tras una reconexión y cualquier fallo cosmético se registra
-sin interrumpir el expediente. Los cuatro textos provienen de la persona cargada.
+`response > review > evidence > records > knowledge > personnel > conversation > idle`. Cada sesión
+transiciona a la fase real que activa el hook o la tool: manual y códigos, directorio de personal,
+registros SARP, mensajes y adjuntos, revisión o publicación. En una interacción aislada se muestran
+las fases en orden; con concurrencia se conserva la actividad de mayor prioridad. Al terminar esa
+actividad se recupera la siguiente que siga activa y el último cierre vuelve a reposo. Solo se llama
+a Discord cuando cambia el modo global. `on_ready` resincroniza tras una reconexión y cualquier fallo
+cosmético se registra sin interrumpir el expediente. Todos los textos provienen de la persona cargada.
 
 ## Resolución del modelo y costos
 

@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 39
+PERSONA_SCHEMA_VERSION = 40
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -118,7 +118,11 @@ class PersonaPresence(FrozenPersonaModel):
     idle: str = Field(min_length=1, max_length=128)
     conversation: str = Field(min_length=1, max_length=128)
     knowledge: str = Field(min_length=1, max_length=128)
+    personnel: str = Field(min_length=1, max_length=128)
+    records: str = Field(min_length=1, max_length=128)
+    evidence: str = Field(min_length=1, max_length=128)
     review: str = Field(min_length=1, max_length=128)
+    response: str = Field(min_length=1, max_length=128)
 
 
 class PersonaAccessMessages(FrozenPersonaModel):

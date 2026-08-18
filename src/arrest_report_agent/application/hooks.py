@@ -34,7 +34,7 @@ class ReviewLifecycleHooks(RunHooks[ReviewRunContext]):
             and run_context.request_intent is RequestIntent.REVIEW
             and run_context.has_revisable_material
         ):
-            await run_context.activity.promote(AgentActivity.REVIEW)
+            await run_context.activity.transition(AgentActivity.REVIEW)
         if (
             run_context.request_intent is not RequestIntent.REVIEW
             or not run_context.has_revisable_material

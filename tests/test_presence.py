@@ -33,8 +33,12 @@ async def test_presence_uses_global_priority_across_concurrent_interactions() ->
         bot,  # type: ignore[arg-type]
         idle_text="⭐ De guardia",
         conversation_text="📻 Atendiendo consultas",
-        knowledge_text="🔎 Consultando el código",
+        knowledge_text="📚 Consultando manual y códigos",
+        personnel_text="👥 Consultando personal",
+        records_text="🗃️ Consultando registros",
+        evidence_text="🖼️ Analizando evidencias",
         review_text="📂 Revisando expedientes",
+        response_text="✍️ Preparando respuesta",
     )
 
     await presence.synchronize()
@@ -43,25 +47,34 @@ async def test_presence_uses_global_priority_across_concurrent_interactions() ->
     async with presence.handling() as first:
         assert presence.active_requests == 1
         assert presence.mode is PresenceMode.CONVERSATION
-        await first.promote(AgentActivity.KNOWLEDGE)
+        await first.transition(AgentActivity.PERSONNEL)
+        assert presence.mode is PresenceMode.PERSONNEL
+        await first.transition(AgentActivity.KNOWLEDGE)
         assert presence.mode is PresenceMode.KNOWLEDGE
         async with presence.handling() as second:
             assert presence.active_requests == 2
             assert presence.mode is PresenceMode.KNOWLEDGE
-            await second.promote(AgentActivity.REVIEW)
+            await second.transition(AgentActivity.REVIEW)
             assert presence.mode is PresenceMode.REVIEW
-            await second.promote(AgentActivity.KNOWLEDGE)
+            await first.transition(AgentActivity.RECORDS)
             assert presence.mode is PresenceMode.REVIEW
-        assert presence.mode is PresenceMode.KNOWLEDGE
+            await second.transition(AgentActivity.EVIDENCE)
+            assert presence.mode is PresenceMode.EVIDENCE
+        assert presence.mode is PresenceMode.RECORDS
+        await first.transition(AgentActivity.RESPONSE)
+        assert presence.mode is PresenceMode.RESPONSE
 
     assert presence.active_requests == 0
     assert presence.mode is PresenceMode.IDLE
     assert [activity_text(update) for update in bot.updates] == [
         "⭐ De guardia",
         "📻 Atendiendo consultas",
-        "🔎 Consultando el código",
+        "👥 Consultando personal",
+        "📚 Consultando manual y códigos",
         "📂 Revisando expedientes",
-        "🔎 Consultando el código",
+        "🖼️ Analizando evidencias",
+        "🗃️ Consultando registros",
+        "✍️ Preparando respuesta",
         "⭐ De guardia",
     ]
     assert all(update["status"] is discord.Status.online for update in bot.updates)
@@ -74,14 +87,18 @@ async def test_presence_failure_never_blocks_or_leaks_active_review_count() -> N
         bot,  # type: ignore[arg-type]
         idle_text="⭐ De guardia",
         conversation_text="📻 Atendiendo consultas",
-        knowledge_text="🔎 Consultando el código",
+        knowledge_text="📚 Consultando manual y códigos",
+        personnel_text="👥 Consultando personal",
+        records_text="🗃️ Consultando registros",
+        evidence_text="🖼️ Analizando evidencias",
         review_text="📂 Revisando expedientes",
+        response_text="✍️ Preparando respuesta",
     )
 
     await presence.synchronize()
     async with presence.handling() as activity:
         assert presence.active_requests == 1
-        await activity.promote(AgentActivity.KNOWLEDGE)
+        await activity.transition(AgentActivity.KNOWLEDGE)
 
     assert presence.active_requests == 0
     assert len(bot.updates) == 4

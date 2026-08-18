@@ -39,7 +39,12 @@ class _Channel:
 class _Presence:
     @asynccontextmanager
     async def handling(self):
-        yield SimpleNamespace(promote=lambda *_args: None)
+        yield _Activity()
+
+
+class _Activity:
+    async def transition(self, *_args: object) -> None:
+        return None
 
 
 class _Publisher:

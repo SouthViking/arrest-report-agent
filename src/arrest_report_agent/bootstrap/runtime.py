@@ -283,7 +283,11 @@ async def build_runtime(
             idle_text=presence.idle,
             conversation_text=presence.conversation,
             knowledge_text=presence.knowledge,
+            personnel_text=presence.personnel,
+            records_text=presence.records,
+            evidence_text=presence.evidence,
             review_text=presence.review,
+            response_text=presence.response,
         )
 
     config_provider.register_global_callback(synchronize_global_persona)

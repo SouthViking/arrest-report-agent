@@ -311,7 +311,11 @@ class ReviewCog(commands.Cog):
             idle_text=persona.presence.idle,
             conversation_text=persona.presence.conversation,
             knowledge_text=persona.presence.knowledge,
+            personnel_text=persona.presence.personnel,
+            records_text=persona.presence.records,
+            evidence_text=persona.presence.evidence,
             review_text=persona.presence.review,
+            response_text=persona.presence.response,
         )
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_reviews)
         self._locks: dict[int, asyncio.Lock] = {}

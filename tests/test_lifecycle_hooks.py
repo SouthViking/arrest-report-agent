@@ -22,7 +22,7 @@ class ActivityRecorder:
     def __init__(self) -> None:
         self.activities: list[AgentActivity] = []
 
-    async def promote(self, activity: AgentActivity) -> None:
+    async def transition(self, activity: AgentActivity) -> None:
         self.activities.append(activity)
 
 

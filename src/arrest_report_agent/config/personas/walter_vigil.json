@@ -1,7 +1,7 @@
 {
-  "schema_version": 39,
+  "schema_version": 40,
   "id": "walter_vigil",
-  "revision": 45,
+  "revision": 46,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -83,8 +83,12 @@
   "presence": {
     "idle": "⭐ De guardia",
     "conversation": "📻 Atendiendo consultas",
-    "knowledge": "🔎 Consultando el código",
-    "review": "📂 Revisando expedientes"
+    "knowledge": "📚 Consultando manual y códigos",
+    "personnel": "👥 Consultando personal",
+    "records": "🗃️ Consultando registros",
+    "evidence": "🖼️ Analizando evidencias",
+    "review": "📂 Revisando expedientes",
+    "response": "✍️ Preparando respuesta"
   },
   "messages": {
     "access": {

@@ -78,7 +78,11 @@ class AgentActivity(StrEnum):
 
     CONVERSATION = "conversation"
     KNOWLEDGE = "knowledge"
+    PERSONNEL = "personnel"
+    RECORDS = "records"
+    EVIDENCE = "evidence"
     REVIEW = "review"
+    RESPONSE = "response"
 
 
 class ErrorKind(StrEnum):
