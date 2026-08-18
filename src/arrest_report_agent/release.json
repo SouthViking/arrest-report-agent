@@ -1,22 +1,24 @@
 {
   "schema_version": 3,
-  "version": "0.7.0",
-  "title": "Llamados y estado operativo",
-  "summary": "Los nuevos llamados de servicio pueden llegar automáticamente a Discord y el personal operativo puede consultar de un vistazo quién está conectado o en servicio.",
+  "version": "0.7.1",
+  "title": "Presentación de llamados de servicio",
+  "summary": "Los llamados de servicio ahora distinguen visualmente el organismo y presentan la información recibida con mayor claridad.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
-      "type": "added",
-      "text": "Los nuevos llamados de servicio se publican automáticamente en los canales configurados, sin repetir llamados anteriores al activar el sistema."
-    },
-    {
-      "type": "added",
-      "text": "El personal operativo puede usar `/conectados` para consultar cuántos miembros están conectados, cuántos están en servicio y qué porcentaje representan."
+      "type": "improved",
+      "text": "Los llamados de LSPD y LSSD se identifican en azul con un vehículo policial, mientras que los de LSFD se muestran en rojo con un vehículo de emergencias."
     },
     {
       "type": "improved",
-      "text": "La nómina de `/conectados` separa de forma clara al personal en servicio de quienes están conectados fuera de servicio."
+      "text": "La alerta mantiene la sirena como referencia común y muestra la ubicación principal junto con la información recibida, evitando campos redundantes."
+    },
+    {
+      "type": "fixed",
+      "text": "Los avisos médicos cuyo proveedor entrega ubicación y descripción en campos inconsistentes se presentan sin invertir ni perder información."
     }
   ],
   "acknowledgements": []

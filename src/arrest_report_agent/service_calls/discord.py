@@ -273,15 +273,22 @@ class ServiceCallFeedWorker:
 def build_service_call_embed(call: SarpEmergencyCall) -> discord.Embed:
     """Render IC-safe operational data without creating mentions."""
 
+    service, emoji, color = _service_theme(call.service)
+    title_prefix = " ".join(part for part in (emoji, service) if part)
+    title = (
+        f"{title_prefix} · Llamada #{call.id:05d}"
+        if title_prefix
+        else f"Llamada #{call.id:05d}"
+    )
     embed = discord.Embed(
-        title="🚨 Llamada de servicio",
-        description=_safe(call.situation, limit=2000),
-        color=discord.Color.red(),
+        title=title,
+        description=f"🚨 **Información recibida**\n{_reported_information(call)}",
+        color=color,
         timestamp=call.created_at,
     )
     embed.add_field(
         name="📍 Ubicación",
-        value=_safe(call.location or call.trace or "No informada", limit=1024),
+        value=_safe(call.trace or call.location or "No informada", limit=1024),
         inline=False,
     )
     embed.add_field(
@@ -294,16 +301,33 @@ def build_service_call_embed(call: SarpEmergencyCall) -> discord.Embed:
         value=_phone(call.phone_number),
         inline=True,
     )
-    if call.service:
-        embed.add_field(name="Servicio", value=_safe(call.service, limit=100), inline=True)
-    if call.trace and call.location and call.trace.casefold() != call.location.casefold():
-        embed.add_field(
-            name="Referencia de rastreo",
-            value=_safe(call.trace, limit=1024),
-            inline=False,
-        )
-    embed.set_footer(text=f"Llamada #{call.id:05d} · Fecha informada en UTC")
     return embed
+
+
+def _service_theme(service: str | None) -> tuple[str, str, discord.Color]:
+    normalized = service.strip().upper() if service else ""
+    safe_service = _safe(normalized, limit=30) if normalized else ""
+    if normalized in {"LSPD", "LSSD"}:
+        return safe_service, "🚓", discord.Color.blue()
+    if normalized == "LSFD":
+        return safe_service, "🚒", discord.Color.red()
+    return safe_service, "", discord.Color.light_grey()
+
+
+def _reported_information(call: SarpEmergencyCall) -> str:
+    primary_location = call.trace or call.location
+    candidates = (call.location, call.situation)
+    unique: list[str] = []
+    seen = {primary_location.strip().casefold()} if primary_location else set()
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        key = candidate.strip().casefold()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        unique.append(_safe(candidate, limit=1000))
+    return "\n\n".join(unique) or "No informada"
 
 
 def _safe(value: str, *, limit: int) -> str:

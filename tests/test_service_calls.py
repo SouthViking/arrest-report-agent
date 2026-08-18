@@ -163,9 +163,9 @@ async def test_feed_delivers_only_new_calls_oldest_first_and_advances_cursor() -
     await worker.process_once()
 
     assert repository.advances == [11, 12]
-    assert [embed.footer.text for embed in channel.embeds] == [
-        "Llamada #00011 · Fecha informada en UTC",
-        "Llamada #00012 · Fecha informada en UTC",
+    assert [embed.title for embed in channel.embeds] == [
+        "🚓 LSPD · Llamada #00011",
+        "🚓 LSPD · Llamada #00012",
     ]
 
 
@@ -174,10 +174,46 @@ def test_service_call_embed_is_safe_and_omits_empty_phone() -> None:
         emergency_call(56221, situation="Avisan a <@123> por **un robo**")
     )
 
-    assert embed.title == "🚨 Llamada de servicio"
+    assert embed.title == "🚓 LSPD · Llamada #56221"
+    assert embed.colour == discord.Color.blue()
+    assert (embed.description or "").startswith("🚨 **Información recibida**")
     assert "<@123>" in (embed.description or "")
     assert "\\*\\*un robo\\*\\*" in (embed.description or "")
     assert next(field.value for field in embed.fields if field.name == "📞 Teléfono") == (
         "No informado"
     )
     assert embed.timestamp == datetime(2026, 8, 17, 22, 1, tzinfo=UTC)
+    assert all(field.name not in {"Servicio", "Referencia de rastreo"} for field in embed.fields)
+    assert embed.footer is None
+
+
+def test_lsfd_call_uses_trace_as_location_and_keeps_both_reported_details() -> None:
+    call = emergency_call(56228).model_copy(
+        update={
+            "service": "LSFD",
+            "trace": "Market Street, Market, Los Santos 343",
+            "location": (
+                "Un amigo se puso mal de salud, está muy mareado y parece que va a colapsar"
+            ),
+            "situation": "Market, Propiedad 1390.",
+        }
+    )
+
+    embed = build_service_call_embed(call)
+
+    assert embed.title == "🚒 LSFD · Llamada #56228"
+    assert embed.colour == discord.Color.red()
+    assert "Un amigo se puso mal de salud" in (embed.description or "")
+    assert "Market, Propiedad 1390." in (embed.description or "")
+    assert next(field.value for field in embed.fields if field.name == "📍 Ubicación") == (
+        "Market Street, Market, Los Santos 343"
+    )
+
+
+def test_unknown_service_keeps_its_name_without_assigning_an_emoji() -> None:
+    call = emergency_call(42).model_copy(update={"service": "SAMS"})
+
+    embed = build_service_call_embed(call)
+
+    assert embed.title == "SAMS · Llamada #00042"
+    assert embed.colour == discord.Color.light_grey()
