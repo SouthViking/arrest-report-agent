@@ -63,6 +63,8 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "usa `mention_roles`" in prompt
     assert "No rechaces la solicitud solo por la cantidad de miembros" in prompt
     assert "La guild está fijada por la conversación" in prompt
+    assert "formatos abreviados como `D. Apellido`" in prompt
+    assert "`requires_confirmation=false`" in prompt
     assert "Usa `get_guild_members` para ampliar metadata" in prompt
     assert "No adivines IDs" in prompt
     assert "metadata pública acotada de miembros" in prompt

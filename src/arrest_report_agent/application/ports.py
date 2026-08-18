@@ -87,11 +87,20 @@ class GuildMemberSearchQuery:
     cursor: str | None
 
 
+type GuildMemberNameMatchStrategy = Literal[
+    "exact_terms",
+    "initial_and_surname",
+    "surname",
+]
+
+
 @dataclass(frozen=True)
 class GuildMemberSearchResult:
     members: tuple[GuildMemberProfile, ...]
     next_cursor: str | None = None
     error: str | None = None
+    name_match_strategy: GuildMemberNameMatchStrategy | None = None
+    candidate_count: int | None = None
 
 
 @dataclass(frozen=True)

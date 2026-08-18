@@ -241,6 +241,61 @@ async def test_member_directory_filters_sorts_and_paginates_complete_guild() -> 
 
 
 @pytest.mark.asyncio
+async def test_member_directory_prefers_full_name_over_abbreviated_alias() -> None:
+    exact = _member(11111111111111111, "Derek Valdez")
+    abbreviated = _member(22222222222222222, "D. Valdez / Michael Spencer")
+    guild = SimpleNamespace(id=99, chunked=True, members=[abbreviated, exact], roles=[])
+    directory = DiscordGuildMemberDirectory(SimpleNamespace(get_guild=lambda guild_id: guild))
+
+    result = await directory.search_members(99, _member_query(query="Derek Valdez"))
+
+    assert [member.user_id for member in result.members] == [exact.id]
+    assert result.name_match_strategy == "exact_terms"
+    assert result.candidate_count == 1
+
+
+@pytest.mark.asyncio
+async def test_member_directory_matches_initial_and_surname_in_character_aliases() -> None:
+    derek = _member(11111111111111111, "D. Valdez / Michael Spencer")
+    unrelated = _member(22222222222222222, "D. Velasco / Derek Morgan")
+    guild = SimpleNamespace(id=99, chunked=True, members=[unrelated, derek], roles=[])
+    directory = DiscordGuildMemberDirectory(SimpleNamespace(get_guild=lambda guild_id: guild))
+
+    result = await directory.search_members(99, _member_query(query="Derek Valdez"))
+
+    assert [member.user_id for member in result.members] == [derek.id]
+    assert result.name_match_strategy == "initial_and_surname"
+    assert result.candidate_count == 1
+
+
+@pytest.mark.asyncio
+async def test_member_directory_preserves_ambiguous_abbreviated_candidates() -> None:
+    first = _member(11111111111111111, "D. Valdez / Michael Spencer")
+    second = _member(22222222222222222, "D. Valdez / Chloe Miller")
+    guild = SimpleNamespace(id=99, chunked=True, members=[second, first], roles=[])
+    directory = DiscordGuildMemberDirectory(SimpleNamespace(get_guild=lambda guild_id: guild))
+
+    result = await directory.search_members(99, _member_query(query="Derek Valdez"))
+
+    assert {member.user_id for member in result.members} == {first.id, second.id}
+    assert result.name_match_strategy == "initial_and_surname"
+    assert result.candidate_count == 2
+
+
+@pytest.mark.asyncio
+async def test_member_directory_returns_surname_only_as_weak_fallback() -> None:
+    possible = _member(11111111111111111, "M. Valdez / Michael Spencer")
+    guild = SimpleNamespace(id=99, chunked=True, members=[possible], roles=[])
+    directory = DiscordGuildMemberDirectory(SimpleNamespace(get_guild=lambda guild_id: guild))
+
+    result = await directory.search_members(99, _member_query(query="Derek Valdez"))
+
+    assert [member.user_id for member in result.members] == [possible.id]
+    assert result.name_match_strategy == "surname"
+    assert result.candidate_count == 1
+
+
+@pytest.mark.asyncio
 async def test_member_directory_lists_roles_with_counts_and_filters() -> None:
     fto_role = _role(22222222222222222, "Field Training Officer", 5)
     gnt_role = _role(33333333333333333, "GNT", 4)

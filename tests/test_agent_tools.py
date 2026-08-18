@@ -10,6 +10,7 @@ from agents.tool_context import ToolContext
 from arrest_report_agent.application.ports import (
     ChannelMemberSearchQuery,
     GuildMemberLookupResult,
+    GuildMemberNameMatchStrategy,
     GuildMemberProfile,
     GuildMemberSearchQuery,
     GuildMemberSearchResult,
@@ -24,7 +25,7 @@ from arrest_report_agent.application.ports import (
     MessageReactionProfile,
 )
 from arrest_report_agent.application.service_context import ReviewRunContext
-from arrest_report_agent.application.tools import build_agent_tools
+from arrest_report_agent.application.tools import _member_search_output, build_agent_tools
 from arrest_report_agent.domain import (
     AgentAccessLevel,
     AgentActivity,
@@ -462,6 +463,36 @@ def test_member_discovery_tools_are_configurable_and_never_expose_guild_id() -> 
     ]
 
 
+@pytest.mark.parametrize(
+    ("strategy", "candidate_count", "requires_confirmation"),
+    [
+        ("initial_and_surname", 1, False),
+        ("initial_and_surname", 2, True),
+        ("surname", 1, True),
+    ],
+)
+def test_member_search_output_marks_weak_or_ambiguous_name_matches(
+    strategy: GuildMemberNameMatchStrategy,
+    candidate_count: int,
+    requires_confirmation: bool,
+) -> None:
+    output = _member_search_output(
+        GuildMemberSearchResult(
+            members=(),
+            name_match_strategy=strategy,
+            candidate_count=candidate_count,
+        ),
+        ("display_name",),
+    )
+
+    assert output["name_match"] == {
+        "strategy": strategy,
+        "candidate_count": candidate_count,
+        "ambiguous": candidate_count > 1,
+        "requires_confirmation": requires_confirmation,
+    }
+
+
 @pytest.mark.asyncio
 async def test_member_tool_uses_case_guild_deduplicates_and_projects_fields() -> None:
     found_id = 11111111111111111
@@ -605,6 +636,8 @@ async def test_member_discovery_tools_bind_guild_and_channel_to_active_case() ->
         member_result=GuildMemberSearchResult(
             members=(profile,),
             next_cursor="members-next",
+            name_match_strategy="exact_terms",
+            candidate_count=1,
         ),
     )
     case = ReviewCase(
@@ -710,6 +743,12 @@ async def test_member_discovery_tools_bind_guild_and_channel_to_active_case() ->
             }
         ],
         "next_cursor": "members-next",
+        "name_match": {
+            "strategy": "exact_terms",
+            "candidate_count": 1,
+            "ambiguous": False,
+            "requires_confirmation": False,
+        },
     }
 
     channel_arguments = json.dumps(

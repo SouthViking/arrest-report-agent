@@ -367,7 +367,9 @@ def build_agent_tools(
 
         The server is always derived from the active conversation. Filters may be combined to
         match names, exact users, role membership, bots and join dates. Prefer narrow searches and
-        request only useful fields; returned user IDs can be passed to get_guild_members.
+        request only useful fields; returned user IDs can be passed to get_guild_members. Name
+        searches try full terms first, then an abbreviated initial plus surname, and finally surname
+        candidates. Inspect name_match and never choose a result that requires confirmation.
 
         Args:
             filters: Optional name, user, role, bot and join-date filters. Role filters support any,
@@ -1386,6 +1388,15 @@ def _member_search_output(
             "members": [_project_member(profile, fields) for profile in lookup.members],
             "next_cursor": lookup.next_cursor,
         }
+        if lookup.candidate_count is not None:
+            candidate_count = lookup.candidate_count
+            strategy = lookup.name_match_strategy
+            result["name_match"] = {
+                "strategy": strategy or "none",
+                "candidate_count": candidate_count,
+                "ambiguous": candidate_count > 1,
+                "requires_confirmation": strategy == "surname" or candidate_count > 1,
+            }
     if channel_id is not None:
         result["channel_id"] = str(channel_id)
     if membership is not None:

@@ -7,6 +7,7 @@ import base64
 import hashlib
 import json
 import logging
+import re
 import unicodedata
 from collections.abc import Iterable
 from datetime import UTC, datetime
@@ -16,6 +17,7 @@ import discord
 from arrest_report_agent.application.ports import (
     ChannelMemberSearchQuery,
     GuildMemberLookupResult,
+    GuildMemberNameMatchStrategy,
     GuildMemberProfile,
     GuildMemberSearchQuery,
     GuildMemberSearchResult,
@@ -330,7 +332,8 @@ def _search_member_candidates(
 ) -> GuildMemberSearchResult:
     if _invalid_member_filters(query):
         return GuildMemberSearchResult(members=(), error="invalid_member_filters")
-    selected = [member for member in candidates if _matches_member(member, query)]
+    eligible = [member for member in candidates if _matches_member_filters(member, query)]
+    selected, name_match_strategy = _select_name_matches(eligible, query.query)
     selected = _sort_members(selected, query.sort_by, query.sort_direction)
     fingerprint = _member_query_fingerprint(query)
     page, next_cursor, cursor_error = _paginate(
@@ -345,6 +348,8 @@ def _search_member_candidates(
     return GuildMemberSearchResult(
         members=tuple(_member_profile(member) for member in page),
         next_cursor=next_cursor,
+        name_match_strategy=name_match_strategy,
+        candidate_count=len(selected) if query.query else None,
     )
 
 
@@ -359,17 +364,11 @@ def _invalid_member_filters(query: GuildMemberSearchQuery) -> bool:
     )
 
 
-def _matches_member(member: discord.Member, query: GuildMemberSearchQuery) -> bool:
+def _matches_member_filters(member: discord.Member, query: GuildMemberSearchQuery) -> bool:
     if query.user_ids and member.id not in set(query.user_ids):
         return False
     if query.is_bot is not None and member.bot is not query.is_bot:
         return False
-
-    normalized_query = _normalize(query.query or "")
-    if normalized_query:
-        haystack = _normalize(f"{member.display_name} {member.name}")
-        if not all(term in haystack for term in normalized_query.split()):
-            return False
 
     member_role_ids = _assigned_role_ids(member)
     if query.role_ids_any and not member_role_ids.intersection(query.role_ids_any):
@@ -384,6 +383,73 @@ def _matches_member(member: discord.Member, query: GuildMemberSearchQuery) -> bo
         query.joined_before is not None
         and (member.joined_at is None or member.joined_at > query.joined_before)
     )
+
+
+def _select_name_matches(
+    members: list[discord.Member],
+    query: str | None,
+) -> tuple[list[discord.Member], GuildMemberNameMatchStrategy | None]:
+    normalized_query = _normalize(query or "")
+    if not normalized_query:
+        return members, None
+
+    exact = [member for member in members if _matches_all_terms(member, normalized_query)]
+    if exact:
+        return exact, "exact_terms"
+
+    query_tokens = _name_tokens(normalized_query)
+    if len(query_tokens) < 2:
+        return [], None
+
+    initial_and_surname = [
+        member for member in members if _matches_initial_and_surname(member, query_tokens)
+    ]
+    if initial_and_surname:
+        return initial_and_surname, "initial_and_surname"
+
+    surname = query_tokens[-1]
+    surname_matches = [member for member in members if _matches_surname(member, surname)]
+    if surname_matches:
+        return surname_matches, "surname"
+    return [], None
+
+
+def _matches_all_terms(member: discord.Member, normalized_query: str) -> bool:
+    terms = normalized_query.split()
+    return any(all(term in alias for term in terms) for alias in _member_name_aliases(member))
+
+
+def _matches_initial_and_surname(
+    member: discord.Member,
+    query_tokens: tuple[str, ...],
+) -> bool:
+    expected_initial = query_tokens[0][0]
+    expected_surname = query_tokens[-1]
+    return any(
+        len(alias) >= 2
+        and len(alias[0]) == 1
+        and alias[0] == expected_initial
+        and alias[-1] == expected_surname
+        for alias in (_name_tokens(value) for value in _member_name_aliases(member))
+    )
+
+
+def _matches_surname(member: discord.Member, expected_surname: str) -> bool:
+    return any(
+        bool(alias) and alias[-1] == expected_surname
+        for alias in (_name_tokens(value) for value in _member_name_aliases(member))
+    )
+
+
+def _member_name_aliases(member: discord.Member) -> tuple[str, ...]:
+    aliases: list[str] = []
+    for source in (member.display_name, member.name):
+        aliases.extend(_normalize(value) for value in re.split(r"[/|]", source) if value.strip())
+    return tuple(dict.fromkeys(alias for alias in aliases if alias))
+
+
+def _name_tokens(value: str) -> tuple[str, ...]:
+    return tuple(re.findall(r"[^\W_]+", value, flags=re.UNICODE))
 
 
 def _sort_members(

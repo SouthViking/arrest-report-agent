@@ -1,25 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.8.0",
-  "title": "Reportes de arresto conectados a SARP",
-  "summary": "El bot ahora puede consultar la versión vigente de un reporte de arresto y reutilizarla durante sus revisiones.",
+  "version": "0.8.1",
+  "title": "Búsqueda mejorada de miembros",
+  "summary": "El bot ahora reconoce mejor a miembros que utilizan nombres abreviados o varios personajes en su apodo de Discord.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
-    1234675609536430152,
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "El personal con acceso completo puede pedir reportes de arresto por sospechoso, agente o fecha directamente al bot."
-    },
-    {
-      "type": "added",
-      "text": "Un reporte puede quedar vinculado a su hilo para que solicitudes como «revisa de nuevo» utilicen los cambios más recientes de SARP."
-    },
-    {
       "type": "improved",
-      "text": "Las imágenes y archivos continúan disponibles para fotografías y evidencias, incluso cuando SARP no responde temporalmente."
+      "text": "Las búsquedas relacionan nombres completos con formatos abreviados como «D. Apellido» y apodos que contienen varios personajes."
+    },
+    {
+      "type": "fixed",
+      "text": "Cuando existen varias coincidencias posibles, el bot solicita precisión en lugar de mencionar a una persona arbitrariamente."
     }
   ],
   "acknowledgements": []

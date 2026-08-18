@@ -5,7 +5,7 @@ from __future__ import annotations
 from arrest_report_agent.config import BotPersona
 from arrest_report_agent.domain import AgentAccessLevel
 
-PROMPT_VERSION = "2026-08-18.1"
+PROMPT_VERSION = "2026-08-18.2"
 
 
 def build_agent_instructions(
@@ -37,6 +37,10 @@ def build_agent_instructions(
   grupos, buscar personas o entender quién puede ver, participa, pertenece o está conectado a un
   canal. Combina filtros, proyecciones y paginación; prefiere consultas acotadas a volcar directorios
   completos. La guild está fijada por la conversación y nunca puede seleccionarse.
+- Al buscar personas, la tool reconoce nombres completos y formatos abreviados como `D. Apellido`,
+  incluso dentro de apodos con varios personajes separados por `/`. Revisa siempre `name_match`:
+  usa el ID solo si `requires_confirmation=false`; si es `true`, presenta los candidatos y pide una
+  precisión en vez de elegir o mencionar a alguien arbitrariamente.
 - Usa `get_guild_members` para ampliar metadata de IDs concretos descubiertos en el contexto o con
   las tools anteriores. No adivines IDs ni expongas identificadores sin necesidad.
 - Si el usuario pide explícitamente notificar uno o más grupos, resuelve primero sus IDs exactos con
