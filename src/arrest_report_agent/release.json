@@ -1,24 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.7.1",
-  "title": "Presentación de llamados de servicio",
-  "summary": "Los llamados de servicio ahora distinguen visualmente el organismo y presentan la información recibida con mayor claridad.",
+  "version": "0.7.2",
+  "title": "Identidad compartida en dispatch",
+  "summary": "Los llamados policiales ahora representan de forma conjunta a LSPD y LSSD en el canal de dispatch.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "Los llamados de LSPD y LSSD se identifican en azul con un vehículo policial, mientras que los de LSFD se muestran en rojo con un vehículo de emergencias."
-    },
-    {
-      "type": "improved",
-      "text": "La alerta mantiene la sirena como referencia común y muestra la ubicación principal junto con la información recibida, evitando campos redundantes."
-    },
-    {
       "type": "fixed",
-      "text": "Los avisos médicos cuyo proveedor entrega ubicación y descripción en campos inconsistentes se presentan sin invertir ni perder información."
+      "text": "Los avisos policiales se identifican como `LSPD/LSSD`, sin quedar asociados visualmente a un único departamento."
     }
   ],
   "acknowledgements": []

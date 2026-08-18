@@ -308,7 +308,7 @@ def _service_theme(service: str | None) -> tuple[str, str, discord.Color]:
     normalized = service.strip().upper() if service else ""
     safe_service = _safe(normalized, limit=30) if normalized else ""
     if normalized in {"LSPD", "LSSD"}:
-        return safe_service, "🚓", discord.Color.blue()
+        return "LSPD/LSSD", "🚓", discord.Color.blue()
     if normalized == "LSFD":
         return safe_service, "🚒", discord.Color.red()
     return safe_service, "", discord.Color.light_grey()

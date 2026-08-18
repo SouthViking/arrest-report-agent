@@ -164,8 +164,8 @@ async def test_feed_delivers_only_new_calls_oldest_first_and_advances_cursor() -
 
     assert repository.advances == [11, 12]
     assert [embed.title for embed in channel.embeds] == [
-        "🚓 LSPD · Llamada #00011",
-        "🚓 LSPD · Llamada #00012",
+        "🚓 LSPD/LSSD · Llamada #00011",
+        "🚓 LSPD/LSSD · Llamada #00012",
     ]
 
 
@@ -174,7 +174,7 @@ def test_service_call_embed_is_safe_and_omits_empty_phone() -> None:
         emergency_call(56221, situation="Avisan a <@123> por **un robo**")
     )
 
-    assert embed.title == "🚓 LSPD · Llamada #56221"
+    assert embed.title == "🚓 LSPD/LSSD · Llamada #56221"
     assert embed.colour == discord.Color.blue()
     assert (embed.description or "").startswith("🚨 **Información recibida**")
     assert "<@123>" in (embed.description or "")
@@ -217,3 +217,11 @@ def test_unknown_service_keeps_its_name_without_assigning_an_emoji() -> None:
 
     assert embed.title == "SAMS · Llamada #00042"
     assert embed.colour == discord.Color.light_grey()
+
+
+def test_lssd_and_lspd_share_the_police_dispatch_identity() -> None:
+    lspd = build_service_call_embed(emergency_call(41).model_copy(update={"service": "LSPD"}))
+    lssd = build_service_call_embed(emergency_call(42).model_copy(update={"service": "LSSD"}))
+
+    assert lspd.title == "🚓 LSPD/LSSD · Llamada #00041"
+    assert lssd.title == "🚓 LSPD/LSSD · Llamada #00042"
