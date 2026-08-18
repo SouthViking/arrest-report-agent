@@ -17,6 +17,7 @@ from arrest_report_agent.infrastructure.sarp import (
     SarpClientNotOpenError,
     SarpConflictError,
     SarpFactionDetail,
+    SarpFactionRank,
     SarpForbiddenError,
     SarpInvalidResponseError,
     SarpNotFoundError,
@@ -378,7 +379,58 @@ async def test_faction_detail_endpoint_returns_typed_live_member_states() -> Non
     assert isinstance(detail, SarpFactionDetail)
     assert detail.faction_members[0].online is True
     assert detail.faction_members[0].factionduty is False
+    assert detail.faction_members[0].rank == 8
     assert detail.faction_members[1].factionduty is True
+
+
+async def test_faction_rank_endpoint_returns_the_ordered_typed_catalog() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/my-faction/ranks/3"
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "pcu",
+                "payload": [
+                    {
+                        "id": 20,
+                        "faction": 3,
+                        "name": "Employee",
+                        "member_tier": 0,
+                        "paycheck": 300,
+                    },
+                    {
+                        "id": 21,
+                        "faction": 3,
+                        "name": "Deputy Sheriff",
+                        "member_tier": 0,
+                        "paycheck": 725,
+                    },
+                ],
+            }
+        )
+
+    async with serve_sarp(handler) as base_url, SarpClient(
+        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
+    ) as client:
+        ranks = await client.get_faction_ranks(3)
+
+    assert ranks == [
+        SarpFactionRank(
+            id=20,
+            faction=3,
+            name="Employee",
+            member_tier=0,
+            paycheck=300,
+        ),
+        SarpFactionRank(
+            id=21,
+            faction=3,
+            name="Deputy Sheriff",
+            member_tier=0,
+            paycheck=725,
+        ),
+    ]
 
 
 async def test_penal_code_keeps_uncategorized_charges_returned_by_current_api() -> None:

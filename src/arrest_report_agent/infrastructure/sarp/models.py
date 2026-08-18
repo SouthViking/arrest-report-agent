@@ -330,6 +330,7 @@ class SarpFactionMember(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     online: bool
     factionduty: bool
+    rank: int | None = Field(default=None, ge=0)
 
     @field_validator("online", "factionduty", mode="before")
     @classmethod
@@ -350,3 +351,15 @@ class SarpFactionDetail(BaseModel):
         default_factory=list,
         alias="factionMembers",
     )
+
+
+class SarpFactionRank(BaseModel):
+    """One ordered rank returned by the authenticated faction endpoint."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    faction: int = Field(gt=0)
+    name: str = Field(min_length=1, max_length=100)
+    member_tier: int = Field(default=0, ge=0)
+    paycheck: int | float | None = Field(default=None, ge=0)

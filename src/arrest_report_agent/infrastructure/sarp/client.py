@@ -36,6 +36,7 @@ from .models import (
     SarpEmergencyCallPage,
     SarpEnvelope,
     SarpFactionDetail,
+    SarpFactionRank,
     SarpFinePage,
     SarpPenalCodePayload,
     SarpRateLimit,
@@ -62,6 +63,7 @@ WARRANT_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpWarrantPage)
 ARREST_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpArrestPage)
 EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpEmergencyCallPage)
 FACTION_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionDetail)
+FACTION_RANKS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionRank])
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,6 +258,17 @@ class SarpClient:
             "GET",
             f"/my-faction/faction/{faction_id}",
             payload_adapter=FACTION_DETAIL_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def get_faction_ranks(self, faction_id: int) -> list[SarpFactionRank]:
+        """Fetch the faction's ordered rank catalog."""
+
+        _require_positive_id(faction_id, "faction_id")
+        response = await self.request(
+            "GET",
+            f"/my-faction/ranks/{faction_id}",
+            payload_adapter=FACTION_RANKS_PAYLOAD_ADAPTER,
         )
         return response.payload
 

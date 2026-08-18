@@ -9,6 +9,8 @@ from dataclasses import dataclass
 class FactionPresenceMember:
     name: str
     on_duty: bool
+    rank_name: str = "Rango desconocido"
+    rank_order: int = -1
 
 
 @dataclass(frozen=True, slots=True)

@@ -12,7 +12,7 @@ from arrest_report_agent.config import BotPersona, PersonaFactionStatusMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
-from .models import FactionPresenceSnapshot
+from .models import FactionPresenceMember, FactionPresenceSnapshot
 from .service import FactionStatusService
 
 LOGGER = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ def build_faction_status_embed(
     snapshot: FactionPresenceSnapshot,
     ui: PersonaFactionStatusMessages,
 ) -> discord.Embed:
-    """Render a bounded, alphabetically ordered faction presence list."""
+    """Render a bounded faction presence list ordered by hierarchy and name."""
 
     embed = discord.Embed(
         title="👥 Estado de la facción",
@@ -133,8 +133,10 @@ def build_faction_status_embed(
         inline=True,
     )
     if snapshot.connected_members:
-        on_duty = tuple(member.name for member in snapshot.connected_members if member.on_duty)
-        off_duty = tuple(member.name for member in snapshot.connected_members if not member.on_duty)
+        on_duty = tuple(_member_label(member) for member in snapshot.connected_members if member.on_duty)
+        off_duty = tuple(
+            _member_label(member) for member in snapshot.connected_members if not member.on_duty
+        )
         if on_duty:
             embed.add_field(
                 name=f"🟢 En servicio · {len(on_duty)}",
@@ -157,6 +159,10 @@ def _render_member_group(names: tuple[str, ...]) -> str:
     if remaining > 0:
         lines.append(f"… y {remaining} más.")
     return "\n".join(lines)
+
+
+def _member_label(member: FactionPresenceMember) -> str:
+    return f"{member.rank_name} · {member.name}"
 
 
 def _member_has_any_role(member: discord.Member, role_ids: tuple[int, ...]) -> bool:

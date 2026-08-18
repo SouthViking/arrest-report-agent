@@ -1,16 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.7.2",
-  "title": "Identidad compartida en dispatch",
-  "summary": "Los llamados policiales ahora representan de forma conjunta a LSPD y LSSD en el canal de dispatch.",
+  "version": "0.7.3",
+  "title": "Rangos en el estado de facción",
+  "summary": "La consulta de personal conectado ahora identifica el rango oficial de cada miembro y respeta la jerarquía de la facción.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Los avisos policiales se identifican como `LSPD/LSSD`, sin quedar asociados visualmente a un único departamento."
+      "type": "improved",
+      "text": "`/conectados` muestra el rango junto al nombre y ordena al personal de mayor a menor jerarquía; los miembros del mismo rango se ordenan alfabéticamente."
+    },
+    {
+      "type": "improved",
+      "text": "El catálogo de rangos se conserva temporalmente para reducir consultas a la API y mantener disponible el listado ante una falla transitoria."
     }
   ],
   "acknowledgements": []
