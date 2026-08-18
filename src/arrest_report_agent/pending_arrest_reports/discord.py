@@ -362,46 +362,48 @@ def build_pending_arrest_reports_embed(
     ui: PersonaPendingArrestReportsMessages,
     page: int = 0,
 ) -> discord.Embed:
-    """Render one compact embed with three report cards per row."""
+    """Render one compact embed as a mobile-friendly chronological list."""
 
-    page_count = max(1, ceil(result.pending_count / REPORTS_PER_PAGE))
+    ordered_reports, group_counts = _group_reports_by_officer(result.pending_reports)
+    page_count = max(1, ceil(len(ordered_reports) / REPORTS_PER_PAGE))
     bounded_page = min(max(page, 0), page_count - 1)
     start = bounded_page * REPORTS_PER_PAGE
-    reports = result.pending_reports[start : start + REPORTS_PER_PAGE]
+    reports = ordered_reports[start : start + REPORTS_PER_PAGE]
     compliance = (
         "—"
         if result.compliance_percentage is None
         else f"{str(result.compliance_percentage).replace('.', ',')} %"
     )
-    description = (
-        f"{ui.result_intro}\n\n"
-        f"**Período:** {_format_date(result.date_from)} — {_format_date(result.date_to)}\n"
-        "🟢 <18 h · 🟡 18–24 h · 🟠 24–48 h · 🔴 >48 h"
-    )
-    if not result.pending_reports:
-        description = (
-            f"{ui.no_pending}\n\n**Período:** {_format_date(result.date_from)} — "
-            f"{_format_date(result.date_to)}"
+    intro = ui.result_intro if result.pending_reports else ui.no_pending
+    description_parts = [
+        intro,
+        (
+            f"**Período:** {_format_date(result.date_from)} — {_format_date(result.date_to)}\n"
+            f"📄 **Revisados:** {result.total_reports} · "
+            f"⏳ **Pendientes:** {result.pending_count} · "
+            f"✅ **Cumplimiento:** {compliance}\n"
+            f"👮 **Agentes con pendientes:** {len(group_counts)}"
+        ),
+    ]
+    if reports:
+        description_parts.extend(
+            (
+                "🟢 <18 h · 🟡 18–24 h · 🟠 24–48 h · 🔴 >48 h",
+                _format_grouped_report_entries(
+                    reports,
+                    ordered_reports=ordered_reports,
+                    page_start=start,
+                    group_counts=group_counts,
+                ),
+            )
         )
+    description = "\n\n".join(description_parts)
     embed = discord.Embed(
         title="⏳ Reportes de arresto pendientes",
         description=description,
         color=_embed_color(result.pending_reports),
         timestamp=datetime.now(UTC),
     )
-    embed.add_field(name="📄 Revisados", value=f"**{result.total_reports}**", inline=True)
-    embed.add_field(name="⏳ Pendientes", value=f"**{result.pending_count}**", inline=True)
-    embed.add_field(name="✅ Cumplimiento", value=f"**{compliance}**", inline=True)
-    for report in reports:
-        embed.add_field(
-            name=f"{_status_emoji(report.status)} #{report.report_id}",
-            value=(
-                f"👮 {discord.utils.escape_markdown(report.officer_name)}\n"
-                f"🔒 {discord.utils.escape_markdown(report.suspect_name)}\n"
-                f"🕒 <t:{int(report.created_at.timestamp())}:R>"
-            ),
-            inline=True,
-        )
     if any(
         report.status is PendingReportStatus.OVER_NORMAL_LIMIT
         for report in result.pending_reports
@@ -412,6 +414,75 @@ def build_pending_arrest_reports_embed(
     if page_count > 1:
         embed.set_footer(text=f"Página {bounded_page + 1} de {page_count}")
     return embed
+
+
+def _group_reports_by_officer(
+    reports: tuple[PendingArrestReport, ...],
+) -> tuple[tuple[PendingArrestReport, ...], dict[str, int]]:
+    grouped: dict[str, list[PendingArrestReport]] = {}
+    for report in reports:
+        grouped.setdefault(_officer_key(report), []).append(report)
+    ordered_groups = sorted(
+        grouped.items(),
+        key=lambda item: (-len(item[1]), item[0]),
+    )
+    ordered = tuple(
+        report
+        for _, group in ordered_groups
+        for report in sorted(group, key=lambda item: (item.created_at, item.report_id))
+    )
+    return ordered, {key: len(group) for key, group in ordered_groups}
+
+
+def _format_grouped_report_entries(
+    reports: tuple[PendingArrestReport, ...],
+    *,
+    ordered_reports: tuple[PendingArrestReport, ...],
+    page_start: int,
+    group_counts: dict[str, int],
+) -> str:
+    previous_key = (
+        _officer_key(ordered_reports[page_start - 1])
+        if page_start > 0 and ordered_reports
+        else None
+    )
+    sections: list[str] = []
+    current_key: str | None = None
+    current_lines: list[str] = []
+    for report in reports:
+        key = _officer_key(report)
+        if key != current_key:
+            if current_lines:
+                sections.append("\n".join(current_lines))
+            suffix = " · continuación" if not sections and key == previous_key else ""
+            count = group_counts[key]
+            label = "pendiente" if count == 1 else "pendientes"
+            current_lines = [
+                f"### 👮 {_compact_name(report.officer_name, limit=55)} · "
+                f"{count} {label}{suffix}"
+            ]
+            current_key = key
+        current_lines.append(_format_report_entry(report))
+    if current_lines:
+        sections.append("\n".join(current_lines))
+    return "\n\n".join(sections)
+
+
+def _format_report_entry(report: PendingArrestReport) -> str:
+    suspect = _compact_name(report.suspect_name)
+    return (
+        f"{_status_emoji(report.status)} **#{report.report_id}** · "
+        f"🔒 {suspect} · <t:{int(report.created_at.timestamp())}:R>"
+    )
+
+
+def _officer_key(report: PendingArrestReport) -> str:
+    return " ".join(report.officer_name.split()).casefold()
+
+
+def _compact_name(value: str, *, limit: int = 70) -> str:
+    escaped = discord.utils.escape_markdown(value)
+    return escaped if len(escaped) <= limit else f"{escaped[: limit - 1].rstrip()}…"
 
 
 def _resolve_date_range(

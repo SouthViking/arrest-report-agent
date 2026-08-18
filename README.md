@@ -371,8 +371,8 @@ Comandos disponibles:
 - `/conectados`: publica para `operational_staff_roles` el personal conectado y en servicio.
 - `/reportes-pendientes`: abre un formulario para que `operational_staff_roles` seleccione un
   período de hasta 90 días y decida si el resultado será público o privado. Revisa hasta 1.000
-  arrestos de SARP sin IA y muestra en un solo embed los que parecen incompletos, ordenados del más
-  antiguo al más reciente y clasificados por antigüedad.
+  arrestos de SARP sin IA y muestra en un solo embed los que parecen incompletos, agrupados por
+  agente según su cantidad y ordenados por antigüedad dentro de cada grupo.
 - `/faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
 - `/verguenza`: abre un modal para elegir mes actual o los últimos 7, 30 o 90 días, y publica por
   cada canal configurado un top 10 de quienes acumulan más expedientes que todavía no alcanzan el

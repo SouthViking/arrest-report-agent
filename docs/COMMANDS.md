@@ -161,9 +161,10 @@ si el resultado será visible para todos o únicamente para quien consultó.
 La consulta no usa IA ni persiste el contenido. Lee hasta el máximo configurado, considera completa
 una narrativa que comienza con `Yo` y detecta como posibles pendientes los textos vacíos, placeholders,
 repeticiones y descripciones breves no estándar. El embed resume revisados, pendientes y cumplimiento;
-ordena los pendientes del más antiguo al más reciente y usa `🟢`, `🟡`, `🟠` y `🔴` para los tramos
-menores de 18 horas, 18–24, 24–48 y superiores a 48 horas. Si hay más de quince resultados, los
-botones de página quedan reservados a quien inició la consulta.
+agrupa los resultados por agente, ordena primero a quienes tienen más pendientes y muestra dentro de
+cada grupo los casos más antiguos primero. Usa `🟢`, `🟡`, `🟠` y `🔴` para los tramos menores de
+18 horas, 18–24, 24–48 y superiores a 48 horas. Si hay más de quince resultados, los botones de
+página quedan reservados a quien inició la consulta y repiten el agente cuando su grupo continúa.
 
 ## `/mdc`
 

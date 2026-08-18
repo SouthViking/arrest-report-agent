@@ -1,20 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.9.0",
-  "title": "Seguimiento de reportes pendientes",
-  "summary": "El personal operativo ahora puede detectar rápidamente los reportes de arresto que todavía parecen incompletos.",
+  "version": "0.9.1",
+  "title": "Reportes pendientes agrupados",
+  "summary": "La consulta de reportes pendientes ahora organiza los resultados por agente para facilitar su lectura.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "El nuevo comando /reportes-pendientes permite revisar un período y resume reportes revisados, pendientes y nivel de cumplimiento."
+      "type": "improved",
+      "text": "Los agentes aparecen ordenados por cantidad de reportes pendientes y cada grupo muestra primero sus casos más antiguos."
     },
     {
       "type": "improved",
-      "text": "Cada consulta puede publicarse para todos o mantenerse privada, con estados por antigüedad y navegación cuando existen muchos resultados."
+      "text": "La presentación utiliza una lista compacta con sospechoso, antigüedad y continuidad del agente entre páginas."
     }
   ],
   "acknowledgements": []

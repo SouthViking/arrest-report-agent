@@ -303,13 +303,18 @@ def test_embed_is_single_compact_page_with_worst_status_color(persona) -> None:
     )
 
     assert embed.color == discord.Color.red()
-    assert len(embed.fields) == 18
-    assert embed.fields[0].name == "📄 Revisados"
-    assert embed.fields[1].name == "⏳ Pendientes"
-    assert embed.fields[2].name == "✅ Cumplimiento"
-    assert embed.fields[2].value == "**20,0 %**"
+    assert len(embed.fields) == 0
+    assert "📄 **Revisados:** 20" in embed.description
+    assert "⏳ **Pendientes:** 16" in embed.description
+    assert "✅ **Cumplimiento:** 20,0 %" in embed.description
+    assert "👮 **Agentes con pendientes:** 16" in embed.description
+    assert "🔴 **#1**" in embed.description
+    assert "### 👮 Officer 1 · 1 pendiente" in embed.description
+    assert "🔒 Suspect 1" in embed.description
+    assert "Agente:" not in embed.description
+    assert "Sospechoso:" not in embed.description
     assert embed.footer.text == "Página 1 de 2"
-    assert "<t:" in embed.fields[3].value
+    assert "<t:" in embed.description
 
 
 def test_embed_without_pending_reports_is_green(persona) -> None:
@@ -326,5 +331,84 @@ def test_embed_without_pending_reports_is_green(persona) -> None:
     )
 
     assert embed.color == discord.Color.green()
-    assert embed.fields[1].value == "**0**"
-    assert embed.fields[2].value == "**100,0 %**"
+    assert "⏳ **Pendientes:** 0" in embed.description
+    assert "✅ **Cumplimiento:** 100,0 %" in embed.description
+
+
+def test_embed_groups_officers_by_pending_count_and_reports_by_age(persona) -> None:
+    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
+    reports = (
+        PendingArrestReport(
+            report_id=1,
+            officer_name="Bravo Officer",
+            suspect_name="Suspect One",
+            created_at=now - timedelta(hours=3),
+            status=PendingReportStatus.ON_TIME,
+            reason=PendingReportReason.PLACEHOLDER,
+        ),
+        PendingArrestReport(
+            report_id=2,
+            officer_name="Alpha Officer",
+            suspect_name="Suspect Two",
+            created_at=now - timedelta(hours=2),
+            status=PendingReportStatus.ON_TIME,
+            reason=PendingReportReason.PLACEHOLDER,
+        ),
+        PendingArrestReport(
+            report_id=3,
+            officer_name="Alpha Officer",
+            suspect_name="Suspect Three",
+            created_at=now - timedelta(hours=5),
+            status=PendingReportStatus.ON_TIME,
+            reason=PendingReportReason.PLACEHOLDER,
+        ),
+    )
+    result = PendingArrestReportScan(
+        faction_id=3,
+        date_from=date(2026, 8, 17),
+        date_to=date(2026, 8, 18),
+        total_reports=3,
+        pending_reports=reports,
+    )
+
+    embed = build_pending_arrest_reports_embed(
+        result,
+        ui=persona.messages.interface.pending_arrest_reports,
+    )
+    description = embed.description or ""
+
+    assert description.index("Alpha Officer · 2 pendientes") < description.index(
+        "Bravo Officer · 1 pendiente"
+    )
+    assert description.index("**#3**") < description.index("**#2**")
+
+
+def test_embed_repeats_officer_context_when_group_continues_on_next_page(persona) -> None:
+    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
+    reports = tuple(
+        PendingArrestReport(
+            report_id=index,
+            officer_name="Michael Falcone",
+            suspect_name=f"Suspect {index}",
+            created_at=now - timedelta(hours=index),
+            status=PendingReportStatus.ON_TIME,
+            reason=PendingReportReason.PLACEHOLDER,
+        )
+        for index in range(1, 17)
+    )
+    result = PendingArrestReportScan(
+        faction_id=3,
+        date_from=date(2026, 8, 17),
+        date_to=date(2026, 8, 18),
+        total_reports=16,
+        pending_reports=reports,
+    )
+
+    embed = build_pending_arrest_reports_embed(
+        result,
+        ui=persona.messages.interface.pending_arrest_reports,
+        page=1,
+    )
+
+    assert "### 👮 Michael Falcone · 16 pendientes · continuación" in embed.description
+    assert embed.footer.text == "Página 2 de 2"
