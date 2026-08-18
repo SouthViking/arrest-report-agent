@@ -293,7 +293,7 @@ def build_service_call_embed(call: SarpEmergencyCall) -> discord.Embed:
     )
     embed.add_field(
         name="👤 Solicitante",
-        value=_safe(call.character_name or "No informado", limit=100),
+        value=_caller(call),
         inline=True,
     )
     embed.add_field(
@@ -308,7 +308,7 @@ def _service_theme(service: str | None) -> tuple[str, str, discord.Color]:
     normalized = service.strip().upper() if service else ""
     safe_service = _safe(normalized, limit=30) if normalized else ""
     if normalized in {"LSPD", "LSSD"}:
-        return "LSPD/LSSD", "🚓", discord.Color.blue()
+        return "Policía", "🚓", discord.Color.blue()
     if normalized == "LSFD":
         return safe_service, "🚒", discord.Color.red()
     return safe_service, "", discord.Color.light_grey()
@@ -340,3 +340,9 @@ def _phone(value: int | str | None) -> str:
         return "No informado"
     normalized = str(value).strip()
     return normalized if normalized and normalized != "0" else "No informado"
+
+
+def _caller(call: SarpEmergencyCall) -> str:
+    if str(call.phone_number).strip() == "0":
+        return "Anónimo"
+    return _safe(call.character_name or "No informado", limit=100)

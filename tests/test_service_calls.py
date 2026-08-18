@@ -164,8 +164,8 @@ async def test_feed_delivers_only_new_calls_oldest_first_and_advances_cursor() -
 
     assert repository.advances == [11, 12]
     assert [embed.title for embed in channel.embeds] == [
-        "🚓 LSPD/LSSD · Llamada #00011",
-        "🚓 LSPD/LSSD · Llamada #00012",
+        "🚓 Policía · Llamada #00011",
+        "🚓 Policía · Llamada #00012",
     ]
 
 
@@ -174,7 +174,7 @@ def test_service_call_embed_is_safe_and_omits_empty_phone() -> None:
         emergency_call(56221, situation="Avisan a <@123> por **un robo**")
     )
 
-    assert embed.title == "🚓 LSPD/LSSD · Llamada #56221"
+    assert embed.title == "🚓 Policía · Llamada #56221"
     assert embed.colour == discord.Color.blue()
     assert (embed.description or "").startswith("🚨 **Información recibida**")
     assert "<@123>" in (embed.description or "")
@@ -182,6 +182,10 @@ def test_service_call_embed_is_safe_and_omits_empty_phone() -> None:
     assert next(field.value for field in embed.fields if field.name == "📞 Teléfono") == (
         "No informado"
     )
+    assert next(field.value for field in embed.fields if field.name == "👤 Solicitante") == (
+        "Anónimo"
+    )
+    assert "Andrew" not in str(embed.to_dict())
     assert embed.timestamp == datetime(2026, 8, 17, 22, 1, tzinfo=UTC)
     assert all(field.name not in {"Servicio", "Referencia de rastreo"} for field in embed.fields)
     assert embed.footer is None
@@ -219,9 +223,24 @@ def test_unknown_service_keeps_its_name_without_assigning_an_emoji() -> None:
     assert embed.colour == discord.Color.light_grey()
 
 
-def test_lssd_and_lspd_share_the_police_dispatch_identity() -> None:
+def test_lssd_and_lspd_share_the_generic_police_dispatch_identity() -> None:
     lspd = build_service_call_embed(emergency_call(41).model_copy(update={"service": "LSPD"}))
     lssd = build_service_call_embed(emergency_call(42).model_copy(update={"service": "LSSD"}))
 
-    assert lspd.title == "🚓 LSPD/LSSD · Llamada #00041"
-    assert lssd.title == "🚓 LSPD/LSSD · Llamada #00042"
+    assert lspd.title == "🚓 Policía · Llamada #00041"
+    assert lssd.title == "🚓 Policía · Llamada #00042"
+
+
+def test_identified_caller_is_kept_when_phone_number_is_available() -> None:
+    call = emergency_call(56242).model_copy(
+        update={"character_name": "Yehi Cortez", "phone_number": 5551234}
+    )
+
+    embed = build_service_call_embed(call)
+
+    assert next(field.value for field in embed.fields if field.name == "👤 Solicitante") == (
+        "Yehi Cortez"
+    )
+    assert next(field.value for field in embed.fields if field.name == "📞 Teléfono") == (
+        "5551234"
+    )
