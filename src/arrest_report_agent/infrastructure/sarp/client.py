@@ -33,7 +33,9 @@ from .models import (
     SarpCharacterPossessions,
     SarpCharacterPreview,
     SarpCharacterSearchResult,
+    SarpEmergencyCallPage,
     SarpEnvelope,
+    SarpFactionDetail,
     SarpFinePage,
     SarpPenalCodePayload,
     SarpRateLimit,
@@ -58,6 +60,8 @@ CHARACTER_POSSESSIONS_PAYLOAD_ADAPTER = TypeAdapter(SarpCharacterPossessions)
 FINE_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFinePage)
 WARRANT_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpWarrantPage)
 ARREST_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpArrestPage)
+EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpEmergencyCallPage)
+FACTION_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionDetail)
 
 
 @dataclass(frozen=True, slots=True)
@@ -244,6 +248,17 @@ class SarpClient:
         )
         return response.payload
 
+    async def get_faction_detail(self, faction_id: int) -> SarpFactionDetail:
+        """Fetch one complete faction roster with its live connection state."""
+
+        _require_positive_id(faction_id, "faction_id")
+        response = await self.request(
+            "GET",
+            f"/my-faction/faction/{faction_id}",
+            payload_adapter=FACTION_DETAIL_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
     async def search_characters(self, name: str) -> list[SarpCharacterSearchResult]:
         """Search character names using the documented prefix endpoint."""
 
@@ -344,6 +359,23 @@ class SarpClient:
             "/police/arrests",
             params={"suspect_id": character_id, "page": page, "limit": limit},
             payload_adapter=ARREST_PAGE_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def list_emergency_calls(
+        self,
+        *,
+        page: int = 1,
+        limit: int = 100,
+    ) -> SarpEmergencyCallPage:
+        """List the most recent police emergency calls."""
+
+        _validate_page(page, limit)
+        response = await self.request(
+            "GET",
+            "/police/emergency-calls",
+            params={"page": page, "limit": limit},
+            payload_adapter=EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER,
         )
         return response.payload
 

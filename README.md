@@ -31,6 +31,8 @@ también sin ejecutar el agente.
   compresión y limitaciones gráficas; no infiere atributos sensibles.
 - Consulta una guía local por secciones y un índice validado de 164 delitos descargados del PCU; la
   búsqueda de cargos permite seleccionar campos, combinar términos y tolerar typos cuando proceda.
+- Consulta en una sola petición la nómina de una facción y permite al personal operativo publicar
+  quién está conectado o quién además figura en servicio mediante `/conectados`.
 - Resuelve bajo demanda códigos de respuesta, códigos 10, códigos de situación y el alfabeto
   radiofónico APCO desde una referencia oficial acotada, sin inyectar el manual completo al prompt.
 - Mantiene el indicador nativo de escritura mientras procesa una solicitud.
@@ -482,6 +484,7 @@ el contenido exacto del FAQ.
 | `SARP_API_BASE_URL` | `https://api.gta-rol.com/api` | Base HTTPS de la API comunitaria de SARP. |
 | `SARP_API_TIMEOUT_SECONDS` | `10` | Timeout total de cada intento contra SARP. |
 | `SARP_API_MAX_RETRIES` | `2` | Reintentos máximos para lecturas seguras ante transporte, rate limit o errores transitorios. |
+| `SARP_EMERGENCY_CALL_POLL_SECONDS` | `30` | Intervalo del feed de llamadas de servicio; admite entre 10 y 3600 segundos y no consulta la API sin canales activos. |
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
 | `REPORT_CHANNEL_IDS` | `*` | Canales usados por búsquedas, resúmenes, rankings, supervisión y ayuda; no restringe menciones. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` quedan como aliases compatibles. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |
@@ -511,11 +514,25 @@ el contenido exacto del FAQ.
 | `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA` | `false` | Excluye mensajes, imágenes, archivos y tool payloads del trace. |
 
 Con `SARP_API_ENABLED=true`, el runtime obtiene `GET /police/penal-code` al arrancar, lo refresca
-en segundo plano y registra `/mdc`. `/cargos` y las tools del agente comparten el mismo snapshot: una caída temporal
+en segundo plano y registra `/mdc` y `/conectados`. `/cargos` y las tools del agente comparten el mismo snapshot: una caída temporal
 conserva el último catálogo remoto válido y, si todavía no existe uno, usa `delitos.json`. Cada
 revisión fija su snapshot al comenzar, por lo que una actualización no mezcla fuentes a mitad de
 una ejecución. `/mdc` consulta en vivo la búsqueda exacta, perfil IC, posesiones y registros
 policiales; no persiste sus resultados y solo muestra como no disponible la sección remota que falle.
+
+`/conectados` usa el módulo dinámico `faction_status`, cuyo payload contiene el `faction_id` propio
+de cada guild. Obtiene el roster completo con `GET /my-faction/faction/:factionId` y publica en una
+sola vista los totales de conectados, personal en servicio y porcentaje de cobertura, junto con la
+lista alfabética de conectados. La API se consulta una sola vez y el resultado se comparte durante
+quince segundos para proteger el límite del proveedor.
+
+El módulo dinámico `service_calls` consulta `GET /police/emergency-calls` únicamente cuando la
+política `service_call_channels` contiene al menos un canal explícito. La primera sincronización fija
+el llamado más reciente como cursor sin reproducir historial; después publica solo novedades en
+orden cronológico. PostgreSQL conserva un único ID por guild y canal, no los nombres, ubicaciones,
+teléfonos ni situaciones recibidas desde SARP. El intervalo global se controla con
+`SARP_EMERGENCY_CALL_POLL_SECONDS`, mientras que destinos y estado se publican en tiempo real desde
+`/config` sin redesplegar.
 
 El catálogo versionado
 [`models.json`](src/arrest_report_agent/config/data/models.json) contiene las capacidades, defaults y

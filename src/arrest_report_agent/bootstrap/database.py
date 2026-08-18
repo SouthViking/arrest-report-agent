@@ -372,6 +372,11 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 subject_type="channel",
                 mode=AccessPolicyMode.DISABLED,
             ),
+            AccessPolicySnapshot(
+                key=AccessPolicyKey.SERVICE_CALL_CHANNELS,
+                subject_type="channel",
+                mode=AccessPolicyMode.DISABLED,
+            ),
         )
         guilds.append(
             BootstrapGuild(
@@ -413,6 +418,18 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                             if guild_id == 1234674521416663070
                             else {}
                         ),
+                    ),
+                    GuildFeatureSnapshot(
+                        key="service_calls",
+                        enabled=False,
+                        schema_version=1,
+                        payload={},
+                    ),
+                    GuildFeatureSnapshot(
+                        key="faction_status",
+                        enabled=False,
+                        schema_version=1,
+                        payload={},
                     ),
                 ),
                 persona_revision_id=placeholder_persona_revision,

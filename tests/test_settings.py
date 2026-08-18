@@ -122,7 +122,7 @@ def test_railway_webhook_requires_complete_identity_and_url_safe_secret() -> Non
 
     assert settings.railway_webhook_enabled is True
     assert settings.railway_webhook_identity_is_complete is True
-    assert settings.app_version == "0.6.2"
+    assert settings.app_version == "0.7.0"
 
     with pytest.raises(ValidationError, match="RAILWAY_ENVIRONMENT_ID"):
         AppSettings(**{key: value for key, value in values.items() if key != "RAILWAY_ENVIRONMENT_ID"})
@@ -181,6 +181,7 @@ def test_sarp_client_settings_are_optional_normalized_and_secret() -> None:
         SARP_API_BASE_URL="https://api.gta-rol.com/api/",
         SARP_API_TIMEOUT_SECONDS="12",
         SARP_API_MAX_RETRIES="3",
+        SARP_EMERGENCY_CALL_POLL_SECONDS="45",
     )
 
     assert settings.sarp_api_token is not None
@@ -190,6 +191,7 @@ def test_sarp_client_settings_are_optional_normalized_and_secret() -> None:
     assert settings.sarp_api_base_url == "https://api.gta-rol.com/api"
     assert settings.sarp_api_timeout_seconds == 12
     assert settings.sarp_api_max_retries == 3
+    assert settings.sarp_emergency_call_poll_seconds == 45
 
 
 def test_sarp_api_is_disabled_by_default_and_enabled_mode_requires_token() -> None:

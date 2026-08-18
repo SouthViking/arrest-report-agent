@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -265,3 +265,88 @@ class SarpArrestPage(BaseModel):
     page: int = Field(ge=1)
     limit: int = Field(ge=1, le=100)
     pages: int = Field(ge=0)
+
+
+class SarpEmergencyCall(BaseModel):
+    """One police emergency call returned by the live service feed."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    character_id: int | None = Field(default=None, gt=0)
+    character_name: str | None = Field(default=None, max_length=100)
+    phone_number: int | str | None = None
+    trace: str | None = None
+    service: str | None = None
+    location: str | None = None
+    situation: str = Field(min_length=1)
+    created_at: datetime
+
+    @field_validator(
+        "character_name",
+        "trace",
+        "service",
+        "location",
+        mode="before",
+    )
+    @classmethod
+    def normalize_optional_text(cls, value: object) -> object:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+    @field_validator("situation", mode="before")
+    @classmethod
+    def normalize_situation(cls, value: object) -> str:
+        return str(value).strip()
+
+    @field_validator("created_at")
+    @classmethod
+    def assume_documented_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+
+class SarpEmergencyCallPage(BaseModel):
+    """Paginated emergency-call list ordered newest first by SARP."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    items: list[SarpEmergencyCall] = Field(default_factory=list)
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    limit: int = Field(ge=1, le=100)
+    pages: int = Field(ge=0)
+
+
+class SarpFactionMember(BaseModel):
+    """One member returned by the authenticated faction detail endpoint."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    name: str = Field(min_length=1, max_length=100)
+    online: bool
+    factionduty: bool
+
+    @field_validator("online", "factionduty", mode="before")
+    @classmethod
+    def normalize_binary_state(cls, value: object) -> bool:
+        if value in (True, 1, "1"):
+            return True
+        if value in (False, 0, "0"):
+            return False
+        raise ValueError("SARP faction member state must be 0 or 1")
+
+
+class SarpFactionDetail(BaseModel):
+    """Authenticated faction projection containing its complete member roster."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
+
+    faction_members: list[SarpFactionMember] = Field(
+        default_factory=list,
+        alias="factionMembers",
+    )

@@ -68,6 +68,9 @@ class DatabaseConfigProvider:
         self._refresh_task: asyncio.Task[None] | None = None
         self._stopped = asyncio.Event()
         self._global_callbacks: list[Callable[[LoadedPersona], Awaitable[None]]] = []
+        self._guild_callbacks: list[
+            Callable[[GuildRuntimeBundle], Awaitable[None]]
+        ] = []
 
     async def start(self) -> None:
         guild_ids = await self.repository.enabled_guild_ids()
@@ -107,6 +110,12 @@ class DatabaseConfigProvider:
     ) -> None:
         self._global_callbacks.append(callback)
 
+    def register_guild_callback(
+        self,
+        callback: Callable[[GuildRuntimeBundle], Awaitable[None]],
+    ) -> None:
+        self._guild_callbacks.append(callback)
+
     async def get(self, guild_id: int, *, force: bool = False) -> GuildRuntimeBundle:
         lock = self._locks.setdefault(guild_id, asyncio.Lock())
         async with lock:
@@ -139,6 +148,8 @@ class DatabaseConfigProvider:
                 service=service,
             )
             self._bundles[guild_id] = bundle
+            for callback in self._guild_callbacks:
+                await callback(bundle)
             log_event(
                 LOGGER,
                 "info",

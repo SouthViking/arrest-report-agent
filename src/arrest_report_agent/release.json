@@ -1,26 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.6.2",
-  "title": "Corrección de respuestas del MDC",
-  "summary": "Las consultas privadas y los avisos por nombres incorrectos vuelven a responder correctamente desde el formulario del MDC.",
+  "version": "0.7.0",
+  "title": "Llamados y estado operativo",
+  "summary": "Los nuevos llamados de servicio pueden llegar automáticamente a Discord y el personal operativo puede consultar de un vistazo quién está conectado o en servicio.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
-      "type": "fixed",
-      "text": "La opción **Solo para mí** vuelve a entregar la ficha de manera privada sin fallar al finalizar la consulta."
+      "type": "added",
+      "text": "Los nuevos llamados de servicio se publican automáticamente en los canales configurados, sin repetir llamados anteriores al activar el sistema."
     },
     {
-      "type": "fixed",
-      "text": "Los nombres inexistentes o mal escritos muestran nuevamente el aviso correspondiente."
-    },
-    {
-      "type": "improved",
-      "text": "Las consultas públicas muestran la referencia nativa de quién utilizó `/mdc`."
+      "type": "added",
+      "text": "El personal operativo puede usar `/conectados` para consultar cuántos miembros están conectados, cuántos están en servicio y qué porcentaje representan."
     },
     {
       "type": "improved",
-      "text": "Los avisos del MDC respetan la visibilidad seleccionada en el formulario."
+      "text": "La nómina de `/conectados` separa de forma clara al personal en servicio de quienes están conectados fuera de servicio."
     }
   ],
   "acknowledgements": []

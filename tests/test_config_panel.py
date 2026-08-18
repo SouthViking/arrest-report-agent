@@ -296,10 +296,19 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
     assert AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS.value in {
         option.value for option in access_modal.policy.options
     }
+    assert AccessPolicyKey.SERVICE_CALL_CHANNELS.value in {
+        option.value for option in access_modal.policy.options
+    }
     assert AgentConfigurationModal(cog, 42, provider.snapshot.agent).title == "Configurar agente"
     feature_modal = FeatureConfigurationModal(cog, 42)
     assert feature_modal.title == "Configurar módulo"
     assert "deployment_notifications" in {
+        option.value for option in feature_modal.key.options
+    }
+    assert "service_calls" in {
+        option.value for option in feature_modal.key.options
+    }
+    assert "faction_status" in {
         option.value for option in feature_modal.key.options
     }
     persona_modal = PersonaConfigurationModal(cog, 42, include_global_profile=True)

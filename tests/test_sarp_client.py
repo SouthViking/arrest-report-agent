@@ -16,6 +16,7 @@ from arrest_report_agent.infrastructure.sarp import (
     SarpClientConfig,
     SarpClientNotOpenError,
     SarpConflictError,
+    SarpFactionDetail,
     SarpForbiddenError,
     SarpInvalidResponseError,
     SarpNotFoundError,
@@ -296,6 +297,88 @@ async def test_mdc_endpoints_use_documented_paths_filters_and_typed_payloads() -
         ),
         ("/api/police/arrests", {"suspect_id": "44", "page": "1", "limit": "3"}),
     ]
+
+
+async def test_emergency_call_endpoint_is_typed_and_treats_naive_dates_as_utc() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/police/emergency-calls"
+        assert request.query == {"page": "2", "limit": "25"}
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "pcu",
+                "payload": {
+                    "items": [
+                        {
+                            "id": 56221,
+                            "character_id": 11040,
+                            "character_name": "Andrew McFly",
+                            "phone_number": 0,
+                            "trace": "Mulholland Drive",
+                            "service": "LSPD",
+                            "location": "Mulholland Drive",
+                            "situation": "Dos sujetos estarían asaltando un local.",
+                            "created_at": "2026-08-17 22:27:36",
+                        }
+                    ],
+                    "total": 30,
+                    "page": 2,
+                    "limit": 25,
+                    "pages": 2,
+                },
+            }
+        )
+
+    async with serve_sarp(handler) as base_url, SarpClient(
+        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
+    ) as client:
+        page = await client.list_emergency_calls(page=2, limit=25)
+
+    assert page.items[0].id == 56221
+    assert page.items[0].created_at.utcoffset().total_seconds() == 0
+    assert page.items[0].location == "Mulholland Drive"
+
+
+async def test_faction_detail_endpoint_returns_typed_live_member_states() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/my-faction/faction/3"
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "pcu",
+                "payload": {
+                    "factionData": {"id": 3, "name": "Sheriff Department"},
+                    "factionMembers": [
+                        {
+                            "id": 41,
+                            "name": "Zachary_Wilcox",
+                            "online": 1,
+                            "factionduty": 0,
+                            "rank": 8,
+                        },
+                        {
+                            "id": 42,
+                            "name": "Adriel_Beltran",
+                            "online": 1,
+                            "factionduty": 1,
+                            "rank": 7,
+                        },
+                    ],
+                },
+            }
+        )
+
+    async with serve_sarp(handler) as base_url, SarpClient(
+        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
+    ) as client:
+        detail = await client.get_faction_detail(3)
+
+    assert isinstance(detail, SarpFactionDetail)
+    assert detail.faction_members[0].online is True
+    assert detail.faction_members[0].factionduty is False
+    assert detail.faction_members[1].factionduty is True
 
 
 async def test_penal_code_keeps_uncategorized_charges_returned_by_current_api() -> None:

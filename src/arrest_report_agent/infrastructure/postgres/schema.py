@@ -786,3 +786,29 @@ manual_quiz_options = sa.Table(
     ),
     sa.Index("ix_manual_quiz_option_question", "question_id", "position"),
 )
+
+service_call_cursors = sa.Table(
+    "service_call_cursors",
+    metadata,
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("channel_id", sa.BigInteger, primary_key=True),
+    sa.Column("last_call_id", sa.BigInteger, nullable=False),
+    sa.Column(
+        "created_at",
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now(),
+    ),
+    sa.Column(
+        "updated_at",
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now(),
+    ),
+    sa.CheckConstraint("last_call_id > 0", name="ck_service_call_cursor_positive"),
+)

@@ -229,6 +229,12 @@ class AppSettings(BaseSettings):
         ge=0,
         le=10,
     )
+    sarp_emergency_call_poll_seconds: int = Field(
+        default=30,
+        alias="SARP_EMERGENCY_CALL_POLL_SECONDS",
+        ge=10,
+        le=3600,
+    )
 
     openai_model: str = Field(default="gpt-5.6-terra", alias="OPENAI_MODEL", min_length=1)
     openai_reasoning_effort: str = Field(default="medium", alias="OPENAI_REASONING_EFFORT", min_length=1)

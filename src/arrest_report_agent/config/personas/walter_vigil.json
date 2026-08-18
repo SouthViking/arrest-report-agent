@@ -1,7 +1,7 @@
 {
-  "schema_version": 37,
+  "schema_version": 38,
   "id": "walter_vigil",
-  "revision": 43,
+  "revision": 44,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -152,7 +152,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo solicitar y continuar la revisión de tu reporte.\n• `/info-roles`: cómo pedir altas o bajas de roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo registrar y consultar callsigns.\n• `/info-mdc`: cómo consultar registros operativos y elegir su visibilidad.\n• `/info-sugerencias`: cómo enviar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.",
+      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.",
       "footer": "Elige la guía correspondiente y sigue sus indicaciones, {form_of_address}."
     },
     "interface": {
@@ -426,6 +426,14 @@
         "info_visibility": "Elija **Visible para todos** para publicar la ficha en el canal o **Solo para mí** para recibirla de forma privada.",
         "info_results": "La ficha reúne estado de custodia, órdenes activas, multas pendientes, vehículos, propiedades y antecedentes disponibles. Si una sección no responde, se indicará sin descartar el resto."
       },
+      "faction_status": {
+        "alert_title": "⚠️ Estado de facción no disponible",
+        "unauthorized": "Esta consulta está reservada al personal operativo autorizado.",
+        "unavailable": "La consulta de miembros conectados no está habilitada para este servidor.",
+        "operation_failed": "No pude consultar el estado de la facción en este momento. Inténtelo nuevamente más tarde.",
+        "connected_intro": "Estado actual del personal conectado y en servicio.",
+        "no_connected": "No aparece ningún miembro de la facción conectado en este momento."
+      },
       "review": {
         "failure_next_step_title": "Siguiente paso",
         "escalation_notice": "📣 Se requiere supervisión: {roles}",
@@ -485,7 +493,8 @@
         "suggestion_status_description": "Actualiza en privado el estado de una sugerencia",
         "manual_question_description": "Practica el contenido del manual de la facción",
         "mdc_description": "Consulta registros operativos de un personaje",
-        "info_mdc_description": "Explica cómo consultar el MDC y elegir su visibilidad"
+        "info_mdc_description": "Explica cómo consultar el MDC y elegir su visibilidad",
+        "connected_members_description": "Resume el personal conectado y en servicio"
       }
     }
   }

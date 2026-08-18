@@ -318,6 +318,112 @@ def test_callsign_alphabet_migration_adds_chat_without_replacing_deployment_chan
             os.environ["DATABASE_URL"] = previous
 
 
+def test_service_call_migration_configures_lssd_without_enabling_other_guilds() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = database_url
+    alembic = Config("alembic.ini")
+    try:
+        command.downgrade(alembic, "base")
+        command.upgrade(alembic, "20260817_0030")
+        asyncio.run(_seed_service_call_configuration_targets(database_url))
+        command.upgrade(alembic, "head")
+        asyncio.run(_assert_service_call_configuration(database_url))
+    finally:
+        command.downgrade(alembic, "base")
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
+
+
+async def _seed_service_call_configuration_targets(database_url: str) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        async with client.transaction() as tx:
+            for guild_id in (1234674521416663070, 999):
+                revision_id = uuid.uuid4()
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO discord_guilds (discord_id, name) "
+                        "VALUES (:guild_id, 'QA')"
+                    ),
+                    {"guild_id": guild_id},
+                )
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO guild_config_revisions "
+                        "(id, guild_id, revision, status, published_at) "
+                        "VALUES (:id, :guild_id, 1, 'published', now())"
+                    ),
+                    {"id": revision_id, "guild_id": guild_id},
+                )
+                await tx.execute(
+                    sa.text(
+                        "UPDATE discord_guilds SET active_config_revision_id = :revision_id "
+                        "WHERE discord_id = :guild_id"
+                    ),
+                    {"revision_id": revision_id, "guild_id": guild_id},
+                )
+    finally:
+        await client.close()
+
+
+async def _assert_service_call_configuration(database_url: str) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, policy.mode, feature.enabled, member.snowflake_id "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_access_policies policy "
+                "ON policy.config_revision_id = revision.id "
+                "AND policy.policy_key = 'service_call_channels' "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'service_calls' "
+                "LEFT JOIN guild_access_policy_members member ON member.policy_id = policy.id "
+                "ORDER BY revision.guild_id"
+            )
+        )
+        resolved = {int(row["guild_id"]): row for row in rows}
+        lssd = resolved[1234674521416663070]
+        assert lssd["mode"] == "restricted"
+        assert lssd["enabled"] is True
+        assert int(lssd["snowflake_id"]) == 1539037905014759485
+        other = resolved[999]
+        assert other["mode"] == "disabled"
+        assert other["enabled"] is False
+        assert other["snowflake_id"] is None
+        cursor_table = await client.fetch_one(
+            sa.text("SELECT to_regclass('public.service_call_cursors') AS name")
+        )
+        assert cursor_table is not None
+        assert cursor_table["name"] == "service_call_cursors"
+        faction_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.enabled, feature.payload "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'faction_status' "
+                "ORDER BY revision.guild_id"
+            )
+        )
+        faction_config = {int(row["guild_id"]): row for row in faction_rows}
+        assert faction_config[1234674521416663070]["enabled"] is True
+        assert faction_config[1234674521416663070]["payload"] == {"faction_id": 3}
+        assert faction_config[999]["enabled"] is False
+        assert faction_config[999]["payload"] == {}
+    finally:
+        await client.close()
+
+
 async def _seed_deployment_channel_configuration(database_url: str) -> None:
     client = PostgresClient(PostgresClientConfig(url=database_url))
     await client.open()
@@ -575,8 +681,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 43
-        assert persona["schema_version"] == 37
+        assert persona["revision"] == 44
+        assert persona["schema_version"] == 38
         assert persona["payload"]["messages"]["access"]["blocked_user_messages"]
         assert persona["payload"]["messages"]["access"]["owner_quota_exhausted_messages"]
         assert persona["payload"]["messages"]["access"]["owner_invalid_report_messages"]
@@ -612,6 +718,15 @@ async def _assert_callsign_migration(
         assert persona["payload"]["messages"]["interface"]["commands"]["mdc_description"]
         assert persona["payload"]["messages"]["interface"]["commands"][
             "info_mdc_description"
+        ]
+        assert persona["payload"]["messages"]["interface"]["faction_status"][
+            "connected_intro"
+        ]
+        assert persona["payload"]["messages"]["interface"]["commands"][
+            "connected_members_description"
+        ]
+        assert "/conectados" in persona["payload"]["messages"]["help"][
+            "quick_references"
         ]
         assert persona["payload"]["messages"]["interface"]["commands"]["teamspeak_unauthorized"]
         table = await client.fetch_one(sa.text("SELECT to_regclass('public.guild_member_profiles') AS name"))

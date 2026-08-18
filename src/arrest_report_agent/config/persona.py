@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 37
+PERSONA_SCHEMA_VERSION = 38
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -831,6 +831,17 @@ class PersonaMdcMessages(FrozenPersonaModel):
         return self
 
 
+class PersonaFactionStatusMessages(FrozenPersonaModel):
+    """Personality-aware copy around deterministic faction presence data."""
+
+    alert_title: str = Field(min_length=1, max_length=256)
+    unauthorized: str = Field(min_length=1, max_length=400)
+    unavailable: str = Field(min_length=1, max_length=400)
+    operation_failed: str = Field(min_length=1, max_length=400)
+    connected_intro: str = Field(min_length=1, max_length=500)
+    no_connected: str = Field(min_length=1, max_length=400)
+
+
 class PersonaReviewMessages(FrozenPersonaModel):
     """Personality-aware framing around formal structured review data."""
 
@@ -919,6 +930,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     manual_question_description: str = Field(min_length=1, max_length=100)
     mdc_description: str = Field(min_length=1, max_length=100)
     info_mdc_description: str = Field(min_length=1, max_length=100)
+    connected_members_description: str = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaCommandMessages:
@@ -944,6 +956,7 @@ class PersonaInterfaceMessages(FrozenPersonaModel):
     suggestions: PersonaSuggestionMessages
     manual_quiz: PersonaManualQuizMessages
     mdc: PersonaMdcMessages
+    faction_status: PersonaFactionStatusMessages
     review: PersonaReviewMessages
     commands: PersonaCommandMessages
 

@@ -1,7 +1,7 @@
 {
-  "schema_version": 37,
+  "schema_version": 38,
   "id": "roy_velazco",
-  "revision": 50,
+  "revision": 51,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -172,7 +172,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo pedir y seguir la revisión de tu reporte.\n• `/info-roles`: cómo pedir q te agreguen o saquen roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo guardar y buscar callsigns.\n• `/info-mdc`: cómo buscar una ficha y decidir quién la ve.\n• `/info-sugerencias`: cómo mandar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: abre el manual de reportes por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las dudas frecuentes de la guía.\n• `/pregunta-manual`: demuestra si leíste algo del manual.",
+      "quick_references": "• `/guia`: abre el manual de reportes por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las dudas frecuentes de la guía.\n• `/pregunta-manual`: demuestra si leíste algo del manual.\n• `/conectados`: resume quién está conectado y en servicio.",
       "footer": "elige la guía q corresponde antes de venir a adivinar, {form_of_address}."
     },
     "interface": {
@@ -446,6 +446,14 @@
         "info_visibility": "Elige **Visible para todos** si querís dejar la ficha en el canal o **Solo para mí** si la necesitai privada.",
         "info_results": "Te muestra custodia, órdenes, multas, vehículos, propiedades y antecedentes disponibles. Si una parte falla, te aviso cuál fue y dejo el resto igual."
       },
+      "faction_status": {
+        "alert_title": "⚠️ No pude mirar la facción",
+        "unauthorized": "Esto es pa personal operativo, no pa cualquiera q quiera sapear quién está conectado.",
+        "unavailable": "No dejaron habilitada la consulta de conectados en este servidor.",
+        "operation_failed": "No pude sacar el estado de la facción ahora. Prueba de nuevo más rato.",
+        "connected_intro": "Ahí tenís el estado de los conectados y quiénes andan de servicio.",
+        "no_connected": "No aparece ni un miembro de la facción conectado ahora mismo."
+      },
       "review": {
         "failure_next_step_title": "Y ahora qué",
         "escalation_notice": "📣 q venga un supervisor: {roles}",
@@ -505,7 +513,8 @@
         "suggestion_status_description": "Cambia en privado el estado de una sugerencia",
         "manual_question_description": "Prueba cuánto cachai del manual de la facción",
         "mdc_description": "Busca registros operativos de un personaje",
-        "info_mdc_description": "Explica cómo usar el MDC y decidir quién ve la ficha"
+        "info_mdc_description": "Explica cómo usar el MDC y decidir quién ve la ficha",
+        "connected_members_description": "Resume quién está conectado y en servicio"
       }
     }
   }

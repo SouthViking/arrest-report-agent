@@ -54,12 +54,15 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
         "Canales de incidentes de despliegue"
     ),
     AccessPolicyKey.CI_FAILURE_NOTIFICATION_CHANNELS: "Canales de errores de CI",
+    AccessPolicyKey.SERVICE_CALL_CHANNELS: "Canales de llamadas de servicio",
 }
 FEATURE_LABELS = {
     "role_requests": "Solicitudes de roles",
     "pagers": "Pagers",
     "teamspeak": "TeamSpeak",
     "deployment_notifications": "Notificaciones de despliegue",
+    "service_calls": "Llamadas de servicio",
+    "faction_status": "Estado de facción",
 }
 MODE_LABELS = {
     AccessPolicyMode.OPEN: "abierta",
@@ -896,6 +899,14 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     label="Acceso del propietario del reporte",
                     value="report_owner_access",
                 ),
+                discord.SelectOption(
+                    label="Llamadas de servicio",
+                    value="service_calls",
+                ),
+                discord.SelectOption(
+                    label="Estado de facción",
+                    value="faction_status",
+                ),
             ],
         )
         self.enabled = discord.ui.StringSelect(
@@ -942,6 +953,14 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 payload["starting_number"] = 1
             if key == "deployment_notifications" and payload:
                 raise ValueError("Este módulo no admite opciones JSON.")
+            if key == "service_calls" and payload:
+                raise ValueError("Este módulo no admite opciones JSON.")
+            if (
+                key == "faction_status"
+                and self.enabled.values[0] == "true"
+                and "faction_id" not in payload
+            ):
+                raise ValueError("Estado de facción requiere `faction_id`.")
             if key == "report_owner_access" and "max_rounds" not in payload:
                 payload["max_rounds"] = 5
             feature = GuildFeatureSnapshot(

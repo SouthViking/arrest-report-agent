@@ -24,6 +24,13 @@ El panel está ligado al solicitante, expira tras quince minutos y revalida perm
 Cada mutación usa el ID de la interacción como clave idempotente y queda en `config_audit_events`.
 Las publicaciones emiten una notificación de PostgreSQL para refrescar el runtime sin redeploy.
 
+El módulo **Llamadas de servicio** no recibe opciones JSON. Sus destinos se administran mediante la
+política **Canales de llamadas de servicio**, que exige IDs explícitos. Al retirar el último canal o
+deshabilitar el módulo, el polling se detiene y deja de consumir la API SARP.
+
+El módulo **Estado de facción** recibe `{"faction_id": 3}` y habilita `/conectados` para esa facción.
+El ID queda por guild en PostgreSQL y no se fija en el comando ni en el cliente SARP.
+
 La acción **Publicar consumo** consulta los proveedores configurados, omite cualquier campo que no
 haya sido devuelto y envía un embed público en el canal donde se abrió `/config`. No usa IA. Los
 resultados se conservan en memoria por cinco minutos; las credenciales nunca se muestran ni se
@@ -48,6 +55,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/cargos` | Todos | Efímera | Catálogo SARP con fallback `delitos.json` |
 | `/mdc` | `operational_staff_roles`; solo si SARP está activo | Modal privado; resultado público o efímero | API SARP en vivo |
 | `/info-mdc` | `operational_staff_roles`; solo si SARP está activo | Pública; rechazo efímero | Persona activa |
+| `/conectados` | `operational_staff_roles`; módulo `faction_status` activo | Pública; rechazo efímero | Nómina de la facción en SARP |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
 | `/verguenza` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/honor` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
@@ -121,6 +129,18 @@ comandos, dirige a la guía de cada función:
 
 Mantiene como referencias rápidas `/guia`, `/cargos`, `/faq` y `/pregunta-manual`. Los flujos operacionales, comandos
 privados y herramientas de supervisión se explican en su guía especializada cuando corresponde.
+
+## `/conectados`
+
+Se registra con el cliente SARP y exige que el módulo `faction_status` contenga un `faction_id`
+válido para la guild. Solo puede usarlo el personal de `operational_staff_roles`. Publica una vista
+única con los contadores de miembros **Conectados** (`online`), **En servicio** (`online` y
+`factionduty`) y el porcentaje en servicio respecto de los conectados. Los nombres se ordenan
+alfabéticamente en dos grupos: `🟢` identifica al personal en servicio y `▫️` al conectado fuera de
+servicio. Se muestran como máximo diez nombres por grupo y cada sección indica cuántos se omitieron.
+
+La consulta recupera la nómina completa mediante una sola solicitud agrupada. Un caché compartido de
+quince segundos evita multiplicar consumo cuando varias personas ejecutan el comando al mismo tiempo.
 
 ## `/mdc`
 

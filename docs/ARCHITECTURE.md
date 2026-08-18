@@ -123,6 +123,10 @@ modelo no puede escoger una guild ni un canal de publicación.
   changelog/alertas para Discord; no depende del runner ni de OpenAI.
 - `ci_notifications`: receptor firmado de GitHub Actions, inbox/outbox PostgreSQL y renderer de
   alertas internas de CI; usa una política de canales independiente y no depende de OpenAI.
+- `service_calls`: polling dinámico del endpoint de emergencias SARP, publicación segura en Discord
+  y un cursor mínimo por guild/canal; no persiste el contenido de los llamados ni usa OpenAI.
+- `faction_status`: consulta agrupada y con caché corto del roster SARP configurado por guild; no
+  persiste estados de conexión ni usa OpenAI.
 
 Los comandos personales `/mis-reportes` y `/mi-resumen` siguen una ruta determinista separada
 del runner. Leen de forma acotada los canales de revisión visibles, atribuyen publicaciones raíz al
@@ -139,6 +143,11 @@ cliente SARP compartido. Resuelve primero una coincidencia exacta y luego ejecut
 lecturas de perfil IC, posesiones, multas, órdenes y arrestos. Su modelo de dominio descarta IDs y
 campos OOC antes de llegar al renderer de Discord; cada sección tolera fallos de forma independiente
 y no se conserva en PostgreSQL.
+
+El subsistema `faction_status` consume el detalle interno agrupado de la facción configurada. Proyecta
+únicamente nombre, conexión y estado de servicio, aplica `online && factionduty` para la vista en
+servicio y comparte un caché corto por facción. El comando no conoce IDs de servidores ni facciones;
+la relación vive en el snapshot dinámico de PostgreSQL.
 
 `/verguenza` comparte el finder determinista: abre un modal privado para elegir mes actual o los
 últimos 7, 30 o 90 días y después publica un top 10 visible para el canal. Filtra primero todo reporte

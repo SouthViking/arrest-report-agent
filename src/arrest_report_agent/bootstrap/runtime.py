@@ -31,6 +31,7 @@ from arrest_report_agent.deployments import (
     DeploymentRepository,
     RailwayWebhookReceiver,
 )
+from arrest_report_agent.faction_status import FactionStatusCog, FactionStatusService
 from arrest_report_agent.infrastructure.discord import (
     ConfigurationAdminCog,
     DiscordProfileSynchronizer,
@@ -76,6 +77,7 @@ from arrest_report_agent.role_requests import (
     RoleRequestService,
     RoleRequestServiceRegistry,
 )
+from arrest_report_agent.service_calls import ServiceCallFeedWorker, ServiceCallRepository
 from arrest_report_agent.suggestions import SuggestionCog, SuggestionRepository
 
 from .database import build_bucket_storage, build_postgres_client
@@ -101,6 +103,7 @@ class Runtime:
     ci_notification_worker: CiNotificationWorker
     github_webhook_receiver: GitHubWebhookReceiver | None
     cost_monitoring: CostMonitoringService | None
+    service_call_worker: ServiceCallFeedWorker | None
     postgres: PostgresClient
     config_provider: DatabaseConfigProvider
 
@@ -139,6 +142,11 @@ class Runtime:
             "deployment_notifications": self.deployment_notifications_enabled,
             "railway_webhook": self.railway_webhook_receiver is not None,
             "github_webhook": self.github_webhook_receiver is not None,
+            "service_calls": (
+                self.service_call_worker.running
+                if self.service_call_worker is not None
+                else False
+            ),
         }
 
     async def close(self) -> None:
@@ -146,6 +154,8 @@ class Runtime:
         await self.ci_notification_worker.close()
         if self.cost_monitoring is not None:
             await self.cost_monitoring.close()
+        if self.service_call_worker is not None:
+            await self.service_call_worker.close()
         await self.config_provider.close()
         if self.sarp_penal_code_provider is not None:
             await self.sarp_penal_code_provider.close()
@@ -273,6 +283,35 @@ async def build_runtime(
 
     config_provider.register_global_callback(synchronize_global_persona)
     all_bundles = [await config_provider.get(guild_id) for guild_id in guild_ids]
+    service_call_worker: ServiceCallFeedWorker | None = None
+    if sarp_client is not None:
+        service_call_guild_ids = tuple(
+            bundle.snapshot.guild_id
+            for bundle in all_bundles
+            if (feature := bundle.snapshot.features.get("service_calls")) is not None
+            and feature.enabled
+            and bundle.settings.service_call_channel_ids
+        )
+        service_call_worker = ServiceCallFeedWorker(
+            bot,
+            config_provider,
+            ServiceCallRepository(postgres),
+            sarp_client,
+            poll_seconds=settings.sarp_emergency_call_poll_seconds,
+            enabled_guild_ids=service_call_guild_ids,
+        )
+        config_provider.register_guild_callback(
+            service_call_worker.configuration_updated
+        )
+        service_call_worker.start()
+        log_event(
+            LOGGER,
+            "info",
+            "service_call_subsystem_registered",
+            configured_guilds=len(service_call_guild_ids),
+            running=service_call_worker.running,
+            poll_seconds=settings.sarp_emergency_call_poll_seconds,
+        )
     role_request_bundles = [
         bundle
         for bundle in all_bundles
@@ -317,10 +356,17 @@ async def build_runtime(
     bot.add_cog(ManualQuizCog(config_provider, manual_quiz_sessions, persona.profile))
     if sarp_client is not None:
         bot.add_cog(MdcCog(config_provider, MdcService(sarp_client), persona.profile))
+        bot.add_cog(
+            FactionStatusCog(
+                config_provider,
+                FactionStatusService(sarp_client),
+                persona.profile,
+            )
+        )
         log_event(
             LOGGER,
             "info",
-            "mdc_subsystem_registered",
+            "sarp_command_subsystems_registered",
             configured_guilds=len(guild_ids),
         )
     log_event(
@@ -422,6 +468,7 @@ async def build_runtime(
         ci_notification_worker=ci_notification_worker,
         github_webhook_receiver=github_webhook_receiver,
         cost_monitoring=cost_monitoring,
+        service_call_worker=service_call_worker,
         postgres=postgres,
         config_provider=config_provider,
     )

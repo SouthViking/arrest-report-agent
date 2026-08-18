@@ -43,6 +43,7 @@ class AccessPolicyKey(StrEnum):
         "deployment_incident_notification_channels"
     )
     CI_FAILURE_NOTIFICATION_CHANNELS = "ci_failure_notification_channels"
+    SERVICE_CALL_CHANNELS = "service_call_channels"
 
 
 POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] = {
@@ -65,6 +66,7 @@ POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] 
     AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: "channel",
     AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: "channel",
     AccessPolicyKey.CI_FAILURE_NOTIFICATION_CHANNELS: "channel",
+    AccessPolicyKey.SERVICE_CALL_CHANNELS: "channel",
 }
 
 
@@ -123,6 +125,10 @@ class GuildFeatureSnapshot(FrozenConfigModel):
 
 class ReportOwnerAccessOptions(FrozenConfigModel):
     max_rounds: int = Field(ge=1, le=20)
+
+
+class FactionStatusOptions(FrozenConfigModel):
+    faction_id: int = Field(gt=0)
 
 
 class GuildConfigSnapshot(FrozenConfigModel):
@@ -196,6 +202,22 @@ class GuildConfigSnapshot(FrozenConfigModel):
                 raise ValueError(
                     "enabled report_owner_access requires explicit restricted report channels"
                 )
+        service_calls_feature = self.features.get("service_calls")
+        if service_calls_feature is not None and service_calls_feature.enabled:
+            if service_calls_feature.schema_version != 1 or service_calls_feature.payload:
+                raise ValueError(
+                    "service_calls requires feature schema version 1 with empty options"
+                )
+            channels = self.policies[AccessPolicyKey.SERVICE_CALL_CHANNELS]
+            if channels.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError(
+                    "enabled service_calls requires restricted service-call channels"
+                )
+        faction_status_feature = self.features.get("faction_status")
+        if faction_status_feature is not None and faction_status_feature.enabled:
+            if faction_status_feature.schema_version != 1:
+                raise ValueError("faction_status requires feature schema version 1")
+            FactionStatusOptions.model_validate(faction_status_feature.payload)
         return self
 
     def policy(self, key: AccessPolicyKey) -> AccessPolicySnapshot:
@@ -297,6 +319,18 @@ class GuildRuntimeSettings:
             AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS
         )
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
+    def service_call_channel_ids(self) -> tuple[int, ...]:
+        policy = self.snapshot.policy(AccessPolicyKey.SERVICE_CALL_CHANNELS)
+        return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
+    def faction_status_faction_id(self) -> int | None:
+        feature = self.snapshot.features.get("faction_status")
+        if feature is None or not feature.enabled:
+            return None
+        return FactionStatusOptions.model_validate(feature.payload).faction_id
 
     @property
     def pager_starting_number(self) -> int:
