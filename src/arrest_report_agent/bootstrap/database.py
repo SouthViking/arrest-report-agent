@@ -431,6 +431,16 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         schema_version=1,
                         payload={},
                     ),
+                    GuildFeatureSnapshot(
+                        key="arrest_report_lookup",
+                        enabled=guild_id == 1234674521416663070,
+                        schema_version=1,
+                        payload=(
+                            {"faction_id": 3}
+                            if guild_id == 1234674521416663070
+                            else {}
+                        ),
+                    ),
                 ),
                 persona_revision_id=placeholder_persona_revision,
             )

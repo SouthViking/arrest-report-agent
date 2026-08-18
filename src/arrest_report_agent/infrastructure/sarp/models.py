@@ -267,6 +267,61 @@ class SarpArrestPage(BaseModel):
     pages: int = Field(ge=0)
 
 
+class SarpFactionArrestSummary(BaseModel):
+    """Compact arrest row returned by the faction-wide search endpoint."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    police_id: int = Field(gt=0)
+    police_name: str = Field(min_length=1, max_length=100)
+    suspect_id: int = Field(gt=0)
+    suspect_name: str = Field(min_length=1, max_length=100)
+    description: str = ""
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def assume_documented_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+
+class SarpFactionArrestSearchPayload(BaseModel):
+    """Actual faction arrest payload returned as ``{data, total}``."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    data: list[SarpFactionArrestSummary] = Field(default_factory=list)
+    total: int = Field(ge=0)
+
+
+class SarpArrestDetail(BaseModel):
+    """Current authoritative detail for one SARP arrest report."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    police_id: int = Field(gt=0)
+    police_name: str = Field(min_length=1, max_length=100)
+    suspect_id: int = Field(gt=0)
+    suspect_name: str = Field(min_length=1, max_length=100)
+    description: str = ""
+    created_at: datetime
+    updated_at: datetime | None = None
+    charges: list[SarpPoliceCharge] = Field(default_factory=list)
+
+    @field_validator("created_at", "updated_at")
+    @classmethod
+    def assume_documented_utc(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+
 class SarpEmergencyCall(BaseModel):
     """One police emergency call returned by the live service feed."""
 

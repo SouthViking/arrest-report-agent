@@ -24,6 +24,7 @@ from arrest_report_agent.config import (
     AccessPolicyMode,
     AccessPolicySnapshot,
     AppSettings,
+    ArrestReportLookupOptions,
     GuildAgentConfig,
     GuildConfigSnapshot,
     GuildFeatureSnapshot,
@@ -52,6 +53,72 @@ def test_agent_user_blacklist_requires_explicit_ids_or_disabled_mode() -> None:
             subject_type="user",
             mode=AccessPolicyMode.OPEN,
         )
+
+
+def test_arrest_lookup_configuration_requires_positive_faction_id() -> None:
+    assert ArrestReportLookupOptions(faction_id=3).faction_id == 3
+    with pytest.raises(ValueError, match="greater than 0"):
+        ArrestReportLookupOptions(faction_id=0)
+
+
+def test_arrest_lookup_runtime_requires_valid_enabled_payload(settings) -> None:
+    agent = GuildAgentConfig(
+        model=settings.openai_model,
+        reasoning_effort=settings.openai_reasoning_effort,
+        review_timeout_seconds=settings.review_timeout_seconds,
+        max_agent_turns=settings.max_agent_turns,
+        max_images_per_review=settings.max_images_per_review,
+        max_image_bytes=settings.max_image_bytes,
+        max_files_per_review=settings.max_files_per_review,
+        max_file_bytes=settings.max_file_bytes,
+        max_total_file_bytes=settings.max_total_file_bytes,
+        thread_context_max_messages=settings.thread_context_max_messages,
+        channel_context_max_messages=settings.channel_context_max_messages,
+        thread_context_max_chars=settings.thread_context_max_chars,
+        thread_context_max_message_chars=settings.thread_context_max_message_chars,
+        thread_context_max_historical_images=settings.thread_context_max_historical_images,
+        thread_context_max_historical_files=settings.thread_context_max_historical_files,
+        thread_auto_archive_minutes=settings.thread_auto_archive_minutes,  # type: ignore[arg-type]
+    )
+    policies = {
+        key: AccessPolicySnapshot(
+            key=key,
+            subject_type=POLICY_SUBJECT_TYPES[key],
+            mode=AccessPolicyMode.DISABLED,
+        )
+        for key in AccessPolicyKey
+    }
+    values = {
+        "guild_id": 1,
+        "revision_id": uuid4(),
+        "revision": 1,
+        "agent": agent,
+        "policies": policies,
+        "features": {
+            "arrest_report_lookup": GuildFeatureSnapshot(
+                key="arrest_report_lookup",
+                enabled=True,
+                schema_version=1,
+                payload={"faction_id": 3},
+            )
+        },
+        "persona_revision_id": uuid4(),
+        "persona_id": "walter_vigil",
+        "persona_revision": 1,
+    }
+
+    snapshot = GuildConfigSnapshot.model_validate(values)
+    assert GuildRuntimeSettings(settings, snapshot).arrest_report_lookup_faction_id == 3
+    values["features"] = {
+        "arrest_report_lookup": GuildFeatureSnapshot(
+            key="arrest_report_lookup",
+            enabled=True,
+            schema_version=1,
+            payload={},
+        )
+    }
+    with pytest.raises(ValueError, match="faction_id"):
+        GuildConfigSnapshot.model_validate(values)
 
 
 def test_report_owner_access_requires_explicit_channels_and_bounded_rounds(settings) -> None:
@@ -340,6 +407,28 @@ def test_service_call_migration_configures_lssd_without_enabling_other_guilds() 
             os.environ["DATABASE_URL"] = previous
 
 
+def test_arrest_lookup_migration_enables_only_lssd_and_creates_bindings() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = database_url
+    alembic = Config("alembic.ini")
+    try:
+        command.downgrade(alembic, "base")
+        command.upgrade(alembic, "20260817_0032")
+        asyncio.run(_seed_service_call_configuration_targets(database_url))
+        command.upgrade(alembic, "head")
+        asyncio.run(_assert_arrest_lookup_configuration(database_url))
+    finally:
+        command.downgrade(alembic, "base")
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
+
+
 async def _seed_service_call_configuration_targets(database_url: str) -> None:
     client = PostgresClient(PostgresClientConfig(url=database_url))
     await client.open()
@@ -420,6 +509,34 @@ async def _assert_service_call_configuration(database_url: str) -> None:
         assert faction_config[1234674521416663070]["payload"] == {"faction_id": 3}
         assert faction_config[999]["enabled"] is False
         assert faction_config[999]["payload"] == {}
+    finally:
+        await client.close()
+
+
+async def _assert_arrest_lookup_configuration(database_url: str) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.enabled, feature.payload "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'arrest_report_lookup' "
+                "ORDER BY revision.guild_id"
+            )
+        )
+        resolved = {int(row["guild_id"]): row for row in rows}
+        assert resolved[1234674521416663070]["enabled"] is True
+        assert resolved[1234674521416663070]["payload"] == {"faction_id": 3}
+        assert resolved[999]["enabled"] is False
+        assert resolved[999]["payload"] == {}
+        binding_table = await client.fetch_one(
+            sa.text("SELECT to_regclass('public.report_arrest_bindings') AS name")
+        )
+        assert binding_table is not None
+        assert binding_table["name"] == "report_arrest_bindings"
     finally:
         await client.close()
 

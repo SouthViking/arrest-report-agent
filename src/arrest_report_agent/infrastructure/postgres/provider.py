@@ -7,6 +7,7 @@ import json
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from arrest_report_agent.application import ReviewService
@@ -29,6 +30,9 @@ from arrest_report_agent.knowledge import (
 
 from .client import PostgresClient
 from .repository import CONFIG_NOTIFY_CHANNEL, ConfigurationRepository
+
+if TYPE_CHECKING:
+    from arrest_report_agent.infrastructure.sarp import SarpClient
 
 LOGGER = logging.getLogger(__name__)
 
@@ -54,6 +58,7 @@ class DatabaseConfigProvider:
         guide: ReportGuide,
         model_catalog: ModelCatalog,
         radio_catalog: RadioCodeCatalog | None = None,
+        sarp_client: SarpClient | None = None,
     ) -> None:
         self.client = client
         self.repository = repository
@@ -62,6 +67,12 @@ class DatabaseConfigProvider:
         self.guide = guide
         self.radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
         self.model_catalog = model_catalog
+        self.sarp_client = sarp_client
+        # Import lazily so repositories can import the PostgreSQL schema without
+        # creating a package-initialization cycle through this provider.
+        from arrest_report_agent.arrest_reports import ArrestReportBindingRepository
+
+        self.arrest_bindings = ArrestReportBindingRepository(client)
         self._bundles: dict[int, GuildRuntimeBundle] = {}
         self._personas: dict[UUID, LoadedPersona] = {}
         self._locks: dict[int, asyncio.Lock] = {}
@@ -132,6 +143,16 @@ class DatabaseConfigProvider:
                 snapshot.agent.model,
                 snapshot.agent.reasoning_effort,
             )
+            arrest_lookup = None
+            faction_id = settings.arrest_report_lookup_faction_id
+            if self.sarp_client is not None and faction_id is not None:
+                from arrest_report_agent.arrest_reports import SarpArrestReportLookup
+
+                arrest_lookup = SarpArrestReportLookup(
+                    self.sarp_client,
+                    self.arrest_bindings,
+                    faction_id=faction_id,
+                )
             service = ReviewService(
                 settings,  # type: ignore[arg-type]
                 self.catalog_provider,
@@ -139,6 +160,7 @@ class DatabaseConfigProvider:
                 model,
                 persona.profile,
                 self.radio_catalog,
+                arrest_lookup,
             )
             bundle = GuildRuntimeBundle(
                 snapshot=snapshot,

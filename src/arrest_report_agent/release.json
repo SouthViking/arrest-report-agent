@@ -1,20 +1,25 @@
 {
   "schema_version": 3,
-  "version": "0.7.5",
-  "title": "Privacidad en llamadas de servicio",
-  "summary": "Las llamadas policiales ahora usan una identificación más general y protegen correctamente a los informantes anónimos.",
+  "version": "0.8.0",
+  "title": "Reportes de arresto conectados a SARP",
+  "summary": "El bot ahora puede consultar la versión vigente de un reporte de arresto y reutilizarla durante sus revisiones.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
+    1234675609536430152,
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Las llamadas dirigidas a LSPD o LSSD ahora se presentan de forma general como llamadas para la Policía."
+      "type": "added",
+      "text": "El personal con acceso completo puede pedir reportes de arresto por sospechoso, agente o fecha directamente al bot."
     },
     {
-      "type": "fixed",
-      "text": "Cuando una llamada no entrega número telefónico, el solicitante se muestra como Anónimo y su nombre no queda expuesto."
+      "type": "added",
+      "text": "Un reporte puede quedar vinculado a su hilo para que solicitudes como «revisa de nuevo» utilicen los cambios más recientes de SARP."
+    },
+    {
+      "type": "improved",
+      "text": "Las imágenes y archivos continúan disponibles para fotografías y evidencias, incluso cuando SARP no responde temporalmente."
     }
   ],
   "acknowledgements": []

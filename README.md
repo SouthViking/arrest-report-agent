@@ -106,6 +106,12 @@ expediente. Tiene hasta cinco ejecuciones para ese expediente; luego debe contin
 acceso completo. La blacklist conserva precedencia y el propietario nunca recibe herramientas de
 directorio, lectura de otros canales, reacciones manuales ni menciones salientes.
 
+El módulo **Consulta de reportes de arresto** conecta el agente con la facción SARP configurada.
+El personal con acceso completo puede buscar por sospechoso, agente y fechas, leer el detalle vigente
+y vincularlo al hilo de revisión. El propietario limitado solo puede volver a leer la referencia de
+su propio expediente. PostgreSQL conserva el vínculo, no la narrativa ni los cargos; cada re-revisión
+consulta nuevamente SARP y continúa admitiendo imágenes y archivos como fuente complementaria.
+
 El acceso completo puede resolver roles del servidor por nombre y, ante una solicitud explícita,
 notificar hasta tres mediante la tool terminal `mention_roles`. La publicación valida que cada rol
 pertenezca a la guild actual, bloquea `@everyone`/`@here` y limita `AllowedMentions` a los IDs
@@ -416,6 +422,8 @@ Comandos disponibles:
 
 En `/config` → **Módulos**, `report_owner_access` acepta `{"max_rounds": 5}` con un valor entre 1 y
 20. Solo puede habilitarse cuando `report_channels` contiene IDs explícitos.
+`arrest_report_lookup` acepta `{"faction_id": 3}` y habilita las tools SARP del agente para esa
+guild. El interruptor global `SARP_API_ENABLED` debe estar activo; no requiere variables nuevas.
 
 Al iniciar el acceso limitado fuera de un hilo, la publicación raíz debe contener dos componentes
 de nombre, una referencia opcional de bolsa de evidencia y al menos cuatro imágenes compatibles. La
@@ -519,6 +527,13 @@ conserva el último catálogo remoto válido y, si todavía no existe uno, usa `
 revisión fija su snapshot al comenzar, por lo que una actualización no mezcla fuentes a mitad de
 una ejecución. `/mdc` consulta en vivo la búsqueda exacta, perfil IC, posesiones y registros
 policiales; no persiste sus resultados y solo muestra como no disponible la sección remota que falle.
+
+Cuando `arrest_report_lookup` está habilitado para la guild, el mismo cliente permite al agente
+buscar `GET /my-faction/arrests/:factionId` y recuperar el detalle actual mediante
+`GET /police/arrests/:id`. No existe caché de contenido para esta ruta. Solo se persiste la referencia
+entre el mensaje raíz de Discord y el arresto SARP, de modo que «listo» o «revisa de nuevo» use la
+versión vigente sin permitir al propietario explorar expedientes ajenos. Los errores remotos se
+proyectan como estados seguros y no impiden continuar con adjuntos suficientes.
 
 `/conectados` usa el módulo dinámico `faction_status`, cuyo payload contiene el `faction_id` propio
 de cada guild. Obtiene el roster completo con `GET /my-faction/faction/:factionId` y publica en una

@@ -18,6 +18,7 @@ from .errors import (
 )
 from .models import (
     SarpArrest,
+    SarpArrestDetail,
     SarpArrestPage,
     SarpCharacterPossessions,
     SarpCharacterPreview,
@@ -27,6 +28,8 @@ from .models import (
     SarpEmergencyCall,
     SarpEmergencyCallPage,
     SarpEnvelope,
+    SarpFactionArrestSearchPayload,
+    SarpFactionArrestSummary,
     SarpFactionDetail,
     SarpFactionMember,
     SarpFactionRank,
@@ -46,6 +49,7 @@ from .penal_code import SarpPenalCodeProvider, build_charge_catalog
 __all__ = [
     "DEFAULT_BASE_URL",
     "SarpArrest",
+    "SarpArrestDetail",
     "SarpArrestPage",
     "SarpApiError",
     "SarpAuthenticationError",
@@ -67,6 +71,8 @@ __all__ = [
     "SarpForbiddenError",
     "SarpFine",
     "SarpFinePage",
+    "SarpFactionArrestSearchPayload",
+    "SarpFactionArrestSummary",
     "SarpFactionDetail",
     "SarpFactionMember",
     "SarpFactionRank",

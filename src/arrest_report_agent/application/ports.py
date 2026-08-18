@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal, Protocol
 
 from arrest_report_agent.domain import (
@@ -219,6 +219,97 @@ class GuildMessageDirectory(Protocol):
         attachment_ids: tuple[int, ...],
     ) -> MessageAttachmentLookupResult:
         """Resolve selected attachments from one readable message in the current guild."""
+
+
+@dataclass(frozen=True)
+class ArrestReportSearchQuery:
+    suspect_name: str | None
+    officer_name: str | None
+    date_from: date | None
+    date_to: date | None
+    page: int
+    limit: int
+    sort_field: str | None
+    sort_order: Literal["asc", "desc"]
+    exact_suspect: bool = False
+    exact_officer: bool = False
+
+
+@dataclass(frozen=True)
+class ArrestReportSummary:
+    report_id: int
+    suspect_name: str
+    officer_name: str
+    description: str
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class ArrestReportSearchResult:
+    reports: tuple[ArrestReportSummary, ...]
+    total: int
+    page: int
+    limit: int
+    has_more: bool
+    error: str | None = None
+    retry_after_seconds: float | None = None
+
+
+@dataclass(frozen=True)
+class ArrestReportCharge:
+    charge_id: int
+    code: str | None
+    name: str
+    charge_type: str | None
+    hours: int | float | None
+    fine: int | float | None
+
+
+@dataclass(frozen=True)
+class ArrestReportDetail:
+    report_id: int
+    suspect_name: str
+    officer_name: str
+    description: str
+    created_at: datetime
+    updated_at: datetime | None
+    charges: tuple[ArrestReportCharge, ...]
+
+
+@dataclass(frozen=True)
+class ArrestReportDetailResult:
+    report: ArrestReportDetail | None
+    error: str | None = None
+    retry_after_seconds: float | None = None
+
+
+class ArrestReportLookup(Protocol):
+    async def search(self, query: ArrestReportSearchQuery) -> ArrestReportSearchResult:
+        """Search compact reports within the deterministically configured faction."""
+
+    async def get(self, report_id: int) -> ArrestReportDetailResult:
+        """Fetch one current arrest report by its SARP identifier."""
+
+    async def bind(
+        self,
+        *,
+        guild_id: int,
+        root_message_id: int,
+        parent_channel_id: int,
+        thread_id: int,
+        report_id: int,
+        actor_user_id: int,
+        trigger_message_id: int,
+    ) -> str | None:
+        """Replace the report reference, returning a safe error code on failure."""
+
+    async def get_current(
+        self,
+        *,
+        guild_id: int,
+        root_message_id: int,
+    ) -> ArrestReportDetailResult:
+        """Fetch the current SARP detail linked to one Discord report root."""
 
 
 class ReviewPublisher(Protocol):

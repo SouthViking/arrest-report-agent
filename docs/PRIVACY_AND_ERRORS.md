@@ -50,6 +50,13 @@ PostgreSQL conserva IDs operacionales, ronda y estado de cada ejecución, nunca 
 adjuntos del reporte. Al agotar el cupo se emite un aviso distinto a blacklist, falta de acceso o
 cuota del proveedor, sin llamar al guardrail ni al runner.
 
+Si `arrest_report_lookup` está activo, el acceso completo puede consultar reportes de la facción
+configurada y vincular uno al mensaje raíz de un hilo autorizado. PostgreSQL guarda únicamente los
+IDs de guild, canal, hilo, raíz, arresto y actor de la vinculación; narrativa, cargos y nombres se
+descargan nuevamente desde SARP y no se persisten. El propietario limitado no puede buscar ni elegir
+IDs: solo puede leer el arresto ya asociado a su propio expediente. Los nombres y narrativas remotos
+se tratan como datos no confiables, nunca como instrucciones del modelo.
+
 ## Logs
 
 Todos los logs, incluidos los de dependencias, se escriben como JSON. Por defecto son legibles en

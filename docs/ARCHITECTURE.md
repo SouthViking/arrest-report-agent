@@ -23,6 +23,9 @@ flowchart LR
     J["Catálogo JSON de modelos"] --> R
     R --> G["Guía local"]
     R --> D["Índice de delitos"]
+    R --> AR["Servicio de reportes SARP"]
+    AR --> AB["PostgreSQL: vínculo por expediente"]
+    AR --> SA["SARP: búsqueda y detalle vigente"]
     R --> P["Tools de publicación"]
     E["Roles de escalamiento configurados"] --> P
     P --> X["Destino acotado por el evento"]
@@ -105,6 +108,8 @@ modelo no puede escoger una guild ni un canal de publicación.
   cargados y validados al iniciar.
 - `application`: prompt, tools, contexto del runner, errores, tracing y orquestación.
 - `report_owner_access`: repositorio transaccional y contratos del cupo permanente por expediente.
+- `arrest_reports`: servicio de aplicación y repositorio de referencias entre un expediente de
+  Discord y un arresto SARP; no almacena narrativa ni cargos.
 - `infrastructure/discord`: política previa, reconstrucción de hilos, embeds, reacciones y comandos.
 - `infrastructure/postgres`: cliente async, esquema SQLAlchemy, repositorios y caché dinámica.
 - `infrastructure/storage`: contrato de objetos y adaptador S3 para Railway Bucket.
@@ -143,6 +148,15 @@ cliente SARP compartido. Resuelve primero una coincidencia exacta y luego ejecut
 lecturas de perfil IC, posesiones, multas, órdenes y arrestos. Su modelo de dominio descarta IDs y
 campos OOC antes de llegar al renderer de Discord; cada sección tolera fallos de forma independiente
 y no se conserva en PostgreSQL.
+
+Las consultas de reportes de arresto reutilizan `SarpClient`, pero quedan detrás de
+`SarpArrestReportLookup`. El agente recibe tools tipadas y no conoce credenciales, facciones ni SQL.
+Una búsqueda devuelve candidatos compactos y un detalle posterior recupera la narrativa y los cargos
+actuales sin caché. En hilos de canales de reportes, el acceso completo puede reemplazar mediante
+upsert la referencia `(guild_id, root_message_id)`. El acceso limitado no recibe herramientas de
+búsqueda o vinculación: solo puede resolver esa clave exacta y descargar nuevamente el arresto.
+Los límites por ejecución acotan reformulaciones y lecturas sin impedir el fallback a mensajes,
+imágenes o archivos cuando la API no responde.
 
 El subsistema `faction_status` consume el detalle interno agrupado de la facción configurada. Proyecta
 únicamente nombre, conexión y estado de servicio, aplica `online && factionduty` para la vista en
@@ -470,6 +484,7 @@ mensajes más recientes hasta `THREAD_CONTEXT_MAX_MESSAGES`. El input indica si 
 ## Extensión futura
 
 `ReviewPublisher` aísla el runner de Discord y las fuentes locales no dependen del bot. PostgreSQL
-ya permite agregar módulos y políticas por guild sin cambiar consumidores. Una API de PCU/OpenMP
-puede reemplazar `ChargeCatalog` mediante el mismo interfaz; reportes, veredictos y threads siguen
-siendo deliberadamente snapshots reconstruidos desde Discord.
+ya permite agregar módulos y políticas por guild sin cambiar consumidores. Las fuentes SARP se
+mantienen detrás de servicios y puertos de aplicación, por lo que nuevos endpoints no se filtran al
+runner ni a Discord. Reportes, veredictos y threads siguen siendo deliberadamente snapshots
+reconstruidos desde Discord; solo sus referencias externas explícitas se persisten.

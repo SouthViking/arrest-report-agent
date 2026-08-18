@@ -812,3 +812,34 @@ service_call_cursors = sa.Table(
     ),
     sa.CheckConstraint("last_call_id > 0", name="ck_service_call_cursor_positive"),
 )
+
+report_arrest_bindings = sa.Table(
+    "report_arrest_bindings",
+    metadata,
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("root_message_id", sa.BigInteger, primary_key=True),
+    sa.Column("parent_channel_id", sa.BigInteger, nullable=False),
+    sa.Column("thread_id", sa.BigInteger, nullable=False),
+    sa.Column("sarp_arrest_id", sa.BigInteger, nullable=False),
+    sa.Column("bound_by_user_id", sa.BigInteger, nullable=False),
+    sa.Column("trigger_message_id", sa.BigInteger, nullable=False),
+    sa.Column(
+        "created_at",
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now(),
+    ),
+    sa.Column(
+        "updated_at",
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now(),
+    ),
+    sa.CheckConstraint("sarp_arrest_id > 0", name="ck_report_arrest_binding_positive"),
+    sa.Index("ix_report_arrest_binding_arrest", "guild_id", "sarp_arrest_id"),
+)

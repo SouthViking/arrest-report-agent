@@ -131,6 +131,10 @@ class FactionStatusOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
 
 
+class ArrestReportLookupOptions(FrozenConfigModel):
+    faction_id: int = Field(gt=0)
+
+
 class GuildConfigSnapshot(FrozenConfigModel):
     guild_id: int = Field(gt=0)
     revision_id: UUID
@@ -218,6 +222,11 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if faction_status_feature.schema_version != 1:
                 raise ValueError("faction_status requires feature schema version 1")
             FactionStatusOptions.model_validate(faction_status_feature.payload)
+        arrest_lookup_feature = self.features.get("arrest_report_lookup")
+        if arrest_lookup_feature is not None and arrest_lookup_feature.enabled:
+            if arrest_lookup_feature.schema_version != 1:
+                raise ValueError("arrest_report_lookup requires feature schema version 1")
+            ArrestReportLookupOptions.model_validate(arrest_lookup_feature.payload)
         return self
 
     def policy(self, key: AccessPolicyKey) -> AccessPolicySnapshot:
@@ -331,6 +340,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return FactionStatusOptions.model_validate(feature.payload).faction_id
+
+    @property
+    def arrest_report_lookup_faction_id(self) -> int | None:
+        feature = self.snapshot.features.get("arrest_report_lookup")
+        if feature is None or not feature.enabled:
+            return None
+        return ArrestReportLookupOptions.model_validate(feature.payload).faction_id
 
     @property
     def pager_starting_number(self) -> int:

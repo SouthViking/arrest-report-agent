@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Literal
 
 from agents import (
@@ -36,6 +36,9 @@ from arrest_report_agent.knowledge import (
 )
 
 from .ports import (
+    ArrestReportDetail,
+    ArrestReportLookup,
+    ArrestReportSearchQuery,
     ChannelMemberSearchQuery,
     GuildMemberProfile,
     GuildMemberSearchQuery,
@@ -119,6 +122,8 @@ DEFAULT_MESSAGE_FIELDS: tuple[MessageField, ...] = (
 )
 MESSAGE_TOOL_TEXT_BUDGET = 20_000
 MAX_ATTACHMENT_IDS_PER_CALL = 10
+MAX_ARREST_SEARCH_CALLS_PER_RUN = 3
+MAX_ARREST_DETAIL_CALLS_PER_RUN = 3
 type NativeAttachmentOutput = ToolOutputText | ToolOutputImage | ToolOutputFileContent
 
 
@@ -161,6 +166,8 @@ def build_agent_tools(
     max_total_file_bytes: int = 52_428_800,
     image_detail: str = "auto",
     access_level: AgentAccessLevel = AgentAccessLevel.FULL,
+    arrest_report_lookup: ArrestReportLookup | None = None,
+    report_channel_ids: frozenset[int] = frozenset(),
 ) -> list[object]:
     """Create tools bound to immutable knowledge snapshots."""
 
@@ -943,6 +950,172 @@ def build_agent_tools(
             "interaction_complete": True,
         }
 
+    @function_tool
+    async def search_arrest_reports(
+        ctx: RunContextWrapper[ReviewRunContext],
+        suspect_name: Annotated[str | None, Field(min_length=1, max_length=100)] = None,
+        officer_name: Annotated[str | None, Field(min_length=1, max_length=100)] = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        page: Annotated[int, Field(ge=1)] = 1,
+        limit: Annotated[int, Field(ge=1, le=50)] = 10,
+        sort_field: Annotated[
+            str | None,
+            Field(pattern=r"^[A-Za-z][A-Za-z0-9_]{0,49}$"),
+        ] = "created_at",
+        sort_order: Literal["asc", "desc"] = "desc",
+        exact_suspect: bool = False,
+        exact_officer: bool = False,
+    ) -> dict[str, object]:
+        """Search current SARP arrest reports with composable, bounded filters.
+
+        Use compact searches first, then `get_arrest_report` for the selected ID. You may
+        reformulate names, dates, exact matching or pagination when the first search is empty or
+        ambiguous. Names are optional and may use spaces or underscores. Do not expose report IDs
+        to users; they are technical handles for the detail tool.
+        """
+
+        run_context = ctx.context
+        if arrest_report_lookup is None:
+            return {"ok": False, "error": "unavailable"}
+        if run_context.arrest_search_calls >= MAX_ARREST_SEARCH_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_search_limit_reached"}
+        run_context.arrest_search_calls += 1
+        await _mark_knowledge_activity(run_context)
+        result = await arrest_report_lookup.search(
+            ArrestReportSearchQuery(
+                suspect_name=suspect_name,
+                officer_name=officer_name,
+                date_from=date_from,
+                date_to=date_to,
+                page=page,
+                limit=limit,
+                sort_field=sort_field,
+                sort_order=sort_order,
+                exact_suspect=exact_suspect,
+                exact_officer=exact_officer,
+            )
+        )
+        if result.error is not None:
+            payload: dict[str, object] = {"ok": False, "error": result.error}
+            if result.retry_after_seconds is not None:
+                payload["retry_after_seconds"] = result.retry_after_seconds
+            return payload
+        if not result.reports:
+            status = "not_found"
+        elif (suspect_name is not None or officer_name is not None) and len(result.reports) > 1:
+            status = "ambiguous"
+        elif len(result.reports) == 1:
+            status = "matched"
+        else:
+            status = "results"
+        return {
+            "ok": True,
+            "status": status,
+            "page": result.page,
+            "limit": result.limit,
+            "total": result.total,
+            "returned": len(result.reports),
+            "has_more": result.has_more,
+            "reports": [
+                {
+                    "report_id": report.report_id,
+                    "suspect_name": report.suspect_name,
+                    "officer_name": report.officer_name,
+                    "created_at": report.created_at.isoformat(),
+                    "description_preview": _text_preview(report.description, 400),
+                }
+                for report in result.reports
+            ],
+        }
+
+    @function_tool
+    async def get_arrest_report(
+        ctx: RunContextWrapper[ReviewRunContext],
+        report_id: Annotated[int, Field(gt=0)],
+        bind_to_current_thread: bool = False,
+    ) -> dict[str, object]:
+        """Fetch one current SARP arrest detail and optionally bind it to this review thread.
+
+        Bind only after identifying the intended report unambiguously. Binding is available only
+        in a report thread and may replace a previous association for the same Discord root.
+        """
+
+        run_context = ctx.context
+        if arrest_report_lookup is None:
+            return {"ok": False, "error": "unavailable"}
+        if run_context.arrest_detail_calls >= MAX_ARREST_DETAIL_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_detail_limit_reached"}
+        run_context.arrest_detail_calls += 1
+        await _mark_knowledge_activity(run_context)
+        result = await arrest_report_lookup.get(report_id)
+        if result.error is not None or result.report is None:
+            payload: dict[str, object] = {
+                "ok": False,
+                "error": result.error or "not_found",
+            }
+            if result.retry_after_seconds is not None:
+                payload["retry_after_seconds"] = result.retry_after_seconds
+            return payload
+        bound = False
+        if bind_to_current_thread:
+            if (
+                run_context.case.thread_id is None
+                or run_context.case.thread_id != run_context.case.root_message_id
+                or run_context.case.parent_channel_id not in report_channel_ids
+            ):
+                return {"ok": False, "error": "binding_not_allowed"}
+            binding_error = await arrest_report_lookup.bind(
+                guild_id=run_context.case.guild_id,
+                root_message_id=run_context.case.root_message_id,
+                parent_channel_id=run_context.case.parent_channel_id,
+                thread_id=run_context.case.thread_id,
+                report_id=report_id,
+                actor_user_id=run_context.case.requester_user_id,
+                trigger_message_id=run_context.case.trigger_message_id,
+            )
+            if binding_error is not None:
+                return {"ok": False, "error": binding_error}
+            bound = True
+        return _arrest_detail_payload(result.report, bound=bound)
+
+    @function_tool
+    async def get_current_arrest_report(
+        ctx: RunContextWrapper[ReviewRunContext],
+    ) -> dict[str, object]:
+        """Fetch the live SARP report already linked to this exact Discord report root.
+
+        This tool never searches names and cannot change the association. Use it for a current
+        re-review such as “listo” or “revisa de nuevo”.
+        """
+
+        run_context = ctx.context
+        if arrest_report_lookup is None:
+            return {"ok": False, "error": "unavailable"}
+        if (
+            run_context.case.thread_id is None
+            or run_context.case.thread_id != run_context.case.root_message_id
+            or run_context.case.parent_channel_id not in report_channel_ids
+        ):
+            return {"ok": False, "error": "not_in_report_thread"}
+        if run_context.arrest_detail_calls >= MAX_ARREST_DETAIL_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_detail_limit_reached"}
+        run_context.arrest_detail_calls += 1
+        await _mark_knowledge_activity(run_context)
+        result = await arrest_report_lookup.get_current(
+            guild_id=run_context.case.guild_id,
+            root_message_id=run_context.case.root_message_id,
+        )
+        if result.error is not None or result.report is None:
+            payload: dict[str, object] = {
+                "ok": False,
+                "error": result.error or "not_found",
+            }
+            if result.retry_after_seconds is not None:
+                payload["retry_after_seconds"] = result.retry_after_seconds
+            return payload
+        return _arrest_detail_payload(result.report, bound=True)
+
     common_tools = [
         get_report_guide,
         search_radio_codes,
@@ -956,9 +1129,11 @@ def build_agent_tools(
         finish_interaction,
         publish_review,
     ]
+    if arrest_report_lookup is not None:
+        report_tools.insert(0, get_current_arrest_report)
     if access_level is AgentAccessLevel.REPORT_OWNER:
         return [*common_tools, *report_tools]
-    return [
+    full_tools: list[object] = [
         *common_tools,
         list_guild_roles,
         find_guild_members,
@@ -972,6 +1147,13 @@ def build_agent_tools(
         finish_interaction,
         publish_review,
     ]
+    if arrest_report_lookup is not None:
+        full_tools[4:4] = [
+            search_arrest_reports,
+            get_arrest_report,
+            get_current_arrest_report,
+        ]
+    return full_tools
 
 
 def _owner_message_query_is_allowed(
@@ -1094,6 +1276,45 @@ def _tool_image_detail(image_detail: str) -> Literal["low", "high", "auto"]:
 
 def _compact_json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _text_preview(value: str, limit: int) -> str:
+    normalized = " ".join(value.split())
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: max(0, limit - 1)].rstrip() + "…"
+
+
+def _arrest_detail_payload(
+    report: ArrestReportDetail,
+    *,
+    bound: bool,
+) -> dict[str, object]:
+    return {
+        "ok": True,
+        "bound_to_current_thread": bound,
+        "report": {
+            "report_id": report.report_id,
+            "suspect_name": report.suspect_name,
+            "officer_name": report.officer_name,
+            "description": report.description,
+            "created_at": report.created_at.isoformat(),
+            "updated_at": (
+                report.updated_at.isoformat() if report.updated_at is not None else None
+            ),
+            "charges": [
+                {
+                    "charge_id": charge.charge_id,
+                    "code": charge.code,
+                    "name": charge.name,
+                    "type": charge.charge_type,
+                    "hours": charge.hours,
+                    "fine": charge.fine,
+                }
+                for charge in report.charges
+            ],
+        },
+    }
 
 
 async def _mark_knowledge_activity(run_context: ReviewRunContext) -> None:

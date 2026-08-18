@@ -8,6 +8,7 @@ import math
 import time
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import date
 from email.utils import parsedate_to_datetime
 from typing import Any, Literal, TypeVar
 from urllib.parse import urlsplit
@@ -29,12 +30,14 @@ from .errors import (
     build_api_error,
 )
 from .models import (
+    SarpArrestDetail,
     SarpArrestPage,
     SarpCharacterPossessions,
     SarpCharacterPreview,
     SarpCharacterSearchResult,
     SarpEmergencyCallPage,
     SarpEnvelope,
+    SarpFactionArrestSearchPayload,
     SarpFactionDetail,
     SarpFactionRank,
     SarpFinePage,
@@ -61,6 +64,8 @@ CHARACTER_POSSESSIONS_PAYLOAD_ADAPTER = TypeAdapter(SarpCharacterPossessions)
 FINE_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFinePage)
 WARRANT_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpWarrantPage)
 ARREST_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpArrestPage)
+ARREST_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpArrestDetail)
+FACTION_ARREST_SEARCH_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionArrestSearchPayload)
 EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpEmergencyCallPage)
 FACTION_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionDetail)
 FACTION_RANKS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionRank])
@@ -375,6 +380,58 @@ class SarpClient:
         )
         return response.payload
 
+    async def search_faction_arrests(
+        self,
+        faction_id: int,
+        *,
+        suspect_name: str | None = None,
+        officer_name: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        page: int = 1,
+        limit: int = 20,
+        sort_field: str | None = None,
+        sort_order: Literal["asc", "desc"] = "desc",
+    ) -> SarpFactionArrestSearchPayload:
+        """Search a police faction's arrest reports using the documented filters."""
+
+        _require_positive_id(faction_id, "faction_id")
+        _validate_page(page, limit, max_limit=50)
+        normalized_suspect = _normalize_optional_search(suspect_name, "suspect_name")
+        normalized_officer = _normalize_optional_search(officer_name, "officer_name")
+        normalized_sort_field = _normalize_sort_field(sort_field)
+        if sort_order not in {"asc", "desc"}:
+            raise ValueError("sort_order must be 'asc' or 'desc'")
+        if date_from is not None and date_to is not None and date_from > date_to:
+            raise ValueError("date_from cannot be after date_to")
+        response = await self.request(
+            "GET",
+            f"/my-faction/arrests/{faction_id}",
+            params={
+                "page": page,
+                "limit": limit,
+                "dateFrom": date_from.isoformat() if date_from is not None else None,
+                "dateTo": date_to.isoformat() if date_to is not None else None,
+                "suspectSearch": normalized_suspect,
+                "agentSearch": normalized_officer,
+                "sortField": normalized_sort_field,
+                "sortOrder": 1 if sort_order == "asc" else -1,
+            },
+            payload_adapter=FACTION_ARREST_SEARCH_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def get_arrest(self, arrest_id: int) -> SarpArrestDetail:
+        """Fetch the current detail and charges for one arrest report."""
+
+        _require_positive_id(arrest_id, "arrest_id")
+        response = await self.request(
+            "GET",
+            f"/police/arrests/{arrest_id}",
+            payload_adapter=ARREST_DETAIL_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
     async def list_emergency_calls(
         self,
         *,
@@ -547,11 +604,29 @@ def _require_positive_id(value: int, label: str) -> None:
         raise ValueError(f"{label} must be a positive integer")
 
 
-def _validate_page(page: int, limit: int) -> None:
+def _validate_page(page: int, limit: int, *, max_limit: int = 100) -> None:
     if isinstance(page, bool) or page < 1:
         raise ValueError("page must be a positive integer")
-    if isinstance(limit, bool) or not 1 <= limit <= 100:
-        raise ValueError("limit must be between 1 and 100")
+    if isinstance(limit, bool) or not 1 <= limit <= max_limit:
+        raise ValueError(f"limit must be between 1 and {max_limit}")
+
+
+def _normalize_optional_search(value: str | None, field_name: str) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not 1 <= len(normalized) <= 100:
+        raise ValueError(f"{field_name} must contain between 1 and 100 characters")
+    return normalized
+
+
+def _normalize_sort_field(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized or len(normalized) > 50 or not normalized.replace("_", "").isalnum():
+        raise ValueError("sort_field must be an identifier of at most 50 characters")
+    return normalized
 
 
 def _request_id(headers: Mapping[str, str]) -> str | None:

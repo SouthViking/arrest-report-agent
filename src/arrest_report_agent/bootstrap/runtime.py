@@ -205,6 +205,7 @@ async def build_runtime(
         guide,
         model_catalog,
         radio_catalog,
+        sarp_client,
     )
     try:
         if sarp_penal_code_provider is not None:

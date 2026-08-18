@@ -63,6 +63,7 @@ FEATURE_LABELS = {
     "deployment_notifications": "Notificaciones de despliegue",
     "service_calls": "Llamadas de servicio",
     "faction_status": "Estado de facción",
+    "arrest_report_lookup": "Consulta de reportes de arresto",
 }
 MODE_LABELS = {
     AccessPolicyMode.OPEN: "abierta",
@@ -907,6 +908,10 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     label="Estado de facción",
                     value="faction_status",
                 ),
+                discord.SelectOption(
+                    label="Consulta de reportes de arresto",
+                    value="arrest_report_lookup",
+                ),
             ],
         )
         self.enabled = discord.ui.StringSelect(
@@ -961,6 +966,12 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 and "faction_id" not in payload
             ):
                 raise ValueError("Estado de facción requiere `faction_id`.")
+            if (
+                key == "arrest_report_lookup"
+                and self.enabled.values[0] == "true"
+                and "faction_id" not in payload
+            ):
+                raise ValueError("Consulta de arrestos requiere `faction_id`.")
             if key == "report_owner_access" and "max_rounds" not in payload:
                 payload["max_rounds"] = 5
             feature = GuildFeatureSnapshot(

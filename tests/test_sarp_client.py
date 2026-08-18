@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from datetime import date
 
 import pytest
 from aiohttp import web
@@ -631,3 +632,106 @@ async def test_client_requires_open_lifecycle_and_rejects_absolute_paths() -> No
             )
     finally:
         await client.close()
+
+
+async def test_arrest_search_and_detail_follow_live_sarp_contract() -> None:
+    seen: list[tuple[str, dict[str, str]]] = []
+
+    async def handler(request: web.Request) -> web.Response:
+        seen.append((request.path, dict(request.query)))
+        if request.path == "/api/my-faction/arrests/3":
+            payload = {
+                "data": [
+                    {
+                        "id": 321,
+                        "created_at": "2026-08-18T12:00:00",
+                        "description": "El sospechoso huyó.",
+                        "police_id": 11,
+                        "police_name": "Charles_Harrington",
+                        "suspect_id": 44,
+                        "suspect_name": "Terry_McKenzie",
+                    }
+                ],
+                "total": 1,
+            }
+        else:
+            payload = {
+                "id": 321,
+                "police_id": 11,
+                "police_name": "Charles_Harrington",
+                "suspect_id": 44,
+                "suspect_name": "Terry_McKenzie",
+                "description": "El sospechoso huyó y fue detenido.",
+                "created_at": "2026-08-18T12:00:00",
+                "updated_at": "2026-08-18T12:30:00Z",
+                "charges": [
+                    {
+                        "charge_id": 91,
+                        "code": "TEST-91",
+                        "charge": "Evasión",
+                        "type": "Felonía",
+                        "hours": 4,
+                        "fine": 500,
+                    }
+                ],
+            }
+        return web.json_response(
+            {"message": "OK", "httpCode": 200, "source": "pcu", "payload": payload}
+        )
+
+    async with serve_sarp(handler) as base_url, SarpClient(
+        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
+    ) as client:
+        search = await client.search_faction_arrests(
+            3,
+            suspect_name="Terry McKenzie",
+            officer_name="Charles Harrington",
+            date_from=date(2026, 8, 1),
+            date_to=date(2026, 8, 18),
+            page=2,
+            limit=5,
+            sort_field="created_at",
+            sort_order="asc",
+        )
+        detail = await client.get_arrest(321)
+
+    assert search.total == 1
+    assert search.data[0].created_at.tzinfo is not None
+    assert detail.charges[0].charge == "Evasión"
+    assert seen == [
+        (
+            "/api/my-faction/arrests/3",
+            {
+                "page": "2",
+                "limit": "5",
+                "dateFrom": "2026-08-01",
+                "dateTo": "2026-08-18",
+                "suspectSearch": "Terry McKenzie",
+                "agentSearch": "Charles Harrington",
+                "sortField": "created_at",
+                "sortOrder": "1",
+            },
+        ),
+        ("/api/police/arrests/321", {}),
+    ]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"limit": 51},
+        {"date_from": date(2026, 8, 19), "date_to": date(2026, 8, 18)},
+        {"sort_field": "created_at;drop"},
+        {"sort_order": "sideways"},
+        {"suspect_name": "   "},
+    ],
+)
+async def test_arrest_search_rejects_invalid_filters(kwargs: dict[str, object]) -> None:
+    async def handler(_request: web.Request) -> web.Response:
+        raise AssertionError("invalid filters must fail before transport")
+
+    async with serve_sarp(handler) as base_url, SarpClient(
+        SarpClientConfig(base_url=base_url, max_retries=0)
+    ) as client:
+        with pytest.raises(ValueError):
+            await client.search_faction_arrests(3, **kwargs)  # type: ignore[arg-type]

@@ -31,6 +31,11 @@ deshabilitar el módulo, el polling se detiene y deja de consumir la API SARP.
 El módulo **Estado de facción** recibe `{"faction_id": 3}` y habilita `/conectados` para esa facción.
 El ID queda por guild en PostgreSQL y no se fija en el comando ni en el cliente SARP.
 
+El módulo **Consulta de reportes de arresto** recibe `{"faction_id": 3}`. No agrega un comando:
+habilita al agente completo para buscar y vincular arrestos de esa facción. En un expediente ya
+vinculado, el propietario con acceso limitado solo puede consultar su referencia vigente al pedir
+una nueva revisión. Si SARP está apagado globalmente, estas tools no se registran.
+
 La acción **Publicar consumo** consulta los proveedores configurados, omite cualquier campo que no
 haya sido devuelto y envía un embed público en el canal donde se abrió `/config`. No usa IA. Los
 resultados se conservan en memoria por cinco minutos; las credenciales nunca se muestran ni se

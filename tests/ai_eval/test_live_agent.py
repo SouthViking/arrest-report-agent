@@ -13,7 +13,17 @@ from agents import set_default_openai_key
 from pydantic import ValidationError
 
 from arrest_report_agent.application import ReviewRunContext, ReviewService
-from arrest_report_agent.application.ports import GuildRoleProfile, GuildRoleSearchResult
+from arrest_report_agent.application.ports import (
+    ArrestReportCharge,
+    ArrestReportDetail,
+    ArrestReportDetailResult,
+    ArrestReportLookup,
+    ArrestReportSearchQuery,
+    ArrestReportSearchResult,
+    ArrestReportSummary,
+    GuildRoleProfile,
+    GuildRoleSearchResult,
+)
 from arrest_report_agent.config import AppSettings, ModelCatalog, PackagedPersonaProvider
 from arrest_report_agent.domain import (
     AgentAccessLevel,
@@ -113,6 +123,93 @@ class FieldStaffRoleDirectory:
         )
 
 
+class RecordingArrestReportLookup:
+    """Expose live-shaped SARP results while recording the agent's search strategy."""
+
+    def __init__(self, *, unavailable: bool = False, ambiguous_first: bool = False) -> None:
+        self.unavailable = unavailable
+        self.ambiguous_first = ambiguous_first
+        self.searches: list[ArrestReportSearchQuery] = []
+        self.details: list[int] = []
+        self.current: list[tuple[int, int]] = []
+        self.bindings: list[int] = []
+        self.report = ArrestReportDetail(
+            report_id=751,
+            suspect_name="Terry McKenzie",
+            officer_name="Charles Harrington",
+            description=(
+                "Yo, ayudante Charles Harrington, bajo la asignación 280L, detuve a Terry "
+                "McKenzie en Jefferson después de que huyera de una intervención vehicular. "
+                "El sospechoso fue trasladado a la estación sin lesiones. No se recolectó "
+                "evidencia física."
+            ),
+            created_at=datetime(2026, 8, 18, 12, 0, tzinfo=UTC),
+            updated_at=datetime(2026, 8, 18, 13, 0, tzinfo=UTC),
+            charges=(
+                ArrestReportCharge(
+                    charge_id=91,
+                    code="CV-2801",
+                    name="Evadir a un oficial de la paz",
+                    charge_type="Delito",
+                    hours=4,
+                    fine=500,
+                ),
+            ),
+        )
+
+    async def search(self, query: ArrestReportSearchQuery) -> ArrestReportSearchResult:
+        self.searches.append(query)
+        reports = [
+            ArrestReportSummary(
+                report_id=self.report.report_id,
+                suspect_name=self.report.suspect_name,
+                officer_name=self.report.officer_name,
+                description=self.report.description,
+                created_at=self.report.created_at,
+            )
+        ]
+        if self.ambiguous_first and len(self.searches) == 1:
+            reports.append(
+                ArrestReportSummary(
+                    report_id=752,
+                    suspect_name="Terry McKenzie Jr",
+                    officer_name="Marco Ruiz",
+                    description="Otro procedimiento distinto.",
+                    created_at=self.report.created_at - timedelta(days=1),
+                )
+            )
+        return ArrestReportSearchResult(
+            reports=tuple(reports),
+            total=len(reports),
+            page=query.page,
+            limit=query.limit,
+            has_more=False,
+        )
+
+    async def get(self, report_id: int) -> ArrestReportDetailResult:
+        self.details.append(report_id)
+        if self.unavailable:
+            return ArrestReportDetailResult(report=None, error="temporarily_unavailable")
+        if report_id != self.report.report_id:
+            return ArrestReportDetailResult(report=None, error="not_found")
+        return ArrestReportDetailResult(report=self.report)
+
+    async def bind(self, **values: int) -> str | None:
+        self.bindings.append(values["report_id"])
+        return None
+
+    async def get_current(
+        self,
+        *,
+        guild_id: int,
+        root_message_id: int,
+    ) -> ArrestReportDetailResult:
+        self.current.append((guild_id, root_message_id))
+        if self.unavailable:
+            return ArrestReportDetailResult(report=None, error="temporarily_unavailable")
+        return ArrestReportDetailResult(report=self.report)
+
+
 @pytest.fixture
 def ai_eval_settings() -> AppSettings:
     """Load the real model selection and API key without requiring a Discord connection."""
@@ -124,6 +221,7 @@ def ai_eval_settings() -> AppSettings:
             OPENAI_MAX_RETRIES=0,
             OPENAI_TRACING_ENABLED=False,
             OPENAI_TRACE_INCLUDE_SENSITIVE_DATA=False,
+            REPORT_CHANNEL_IDS="4002",
         )
     except ValidationError:
         pytest.skip("OPENAI_API_KEY must be available in the environment or local .env")
@@ -141,6 +239,7 @@ async def _run_agent(
     radio_catalog: RecordingRadioCodeCatalog | None = None,
     access_level: AgentAccessLevel = AgentAccessLevel.FULL,
     member_directory: object | None = None,
+    arrest_report_lookup: ArrestReportLookup | None = None,
 ) -> tuple[ReviewRunContext, InMemoryPublisher]:
     model = ModelCatalog.load_default().resolve(
         settings.openai_model,
@@ -162,6 +261,7 @@ async def _run_agent(
         model,
         persona,
         radio_catalog,  # type: ignore[arg-type]
+        arrest_report_lookup,
     )
 
     await service.review(
@@ -217,8 +317,8 @@ def _case(*turns: tuple[str, str]) -> ReviewCase:
     return ReviewCase(
         guild_id=4001,
         parent_channel_id=4002,
-        channel_id=4003,
-        thread_id=4003 if len(turns) > 1 else None,
+        channel_id=messages[0].id if len(turns) > 1 else 4003,
+        thread_id=messages[0].id if len(turns) > 1 else None,
         root_message_id=messages[0].id,
         trigger_message_id=messages[-1].id,
         requester_user_id=_REQUESTER_ID,
@@ -919,4 +1019,125 @@ Cargos declarados:
     publication = _single_publication(publisher)
 
     assert radio_catalog.calls == []
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+
+
+async def test_answers_latest_arrest_question_with_live_sarp_tools(
+    ai_eval_settings: AppSettings,
+) -> None:
+    lookup = RecordingArrestReportLookup()
+    case = _case(("user", "Dame el último reporte de arresto de Terry McKenzie."))
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        arrest_report_lookup=lookup,
+    )
+    response = "\n".join(publisher.messages).casefold()
+
+    assert context.interaction_completed
+    assert lookup.searches
+    assert lookup.details == [lookup.report.report_id]
+    assert "terry mckenzie" in response
+    assert "charles harrington" in response
+    assert "evadir" in response
+    assert str(lookup.report.report_id) not in response
+
+
+async def test_refines_an_ambiguous_arrest_search_before_reading_detail(
+    ai_eval_settings: AppSettings,
+) -> None:
+    lookup = RecordingArrestReportLookup(ambiguous_first=True)
+    case = _case(
+        (
+            "user",
+            "Busca el último arresto de Terry. Si aparecen varias coincidencias, refina la "
+            "búsqueda al nombre exacto Terry McKenzie y dame el reporte vigente.",
+        )
+    )
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        arrest_report_lookup=lookup,
+    )
+
+    assert context.interaction_completed
+    assert len(lookup.searches) >= 2, lookup.searches
+    assert lookup.searches[-1].suspect_name is not None
+    assert "terry mckenzie" in lookup.searches[-1].suspect_name.casefold()
+    assert lookup.details == [lookup.report.report_id]
+    assert publisher.messages
+
+
+async def test_owner_re_review_fetches_the_current_bound_arrest(
+    ai_eval_settings: AppSettings,
+) -> None:
+    lookup = RecordingArrestReportLookup()
+    case = _case(
+        (
+            "user",
+            "Mi expediente fue observado porque faltaba explicar el final del procedimiento.",
+        ),
+        (
+            "assistant",
+            "Corrige el cierre del procedimiento y vuelve a solicitar la revisión.",
+        ),
+        (
+            "user",
+            "Listo, ya lo corregí en el sistema. Revisa de nuevo el reporte vigente.",
+        ),
+    )
+
+    _, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        arrest_report_lookup=lookup,
+    )
+    publication = _single_publication(publisher)
+
+    assert lookup.current == [(case.guild_id, case.root_message_id)]
+    assert lookup.searches == []
+    assert lookup.details == []
+    assert publication.summary.strip()
+    assert publication.review_scope is ReviewScope.FULL
+
+
+async def test_sarp_failure_falls_back_to_available_report_context(
+    ai_eval_settings: AppSettings,
+) -> None:
+    lookup = RecordingArrestReportLookup(unavailable=True)
+    case = _case(
+        (
+            "user",
+            """Las fotografías frontal y lateral están presentes y son legibles.
+
+Yo, ayudante Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las
+22:15. Observé a Daniel Vega huir de una intervención vehicular. Lo seguí hasta Idlewood, donde
+quedó detenido contra una barrera. Lo arresté sin lesiones y lo trasladé a Ganton. No se recolectó
+evidencia física.
+
+Cargos declarados:
+- CV-2801 — Evadir a un oficial de la paz.""",
+        ),
+        (
+            "assistant",
+            "Cuando actualices el sistema, vuelve a solicitar la revisión.",
+        ),
+        (
+            "user",
+            "Revisa de nuevo. Si el sistema no responde, usa el expediente disponible en el hilo.",
+        ),
+    )
+
+    _, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        arrest_report_lookup=lookup,
+    )
+    publication = _single_publication(publisher)
+
+    assert lookup.current == [(case.guild_id, case.root_message_id)]
     assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
