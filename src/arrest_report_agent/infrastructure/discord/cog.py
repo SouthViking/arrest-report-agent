@@ -117,6 +117,7 @@ def build_help_embed(
     *,
     persona: BotPersona,
     avatar_url: str | None = None,
+    extra_feature_guides: str | None = None,
 ) -> discord.Embed:
     """Render a compact directory for the feature-specific help commands."""
 
@@ -135,7 +136,11 @@ def build_help_embed(
     )
     embed.add_field(
         name=copy.feature_guides_title,
-        value=copy.feature_guides,
+        value=(
+            f"{copy.feature_guides}\n{extra_feature_guides}"
+            if extra_feature_guides
+            else copy.feature_guides
+        ),
         inline=False,
     )
     embed.add_field(
@@ -909,9 +914,27 @@ class ReviewCog(commands.Cog):
     @discord.slash_command(name="ayuda", description="Muestra las guías disponibles")
     async def review_help(self, ctx: discord.ApplicationContext) -> None:
         bot_user = self.bot.user
+        extra_feature_guides: str | None = None
+        if (
+            self._config_provider is not None
+            and ctx.guild is not None
+            and ctx.channel is not None
+        ):
+            with suppress(Exception):
+                bundle = await self._config_provider.cached(ctx.guild.id)  # type: ignore[attr-defined]
+                feature = bundle.snapshot.features.get("logbook")
+                if (
+                    feature is not None
+                    and feature.enabled
+                    and ctx.channel.id in bundle.settings.logbook_channel_ids
+                ):
+                    extra_feature_guides = (
+                        "• `/info-bitacora`: cómo registrar novedades estructuradas."
+                    )
         embed = build_help_embed(
             persona=self.persona,
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
+            extra_feature_guides=extra_feature_guides,
         )
         await ctx.respond(embed=embed, ephemeral=False)
 

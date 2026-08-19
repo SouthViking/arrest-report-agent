@@ -45,6 +45,7 @@ class AccessPolicyKey(StrEnum):
     )
     CI_FAILURE_NOTIFICATION_CHANNELS = "ci_failure_notification_channels"
     SERVICE_CALL_CHANNELS = "service_call_channels"
+    LOGBOOK_CHANNELS = "logbook_channels"
 
 
 POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] = {
@@ -69,6 +70,7 @@ POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] 
     AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: "channel",
     AccessPolicyKey.CI_FAILURE_NOTIFICATION_CHANNELS: "channel",
     AccessPolicyKey.SERVICE_CALL_CHANNELS: "channel",
+    AccessPolicyKey.LOGBOOK_CHANNELS: "channel",
 }
 
 
@@ -284,6 +286,13 @@ class GuildConfigSnapshot(FrozenConfigModel):
             roles = self.policies[AccessPolicyKey.FACTION_REPORT_ROLES]
             if roles.mode is not AccessPolicyMode.RESTRICTED:
                 raise ValueError("enabled faction_reports requires restricted report roles")
+        logbook_feature = self.features.get("logbook")
+        if logbook_feature is not None and logbook_feature.enabled:
+            if logbook_feature.schema_version != 1 or logbook_feature.payload:
+                raise ValueError("logbook requires feature schema version 1 with empty options")
+            channels = self.policies[AccessPolicyKey.LOGBOOK_CHANNELS]
+            if channels.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError("enabled logbook requires restricted logbook channels")
         return self
 
     def policy(self, key: AccessPolicyKey) -> AccessPolicySnapshot:
@@ -394,6 +403,11 @@ class GuildRuntimeSettings:
     @property
     def service_call_channel_ids(self) -> tuple[int, ...]:
         policy = self.snapshot.policy(AccessPolicyKey.SERVICE_CALL_CHANNELS)
+        return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
+    def logbook_channel_ids(self) -> tuple[int, ...]:
+        policy = self.snapshot.policy(AccessPolicyKey.LOGBOOK_CHANNELS)
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
 
     @property

@@ -382,6 +382,11 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 subject_type="channel",
                 mode=AccessPolicyMode.DISABLED,
             ),
+            AccessPolicySnapshot(
+                key=AccessPolicyKey.LOGBOOK_CHANNELS,
+                subject_type="channel",
+                mode=AccessPolicyMode.DISABLED,
+            ),
         )
         guilds.append(
             BootstrapGuild(
@@ -487,6 +492,12 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                             if guild_id == 1234674521416663070
                             else {}
                         ),
+                    ),
+                    GuildFeatureSnapshot(
+                        key="logbook",
+                        enabled=False,
+                        schema_version=1,
+                        payload={},
                     ),
                 ),
                 persona_revision_id=placeholder_persona_revision,

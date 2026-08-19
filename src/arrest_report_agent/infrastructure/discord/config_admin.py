@@ -57,6 +57,7 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
     ),
     AccessPolicyKey.CI_FAILURE_NOTIFICATION_CHANNELS: "Canales de errores de CI",
     AccessPolicyKey.SERVICE_CALL_CHANNELS: "Canales de llamadas de servicio",
+    AccessPolicyKey.LOGBOOK_CHANNELS: "Canales de bitácora",
 }
 FEATURE_LABELS = {
     "role_requests": "Solicitudes de roles",
@@ -69,6 +70,7 @@ FEATURE_LABELS = {
     "operational_resources": "Recursos operativos",
     "arrest_report_lookup": "Consulta de reportes de arresto",
     "pending_arrest_reports": "Reportes de arresto pendientes",
+    "logbook": "Bitácora",
 }
 MODE_LABELS = {
     AccessPolicyMode.OPEN: "abierta",
@@ -925,6 +927,7 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     label="Reportes de arresto pendientes",
                     value="pending_arrest_reports",
                 ),
+                discord.SelectOption(label="Bitácora", value="logbook"),
             ],
         )
         self.enabled = discord.ui.StringSelect(
@@ -972,6 +975,8 @@ class FeatureConfigurationModal(BaseConfigurationModal):
             if key == "deployment_notifications" and payload:
                 raise ValueError("Este módulo no admite opciones JSON.")
             if key == "service_calls" and payload:
+                raise ValueError("Este módulo no admite opciones JSON.")
+            if key == "logbook" and payload:
                 raise ValueError("Este módulo no admite opciones JSON.")
             if (
                 key == "faction_status"

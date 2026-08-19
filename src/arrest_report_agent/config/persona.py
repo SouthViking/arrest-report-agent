@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 42
+PERSONA_SCHEMA_VERSION = 43
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -857,6 +857,23 @@ class PersonaOperationalResourcesMessages(FrozenPersonaModel):
     connected_reference: str = Field(min_length=1, max_length=400)
 
 
+class PersonaLogbookMessages(FrozenPersonaModel):
+    """Personality-aware guidance around neutral structured logbook data."""
+
+    alert_title: str = Field(min_length=1, max_length=256)
+    unavailable: str = Field(min_length=1, max_length=400)
+    wrong_channel: str = Field(min_length=1, max_length=400)
+    operation_failed: str = Field(min_length=1, max_length=400)
+    invalid_amount: str = Field(min_length=1, max_length=400)
+    invalid_files: str = Field(min_length=1, max_length=400)
+    setup_description: str = Field(min_length=1, max_length=500)
+    info_intro: str = Field(min_length=1, max_length=600)
+    info_usage: str = Field(min_length=1, max_length=800)
+    info_finance: str = Field(min_length=1, max_length=600)
+    info_attachments: str = Field(min_length=1, max_length=600)
+    info_closing: str = Field(min_length=1, max_length=400)
+
+
 class PersonaPendingArrestReportsMessages(FrozenPersonaModel):
     """Personality-aware copy for deterministic pending-report scans."""
 
@@ -1002,6 +1019,8 @@ class PersonaCommandMessages(FrozenPersonaModel):
     pending_arrest_reports_description: str = Field(min_length=1, max_length=100)
     faction_report_description: str = Field(min_length=1, max_length=100)
     resources_description: str = Field(min_length=1, max_length=100)
+    logbook_description: str = Field(min_length=1, max_length=100)
+    info_logbook_description: str = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaCommandMessages:
@@ -1029,6 +1048,7 @@ class PersonaInterfaceMessages(FrozenPersonaModel):
     mdc: PersonaMdcMessages
     faction_status: PersonaFactionStatusMessages
     operational_resources: PersonaOperationalResourcesMessages
+    logbook: PersonaLogbookMessages
     pending_arrest_reports: PersonaPendingArrestReportsMessages
     faction_reports: PersonaFactionReportMessages
     review: PersonaReviewMessages

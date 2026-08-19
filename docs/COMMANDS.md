@@ -68,6 +68,8 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/recursos` | `operational_staff_roles`; módulo `operational_resources` activo | Pública; rechazo efímero | Configuración de PostgreSQL y API SARP |
 | `/reportes-pendientes` | `operational_staff_roles`; módulo `pending_arrest_reports` activo | Modal privado; resultado público o efímero | Reportes de la facción en SARP |
 | `/informe-faccion` | `faction_report_roles`; módulo `faction_reports` activo | Modal privado; archivo público o efímero | Banco, nómina y rangos actuales de SARP |
+| `/bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Selector privado, modal adaptado y entrada pública | PostgreSQL, Railway Bucket y Discord |
+| `/info-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Pública; rechazo efímero fuera de los canales | Persona activa y configuración de PostgreSQL |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
 | `/verguenza` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/honor` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
@@ -138,9 +140,26 @@ comandos, dirige a la guía de cada función:
 - `/info-callsigns`
 - `/info-mdc`
 - `/info-sugerencias`
+- `/info-bitacora`, solo cuando `/ayuda` se abre en un canal de bitácora habilitado
 
 Mantiene como referencias rápidas `/guia`, `/cargos`, `/faq` y `/pregunta-manual`. Los flujos operacionales, comandos
 privados y herramientas de supervisión se explican en su guía especializada cuando corresponde.
+
+## `/bitacora` y `/info-bitacora`
+
+El módulo `logbook` exige una política restringida `logbook_channels`. No aplica una lista de
+usuarios o roles adicional: si una persona puede ver el canal configurado, puede registrar allí.
+Fuera de esos canales ambos comandos responden con una alerta efímera y `/ayuda` no anuncia la
+función.
+
+`/bitacora` presenta primero un selector privado de categoría y movimiento de dinero. Luego abre un
+modal adaptado con los subtipos válidos, asunto, descripción, monto cuando corresponda y hasta diez
+adjuntos. La publicación usa una referencia mínima de cinco dígitos (`BIT-00001`) que continúa
+creciendo sin un techo de 99.999. PostgreSQL conserva el registro estructurado y la metadata; el
+contenido de los adjuntos se almacena en el Railway Bucket con claves basadas en checksum.
+
+`/info-bitacora` publica una explicación breve con el tono de la personalidad activa. Las categorías,
+montos, fechas y demás datos operacionales se muestran con redacción neutra.
 
 ## `/conectados`
 

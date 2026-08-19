@@ -57,6 +57,7 @@ from arrest_report_agent.knowledge import (
     ReportGuide,
     StaticChargeCatalogProvider,
 )
+from arrest_report_agent.logbook import LogbookCog, LogbookRepository, LogbookService
 from arrest_report_agent.manual_quiz import (
     ManualQuizCog,
     ManualQuizRepository,
@@ -107,6 +108,7 @@ class Runtime:
     role_requests_enabled: bool
     pagers_enabled: bool
     suggestions_enabled: bool
+    logbook_enabled: bool
     deployment_notifications_enabled: bool
     deployment_worker: DeploymentNotificationWorker
     railway_webhook_receiver: RailwayWebhookReceiver | None
@@ -149,6 +151,7 @@ class Runtime:
             "role_requests": self.role_requests_enabled,
             "pagers": self.pagers_enabled,
             "suggestions": self.suggestions_enabled,
+            "logbook": self.logbook_enabled,
             "deployment_notifications": self.deployment_notifications_enabled,
             "railway_webhook": self.railway_webhook_receiver is not None,
             "github_webhook": self.github_webhook_receiver is not None,
@@ -206,7 +209,8 @@ async def build_runtime(
     guide = ReportGuide.load_default()
     radio_catalog = RadioCodeCatalog.load_default()
     model_catalog = ModelCatalog.load_default()
-    repository = ConfigurationRepository(postgres, build_bucket_storage(settings))
+    object_storage = build_bucket_storage(settings)
+    repository = ConfigurationRepository(postgres, object_storage)
     config_provider = DatabaseConfigProvider(
         postgres,
         repository,
@@ -260,6 +264,12 @@ async def build_runtime(
     )
     bot.add_cog(review_cog)
     cost_monitoring = build_cost_monitoring_service(settings)
+    all_bundles = [await config_provider.get(guild_id) for guild_id in guild_ids]
+    logbook_enabled = any(
+        (feature := bundle.snapshot.features.get("logbook")) is not None
+        and feature.enabled
+        for bundle in all_bundles
+    )
     bot.add_cog(
         ConfigurationAdminCog(
             settings,
@@ -297,7 +307,6 @@ async def build_runtime(
         )
 
     config_provider.register_global_callback(synchronize_global_persona)
-    all_bundles = [await config_provider.get(guild_id) for guild_id in guild_ids]
     service_call_worker: ServiceCallFeedWorker | None = None
     if sarp_client is not None:
         service_call_guild_ids = tuple(
@@ -440,6 +449,24 @@ async def build_runtime(
         configured_guilds=len(guild_ids),
         configured_owners=len(settings.config_owner_user_ids),
     )
+    bot.add_cog(
+        LogbookCog(
+            config_provider,
+            LogbookService(LogbookRepository(postgres), object_storage),
+            persona.profile,
+        )
+    )
+    log_event(
+        LOGGER,
+        "info",
+        "logbook_subsystem_registered",
+        configured_guilds=sum(
+            1
+            for bundle in all_bundles
+            if (feature := bundle.snapshot.features.get("logbook")) is not None
+            and feature.enabled
+        ),
+    )
     deployment_repository = DeploymentRepository(postgres)
     deployment_worker = DeploymentNotificationWorker(
         bot,
@@ -503,6 +530,7 @@ async def build_runtime(
         role_requests_enabled=role_requests_enabled,
         pagers_enabled=pagers_enabled,
         suggestions_enabled=suggestions_enabled,
+        logbook_enabled=logbook_enabled,
         deployment_notifications_enabled=deployment_notifications_enabled,
         deployment_worker=deployment_worker,
         railway_webhook_receiver=railway_webhook_receiver,

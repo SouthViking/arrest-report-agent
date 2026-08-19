@@ -1,22 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.11.0",
-  "title": "Nueva central de recursos operativos",
-  "summary": "El personal operativo ahora puede consultar accesos, conexiones y el estado actual de la facción desde un único comando.",
+  "version": "0.12.0",
+  "title": "Nueva bitácora estructurada",
+  "summary": "La bitácora ahora puede registrar novedades con un formato uniforme, consultable y preparado para futuras automatizaciones.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [1241206587079524442],
   "changes": [
     {
       "type": "added",
-      "text": "El nuevo comando /recursos reúne el PCU, foro, manual, código penal, servidor, TeamSpeak y el estado actual de la facción."
+      "text": "El nuevo comando /bitacora permite registrar novedades por categoría y tipo mediante un formulario adaptado."
     },
     {
       "type": "added",
-      "text": "El panel incluye la descarga vigente del caché oficial cuando se encuentra disponible."
+      "text": "Los registros pueden incluir movimientos de dinero y archivos de respaldo sin alterar su estructura principal."
     },
     {
-      "type": "improved",
-      "text": "Desde /recursos se indica cómo consultar el detalle del personal conectado mediante /conectados."
+      "type": "added",
+      "text": "Se incorporaron /info-bitacora y el tipo Acción disciplinaria dentro de Personal."
     }
   ],
   "acknowledgements": []

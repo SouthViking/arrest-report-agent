@@ -1,7 +1,7 @@
 {
-  "schema_version": 42,
+  "schema_version": 43,
   "id": "walter_vigil",
-  "revision": 49,
+  "revision": 50,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -446,6 +446,20 @@
         "intro": "Accesos y estado actual para iniciar el servicio.",
         "connected_reference": "Para revisar quiénes están conectados y en servicio, utilice `/conectados`."
       },
+      "logbook": {
+        "alert_title": "⚠️ Bitácora no disponible",
+        "unavailable": "La bitácora estructurada no está habilitada para este servidor.",
+        "wrong_channel": "Este registro solo puede utilizarse en los canales de bitácora autorizados.",
+        "operation_failed": "No pude registrar la novedad en este momento. Inténtelo nuevamente más tarde.",
+        "invalid_amount": "Indique un monto positivo usando números; puede incluir hasta dos decimales.",
+        "invalid_files": "Los adjuntos superan los límites permitidos o contienen un archivo vacío.",
+        "setup_description": "Seleccione la clase de novedad y, si corresponde, indique si hubo un ingreso o un retiro de dinero.",
+        "info_intro": "La bitácora permite dejar novedades uniformes, fáciles de consultar y respaldadas con adjuntos cuando sea necesario.",
+        "info_usage": "Ejecute `/bitacora`, seleccione la categoría y complete el formulario adaptado. El registro se publicará en este mismo canal con una referencia `BIT`.",
+        "info_finance": "Si hubo movimiento de dinero, seleccione **Ingreso** o **Retiro** y detalle el monto y su concepto, origen o destino.",
+        "info_attachments": "Puede adjuntar imágenes o documentos de respaldo directamente en el formulario.",
+        "info_closing": "Registre hechos concretos y suficientes para que otra persona pueda comprender la novedad."
+      },
       "pending_arrest_reports": {
         "alert_title": "⚠️ Reportes pendientes no disponibles",
         "unauthorized": "Esta consulta está reservada al personal operativo autorizado.",
@@ -533,7 +547,9 @@
         "connected_members_description": "Resume el personal conectado y en servicio",
         "pending_arrest_reports_description": "Detecta reportes de arresto que parecen incompletos",
         "faction_report_description": "Genera el informe restringido de banco y miembros",
-        "resources_description": "Muestra accesos y estado operativo de la facción"
+        "resources_description": "Muestra accesos y estado operativo de la facción",
+        "logbook_description": "Registra una novedad estructurada en la bitácora",
+        "info_logbook_description": "Explica cómo registrar novedades en la bitácora"
       }
     }
   }

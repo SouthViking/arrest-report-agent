@@ -557,6 +557,95 @@ suggestion_events = sa.Table(
     sa.Index("ix_suggestion_event_history", "suggestion_id", "created_at"),
 )
 
+logbook_counters = sa.Table(
+    "logbook_counters",
+    metadata,
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("last_number", sa.BigInteger, nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint("last_number > 0", name="ck_logbook_counter_positive"),
+)
+
+logbook_entries = sa.Table(
+    "logbook_entries",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("number", sa.BigInteger, nullable=False),
+    sa.Column("channel_id", sa.BigInteger, nullable=False),
+    sa.Column("message_id", sa.BigInteger),
+    sa.Column("interaction_id", sa.BigInteger, nullable=False, unique=True),
+    sa.Column("author_user_id", sa.BigInteger, nullable=False),
+    sa.Column("category_key", sa.String(30), nullable=False),
+    sa.Column("subtype_key", sa.String(40), nullable=False),
+    sa.Column("subject", sa.String(200), nullable=False),
+    sa.Column("description", sa.Text, nullable=False),
+    sa.Column("money_direction", sa.String(20)),
+    sa.Column("money_amount", sa.Numeric(16, 2)),
+    sa.Column("money_detail", sa.String(300)),
+    sa.Column("status", sa.String(20), nullable=False, server_default="publishing"),
+    sa.Column("version", sa.Integer, nullable=False, server_default="1"),
+    sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint(
+        "category_key IN ('finance','personnel','assignments','equipment','orders',"
+        "'evidence','fleet','other')",
+        name="ck_logbook_category",
+    ),
+    sa.CheckConstraint(
+        "money_direction IS NULL OR money_direction IN ('income','withdrawal')",
+        name="ck_logbook_money_direction",
+    ),
+    sa.CheckConstraint(
+        "(money_direction IS NULL AND money_amount IS NULL) OR "
+        "(money_direction IS NOT NULL AND money_amount > 0)",
+        name="ck_logbook_money_pair",
+    ),
+    sa.CheckConstraint(
+        "status IN ('publishing','published','failed','voided')",
+        name="ck_logbook_status",
+    ),
+    sa.CheckConstraint("number > 0", name="ck_logbook_number_positive"),
+    sa.CheckConstraint("version > 0", name="ck_logbook_version_positive"),
+    sa.UniqueConstraint("guild_id", "number", name="uq_logbook_guild_number"),
+    sa.UniqueConstraint("guild_id", "channel_id", "message_id", name="uq_logbook_message"),
+    sa.Index("ix_logbook_guild_created", "guild_id", "created_at"),
+    sa.Index("ix_logbook_author_created", "guild_id", "author_user_id", "created_at"),
+)
+
+logbook_assets = sa.Table(
+    "logbook_assets",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "entry_id",
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("logbook_entries.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("position", sa.Integer, nullable=False),
+    sa.Column("object_key", sa.String(500), nullable=False),
+    sa.Column("sha256", sa.String(64), nullable=False),
+    sa.Column("filename", sa.String(255), nullable=False),
+    sa.Column("content_type", sa.String(100), nullable=False),
+    sa.Column("size_bytes", sa.BigInteger, nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint("position >= 0", name="ck_logbook_asset_position"),
+    sa.CheckConstraint("size_bytes > 0", name="ck_logbook_asset_size"),
+    sa.UniqueConstraint("entry_id", "position", name="uq_logbook_asset_position"),
+)
+
 report_issue_types = sa.Table(
     "report_issue_types",
     metadata,
@@ -724,8 +813,7 @@ manual_quiz_questions = sa.Table(
         name="ck_manual_quiz_answer_mode",
     ),
     sa.CheckConstraint(
-        "category IN ('general','radio_code','procedure','scenario','identify_error','legal',"
-        "'reports')",
+        "category IN ('general','radio_code','procedure','scenario','identify_error','legal','reports')",
         name="ck_manual_quiz_category",
     ),
     sa.CheckConstraint(

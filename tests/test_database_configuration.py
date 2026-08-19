@@ -891,8 +891,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 49
-        assert persona["schema_version"] == 42
+        assert persona["revision"] == 50
+        assert persona["schema_version"] == 43
         assert set(persona["payload"]["presence"]) == {
             "idle",
             "conversation",
@@ -924,6 +924,7 @@ async def _assert_callsign_migration(
         assert persona["payload"]["messages"]["interface"]["callsigns"]["directory_intro"] == (
             "Personal con un callsign registrado en este servidor."
         )
+        assert persona["payload"]["messages"]["interface"]["logbook"]["info_usage"]
         assert "280L" in persona["payload"]["messages"]["interface"]["callsigns"]["invalid_format"]
         assert persona["payload"]["messages"]["interface"]["deployments"]["release_intro"]
         assert persona["payload"]["messages"]["interface"]["deployments"]["ci_failed_description"]

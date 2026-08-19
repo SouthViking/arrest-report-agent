@@ -378,6 +378,12 @@ Comandos disponibles:
   `.xlsx` con el registro bancario del período y la nómina activa actual. Una casilla permite
   publicarlo en el canal y, si queda desmarcada, el archivo se entrega privadamente. La nómina se
   ordena por rango descendente y nombre. No incluye IDs internos, conexión exacta ni datos OOC.
+- `/bitacora`: disponible únicamente en los canales configurados en `logbook_channels`. Permite
+  seleccionar una categoría y un movimiento de dinero opcional antes de abrir un formulario
+  adaptado con subtipo, asunto, descripción y hasta diez adjuntos. Publica una entrada uniforme
+  con referencia `BIT` y conserva los datos en PostgreSQL y los archivos en el Bucket.
+- `/info-bitacora`: explica públicamente el flujo en un canal de bitácora habilitado. `/ayuda`
+  solo muestra esta guía cuando se ejecuta dentro de uno de esos canales.
 - `/faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
 - `/verguenza`: abre un modal para elegir mes actual o los últimos 7, 30 o 90 días, y publica por
   cada canal configurado un top 10 de quienes acumulan más expedientes que todavía no alcanzan el

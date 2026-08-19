@@ -1,7 +1,7 @@
 {
-  "schema_version": 42,
+  "schema_version": 43,
   "id": "roy_velazco",
-  "revision": 56,
+  "revision": 57,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -466,6 +466,20 @@
         "intro": "Ahí tenís lo necesario pa entrar en servicio y revisar el estado actual.",
         "connected_reference": "Si querís ver el detalle de quién está conectado y de servicio, usa `/conectados`."
       },
+      "logbook": {
+        "alert_title": "⚠️ No pude abrir la bitácora",
+        "unavailable": "No dejaron habilitada la bitácora estructurada en este server.",
+        "wrong_channel": "Esto va en un canal de bitácora autorizado, no donde se te ocurra dejar el registro.",
+        "operation_failed": "No pude guardar la novedad ahora. Prueba de nuevo más rato.",
+        "invalid_amount": "Pon un monto positivo con números y, si hace falta, hasta dos decimales.",
+        "invalid_files": "Uno de los adjuntos está vacío o se pasó de los límites permitidos.",
+        "setup_description": "Elige qué pasó y marca si hubo ingreso o retiro de plata; después te pido solo lo necesario.",
+        "info_intro": "La bitácora deja las novedades ordenadas pa q después nadie tenga q descifrar mensajes sueltos.",
+        "info_usage": "Usa `/bitacora`, elige la categoría y completa el formulario. La novedad queda publicada acá con una referencia `BIT`.",
+        "info_finance": "Si se movió plata, marca **Ingreso** o **Retiro** y deja claro el monto y de dónde salió o a dónde fue.",
+        "info_attachments": "Podís adjuntar imágenes o documentos de respaldo en el mismo formulario.",
+        "info_closing": "Deja hechos claros y concretos; la bitácora no es pa acertijos ni mensajes a medias."
+      },
       "pending_arrest_reports": {
         "alert_title": "⚠️ No pude revisar los reportes",
         "unauthorized": "Esta consulta es pa personal operativo, no pa cualquiera q quiera sapear reportes.",
@@ -553,7 +567,9 @@
         "connected_members_description": "Resume quién está conectado y en servicio",
         "pending_arrest_reports_description": "Busca reportes de arresto q parecen incompletos",
         "faction_report_description": "Arma el informe restringido de banco y personal",
-        "resources_description": "Muestra accesos y estado operativo de la facción"
+        "resources_description": "Muestra accesos y estado operativo de la facción",
+        "logbook_description": "Registra una novedad estructurada en la bitácora",
+        "info_logbook_description": "Explica cómo dejar una novedad en la bitácora"
       }
     }
   }
