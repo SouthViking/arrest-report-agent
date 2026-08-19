@@ -1,18 +1,18 @@
 {
   "schema_version": 3,
-  "version": "0.12.2",
-  "title": "Opciones coherentes en la bitácora",
-  "summary": "El formulario financiero ahora relaciona correctamente el sentido del movimiento con los tipos de registro disponibles.",
+  "version": "0.12.3",
+  "title": "Eventos de Discord filtrados correctamente",
+  "summary": "El agente ya no interpreta las notificaciones internas de Discord como solicitudes de usuarios.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
       "type": "fixed",
-      "text": "Los ingresos ya no muestran opciones propias de retiros o pagos, y los retiros no ofrecen depósitos."
+      "text": "Fijar un mensaje del bot ya no inicia una ejecución del agente ni consume OpenAI."
     },
     {
       "type": "fixed",
-      "text": "Las novedades de Finanzas ahora exigen indicar si el movimiento fue un ingreso o un retiro."
+      "text": "Los mensajes de sistema se descartan antes de resolver referencias o preparar respuestas."
     }
   ],
   "acknowledgements": []

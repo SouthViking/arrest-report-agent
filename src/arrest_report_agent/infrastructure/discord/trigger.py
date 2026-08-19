@@ -22,6 +22,7 @@ class TriggerDecision(StrEnum):
     REDIRECT_UNAUTHORIZED_USER = "redirect_unauthorized_user"
     IGNORE_NOT_ADDRESSED = "ignore_not_addressed"
     IGNORE_BOT_OR_WEBHOOK = "ignore_bot_or_webhook"
+    IGNORE_UNSUPPORTED_MESSAGE_TYPE = "ignore_unsupported_message_type"
     IGNORE_WRONG_GUILD = "ignore_wrong_guild"
 
 
@@ -87,6 +88,11 @@ class DiscordAccessPolicy:
 
         if message.guild is None or not self.guilds.allows(message.guild.id):
             return TriggerDecision.IGNORE_WRONG_GUILD
+        if getattr(message, "type", discord.MessageType.default) not in {
+            discord.MessageType.default,
+            discord.MessageType.reply,
+        }:
+            return TriggerDecision.IGNORE_UNSUPPORTED_MESSAGE_TYPE
         if message.author.bot or message.webhook_id is not None:
             return TriggerDecision.IGNORE_BOT_OR_WEBHOOK
         if referenced_author_id is None:
@@ -116,6 +122,8 @@ class DiscordAccessPolicy:
         """Classify and retain the activation needed for deterministic response routing."""
 
         decision = self.classify(message, bot_user_id)
+        if decision is TriggerDecision.IGNORE_UNSUPPORTED_MESSAGE_TYPE:
+            return TriggerEvaluation(decision=decision)
         referenced_author_id = _resolved_reference_author_id(message)
         if decision not in {TriggerDecision.REVIEW, TriggerDecision.IGNORE_NOT_ADDRESSED}:
             return TriggerEvaluation(

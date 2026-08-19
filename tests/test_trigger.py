@@ -20,6 +20,7 @@ def make_message(
     webhook_id=None,
     channel_id=None,
     role_ids: tuple[int, ...] = (),
+    message_type=trigger.discord.MessageType.default,
 ):
     configured_guilds = settings.discord_guild_ids
     return SimpleNamespace(
@@ -33,6 +34,7 @@ def make_message(
         channel=SimpleNamespace(id=channel_id or 2),
         raw_mentions=mentions,
         reference=None,
+        type=message_type,
     )
 
 
@@ -68,6 +70,49 @@ def test_resolved_reply_to_bot_triggers_without_mention(settings) -> None:
     )
 
     assert classify_message(message, 999, settings) is TriggerDecision.REVIEW
+
+
+def test_discord_reply_message_type_remains_supported(settings) -> None:
+    message = make_message(
+        settings,
+        mentions=[],
+        message_type=trigger.discord.MessageType.reply,
+    )
+    message.reference = SimpleNamespace(
+        type=trigger.discord.MessageReferenceType.default,
+        resolved=SimpleNamespace(author=SimpleNamespace(id=999)),
+        cached_message=None,
+    )
+
+    assert classify_message(message, 999, settings) is TriggerDecision.REVIEW
+
+
+async def test_pin_system_message_is_ignored_without_resolving_its_reference(settings) -> None:
+    fetched_ids: list[int] = []
+
+    async def fetch_message(message_id: int):
+        fetched_ids.append(message_id)
+        return SimpleNamespace(author=SimpleNamespace(id=999))
+
+    message = make_message(
+        settings,
+        mentions=[],
+        message_type=trigger.discord.MessageType.pins_add,
+    )
+    message.channel.fetch_message = fetch_message
+    message.reference = SimpleNamespace(
+        type=trigger.discord.MessageReferenceType.default,
+        message_id=456,
+        channel_id=message.channel.id,
+        resolved=None,
+        cached_message=None,
+    )
+
+    evaluation = await DiscordAccessPolicy.from_settings(settings).evaluate_event(message, 999)
+
+    assert evaluation.decision is TriggerDecision.IGNORE_UNSUPPORTED_MESSAGE_TYPE
+    assert evaluation.activation is None
+    assert fetched_ids == []
 
 
 def test_reply_to_another_user_is_ignored_without_mention(settings) -> None:
