@@ -1,22 +1,18 @@
 {
   "schema_version": 3,
-  "version": "0.12.0",
-  "title": "Nueva bitácora estructurada",
-  "summary": "La bitácora ahora puede registrar novedades con un formato uniforme, consultable y preparado para futuras automatizaciones.",
+  "version": "0.12.1",
+  "title": "Acceso corregido para la bitácora",
+  "summary": "La bitácora ya reconoce su canal real y el panel privado de configuración vuelve a abrir con todos los ajustes actuales.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "added",
-      "text": "El nuevo comando /bitacora permite registrar novedades por categoría y tipo mediante un formulario adaptado."
+      "type": "fixed",
+      "text": "/bitacora e /info-bitacora ahora reconocen correctamente el canal #bitácora de LSSD."
     },
     {
-      "type": "added",
-      "text": "Los registros pueden incluir movimientos de dinero y archivos de respaldo sin alterar su estructura principal."
-    },
-    {
-      "type": "added",
-      "text": "Se incorporaron /info-bitacora y el tipo Acción disciplinaria dentro de Personal."
+      "type": "fixed",
+      "text": "El panel /config divide los listados extensos para respetar los límites visuales de Discord."
     }
   ],
   "acknowledgements": []

@@ -78,6 +78,7 @@ MODE_LABELS = {
     AccessPolicyMode.DISABLED: "deshabilitada",
 }
 CONFIG_PANEL_TIMEOUT_SECONDS = 900
+EMBED_FIELD_VALUE_LIMIT = 1024
 MAX_PERSONA_JSON_BYTES = 1_000_000
 MAX_PERSONA_AVATAR_BYTES = 10_485_760
 
@@ -137,10 +138,36 @@ def build_config_panel_embed(snapshot: object, draft_id: object | None) -> disco
         value=f"`{draft_id}`" if draft_id is not None else "No hay un borrador abierto.",
         inline=False,
     )
-    embed.add_field(name="Políticas", value=policies, inline=False)
-    embed.add_field(name="Módulos", value=features, inline=False)
+    _add_chunked_fields(embed, "Políticas", policies)
+    _add_chunked_fields(embed, "Módulos", features)
     embed.set_footer(text="Panel privado · expira tras 15 minutos")
     return embed
+
+
+def _add_chunked_fields(embed: discord.Embed, name: str, value: str) -> None:
+    """Add complete line-oriented content without exceeding Discord's field limit."""
+
+    chunks: list[str] = []
+    current: list[str] = []
+    for line in value.splitlines() or [value]:
+        remaining = line
+        while len(remaining) > EMBED_FIELD_VALUE_LIMIT:
+            if current:
+                chunks.append("\n".join(current))
+                current = []
+            chunks.append(remaining[:EMBED_FIELD_VALUE_LIMIT])
+            remaining = remaining[EMBED_FIELD_VALUE_LIMIT:]
+        candidate = "\n".join((*current, remaining))
+        if current and len(candidate) > EMBED_FIELD_VALUE_LIMIT:
+            chunks.append("\n".join(current))
+            current = [remaining]
+        else:
+            current.append(remaining)
+    if current:
+        chunks.append("\n".join(current))
+    for index, chunk in enumerate(chunks):
+        field_name = name if index == 0 else f"{name} (continuación)"
+        embed.add_field(name=field_name, value=chunk or "\u200b", inline=False)
 
 
 class ConfigurationAdminCog(commands.Cog):

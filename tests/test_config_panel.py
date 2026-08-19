@@ -30,6 +30,7 @@ from arrest_report_agent.infrastructure.discord.config_admin import (
     PersonaConfigurationModal,
     PublishConfigurationModal,
     RollbackConfigurationModal,
+    build_config_panel_embed,
     build_config_unauthorized_embed,
 )
 
@@ -321,6 +322,28 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
     assert persona_modal.title == "Administrar personas"
     assert [option.value for option in persona_modal.action.options][-1] == "global"
     assert RollbackConfigurationModal(cog, 42).title == "Restaurar configuración"
+
+
+def test_panel_splits_long_policy_summaries_at_discord_field_limit(settings) -> None:
+    snapshot = SimpleNamespace(
+        revision=4,
+        persona_id="roy_velazco",
+        persona_revision=57,
+        agent=agent_config(settings),
+        policies={
+            key: SimpleNamespace(mode=AccessPolicyMode.DISABLED, ids=())
+            for key in AccessPolicyKey
+        },
+        features={},
+    )
+
+    embed = build_config_panel_embed(snapshot, draft_id=None)
+    policy_fields = [field for field in embed.fields if field.name.startswith("Políticas")]
+
+    assert len(policy_fields) > 1
+    assert all(len(field.value) <= 1024 for field in embed.fields)
+    rendered = "\n".join(field.value for field in policy_fields)
+    assert "Canales de bitácora" in rendered
 
 
 @pytest.mark.asyncio

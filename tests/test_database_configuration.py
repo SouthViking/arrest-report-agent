@@ -431,6 +431,32 @@ def test_service_call_migration_configures_lssd_without_enabling_other_guilds() 
             os.environ["DATABASE_URL"] = previous
 
 
+def test_logbook_channel_correction_targets_the_actual_lssd_logbook() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = database_url
+    alembic = Config("alembic.ini")
+    try:
+        command.downgrade(alembic, "base")
+        command.upgrade(alembic, "20260819_0038")
+        asyncio.run(_seed_service_call_configuration_targets(database_url))
+        command.upgrade(alembic, "20260819_0039")
+        asyncio.run(_assert_logbook_channel(database_url, 1261076248541532240))
+        command.upgrade(alembic, "head")
+        asyncio.run(_assert_logbook_channel(database_url, 1238385605264539709))
+        command.downgrade(alembic, "20260819_0039")
+        asyncio.run(_assert_logbook_channel(database_url, 1261076248541532240))
+    finally:
+        command.downgrade(alembic, "base")
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
+
+
 def test_arrest_lookup_migration_enables_only_lssd_and_creates_bindings() -> None:
     database_url = os.getenv("TEST_DATABASE_URL")
     if not database_url:
@@ -533,6 +559,27 @@ async def _assert_service_call_configuration(database_url: str) -> None:
         assert faction_config[1234674521416663070]["payload"] == {"faction_id": 3}
         assert faction_config[999]["enabled"] is False
         assert faction_config[999]["payload"] == {}
+    finally:
+        await client.close()
+
+
+async def _assert_logbook_channel(database_url: str, expected_channel_id: int) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(
+            sa.text(
+                "SELECT member.snowflake_id "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_access_policies policy "
+                "ON policy.config_revision_id = revision.id "
+                "AND policy.policy_key = 'logbook_channels' "
+                "JOIN guild_access_policy_members member ON member.policy_id = policy.id "
+                "WHERE revision.guild_id = 1234674521416663070 "
+                "ORDER BY revision.revision, member.position"
+            )
+        )
+        assert [int(row["snowflake_id"]) for row in rows] == [expected_channel_id]
     finally:
         await client.close()
 
