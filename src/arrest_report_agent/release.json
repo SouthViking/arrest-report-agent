@@ -1,16 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.10.2",
-  "title": "Presentación más limpia de informes",
-  "summary": "La confirmación del informe de facción ahora muestra solamente la información necesaria.",
+  "version": "0.11.0",
+  "title": "Nueva central de recursos operativos",
+  "summary": "El personal operativo ahora puede consultar accesos, conexiones y el estado actual de la facción desde un único comando.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
+      "type": "added",
+      "text": "El nuevo comando /recursos reúne el PCU, foro, manual, código penal, servidor, TeamSpeak y el estado actual de la facción."
+    },
+    {
+      "type": "added",
+      "text": "El panel incluye la descarga vigente del caché oficial cuando se encuentra disponible."
+    },
+    {
       "type": "improved",
-      "text": "Se retiró el detalle redundante de visibilidad del mensaje generado por /informe-faccion."
+      "text": "Desde /recursos se indica cómo consultar el detalle del personal conectado mediante /conectados."
     }
   ],
   "acknowledgements": []

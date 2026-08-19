@@ -612,6 +612,24 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         assert other_rows[0]["payload"] == {}
         assert other_rows[0]["mode"] == "disabled"
         assert other_rows[0]["snowflake_id"] is None
+        resource_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.enabled, feature.payload "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'operational_resources' "
+                "ORDER BY revision.guild_id"
+            )
+        )
+        resources = {int(row["guild_id"]): row for row in resource_rows}
+        assert resources[1234674521416663070]["enabled"] is True
+        assert resources[1234674521416663070]["payload"]["faction_id"] == 3
+        assert resources[1234674521416663070]["payload"]["game_server_address"] == (
+            "play.sarp.es:7777"
+        )
+        assert resources[999]["enabled"] is False
+        assert resources[999]["payload"] == {}
     finally:
         await client.close()
 
@@ -873,8 +891,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 48
-        assert persona["schema_version"] == 41
+        assert persona["revision"] == 49
+        assert persona["schema_version"] == 42
         assert set(persona["payload"]["presence"]) == {
             "idle",
             "conversation",
@@ -951,6 +969,26 @@ async def _assert_callsign_migration(
         assert "/informe-faccion" in persona["payload"]["messages"]["help"][
             "quick_references"
         ]
+        assert persona["payload"]["messages"]["interface"]["operational_resources"][
+            "connected_reference"
+        ]
+        assert persona["payload"]["messages"]["interface"]["commands"][
+            "resources_description"
+        ]
+        assert "/recursos" in persona["payload"]["messages"]["help"][
+            "quick_references"
+        ]
+        resource_feature = await client.fetch_one(
+            sa.text(
+                "SELECT enabled, payload FROM guild_feature_settings "
+                "WHERE config_revision_id = :revision_id "
+                "AND feature_key = 'operational_resources'"
+            ),
+            {"revision_id": identifiers["config_revision_id"]},
+        )
+        assert resource_feature is not None
+        assert resource_feature["enabled"] is False
+        assert resource_feature["payload"] == {}
         assert persona["payload"]["messages"]["interface"]["commands"]["teamspeak_unauthorized"]
         table = await client.fetch_one(sa.text("SELECT to_regclass('public.guild_member_profiles') AS name"))
         assert table is not None and table["name"] == "guild_member_profiles"

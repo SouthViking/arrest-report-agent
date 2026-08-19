@@ -437,6 +437,34 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         payload={},
                     ),
                     GuildFeatureSnapshot(
+                        key="operational_resources",
+                        enabled=(
+                            guild_id == 1234674521416663070
+                            and bool(supervisor_roles[guild_id])
+                        ),
+                        schema_version=1,
+                        payload=(
+                            {
+                                "faction_id": 3,
+                                "game_server_address": "play.sarp.es:7777",
+                                "pcu_url": "https://ucp.sarp.es/app/ucp/home",
+                                "forum_url": (
+                                    "https://forum.sarp.es/index.php?/forum/199-foro-los-"
+                                    "santos-county-sheriffs-department/"
+                                ),
+                                "manual_url": (
+                                    "https://docs.google.com/document/d/"
+                                    "1DrhSgzPbdLoe0ahFTVrNPb_zBPuhVeatxW5Hs8ECMHE/"
+                                    "edit?pli=1&tab=t.0#heading=h.thzh3oj2x0rk"
+                                ),
+                                "penal_code_url": "https://ucp.sarp.es/app/ucp/penalcode",
+                            }
+                            if guild_id == 1234674521416663070
+                            and bool(supervisor_roles[guild_id])
+                            else {}
+                        ),
+                    ),
+                    GuildFeatureSnapshot(
                         key="arrest_report_lookup",
                         enabled=guild_id == 1234674521416663070,
                         schema_version=1,

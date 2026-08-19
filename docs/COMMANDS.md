@@ -65,6 +65,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/mdc` | `operational_staff_roles`; solo si SARP está activo | Modal privado; resultado público o efímero | API SARP en vivo |
 | `/info-mdc` | `operational_staff_roles`; solo si SARP está activo | Pública; rechazo efímero | Persona activa |
 | `/conectados` | `operational_staff_roles`; módulo `faction_status` activo | Pública; rechazo efímero | Nómina de la facción en SARP |
+| `/recursos` | `operational_staff_roles`; módulo `operational_resources` activo | Pública; rechazo efímero | Configuración de PostgreSQL y API SARP |
 | `/reportes-pendientes` | `operational_staff_roles`; módulo `pending_arrest_reports` activo | Modal privado; resultado público o efímero | Reportes de la facción en SARP |
 | `/informe-faccion` | `faction_report_roles`; módulo `faction_reports` activo | Modal privado; archivo público o efímero | Banco, nómina y rangos actuales de SARP |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
@@ -152,6 +153,18 @@ servicio. Se muestran como máximo diez nombres por grupo y cada sección indica
 
 La consulta recupera la nómina completa mediante una sola solicitud agrupada. Un caché compartido de
 quince segundos evita multiplicar consumo cuando varias personas ejecutan el comando al mismo tiempo.
+
+## `/recursos`
+
+Funciona en cualquier canal y exige pertenecer a `operational_staff_roles`. Publica un único panel
+con el estado actual del servidor y la facción, las direcciones de conexión, los enlaces oficiales
+configurados y la descarga vigente del caché cuando SARP la informa. Los elementos aparecen
+anidados dentro de cada sección y el icono del servidor se usa como miniatura.
+
+El módulo dinámico `operational_resources` almacena por guild el `faction_id`, la dirección del
+servidor y los enlaces oficiales. Reutiliza el servicio y las cachés de `/conectados`; la metadata
+del caché oficial se conserva durante cinco minutos y, si esa consulta falla, se omite solamente
+esa sección. `/conectados` sigue siendo el comando para consultar el detalle nominal del personal.
 
 ## `/reportes-pendientes`
 

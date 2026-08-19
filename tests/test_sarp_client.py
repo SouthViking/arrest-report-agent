@@ -26,6 +26,7 @@ from arrest_report_agent.infrastructure.sarp import (
     SarpPenalCodePayload,
     SarpPenalCodeProvider,
     SarpRateLimitError,
+    SarpServerCacheInfo,
     SarpServerError,
     build_charge_catalog,
 )
@@ -217,6 +218,43 @@ async def test_global_metrics_endpoint_returns_connected_account_counter() -> No
         metrics = await client.get_global_metrics()
 
     assert metrics == SarpGlobalMetrics(onlineAccountCounter=109)
+
+
+async def test_server_cache_endpoint_returns_validated_artifact_metadata() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/public/server-cache/download"
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "home",
+                "payload": {
+                    "exists": True,
+                    "filename": "server-cache.zip",
+                    "url": "https://cdn.example.com/server-cache.zip?v=27",
+                    "sizeBytes": 822_146_470,
+                    "lastModified": "2026-08-19T04:03:12.000Z",
+                    "version": 27,
+                },
+            }
+        )
+
+    async with serve_sarp(handler) as base_url, SarpClient(
+        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
+    ) as client:
+        cache = await client.get_server_cache_info()
+
+    assert cache == SarpServerCacheInfo.model_validate(
+        {
+            "exists": True,
+            "filename": "server-cache.zip",
+            "url": "https://cdn.example.com/server-cache.zip?v=27",
+            "sizeBytes": 822_146_470,
+            "lastModified": "2026-08-19T04:03:12.000Z",
+            "version": 27,
+        }
+    )
+    assert cache.version == 27
 
 
 async def test_mdc_endpoints_use_documented_paths_filters_and_typed_payloads() -> None:

@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 41
+PERSONA_SCHEMA_VERSION = 42
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -846,6 +846,17 @@ class PersonaFactionStatusMessages(FrozenPersonaModel):
     no_connected: str = Field(min_length=1, max_length=400)
 
 
+class PersonaOperationalResourcesMessages(FrozenPersonaModel):
+    """Personality-aware copy for the shared operational resources panel."""
+
+    alert_title: str = Field(min_length=1, max_length=256)
+    unauthorized: str = Field(min_length=1, max_length=400)
+    unavailable: str = Field(min_length=1, max_length=400)
+    operation_failed: str = Field(min_length=1, max_length=400)
+    intro: str = Field(min_length=1, max_length=500)
+    connected_reference: str = Field(min_length=1, max_length=400)
+
+
 class PersonaPendingArrestReportsMessages(FrozenPersonaModel):
     """Personality-aware copy for deterministic pending-report scans."""
 
@@ -990,6 +1001,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     connected_members_description: str = Field(min_length=1, max_length=100)
     pending_arrest_reports_description: str = Field(min_length=1, max_length=100)
     faction_report_description: str = Field(min_length=1, max_length=100)
+    resources_description: str = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaCommandMessages:
@@ -1016,6 +1028,7 @@ class PersonaInterfaceMessages(FrozenPersonaModel):
     manual_quiz: PersonaManualQuizMessages
     mdc: PersonaMdcMessages
     faction_status: PersonaFactionStatusMessages
+    operational_resources: PersonaOperationalResourcesMessages
     pending_arrest_reports: PersonaPendingArrestReportsMessages
     faction_reports: PersonaFactionReportMessages
     review: PersonaReviewMessages

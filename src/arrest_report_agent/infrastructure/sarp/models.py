@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 PayloadT = TypeVar("PayloadT")
 
@@ -50,6 +50,39 @@ class SarpGlobalMetrics(BaseModel):
     model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
     online_account_counter: int = Field(alias="onlineAccountCounter", ge=0)
+
+
+class SarpServerCacheInfo(BaseModel):
+    """Current official server-cache artifact exposed by the public API."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
+
+    exists: bool
+    filename: str | None = Field(default=None, min_length=1, max_length=255)
+    url: HttpUrl | None = None
+    size_bytes: int | None = Field(default=None, alias="sizeBytes", ge=0)
+    last_modified: datetime | None = Field(default=None, alias="lastModified")
+    version: int | None = Field(default=None, ge=1)
+
+    @field_validator("last_modified")
+    @classmethod
+    def normalize_last_modified(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    @model_validator(mode="after")
+    def validate_existing_artifact(self) -> SarpServerCacheInfo:
+        if self.exists and (
+            self.filename is None
+            or self.url is None
+            or self.size_bytes is None
+            or self.version is None
+        ):
+            raise ValueError("Existing SARP server cache requires complete artifact metadata")
+        return self
 
 
 class SarpPenalCodeCategory(BaseModel):

@@ -1,7 +1,7 @@
 {
-  "schema_version": 41,
+  "schema_version": 42,
   "id": "walter_vigil",
-  "revision": 48,
+  "revision": 49,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -156,7 +156,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo solicitar y continuar la revisión de tu reporte.\n• `/info-roles`: cómo pedir altas o bajas de roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo registrar y consultar callsigns.\n• `/info-mdc`: cómo consultar registros operativos y elegir su visibilidad.\n• `/info-sugerencias`: cómo enviar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/reportes-pendientes`: detecta reportes de arresto que parecen incompletos.\n• `/informe-faccion`: genera el informe restringido de banco y miembros activos.",
+      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/recursos`: reúne accesos y estado operativo.\n• `/reportes-pendientes`: detecta reportes de arresto que parecen incompletos.\n• `/informe-faccion`: genera el informe restringido de banco y miembros activos.",
       "footer": "Elige la guía correspondiente y sigue sus indicaciones, {form_of_address}."
     },
     "interface": {
@@ -438,6 +438,14 @@
         "connected_intro": "Estado actual del personal conectado y en servicio.",
         "no_connected": "No aparece ningún miembro de la facción conectado en este momento."
       },
+      "operational_resources": {
+        "alert_title": "⚠️ Recursos operativos no disponibles",
+        "unauthorized": "Este panel está reservado al personal operativo autorizado.",
+        "unavailable": "Los recursos operativos no están habilitados para este servidor.",
+        "operation_failed": "No pude preparar los recursos operativos en este momento. Inténtelo nuevamente más tarde.",
+        "intro": "Accesos y estado actual para iniciar el servicio.",
+        "connected_reference": "Para revisar quiénes están conectados y en servicio, utilice `/conectados`."
+      },
       "pending_arrest_reports": {
         "alert_title": "⚠️ Reportes pendientes no disponibles",
         "unauthorized": "Esta consulta está reservada al personal operativo autorizado.",
@@ -524,7 +532,8 @@
         "info_mdc_description": "Explica cómo consultar el MDC y elegir su visibilidad",
         "connected_members_description": "Resume el personal conectado y en servicio",
         "pending_arrest_reports_description": "Detecta reportes de arresto que parecen incompletos",
-        "faction_report_description": "Genera el informe restringido de banco y miembros"
+        "faction_report_description": "Genera el informe restringido de banco y miembros",
+        "resources_description": "Muestra accesos y estado operativo de la facción"
       }
     }
   }

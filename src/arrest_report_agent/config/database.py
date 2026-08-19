@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 from .settings import AppSettings, SnowflakeAllowlist
 
@@ -149,6 +149,26 @@ class FactionReportOptions(FrozenConfigModel):
     max_bank_records: int = Field(default=10_000, ge=500, le=25_000)
 
 
+class OperationalResourcesOptions(FrozenConfigModel):
+    faction_id: int = Field(gt=0)
+    game_server_address: str = Field(
+        min_length=3,
+        max_length=255,
+        pattern=r"^[A-Za-z0-9.-]+:[1-9][0-9]{0,4}$",
+    )
+    pcu_url: HttpUrl
+    forum_url: HttpUrl
+    manual_url: HttpUrl
+    penal_code_url: HttpUrl
+
+    @model_validator(mode="after")
+    def validate_game_server_port(self) -> OperationalResourcesOptions:
+        port = int(self.game_server_address.rsplit(":", maxsplit=1)[1])
+        if port > 65_535:
+            raise ValueError("game_server_address port must be at most 65535")
+        return self
+
+
 class GuildConfigSnapshot(FrozenConfigModel):
     guild_id: int = Field(gt=0)
     revision_id: UUID
@@ -236,6 +256,16 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if faction_status_feature.schema_version != 1:
                 raise ValueError("faction_status requires feature schema version 1")
             FactionStatusOptions.model_validate(faction_status_feature.payload)
+        resources_feature = self.features.get("operational_resources")
+        if resources_feature is not None and resources_feature.enabled:
+            if resources_feature.schema_version != 1:
+                raise ValueError("operational_resources requires feature schema version 1")
+            OperationalResourcesOptions.model_validate(resources_feature.payload)
+            roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
+            if roles.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError(
+                    "enabled operational_resources requires restricted operational staff roles"
+                )
         arrest_lookup_feature = self.features.get("arrest_report_lookup")
         if arrest_lookup_feature is not None and arrest_lookup_feature.enabled:
             if arrest_lookup_feature.schema_version != 1:
@@ -372,6 +402,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return FactionStatusOptions.model_validate(feature.payload).faction_id
+
+    @property
+    def operational_resources_options(self) -> OperationalResourcesOptions | None:
+        feature = self.snapshot.features.get("operational_resources")
+        if feature is None or not feature.enabled:
+            return None
+        return OperationalResourcesOptions.model_validate(feature.payload)
 
     @property
     def arrest_report_lookup_faction_id(self) -> int | None:

@@ -311,6 +311,9 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
     assert "faction_status" in {
         option.value for option in feature_modal.key.options
     }
+    assert "operational_resources" in {
+        option.value for option in feature_modal.key.options
+    }
     assert "pending_arrest_reports" in {
         option.value for option in feature_modal.key.options
     }

@@ -46,6 +46,7 @@ from .models import (
     SarpPenalCodePayload,
     SarpRateLimit,
     SarpResponse,
+    SarpServerCacheInfo,
     SarpWarrantPage,
 )
 
@@ -73,6 +74,7 @@ EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpEmergencyCallPage)
 FACTION_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionDetail)
 FACTION_RANKS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionRank])
 GLOBAL_METRICS_PAYLOAD_ADAPTER = TypeAdapter(SarpGlobalMetrics)
+SERVER_CACHE_INFO_PAYLOAD_ADAPTER = TypeAdapter(SarpServerCacheInfo)
 
 
 @dataclass(frozen=True, slots=True)
@@ -266,6 +268,16 @@ class SarpClient:
             "GET",
             "/public/global-metrics",
             payload_adapter=GLOBAL_METRICS_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def get_server_cache_info(self) -> SarpServerCacheInfo:
+        """Fetch the current official downloadable server-cache artifact."""
+
+        response = await self.request(
+            "GET",
+            "/public/server-cache/download",
+            payload_adapter=SERVER_CACHE_INFO_PAYLOAD_ADAPTER,
         )
         return response.payload
 

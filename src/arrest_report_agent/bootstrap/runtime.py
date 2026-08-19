@@ -64,6 +64,10 @@ from arrest_report_agent.manual_quiz import (
 )
 from arrest_report_agent.mdc import MdcCog, MdcService
 from arrest_report_agent.operational_profiles import CallsignCog, MemberProfileRepository
+from arrest_report_agent.operational_resources import (
+    OperationalResourcesCog,
+    OperationalResourcesService,
+)
 from arrest_report_agent.pagers import (
     PagerCog,
     PagerControlsView,
@@ -367,11 +371,22 @@ async def build_runtime(
     bot.add_cog(ManualQuizCog(config_provider, manual_quiz_sessions, persona.profile))
     if sarp_client is not None:
         faction_directory = FactionDirectoryService(sarp_client)
+        faction_status_service = FactionStatusService(
+            sarp_client,
+            directory=faction_directory,
+        )
         bot.add_cog(MdcCog(config_provider, MdcService(sarp_client), persona.profile))
         bot.add_cog(
             FactionStatusCog(
                 config_provider,
-                FactionStatusService(sarp_client, directory=faction_directory),
+                faction_status_service,
+                persona.profile,
+            )
+        )
+        bot.add_cog(
+            OperationalResourcesCog(
+                config_provider,
+                OperationalResourcesService(faction_status_service, sarp_client),
                 persona.profile,
             )
         )

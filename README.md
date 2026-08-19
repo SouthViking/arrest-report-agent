@@ -536,7 +536,7 @@ el contenido exacto del FAQ.
 | `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA` | `false` | Excluye mensajes, imágenes, archivos y tool payloads del trace. |
 
 Con `SARP_API_ENABLED=true`, el runtime obtiene `GET /police/penal-code` al arrancar, lo refresca
-en segundo plano y registra `/mdc`, `/conectados` y `/reportes-pendientes`. `/cargos` y las tools del agente comparten el mismo snapshot: una caída temporal
+en segundo plano y registra `/mdc`, `/conectados`, `/recursos` y `/reportes-pendientes`. `/cargos` y las tools del agente comparten el mismo snapshot: una caída temporal
 conserva el último catálogo remoto válido y, si todavía no existe uno, usa `delitos.json`. Cada
 revisión fija su snapshot al comenzar, por lo que una actualización no mezcla fuentes a mitad de
 una ejecución. `/mdc` consulta en vivo la búsqueda exacta, perfil IC, posesiones y registros
@@ -554,6 +554,12 @@ de cada guild. Obtiene el roster completo con `GET /my-faction/faction/:factionI
 sola vista los totales de conectados, personal en servicio y porcentaje de cobertura, junto con la
 lista alfabética de conectados. La API se consulta una sola vez y el resultado se comparte durante
 quince segundos para proteger el límite del proveedor.
+
+`/recursos` usa el módulo dinámico `operational_resources` y la misma política
+`operational_staff_roles`. Reúne en un panel público los enlaces oficiales, las direcciones de juego
+y TeamSpeak, y los contadores de servidor, facción y servicio. Reutiliza la caché de `/conectados`
+y consulta `GET /public/server-cache/download` con un caché adicional de cinco minutos para enlazar
+la versión vigente del caché oficial sin bloquear el resto del panel si ese dato no está disponible.
 
 `/reportes-pendientes` usa el módulo dinámico `pending_arrest_reports`. Descarga de forma paginada
 los reportes del período elegido, considera terminadas las narrativas que comienzan con `Yo` y marca

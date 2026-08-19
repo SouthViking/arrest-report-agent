@@ -18,6 +18,7 @@ from arrest_report_agent.config import (
     BotPersona,
     GuildAgentConfig,
     GuildFeatureSnapshot,
+    OperationalResourcesOptions,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
 from arrest_report_agent.config.logging import exception_fields, log_event
@@ -65,6 +66,7 @@ FEATURE_LABELS = {
     "deployment_notifications": "Notificaciones de despliegue",
     "service_calls": "Llamadas de servicio",
     "faction_status": "Estado de facción",
+    "operational_resources": "Recursos operativos",
     "arrest_report_lookup": "Consulta de reportes de arresto",
     "pending_arrest_reports": "Reportes de arresto pendientes",
 }
@@ -912,6 +914,10 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     value="faction_status",
                 ),
                 discord.SelectOption(
+                    label="Recursos operativos",
+                    value="operational_resources",
+                ),
+                discord.SelectOption(
                     label="Consulta de reportes de arresto",
                     value="arrest_report_lookup",
                 ),
@@ -973,6 +979,14 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 and "faction_id" not in payload
             ):
                 raise ValueError("Estado de facción requiere `faction_id`.")
+            if key == "operational_resources" and self.enabled.values[0] == "true":
+                try:
+                    OperationalResourcesOptions.model_validate(payload)
+                except ValueError as error:
+                    raise ValueError(
+                        "Recursos operativos requiere `faction_id`, `game_server_address`, "
+                        "`pcu_url`, `forum_url`, `manual_url` y `penal_code_url` válidos."
+                    ) from error
             if (
                 key == "arrest_report_lookup"
                 and self.enabled.values[0] == "true"
