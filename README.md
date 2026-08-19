@@ -375,8 +375,9 @@ Comandos disponibles:
   agente según su cantidad y ordenados por antigüedad dentro de cada grupo.
 - `/informe-faccion`: abre un formulario efímero para que los roles configurados en
   `faction_report_roles` elijan 1, 2, 7, 14, 30 o 90 días, o un rango personalizado. Entrega un
-  `.xlsx` privado con el registro bancario del período y la nómina activa actual, ordenada por rango
-  descendente y nombre. No incluye IDs internos, conexión exacta ni otros datos OOC.
+  `.xlsx` con el registro bancario del período y la nómina activa actual. Una casilla permite
+  publicarlo en el canal y, si queda desmarcada, el archivo se entrega privadamente. La nómina se
+  ordena por rango descendente y nombre. No incluye IDs internos, conexión exacta ni datos OOC.
 - `/faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
 - `/verguenza`: abre un modal para elegir mes actual o los últimos 7, 30 o 90 días, y publica por
   cada canal configurado un top 10 de quienes acumulan más expedientes que todavía no alcanzan el

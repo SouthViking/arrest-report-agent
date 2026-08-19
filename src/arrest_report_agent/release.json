@@ -1,24 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.10.0",
-  "title": "Informes de facción en Excel",
-  "summary": "Executive Staff y Command Staff pueden generar un archivo privado con el banco y los miembros activos de la facción.",
+  "version": "0.10.1",
+  "title": "Informes compatibles y con visibilidad configurable",
+  "summary": "Los informes de facción ahora abren correctamente en Excel y pueden publicarse en el canal o mantenerse privados.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
+      "type": "fixed",
+      "text": "Los archivos generados por /informe-faccion ahora respetan el orden requerido por Excel y abren sin alertas de corrupción."
+    },
+    {
       "type": "added",
-      "text": "El nuevo comando /informe-faccion permite elegir períodos rápidos o fechas personalizadas y entrega el resultado mediante un archivo Excel privado."
-    },
-    {
-      "type": "security",
-      "text": "El informe expone únicamente datos necesarios y está restringido a Executive Staff y Command Staff."
-    },
-    {
-      "type": "improved",
-      "text": "La nómina se ordena por jerarquía y nombre, reutilizando la misma resolución cacheada de rangos que /conectados."
+      "text": "El formulario permite elegir mediante una casilla si el archivo se publica en el canal; sin marcarla, el resultado permanece privado."
     }
   ],
   "acknowledgements": []

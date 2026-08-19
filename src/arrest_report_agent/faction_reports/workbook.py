@@ -221,8 +221,8 @@ def _sheet_xml(
         '</sheetView></sheetViews>'
         '<sheetFormatPr defaultRowHeight="18"/>'
         f'<cols>{cols}</cols><sheetData>{"".join(rendered_rows)}</sheetData>'
-        f'<mergeCells count="4">{merges}</mergeCells>'
         f'<autoFilter ref="A6:{last_column}{max(last_row, 6)}"/>'
+        f'<mergeCells count="4">{merges}</mergeCells>'
         '<pageMargins left="0.4" right="0.4" top="0.6" bottom="0.6" header="0.2" footer="0.2"/>'
         '<pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>'
         '</worksheet>'
@@ -235,6 +235,7 @@ def _row(index: int, cells: Sequence[str], *, height: int | None = None) -> str:
 
 
 def _text_cell(reference: str, value: str, style: int) -> str:
+    value = _safe_xml_text(value)
     preserved = ' xml:space="preserve"' if value != value.strip() else ""
     return (
         f'<c r="{reference}" s="{style}" t="inlineStr"><is>'
@@ -266,6 +267,21 @@ def _column_name(index: int) -> str:
         index, remainder = divmod(index - 1, 26)
         result = chr(65 + remainder) + result
     return result
+
+
+def _safe_xml_text(value: str) -> str:
+    """Replace code points forbidden by XML 1.0 before serializing inline strings."""
+
+    return "".join(character if _is_xml_character(ord(character)) else "�" for character in value)
+
+
+def _is_xml_character(codepoint: int) -> bool:
+    return (
+        codepoint in {0x09, 0x0A, 0x0D}
+        or 0x20 <= codepoint <= 0xD7FF
+        or 0xE000 <= codepoint <= 0xFFFD
+        or 0x10000 <= codepoint <= 0x10FFFF
+    )
 
 
 def _core_properties(generated_at: datetime) -> str:

@@ -1,10 +1,11 @@
-"""Private Discord workflow for restricted faction XLSX reports."""
+"""Visibility-aware Discord workflow for restricted faction XLSX reports."""
 
 from __future__ import annotations
 
 import asyncio
 import io
 import logging
+from enum import StrEnum
 
 import discord
 from discord.ext import commands
@@ -20,6 +21,11 @@ from .workbook import build_faction_report_workbook
 
 LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
+
+
+class FactionReportVisibility(StrEnum):
+    PUBLIC = "public"
+    PRIVATE = "private"
 
 
 class FactionReportCog(commands.Cog):
@@ -84,9 +90,11 @@ class FactionReportCog(commands.Cog):
         period: DateRangePeriod,
         raw_date_from: str,
         raw_date_to: str,
+        visibility: FactionReportVisibility,
     ) -> None:
         if (
             interaction.guild is None
+            or interaction.channel is None
             or not isinstance(interaction.user, discord.Member)
             or interaction.user.id != requester_id
         ):
@@ -124,6 +132,7 @@ class FactionReportCog(commands.Cog):
                 ephemeral=True,
             )
             return
+        private = visibility is FactionReportVisibility.PRIVATE
         lock = self._guild_locks.setdefault(guild_id, asyncio.Lock())
         if lock.locked():
             await interaction.response.send_message(
@@ -131,7 +140,7 @@ class FactionReportCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=private)
         try:
             async with lock:
                 report = await self.service.generate(
@@ -147,9 +156,9 @@ class FactionReportCog(commands.Cog):
                 )
             filename = f"informe-faccion-{date_from.isoformat()}-{date_to.isoformat()}.xlsx"
             await interaction.followup.send(
-                embed=_ready_embed(report, ui),
+                embed=_ready_embed(report, ui, visibility),
                 file=discord.File(io.BytesIO(workbook), filename=filename),
-                ephemeral=True,
+                ephemeral=private,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             log_event(
@@ -164,6 +173,7 @@ class FactionReportCog(commands.Cog):
                 bank_movements=len(report.bank_entries),
                 active_members=len(report.active_members),
                 workbook_bytes=len(workbook),
+                visibility=visibility.value,
             )
         except FactionReportTooLargeError as error:
             await interaction.followup.send(
@@ -171,7 +181,7 @@ class FactionReportCog(commands.Cog):
                     ui.alert_title,
                     ui.too_many_records.format(limit=error.limit),
                 ),
-                ephemeral=True,
+                ephemeral=private,
             )
         except Exception as error:
             log_event(
@@ -188,7 +198,7 @@ class FactionReportCog(commands.Cog):
             )
             await interaction.followup.send(
                 embed=_alert(ui.alert_title, ui.operation_failed),
-                ephemeral=True,
+                ephemeral=private,
             )
 
 
@@ -226,12 +236,17 @@ class FactionReportModal(discord.ui.DesignerModal):
             min_length=10,
             max_length=10,
         )
+        self.publish = discord.ui.Checkbox(
+            custom_id="faction_report:v2:publish",
+            default=False,
+        )
         super().__init__(
             discord.ui.Label("Período bancario", self.period),
             discord.ui.Label("Desde · solo para rango personalizado", self.date_from),
             discord.ui.Label("Hasta · solo para rango personalizado", self.date_to),
+            discord.ui.Label("Publicar el informe en este canal", self.publish),
             title="Generar informe de facción",
-            custom_id=f"faction_report:v1:generate:{requester_id}",
+            custom_id=f"faction_report:v2:generate:{requester_id}",
             timeout=MODAL_TIMEOUT_SECONDS,
         )
 
@@ -243,11 +258,20 @@ class FactionReportModal(discord.ui.DesignerModal):
             period=DateRangePeriod(period),
             raw_date_from=self.date_from.value or "",
             raw_date_to=self.date_to.value or "",
+            visibility=(
+                FactionReportVisibility.PUBLIC
+                if self.publish.value
+                else FactionReportVisibility.PRIVATE
+            ),
         )
 
 
-def _ready_embed(report: FactionReport, ui: PersonaFactionReportMessages) -> discord.Embed:
-    return discord.Embed(
+def _ready_embed(
+    report: FactionReport,
+    ui: PersonaFactionReportMessages,
+    visibility: FactionReportVisibility,
+) -> discord.Embed:
+    embed = discord.Embed(
         title=ui.ready_title,
         description=ui.ready_description.format(
             date_from=report.date_from.isoformat(),
@@ -257,6 +281,16 @@ def _ready_embed(report: FactionReport, ui: PersonaFactionReportMessages) -> dis
         ),
         color=discord.Color.dark_blue(),
     )
+    embed.add_field(
+        name="👁️ Visibilidad",
+        value=(
+            "Visible para todos en este canal"
+            if visibility is FactionReportVisibility.PUBLIC
+            else "Solo para usted"
+        ),
+        inline=False,
+    )
+    return embed
 
 
 def _member_has_any_role(member: discord.Member, role_ids: tuple[int, ...]) -> bool:

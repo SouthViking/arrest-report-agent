@@ -23,6 +23,7 @@ from arrest_report_agent.faction_reports import (
     FactionReportModal,
     FactionReportService,
     FactionReportTooLargeError,
+    FactionReportVisibility,
     build_faction_report_workbook,
 )
 from arrest_report_agent.infrastructure.sarp import (
@@ -284,6 +285,28 @@ def test_workbook_contains_only_minimal_columns_and_sorted_members() -> None:
         assert "Horas de servicio" in members_xml
         assert "lastcon" not in members_xml
         assert "Chief Example" in members_xml
+        assert bank_xml.index("<autoFilter") < bank_xml.index("<mergeCells")
+        assert members_xml.index("<autoFilter") < members_xml.index("<mergeCells")
+
+
+def test_workbook_sanitizes_xml_control_characters() -> None:
+    entry = _bank_entry(1).model_copy(update={"concept": "Depósito\x00corregido"})
+    report = FactionReport(
+        faction_id=3,
+        date_from=date(2026, 8, 19),
+        date_to=date(2026, 8, 19),
+        generated_at=datetime(2026, 8, 19, 12, tzinfo=UTC),
+        bank_entries=(entry,),
+        active_members=(),
+        total_members=0,
+    )
+
+    content = build_faction_report_workbook(report, organization_name="Sheriff Department")
+
+    with zipfile.ZipFile(io.BytesIO(content)) as workbook:
+        bank_xml = workbook.read("xl/worksheets/sheet1.xml").decode()
+    assert "\x00" not in bank_xml
+    assert "Depósito�corregido" in bank_xml
 
 
 async def test_command_uses_dedicated_role_policy_and_opens_private_modal(persona) -> None:
@@ -331,6 +354,21 @@ async def test_command_uses_dedicated_role_policy_and_opens_private_modal(person
         "90",
         "custom",
     ]
+    assert allowed_modals[0].publish.default is False
+
+
+async def test_modal_checkbox_maps_to_private_and_public_visibility() -> None:
+    captured: list[FactionReportVisibility] = []
+
+    async def generate(_interaction: object, **kwargs: object) -> None:
+        captured.append(FactionReportVisibility(str(kwargs["visibility"])))
+
+    modal = FactionReportModal(SimpleNamespace(generate=generate), requester_id=10)  # type: ignore[arg-type]
+    await modal.callback(SimpleNamespace())  # type: ignore[arg-type]
+    modal.publish.refresh_state({"value": True})
+    await modal.callback(SimpleNamespace())  # type: ignore[arg-type]
+
+    assert captured == [FactionReportVisibility.PRIVATE, FactionReportVisibility.PUBLIC]
 
 
 async def _async_value(value):

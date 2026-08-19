@@ -1,7 +1,7 @@
 {
   "schema_version": 41,
   "id": "roy_velazco",
-  "revision": 54,
+  "revision": 55,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -480,7 +480,7 @@
         "busy": "Ya hay alguien armando este informe. Espera q termine antes de pedir otro igual.",
         "too_many_records": "Ese período tiene más de {limit} movimientos. Acota las fechas antes q Excel se transforme en evidencia criminal.",
         "ready_title": "📊 Informe listo",
-        "ready_description": "Banco entre **{date_from} y {date_to}**: **{movements} movimientos** y **{members} miembros activos**. El archivo te llegó solo a vo, así q cuídalo."
+        "ready_description": "Banco entre **{date_from} y {date_to}**: **{movements} movimientos** y **{members} miembros activos**."
       },
       "review": {
         "failure_next_step_title": "Y ahora qué",

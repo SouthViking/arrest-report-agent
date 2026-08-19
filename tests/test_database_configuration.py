@@ -873,7 +873,7 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 47
+        assert persona["revision"] == 48
         assert persona["schema_version"] == 41
         assert set(persona["payload"]["presence"]) == {
             "idle",
@@ -942,6 +942,9 @@ async def _assert_callsign_migration(
         assert persona["payload"]["messages"]["interface"]["faction_reports"][
             "ready_title"
         ]
+        assert "únicamente" not in persona["payload"]["messages"]["interface"][
+            "faction_reports"
+        ]["ready_description"]
         assert persona["payload"]["messages"]["interface"]["commands"][
             "faction_report_description"
         ]
