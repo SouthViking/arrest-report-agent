@@ -17,13 +17,13 @@ from arrest_report_agent.infrastructure.postgres.schema import (
 )
 
 from .models import (
-    CATEGORY_SUBTYPES,
     LogbookAsset,
     LogbookCategory,
     LogbookEntry,
     LogbookStatus,
     MoneyDirection,
     PendingLogbookAsset,
+    available_subtypes,
 )
 
 
@@ -51,8 +51,8 @@ class LogbookRepository:
     ) -> tuple[LogbookEntry, bool]:
         normalized_subject = subject.strip()
         normalized_description = description.strip()
-        if subtype not in dict(CATEGORY_SUBTYPES[category]):
-            raise ValueError("Subtype does not belong to the selected logbook category")
+        if subtype not in dict(available_subtypes(category, money_direction)):
+            raise ValueError("Subtype does not match the selected category and money direction")
         if not 1 <= len(normalized_subject) <= 200:
             raise ValueError("Logbook subject must contain between 1 and 200 characters")
         if not 1 <= len(normalized_description) <= 2_000:

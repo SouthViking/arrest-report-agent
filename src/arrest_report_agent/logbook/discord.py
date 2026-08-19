@@ -16,7 +16,13 @@ from arrest_report_agent.config import BotPersona, PersonaLogbookMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
-from .models import CATEGORY_SUBTYPES, LogbookCategory, LogbookEntry, MoneyDirection, subtype_label
+from .models import (
+    LogbookCategory,
+    LogbookEntry,
+    MoneyDirection,
+    available_subtypes,
+    subtype_label,
+)
 from .service import LogbookFile, LogbookFileLimitError, LogbookService, safe_filename
 
 LOGGER = logging.getLogger(__name__)
@@ -385,14 +391,25 @@ class LogbookSetupView(discord.ui.View):
             )
             return
         raw_money = (self.money.values or ["none"])[0]
+        category = LogbookCategory(self.category.values[0])
+        money_direction = None if raw_money == "none" else MoneyDirection(raw_money)
+        if category is LogbookCategory.FINANCE and money_direction is None:
+            await interaction.response.send_message(
+                embed=_generic_alert(
+                    "Para registrar una novedad de Finanzas, selecciona si el movimiento "
+                    "fue un ingreso o un retiro."
+                ),
+                ephemeral=True,
+            )
+            return
         await interaction.response.send_modal(
             LogbookEntryModal(
                 cog=self.cog,
                 requester_id=self.requester_id,
                 guild_id=self.guild_id,
                 channel_id=self.channel_id,
-                category=LogbookCategory(self.category.values[0]),
-                money_direction=(None if raw_money == "none" else MoneyDirection(raw_money)),
+                category=category,
+                money_direction=money_direction,
             )
         )
         self.stop()
@@ -422,7 +439,8 @@ class LogbookEntryModal(discord.ui.DesignerModal):
             custom_id="logbook:v1:subtype",
             placeholder="Selecciona el tipo de novedad",
             options=[
-                discord.SelectOption(label=label, value=key) for key, label in CATEGORY_SUBTYPES[category]
+                discord.SelectOption(label=label, value=key)
+                for key, label in available_subtypes(category, money_direction)
             ],
         )
         self.subject = discord.ui.InputText(

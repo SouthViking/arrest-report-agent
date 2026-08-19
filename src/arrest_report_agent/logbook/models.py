@@ -156,5 +156,35 @@ CATEGORY_SUBTYPES: dict[LogbookCategory, tuple[tuple[str, str], ...]] = {
 }
 
 
+FINANCE_SUBTYPES_BY_DIRECTION: dict[MoneyDirection, tuple[tuple[str, str], ...]] = {
+    MoneyDirection.INCOME: (
+        ("deposit", "Depósito"),
+        ("reimbursement", "Reembolso"),
+        ("adjustment", "Ajuste"),
+        ("other", "Otro"),
+    ),
+    MoneyDirection.WITHDRAWAL: (
+        ("withdrawal", "Retiro"),
+        ("payment", "Pago"),
+        ("reimbursement", "Reembolso"),
+        ("adjustment", "Ajuste"),
+        ("other", "Otro"),
+    ),
+}
+
+
+def available_subtypes(
+    category: LogbookCategory,
+    money_direction: MoneyDirection | None,
+) -> tuple[tuple[str, str], ...]:
+    """Return only subtypes coherent with the selected category and money direction."""
+
+    if category is LogbookCategory.FINANCE:
+        if money_direction is None:
+            return ()
+        return FINANCE_SUBTYPES_BY_DIRECTION[money_direction]
+    return CATEGORY_SUBTYPES[category]
+
+
 def subtype_label(category: LogbookCategory, key: str) -> str:
     return dict(CATEGORY_SUBTYPES[category]).get(key, "Otro")

@@ -1,18 +1,18 @@
 {
   "schema_version": 3,
-  "version": "0.12.1",
-  "title": "Acceso corregido para la bitácora",
-  "summary": "La bitácora ya reconoce su canal real y el panel privado de configuración vuelve a abrir con todos los ajustes actuales.",
+  "version": "0.12.2",
+  "title": "Opciones coherentes en la bitácora",
+  "summary": "El formulario financiero ahora relaciona correctamente el sentido del movimiento con los tipos de registro disponibles.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
       "type": "fixed",
-      "text": "/bitacora e /info-bitacora ahora reconocen correctamente el canal #bitácora de LSSD."
+      "text": "Los ingresos ya no muestran opciones propias de retiros o pagos, y los retiros no ofrecen depósitos."
     },
     {
       "type": "fixed",
-      "text": "El panel /config divide los listados extensos para respetar los límites visuales de Discord."
+      "text": "Las novedades de Finanzas ahora exigen indicar si el movimiento fue un ingreso o un retiro."
     }
   ],
   "acknowledgements": []

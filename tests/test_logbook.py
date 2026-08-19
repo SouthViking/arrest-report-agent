@@ -27,6 +27,7 @@ from arrest_report_agent.logbook import (
     LogbookService,
     LogbookStatus,
     MoneyDirection,
+    available_subtypes,
     build_entry_embed,
     parse_money_amount,
 )
@@ -111,6 +112,19 @@ def test_personnel_supports_a_general_disciplinary_action() -> None:
     assert personnel_subtypes["disciplinary_action"] == "Acción disciplinaria"
 
 
+def test_finance_subtypes_follow_the_selected_money_direction() -> None:
+    income = dict(available_subtypes(LogbookCategory.FINANCE, MoneyDirection.INCOME))
+    withdrawal = dict(available_subtypes(LogbookCategory.FINANCE, MoneyDirection.WITHDRAWAL))
+
+    assert "deposit" in income
+    assert "withdrawal" not in income
+    assert "payment" not in income
+    assert "withdrawal" in withdrawal
+    assert "payment" in withdrawal
+    assert "deposit" not in withdrawal
+    assert available_subtypes(LogbookCategory.FINANCE, None) == ()
+
+
 @pytest.mark.asyncio
 async def test_service_stores_content_addressed_assets_once() -> None:
     repository = FakeRepository()
@@ -170,6 +184,30 @@ async def test_adapted_modal_only_adds_amount_for_financial_movement() -> None:
 
     assert len(plain.children) == 4
     assert len(financial.children) == 5
+
+
+@pytest.mark.asyncio
+async def test_finance_modal_never_offers_a_contradictory_movement_subtype() -> None:
+    income = LogbookEntryModal(
+        cog=None,  # type: ignore[arg-type]
+        requester_id=1,
+        guild_id=2,
+        channel_id=3,
+        category=LogbookCategory.FINANCE,
+        money_direction=MoneyDirection.INCOME,
+    )
+    withdrawal = LogbookEntryModal(
+        cog=None,  # type: ignore[arg-type]
+        requester_id=1,
+        guild_id=2,
+        channel_id=3,
+        category=LogbookCategory.FINANCE,
+        money_direction=MoneyDirection.WITHDRAWAL,
+    )
+
+    assert "withdrawal" not in {option.value for option in income.subtype.options}
+    assert "payment" not in {option.value for option in income.subtype.options}
+    assert "deposit" not in {option.value for option in withdrawal.subtype.options}
 
 
 def test_enabled_logbook_requires_an_explicit_channel_policy(settings) -> None:
