@@ -38,6 +38,7 @@ from .models import (
     SarpEmergencyCallPage,
     SarpEnvelope,
     SarpFactionArrestSearchPayload,
+    SarpFactionBankPage,
     SarpFactionDetail,
     SarpFactionRank,
     SarpFinePage,
@@ -67,6 +68,7 @@ WARRANT_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpWarrantPage)
 ARREST_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpArrestPage)
 ARREST_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpArrestDetail)
 FACTION_ARREST_SEARCH_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionArrestSearchPayload)
+FACTION_BANK_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionBankPage)
 EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpEmergencyCallPage)
 FACTION_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionDetail)
 FACTION_RANKS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionRank])
@@ -286,6 +288,36 @@ class SarpClient:
             "GET",
             f"/my-faction/ranks/{faction_id}",
             payload_adapter=FACTION_RANKS_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def list_faction_bank_logs(
+        self,
+        faction_id: int,
+        *,
+        date_from: date,
+        date_to: date,
+        page: int = 1,
+        limit: int = 500,
+    ) -> SarpFactionBankPage:
+        """List one inclusive date range of faction-bank movements."""
+
+        _require_positive_id(faction_id, "faction_id")
+        _validate_page(page, limit, max_limit=500)
+        if date_from > date_to:
+            raise ValueError("date_from cannot be after date_to")
+        response = await self.request(
+            "GET",
+            f"/my-faction/logs/bank/{faction_id}",
+            params={
+                "dateFrom": date_from.isoformat(),
+                "dateTo": date_to.isoformat(),
+                "page": page,
+                "limit": limit,
+                "sortField": "created_at",
+                "sortOrder": "desc",
+            },
+            payload_adapter=FACTION_BANK_PAGE_PAYLOAD_ADAPTER,
         )
         return response.payload
 

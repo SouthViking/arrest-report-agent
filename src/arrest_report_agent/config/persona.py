@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 40
+PERSONA_SCHEMA_VERSION = 41
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -871,6 +871,34 @@ class PersonaPendingArrestReportsMessages(FrozenPersonaModel):
         return self
 
 
+class PersonaFactionReportMessages(FrozenPersonaModel):
+    """Personality-aware copy for restricted faction XLSX reports."""
+
+    alert_title: str = Field(min_length=1, max_length=256)
+    unauthorized: str = Field(min_length=1, max_length=400)
+    unavailable: str = Field(min_length=1, max_length=400)
+    operation_failed: str = Field(min_length=1, max_length=400)
+    invalid_range: str = Field(min_length=1, max_length=400)
+    busy: str = Field(min_length=1, max_length=400)
+    too_many_records: str = Field(min_length=1, max_length=400)
+    ready_title: str = Field(min_length=1, max_length=256)
+    ready_description: str = Field(min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_templates(self) -> PersonaFactionReportMessages:
+        _require_template_fields(
+            self.too_many_records,
+            {"limit"},
+            "interface.faction_reports.too_many_records",
+        )
+        _require_template_fields(
+            self.ready_description,
+            {"date_from", "date_to", "movements", "members"},
+            "interface.faction_reports.ready_description",
+        )
+        return self
+
+
 class PersonaReviewMessages(FrozenPersonaModel):
     """Personality-aware framing around formal structured review data."""
 
@@ -961,6 +989,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     info_mdc_description: str = Field(min_length=1, max_length=100)
     connected_members_description: str = Field(min_length=1, max_length=100)
     pending_arrest_reports_description: str = Field(min_length=1, max_length=100)
+    faction_report_description: str = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def validate_templates(self) -> PersonaCommandMessages:
@@ -988,6 +1017,7 @@ class PersonaInterfaceMessages(FrozenPersonaModel):
     mdc: PersonaMdcMessages
     faction_status: PersonaFactionStatusMessages
     pending_arrest_reports: PersonaPendingArrestReportsMessages
+    faction_reports: PersonaFactionReportMessages
     review: PersonaReviewMessages
     commands: PersonaCommandMessages
 

@@ -25,6 +25,7 @@ from arrest_report_agent.config import (
     AccessPolicySnapshot,
     AppSettings,
     ArrestReportLookupOptions,
+    FactionReportOptions,
     GuildAgentConfig,
     GuildConfigSnapshot,
     GuildFeatureSnapshot,
@@ -70,6 +71,16 @@ def test_pending_arrest_reports_options_are_bounded() -> None:
         PendingArrestReportsOptions(faction_id=3, max_range_days=366)
     with pytest.raises(ValueError, match="greater than or equal to 50"):
         PendingArrestReportsOptions(faction_id=3, max_records=49)
+
+
+def test_faction_report_options_are_bounded() -> None:
+    options = FactionReportOptions(faction_id=3)
+    assert options.max_range_days == 366
+    assert options.max_bank_records == 10_000
+    with pytest.raises(ValueError, match="less than or equal to 730"):
+        FactionReportOptions(faction_id=3, max_range_days=731)
+    with pytest.raises(ValueError, match="greater than or equal to 500"):
+        FactionReportOptions(faction_id=3, max_bank_records=499)
 
 
 def test_arrest_lookup_runtime_requires_valid_enabled_payload(settings) -> None:
@@ -304,6 +315,7 @@ async def test_legacy_import_partitions_ids_and_disables_empty_restricted_scopes
     assert first_policies[AccessPolicyKey.AGENT_BLOCKED_USERS].mode is AccessPolicyMode.DISABLED
     assert first_policies[AccessPolicyKey.REPORT_ANALYTICS_ROLES].ids == (20,)
     assert first_policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES].ids == (20,)
+    assert first_policies[AccessPolicyKey.FACTION_REPORT_ROLES].mode is AccessPolicyMode.DISABLED
     assert first_policies[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].ids == (22,)
     assert first.features[0].enabled is True
     assert second.guild_id == 2
@@ -311,6 +323,7 @@ async def test_legacy_import_partitions_ids_and_disables_empty_restricted_scopes
     assert second_policies[AccessPolicyKey.SUPERVISOR_ROLES].mode is AccessPolicyMode.DISABLED
     assert second_policies[AccessPolicyKey.REPORT_ANALYTICS_ROLES].mode is AccessPolicyMode.DISABLED
     assert second_policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES].mode is AccessPolicyMode.DISABLED
+    assert second_policies[AccessPolicyKey.FACTION_REPORT_ROLES].mode is AccessPolicyMode.DISABLED
     assert second_policies[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].mode is AccessPolicyMode.DISABLED
     assert second.features[0].enabled is False
 
@@ -567,6 +580,38 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         }
         assert pending[999]["enabled"] is False
         assert pending[999]["payload"] == {}
+        report_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.enabled, feature.payload, policy.mode, "
+                "member.snowflake_id "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'faction_reports' "
+                "JOIN guild_access_policies policy "
+                "ON policy.config_revision_id = revision.id "
+                "AND policy.policy_key = 'faction_report_roles' "
+                "LEFT JOIN guild_access_policy_members member ON member.policy_id = policy.id "
+                "ORDER BY revision.guild_id, member.position"
+            )
+        )
+        lssd_rows = [row for row in report_rows if int(row["guild_id"]) == 1234674521416663070]
+        assert lssd_rows[0]["enabled"] is True
+        assert lssd_rows[0]["payload"] == {
+            "faction_id": 3,
+            "max_range_days": 366,
+            "max_bank_records": 10_000,
+        }
+        assert lssd_rows[0]["mode"] == "restricted"
+        assert [int(row["snowflake_id"]) for row in lssd_rows] == [
+            1234678029662294047,
+            1234678238182244414,
+        ]
+        other_rows = [row for row in report_rows if int(row["guild_id"]) == 999]
+        assert other_rows[0]["enabled"] is False
+        assert other_rows[0]["payload"] == {}
+        assert other_rows[0]["mode"] == "disabled"
+        assert other_rows[0]["snowflake_id"] is None
     finally:
         await client.close()
 
@@ -828,8 +873,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 46
-        assert persona["schema_version"] == 40
+        assert persona["revision"] == 47
+        assert persona["schema_version"] == 41
         assert set(persona["payload"]["presence"]) == {
             "idle",
             "conversation",
@@ -892,6 +937,15 @@ async def _assert_callsign_migration(
             "pending_arrest_reports_description"
         ]
         assert "/reportes-pendientes" in persona["payload"]["messages"]["help"][
+            "quick_references"
+        ]
+        assert persona["payload"]["messages"]["interface"]["faction_reports"][
+            "ready_title"
+        ]
+        assert persona["payload"]["messages"]["interface"]["commands"][
+            "faction_report_description"
+        ]
+        assert "/informe-faccion" in persona["payload"]["messages"]["help"][
             "quick_references"
         ]
         assert persona["payload"]["messages"]["interface"]["commands"]["teamspeak_unauthorized"]

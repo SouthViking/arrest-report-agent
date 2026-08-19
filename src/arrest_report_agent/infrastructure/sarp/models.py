@@ -387,13 +387,15 @@ class SarpEmergencyCallPage(BaseModel):
 class SarpFactionMember(BaseModel):
     """One member returned by the authenticated faction detail endpoint."""
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
     id: int = Field(gt=0)
     name: str = Field(min_length=1, max_length=100)
     online: bool
     factionduty: bool
     rank: int | None = Field(default=None, ge=0)
+    last_connected_at: datetime | None = Field(default=None, alias="lastcon")
+    faction_time_minutes: int = Field(default=0, alias="factiontime", ge=0)
 
     @field_validator("online", "factionduty", mode="before")
     @classmethod
@@ -403,6 +405,25 @@ class SarpFactionMember(BaseModel):
         if value in (False, 0, "0"):
             return False
         raise ValueError("SARP faction member state must be 0 or 1")
+
+    @field_validator("last_connected_at", mode="before")
+    @classmethod
+    def normalize_optional_last_connection(cls, value: object) -> object:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        if not normalized or normalized.startswith("0000-00-00"):
+            return None
+        return normalized
+
+    @field_validator("last_connected_at")
+    @classmethod
+    def assume_last_connection_is_utc(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
 
 class SarpFactionDetail(BaseModel):
@@ -426,3 +447,38 @@ class SarpFactionRank(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     member_tier: int = Field(default=0, ge=0)
     paycheck: int | float | None = Field(default=None, ge=0)
+
+
+class SarpFactionBankEntry(BaseModel):
+    """One faction-bank movement projected without unrelated PCU fields."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
+
+    id: int = Field(gt=0)
+    faction_id: int = Field(gt=0)
+    character_id: int = Field(gt=0)
+    character_name: str = Field(min_length=1, max_length=100)
+    concept: str = Field(min_length=1, max_length=1_000)
+    amount: int | float = Field(alias="money")
+    created_at: datetime
+
+    @field_validator("character_name", "concept", mode="before")
+    @classmethod
+    def normalize_bank_text(cls, value: object) -> str:
+        return " ".join(str(value).replace("_", " ").split())
+
+    @field_validator("created_at")
+    @classmethod
+    def assume_bank_timestamp_is_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+
+class SarpFactionBankPage(BaseModel):
+    """Paginated faction-bank response returned by the authenticated endpoint."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    data: list[SarpFactionBankEntry] = Field(default_factory=list)
+    total: int = Field(ge=0)

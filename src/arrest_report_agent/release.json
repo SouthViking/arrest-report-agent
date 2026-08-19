@@ -1,14 +1,24 @@
 {
   "schema_version": 3,
-  "version": "0.9.3",
-  "title": "Más contexto en miembros conectados",
-  "summary": "El resumen de la facción ahora muestra también cuántas personas están conectadas en el servidor.",
+  "version": "0.10.0",
+  "title": "Informes de facción en Excel",
+  "summary": "Executive Staff y Command Staff pueden generar un archivo privado con el banco y los miembros activos de la facción.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
+      "type": "added",
+      "text": "El nuevo comando /informe-faccion permite elegir períodos rápidos o fechas personalizadas y entrega el resultado mediante un archivo Excel privado."
+    },
+    {
+      "type": "security",
+      "text": "El informe expone únicamente datos necesarios y está restringido a Executive Staff y Command Staff."
+    },
+    {
       "type": "improved",
-      "text": "El comando /conectados reúne en una sola línea los usuarios del servidor, miembros conectados, personal en servicio y actividad operativa."
+      "text": "La nómina se ordena por jerarquía y nombre, reutilizando la misma resolución cacheada de rangos que /conectados."
     }
   ],
   "acknowledgements": []

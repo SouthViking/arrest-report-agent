@@ -38,6 +38,7 @@ class AccessPolicyKey(StrEnum):
     PAGER_RECIPIENT_ROLES = "pager_recipient_roles"
     PAGER_CLOSER_ROLES = "pager_closer_roles"
     OPERATIONAL_STAFF_ROLES = "operational_staff_roles"
+    FACTION_REPORT_ROLES = "faction_report_roles"
     DEPLOYMENT_NOTIFICATION_CHANNELS = "deployment_notification_channels"
     DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS = (
         "deployment_incident_notification_channels"
@@ -63,6 +64,7 @@ POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] 
     AccessPolicyKey.PAGER_RECIPIENT_ROLES: "role",
     AccessPolicyKey.PAGER_CLOSER_ROLES: "role",
     AccessPolicyKey.OPERATIONAL_STAFF_ROLES: "role",
+    AccessPolicyKey.FACTION_REPORT_ROLES: "role",
     AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: "channel",
     AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: "channel",
     AccessPolicyKey.CI_FAILURE_NOTIFICATION_CHANNELS: "channel",
@@ -139,6 +141,12 @@ class PendingArrestReportsOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
     max_range_days: int = Field(default=90, ge=1, le=365)
     max_records: int = Field(default=1_000, ge=50, le=5_000)
+
+
+class FactionReportOptions(FrozenConfigModel):
+    faction_id: int = Field(gt=0)
+    max_range_days: int = Field(default=366, ge=1, le=730)
+    max_bank_records: int = Field(default=10_000, ge=500, le=25_000)
 
 
 class GuildConfigSnapshot(FrozenConfigModel):
@@ -238,6 +246,14 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if pending_reports_feature.schema_version != 1:
                 raise ValueError("pending_arrest_reports requires feature schema version 1")
             PendingArrestReportsOptions.model_validate(pending_reports_feature.payload)
+        faction_report_feature = self.features.get("faction_reports")
+        if faction_report_feature is not None and faction_report_feature.enabled:
+            if faction_report_feature.schema_version != 1:
+                raise ValueError("faction_reports requires feature schema version 1")
+            FactionReportOptions.model_validate(faction_report_feature.payload)
+            roles = self.policies[AccessPolicyKey.FACTION_REPORT_ROLES]
+            if roles.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError("enabled faction_reports requires restricted report roles")
         return self
 
     def policy(self, key: AccessPolicyKey) -> AccessPolicySnapshot:
@@ -329,6 +345,11 @@ class GuildRuntimeSettings:
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
 
     @property
+    def faction_report_role_ids(self) -> tuple[int, ...]:
+        policy = self.snapshot.policy(AccessPolicyKey.FACTION_REPORT_ROLES)
+        return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
     def deployment_notification_channel_ids(self) -> tuple[int, ...]:
         policy = self.snapshot.policy(AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS)
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
@@ -380,6 +401,13 @@ class GuildRuntimeSettings:
     def pending_arrest_reports_max_records(self) -> int:
         options = self.pending_arrest_reports_options
         return options.max_records if options is not None else 1_000
+
+    @property
+    def faction_report_options(self) -> FactionReportOptions | None:
+        feature = self.snapshot.features.get("faction_reports")
+        if feature is None or not feature.enabled:
+            return None
+        return FactionReportOptions.model_validate(feature.payload)
 
     @property
     def pager_starting_number(self) -> int:

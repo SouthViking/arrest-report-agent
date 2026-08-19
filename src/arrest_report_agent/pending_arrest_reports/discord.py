@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from math import ceil
 
 import discord
 from discord.ext import commands
 
+from arrest_report_agent.application.date_ranges import DateRangePeriod, resolve_date_range
 from arrest_report_agent.config import BotPersona, PersonaPendingArrestReportsMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
@@ -34,12 +35,7 @@ class PendingReportVisibility(StrEnum):
     PRIVATE = "private"
 
 
-class PendingReportPeriod(StrEnum):
-    LAST_7_DAYS = "7"
-    LAST_14_DAYS = "14"
-    LAST_30_DAYS = "30"
-    LAST_90_DAYS = "90"
-    CUSTOM = "custom"
+PendingReportPeriod = DateRangePeriod
 
 
 class PendingArrestReportCog(commands.Cog):
@@ -492,22 +488,12 @@ def _resolve_date_range(
     *,
     max_days: int,
 ) -> tuple[date, date]:
-    today = datetime.now(UTC).date()
-    if period is PendingReportPeriod.CUSTOM:
-        try:
-            date_from = date.fromisoformat(raw_date_from.strip())
-            date_to = date.fromisoformat(raw_date_to.strip())
-        except ValueError as error:
-            raise ValueError("custom dates must use ISO format") from error
-    else:
-        days = int(period.value)
-        date_to = today
-        date_from = today - timedelta(days=days - 1)
-    if date_from > date_to or date_to > today:
-        raise ValueError("invalid or future date range")
-    if (date_to - date_from).days + 1 > max_days:
-        raise ValueError("date range exceeds configured maximum")
-    return date_from, date_to
+    return resolve_date_range(
+        period,
+        raw_date_from,
+        raw_date_to,
+        max_days=max_days,
+    )
 
 
 def _embed_color(reports: tuple[PendingArrestReport, ...]) -> discord.Color:

@@ -31,6 +31,8 @@ from arrest_report_agent.deployments import (
     DeploymentRepository,
     RailwayWebhookReceiver,
 )
+from arrest_report_agent.faction_directory import FactionDirectoryService
+from arrest_report_agent.faction_reports import FactionReportCog, FactionReportService
 from arrest_report_agent.faction_status import FactionStatusCog, FactionStatusService
 from arrest_report_agent.infrastructure.discord import (
     ConfigurationAdminCog,
@@ -364,11 +366,12 @@ async def build_runtime(
     manual_quiz_sessions = ManualQuizSessionRegistry(manual_quiz_repository)
     bot.add_cog(ManualQuizCog(config_provider, manual_quiz_sessions, persona.profile))
     if sarp_client is not None:
+        faction_directory = FactionDirectoryService(sarp_client)
         bot.add_cog(MdcCog(config_provider, MdcService(sarp_client), persona.profile))
         bot.add_cog(
             FactionStatusCog(
                 config_provider,
-                FactionStatusService(sarp_client),
+                FactionStatusService(sarp_client, directory=faction_directory),
                 persona.profile,
             )
         )
@@ -376,6 +379,13 @@ async def build_runtime(
             PendingArrestReportCog(
                 config_provider,
                 PendingArrestReportService(sarp_client),
+                persona.profile,
+            )
+        )
+        bot.add_cog(
+            FactionReportCog(
+                config_provider,
+                FactionReportService(sarp_client, faction_directory),
                 persona.profile,
             )
         )

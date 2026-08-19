@@ -384,6 +384,8 @@ async def test_faction_detail_endpoint_returns_typed_live_member_states() -> Non
                             "online": 1,
                             "factionduty": 0,
                             "rank": 8,
+                            "lastcon": "2026-08-18 12:30:00",
+                            "factiontime": 878,
                         },
                         {
                             "id": 42,
@@ -406,6 +408,9 @@ async def test_faction_detail_endpoint_returns_typed_live_member_states() -> Non
     assert detail.faction_members[0].online is True
     assert detail.faction_members[0].factionduty is False
     assert detail.faction_members[0].rank == 8
+    assert detail.faction_members[0].last_connected_at is not None
+    assert detail.faction_members[0].last_connected_at.utcoffset().total_seconds() == 0
+    assert detail.faction_members[0].faction_time_minutes == 878
     assert detail.faction_members[1].factionduty is True
 
 
@@ -457,6 +462,56 @@ async def test_faction_rank_endpoint_returns_the_ordered_typed_catalog() -> None
             paycheck=725,
         ),
     ]
+
+
+async def test_faction_bank_endpoint_sends_dates_and_returns_typed_movements() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/my-faction/logs/bank/3"
+        assert dict(request.query) == {
+            "dateFrom": "2026-08-18",
+            "dateTo": "2026-08-19",
+            "page": "2",
+            "limit": "500",
+            "sortField": "created_at",
+            "sortOrder": "desc",
+        }
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "pcu",
+                "payload": {
+                    "data": [
+                        {
+                            "id": 91,
+                            "faction_id": 3,
+                            "character_id": 44,
+                            "character_name": "Charles_Harrington",
+                            "concept": "  Depósito de prueba  ",
+                            "money": -1000,
+                            "created_at": "2026-08-19 08:11:08",
+                        }
+                    ],
+                    "total": 501,
+                },
+            }
+        )
+
+    async with serve_sarp(handler) as base_url, SarpClient(
+        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
+    ) as client:
+        page = await client.list_faction_bank_logs(
+            3,
+            date_from=date(2026, 8, 18),
+            date_to=date(2026, 8, 19),
+            page=2,
+        )
+
+    assert page.total == 501
+    assert page.data[0].character_name == "Charles Harrington"
+    assert page.data[0].concept == "Depósito de prueba"
+    assert page.data[0].amount == -1000
+    assert page.data[0].created_at.utcoffset().total_seconds() == 0
 
 
 async def test_penal_code_keeps_uncategorized_charges_returned_by_current_api() -> None:

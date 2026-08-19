@@ -358,6 +358,11 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 empty_means_disabled=True,
             ),
             AccessPolicySnapshot(
+                key=AccessPolicyKey.FACTION_REPORT_ROLES,
+                subject_type="role",
+                mode=AccessPolicyMode.DISABLED,
+            ),
+            AccessPolicySnapshot(
                 key=AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS,
                 subject_type="channel",
                 mode=AccessPolicyMode.DISABLED,

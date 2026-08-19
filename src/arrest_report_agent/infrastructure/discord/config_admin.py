@@ -49,6 +49,7 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
     AccessPolicyKey.PAGER_RECIPIENT_ROLES: "Destinatarios de pagers",
     AccessPolicyKey.PAGER_CLOSER_ROLES: "Responsables de cierre de pagers",
     AccessPolicyKey.OPERATIONAL_STAFF_ROLES: "Personal operativo con callsign",
+    AccessPolicyKey.FACTION_REPORT_ROLES: "Roles para informes de facción",
     AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: "Canales de despliegues",
     AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: (
         "Canales de incidentes de despliegue"
@@ -60,6 +61,7 @@ FEATURE_LABELS = {
     "role_requests": "Solicitudes de roles",
     "pagers": "Pagers",
     "teamspeak": "TeamSpeak",
+    "faction_reports": "Informes de facción",
     "deployment_notifications": "Notificaciones de despliegue",
     "service_calls": "Llamadas de servicio",
     "faction_status": "Estado de facción",
