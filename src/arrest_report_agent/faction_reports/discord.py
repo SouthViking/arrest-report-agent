@@ -156,7 +156,7 @@ class FactionReportCog(commands.Cog):
                 )
             filename = f"informe-faccion-{date_from.isoformat()}-{date_to.isoformat()}.xlsx"
             await interaction.followup.send(
-                embed=_ready_embed(report, ui, visibility),
+                embed=_ready_embed(report, ui),
                 file=discord.File(io.BytesIO(workbook), filename=filename),
                 ephemeral=private,
                 allowed_mentions=discord.AllowedMentions.none(),
@@ -269,9 +269,8 @@ class FactionReportModal(discord.ui.DesignerModal):
 def _ready_embed(
     report: FactionReport,
     ui: PersonaFactionReportMessages,
-    visibility: FactionReportVisibility,
 ) -> discord.Embed:
-    embed = discord.Embed(
+    return discord.Embed(
         title=ui.ready_title,
         description=ui.ready_description.format(
             date_from=report.date_from.isoformat(),
@@ -281,16 +280,6 @@ def _ready_embed(
         ),
         color=discord.Color.dark_blue(),
     )
-    embed.add_field(
-        name="👁️ Visibilidad",
-        value=(
-            "Visible para todos en este canal"
-            if visibility is FactionReportVisibility.PUBLIC
-            else "Solo para usted"
-        ),
-        inline=False,
-    )
-    return embed
 
 
 def _member_has_any_role(member: discord.Member, role_ids: tuple[int, ...]) -> bool:

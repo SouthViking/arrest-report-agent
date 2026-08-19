@@ -1,20 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.10.1",
-  "title": "Informes compatibles y con visibilidad configurable",
-  "summary": "Los informes de facción ahora abren correctamente en Excel y pueden publicarse en el canal o mantenerse privados.",
+  "version": "0.10.2",
+  "title": "Presentación más limpia de informes",
+  "summary": "La confirmación del informe de facción ahora muestra solamente la información necesaria.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Los archivos generados por /informe-faccion ahora respetan el orden requerido por Excel y abren sin alertas de corrupción."
-    },
-    {
-      "type": "added",
-      "text": "El formulario permite elegir mediante una casilla si el archivo se publica en el canal; sin marcarla, el resultado permanece privado."
+      "type": "improved",
+      "text": "Se retiró el detalle redundante de visibilidad del mensaje generado por /informe-faccion."
     }
   ],
   "acknowledgements": []

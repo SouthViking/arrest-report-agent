@@ -26,6 +26,7 @@ from arrest_report_agent.faction_reports import (
     FactionReportVisibility,
     build_faction_report_workbook,
 )
+from arrest_report_agent.faction_reports.discord import _ready_embed
 from arrest_report_agent.infrastructure.sarp import (
     SarpFactionBankEntry,
     SarpFactionBankPage,
@@ -307,6 +308,22 @@ def test_workbook_sanitizes_xml_control_characters() -> None:
         bank_xml = workbook.read("xl/worksheets/sheet1.xml").decode()
     assert "\x00" not in bank_xml
     assert "Depósito�corregido" in bank_xml
+
+
+def test_ready_embed_does_not_repeat_selected_visibility(persona) -> None:
+    report = FactionReport(
+        faction_id=3,
+        date_from=date(2026, 8, 19),
+        date_to=date(2026, 8, 19),
+        generated_at=datetime(2026, 8, 19, 12, tzinfo=UTC),
+        bank_entries=(),
+        active_members=(),
+        total_members=0,
+    )
+
+    embed = _ready_embed(report, persona.messages.interface.faction_reports)
+
+    assert embed.fields == []
 
 
 async def test_command_uses_dedicated_role_policy_and_opens_private_modal(persona) -> None:
