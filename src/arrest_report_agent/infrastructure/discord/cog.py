@@ -929,7 +929,8 @@ class ReviewCog(commands.Cog):
                     and ctx.channel.id in bundle.settings.logbook_channel_ids
                 ):
                     extra_feature_guides = (
-                        "• `/info-bitacora`: cómo registrar novedades estructuradas."
+                        "• `/info-bitacora`: cómo registrar novedades estructuradas.\n"
+                        "• `/guia-bitacora`: categorías y tipos disponibles."
                     )
         embed = build_help_embed(
             persona=self.persona,

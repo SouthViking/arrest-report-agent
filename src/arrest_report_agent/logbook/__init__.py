@@ -1,6 +1,12 @@
 """Structured guild logbook subsystem."""
 
-from .discord import LogbookCog, build_entry_embed, build_info_embed, parse_money_amount
+from .discord import (
+    LogbookCog,
+    build_entry_embed,
+    build_guide_embed,
+    build_info_embed,
+    parse_money_amount,
+)
 from .models import (
     CATEGORY_SUBTYPES,
     FINANCE_SUBTYPES_BY_DIRECTION,
@@ -31,6 +37,7 @@ __all__ = [
     "available_subtypes",
     "subtype_label",
     "build_entry_embed",
+    "build_guide_embed",
     "build_info_embed",
     "parse_money_amount",
 ]

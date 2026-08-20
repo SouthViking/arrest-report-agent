@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
@@ -29,9 +30,10 @@ from arrest_report_agent.logbook import (
     MoneyDirection,
     available_subtypes,
     build_entry_embed,
+    build_guide_embed,
     parse_money_amount,
 )
-from arrest_report_agent.logbook.discord import LogbookEntryModal
+from arrest_report_agent.logbook.discord import LogbookCog, LogbookEntryModal
 
 
 class FakeRepository:
@@ -123,6 +125,61 @@ def test_finance_subtypes_follow_the_selected_money_direction() -> None:
     assert "payment" in withdrawal
     assert "deposit" not in withdrawal
     assert available_subtypes(LogbookCategory.FINANCE, None) == ()
+
+
+def test_guide_lists_every_category_and_its_current_subtypes(persona) -> None:
+    embed = build_guide_embed(persona.messages.interface.logbook)
+
+    assert embed.title == "📚 Guía de tipos de bitácora"
+    assert len(embed.fields) == len(LogbookCategory)
+    assert all(field.inline for field in embed.fields)
+    fields = {field.name: field.value for field in embed.fields}
+    assert "↳ **Ingreso:** Depósito · Reembolso · Ajuste · Otro" in fields["💵 Finanzas"]
+    assert "↳ **Retiro:** Retiro · Pago · Reembolso · Ajuste · Otro" in fields["💵 Finanzas"]
+    assert "↳ Ingreso · Reincorporación" in fields["👤 Personal"]
+    assert "Acción disciplinaria" in fields["👤 Personal"]
+    assert "Entrega de equipo" in fields["🪪 Licencias y equipo"]
+    assert fields["📝 Otro"] == "↳ Otro registro"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("channel_id", "expected_title"), [(456, "📚 Guía de tipos de bitácora"), (999, None)]
+)
+async def test_logbook_guide_is_private_and_uses_the_logbook_channel_policy(
+    persona,
+    channel_id: int,
+    expected_title: str | None,
+) -> None:
+    responses: list[dict[str, object]] = []
+
+    async def cached(_guild_id: int):
+        return SimpleNamespace(
+            snapshot=SimpleNamespace(features={"logbook": SimpleNamespace(enabled=True)}),
+            settings=SimpleNamespace(logbook_channel_ids=(456,)),
+            persona=SimpleNamespace(profile=persona),
+        )
+
+    async def respond(**kwargs: object) -> None:
+        responses.append(kwargs)
+
+    cog = LogbookCog(SimpleNamespace(cached=cached), None, persona)  # type: ignore[arg-type]
+    context = SimpleNamespace(
+        guild=SimpleNamespace(id=123),
+        channel=SimpleNamespace(id=channel_id),
+        author=SimpleNamespace(id=321),
+        respond=respond,
+    )
+
+    await LogbookCog.guide.callback(cog, context)  # type: ignore[arg-type]
+
+    assert responses[0]["ephemeral"] is True
+    embed = responses[0]["embed"]
+    if expected_title is None:
+        assert embed.title == persona.messages.interface.logbook.alert_title
+        assert embed.description == persona.messages.interface.logbook.wrong_channel
+    else:
+        assert embed.title == expected_title
 
 
 @pytest.mark.asyncio

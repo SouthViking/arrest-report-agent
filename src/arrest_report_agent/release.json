@@ -1,18 +1,18 @@
 {
   "schema_version": 3,
-  "version": "0.12.3",
-  "title": "Eventos de Discord filtrados correctamente",
-  "summary": "El agente ya no interpreta las notificaciones internas de Discord como solicitudes de usuarios.",
+  "version": "0.12.4",
+  "title": "Guía rápida para la bitácora",
+  "summary": "La bitácora ahora permite consultar todas sus categorías y tipos sin recorrer el formulario.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Fijar un mensaje del bot ya no inicia una ejecución del agente ni consume OpenAI."
+      "type": "added",
+      "text": "Nuevo comando /guia-bitacora con una referencia compacta de todas las categorías y tipos disponibles."
     },
     {
-      "type": "fixed",
-      "text": "Los mensajes de sistema se descartan antes de resolver referencias o preparar respuestas."
+      "type": "security",
+      "text": "La guía es privada y conserva las mismas restricciones de módulo y canal que la bitácora."
     }
   ],
   "acknowledgements": []

@@ -134,6 +134,39 @@ class LogbookCog(commands.Cog):
         except Exception as error:
             await self._command_failure(ctx, error, operation="info")
 
+    @discord.slash_command(
+        name="guia-bitacora",
+        description="Muestra las categorías y tipos disponibles en la bitácora",
+    )
+    async def guide(self, ctx: discord.ApplicationContext) -> None:
+        if ctx.guild is None or ctx.channel is None:
+            await ctx.respond(
+                embed=_generic_alert("Este comando solo funciona en un servidor."), ephemeral=True
+            )
+            return
+        try:
+            bundle = await self.provider.cached(ctx.guild.id)
+            ui = bundle.persona.profile.messages.interface.logbook
+            denial = _availability_denial(bundle, ctx.channel.id, ui)
+            if denial is not None:
+                await ctx.respond(embed=denial, ephemeral=True)
+                return
+            await ctx.respond(
+                embed=build_guide_embed(ui),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "logbook_guide_shared",
+                guild_id=ctx.guild.id,
+                channel_id=ctx.channel.id,
+                user_id=ctx.author.id,
+            )
+        except Exception as error:
+            await self._command_failure(ctx, error, operation="guide")
+
     async def publish(
         self,
         interaction: discord.Interaction,
@@ -579,6 +612,34 @@ def build_info_embed(ui: PersonaLogbookMessages) -> discord.Embed:
     embed.add_field(name="Registrar", value=ui.info_usage, inline=False)
     embed.add_field(name="Movimientos de dinero", value=ui.info_finance, inline=False)
     embed.add_field(name="Respaldos", value=ui.info_attachments, inline=False)
+    embed.set_footer(text=ui.info_closing)
+    return embed
+
+
+def build_guide_embed(ui: PersonaLogbookMessages) -> discord.Embed:
+    embed = discord.Embed(
+        title="📚 Guía de tipos de bitácora",
+        description=(
+            "Elija en `/bitacora` la categoría que mejor represente la novedad y luego uno "
+            "de sus tipos disponibles."
+        ),
+        color=discord.Color.blurple(),
+    )
+    for category, presentation in CATEGORY_PRESENTATION.items():
+        if category is LogbookCategory.FINANCE:
+            income = " · ".join(label for _, label in available_subtypes(category, MoneyDirection.INCOME))
+            withdrawal = " · ".join(
+                label for _, label in available_subtypes(category, MoneyDirection.WITHDRAWAL)
+            )
+            value = f"↳ **Ingreso:** {income}\n↳ **Retiro:** {withdrawal}"
+        else:
+            labels = " · ".join(label for _, label in available_subtypes(category, None))
+            value = f"↳ {labels}"
+        embed.add_field(
+            name=f"{presentation.emoji} {presentation.label}",
+            value=value,
+            inline=True,
+        )
     embed.set_footer(text=ui.info_closing)
     return embed
 

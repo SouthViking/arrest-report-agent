@@ -70,6 +70,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/informe-faccion` | `faction_report_roles`; módulo `faction_reports` activo | Modal privado; archivo público o efímero | Banco, nómina y rangos actuales de SARP |
 | `/bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Selector privado, modal adaptado y entrada pública | PostgreSQL, Railway Bucket y Discord |
 | `/info-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Pública; rechazo efímero fuera de los canales | Persona activa y configuración de PostgreSQL |
+| `/guia-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Efímera; rechazo efímero fuera de los canales | Catálogo central de categorías y subtipos |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
 | `/verguenza` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/honor` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
@@ -141,11 +142,12 @@ comandos, dirige a la guía de cada función:
 - `/info-mdc`
 - `/info-sugerencias`
 - `/info-bitacora`, solo cuando `/ayuda` se abre en un canal de bitácora habilitado
+- `/guia-bitacora`, solo cuando `/ayuda` se abre en un canal de bitácora habilitado
 
 Mantiene como referencias rápidas `/guia`, `/cargos`, `/faq` y `/pregunta-manual`. Los flujos operacionales, comandos
 privados y herramientas de supervisión se explican en su guía especializada cuando corresponde.
 
-## `/bitacora` y `/info-bitacora`
+## `/bitacora`, `/info-bitacora` y `/guia-bitacora`
 
 El módulo `logbook` exige una política restringida `logbook_channels`. No aplica una lista de
 usuarios o roles adicional: si una persona puede ver el canal configurado, puede registrar allí.
@@ -160,6 +162,10 @@ contenido de los adjuntos se almacena en el Railway Bucket con claves basadas en
 
 `/info-bitacora` publica una explicación breve con el tono de la personalidad activa. Las categorías,
 montos, fechas y demás datos operacionales se muestran con redacción neutra.
+
+`/guia-bitacora` responde de forma efímera con un único embed compacto. Sus campos inline enumeran
+las categorías y subtipos del mismo catálogo utilizado por el formulario; Finanzas separa las
+opciones válidas de ingreso y retiro. Por ello, la guía no puede quedar desincronizada del modal.
 
 ## `/conectados`
 
