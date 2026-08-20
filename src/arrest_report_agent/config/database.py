@@ -175,6 +175,48 @@ class OperationalResourcesOptions(FrozenConfigModel):
         return self
 
 
+class ForumShortcutLink(FrozenConfigModel):
+    label: str = Field(min_length=1, max_length=80)
+    url: HttpUrl
+
+
+class ForumShortcutSection(FrozenConfigModel):
+    title: str = Field(min_length=1, max_length=120)
+    links: tuple[ForumShortcutLink, ...] = Field(min_length=1, max_length=10)
+
+
+class ForumShortcutsOptions(FrozenConfigModel):
+    organization_name: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1, max_length=1_000)
+    banner_url: HttpUrl
+    sections: tuple[ForumShortcutSection, ...] = Field(min_length=1, max_length=10)
+
+    @model_validator(mode="after")
+    def validate_catalog(self) -> ForumShortcutsOptions:
+        section_titles: set[str] = set()
+        link_urls: set[str] = set()
+        link_count = 0
+        for section in self.sections:
+            normalized_title = section.title.casefold().strip()
+            if normalized_title in section_titles:
+                raise ValueError("forum shortcut section titles must be unique")
+            section_titles.add(normalized_title)
+            rendered = "\n".join(
+                f"└─ [{link.label}]({link.url})" for link in section.links
+            )
+            if len(rendered) > 1_024:
+                raise ValueError("forum shortcut section exceeds Discord field limits")
+            for link in section.links:
+                normalized_url = str(link.url)
+                if normalized_url in link_urls:
+                    raise ValueError("forum shortcut URLs must be unique")
+                link_urls.add(normalized_url)
+                link_count += 1
+        if link_count > 20:
+            raise ValueError("forum shortcuts support at most 20 links")
+        return self
+
+
 class GuildConfigSnapshot(FrozenConfigModel):
     guild_id: int = Field(gt=0)
     revision_id: UUID
@@ -287,6 +329,11 @@ class GuildConfigSnapshot(FrozenConfigModel):
                 raise ValueError(
                     "enabled operational_resources requires restricted operational staff roles"
                 )
+        forum_feature = self.features.get("forum_shortcuts")
+        if forum_feature is not None and forum_feature.enabled:
+            if forum_feature.schema_version != 1:
+                raise ValueError("forum_shortcuts requires feature schema version 1")
+            ForumShortcutsOptions.model_validate(forum_feature.payload)
         arrest_lookup_feature = self.features.get("arrest_report_lookup")
         if arrest_lookup_feature is not None and arrest_lookup_feature.enabled:
             if arrest_lookup_feature.schema_version != 1:
@@ -449,6 +496,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return OperationalResourcesOptions.model_validate(feature.payload)
+
+    @property
+    def forum_shortcuts_options(self) -> ForumShortcutsOptions | None:
+        feature = self.snapshot.features.get("forum_shortcuts")
+        if feature is None or not feature.enabled:
+            return None
+        return ForumShortcutsOptions.model_validate(feature.payload)
 
     @property
     def arrest_report_lookup_faction_id(self) -> int | None:

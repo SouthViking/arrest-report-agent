@@ -470,6 +470,88 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         ),
                     ),
                     GuildFeatureSnapshot(
+                        key="forum_shortcuts",
+                        enabled=guild_id == 1234674521416663070,
+                        schema_version=1,
+                        payload=(
+                            {
+                                "organization_name": (
+                                    "Los Santos Sheriff's Department"
+                                ),
+                                "description": (
+                                    "Consulta rápidamente nuestros espacios y "
+                                    "procedimientos oficiales."
+                                ),
+                                "banner_url": "https://i.imgur.com/gBxZZIT.gif",
+                                "sections": [
+                                    {
+                                        "title": "🏛️ Foro institucional",
+                                        "links": [
+                                            {
+                                                "label": "Página principal",
+                                                "url": "https://sheriff.sarp.es/index.php",
+                                            }
+                                        ],
+                                    },
+                                    {
+                                        "title": "👥 Ingreso y desarrollo",
+                                        "links": [
+                                            {
+                                                "label": "Oportunidades de empleo",
+                                                "url": (
+                                                    "https://sheriff.sarp.es/"
+                                                    "viewforum.php?f=3"
+                                                ),
+                                            },
+                                            {
+                                                "label": "Transferencias laterales",
+                                                "url": (
+                                                    "https://sheriff.sarp.es/"
+                                                    "viewtopic.php?t=162"
+                                                ),
+                                            },
+                                            {
+                                                "label": "Reincorporaciones",
+                                                "url": (
+                                                    "https://sheriff.sarp.es/"
+                                                    "viewtopic.php?t=104"
+                                                ),
+                                            },
+                                            {
+                                                "label": "Field Training Program",
+                                                "url": (
+                                                    "https://sheriff.sarp.es/"
+                                                    "viewforum.php?f=10"
+                                                ),
+                                            },
+                                        ],
+                                    },
+                                    {
+                                        "title": "📋 Solicitudes y participación pública",
+                                        "links": [
+                                            {
+                                                "label": "Quejas y elogios públicos",
+                                                "url": (
+                                                    "https://sheriff.sarp.es/"
+                                                    "viewtopic.php?t=497"
+                                                ),
+                                            },
+                                            {
+                                                "label": "Licencias CCW y de caza",
+                                                "url": (
+                                                    "https://sheriff.sarp.es/"
+                                                    "viewforum.php?f=135"
+                                                ),
+                                            },
+                                        ],
+                                    },
+                                ],
+                            }
+                            if guild_id == 1234674521416663070
+                            else {}
+                        ),
+                    ),
+                    GuildFeatureSnapshot(
                         key="arrest_report_lookup",
                         enabled=guild_id == 1234674521416663070,
                         schema_version=1,

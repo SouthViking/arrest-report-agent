@@ -127,6 +127,8 @@ modelo no puede escoger una guild ni un canal de publicación.
   anterior al comenzar el siguiente, por lo que no crea un historial creciente. Su seed SQL usa slugs
   estables por guild para cargar o actualizar en bloque las preguntas sin duplicarlas ni afectar
   catálogos ajenos.
+- `forum_shortcuts`: catálogo público por guild, validado y versionado en PostgreSQL; renderiza un
+  embed institucional efímero con secciones, enlaces y banner sin depender de personas, IA o SARP.
 - `deployments`: contrato de webhooks Railway, inbox de eventos, outbox idempotente y renderer de
   changelog/alertas para Discord; no depende del runner ni de OpenAI.
 - `ci_notifications`: receptor firmado de GitHub Actions, inbox/outbox PostgreSQL y renderer de

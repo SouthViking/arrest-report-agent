@@ -16,6 +16,7 @@ from arrest_report_agent.config import (
     AccessPolicySnapshot,
     AppSettings,
     BotPersona,
+    ForumShortcutsOptions,
     GuildAgentConfig,
     GuildFeatureSnapshot,
     OperationalResourcesOptions,
@@ -68,6 +69,7 @@ FEATURE_LABELS = {
     "service_calls": "Llamadas de servicio",
     "faction_status": "Estado de facción",
     "operational_resources": "Recursos operativos",
+    "forum_shortcuts": "Accesos al foro",
     "arrest_report_lookup": "Consulta de reportes de arresto",
     "pending_arrest_reports": "Reportes de arresto pendientes",
     "logbook": "Bitácora",
@@ -947,6 +949,10 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     value="operational_resources",
                 ),
                 discord.SelectOption(
+                    label="Accesos al foro",
+                    value="forum_shortcuts",
+                ),
+                discord.SelectOption(
                     label="Consulta de reportes de arresto",
                     value="arrest_report_lookup",
                 ),
@@ -1018,6 +1024,14 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     raise ValueError(
                         "Recursos operativos requiere `faction_id`, `game_server_address`, "
                         "`pcu_url`, `forum_url`, `manual_url` y `penal_code_url` válidos."
+                    ) from error
+            if key == "forum_shortcuts" and self.enabled.values[0] == "true":
+                try:
+                    ForumShortcutsOptions.model_validate(payload)
+                except ValueError as error:
+                    raise ValueError(
+                        "Accesos al foro requiere `organization_name`, `description`, "
+                        "`banner_url` y una lista válida de `sections`."
                     ) from error
             if (
                 key == "arrest_report_lookup"

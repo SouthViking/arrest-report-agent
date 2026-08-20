@@ -914,7 +914,7 @@ class ReviewCog(commands.Cog):
     @discord.slash_command(name="ayuda", description="Muestra las guías disponibles")
     async def review_help(self, ctx: discord.ApplicationContext) -> None:
         bot_user = self.bot.user
-        extra_feature_guides: str | None = None
+        extra_feature_lines: list[str] = []
         if (
             self._config_provider is not None
             and ctx.guild is not None
@@ -922,20 +922,29 @@ class ReviewCog(commands.Cog):
         ):
             with suppress(Exception):
                 bundle = await self._config_provider.cached(ctx.guild.id)  # type: ignore[attr-defined]
+                forum_feature = bundle.snapshot.features.get("forum_shortcuts")
+                if forum_feature is not None and forum_feature.enabled:
+                    extra_feature_lines.append(
+                        "• `/foro`: accesos oficiales y trámites disponibles en el foro."
+                    )
                 feature = bundle.snapshot.features.get("logbook")
                 if (
                     feature is not None
                     and feature.enabled
                     and ctx.channel.id in bundle.settings.logbook_channel_ids
                 ):
-                    extra_feature_guides = (
-                        "• `/info-bitacora`: cómo registrar novedades estructuradas.\n"
-                        "• `/guia-bitacora`: categorías y tipos disponibles."
+                    extra_feature_lines.extend(
+                        (
+                            "• `/info-bitacora`: cómo registrar novedades estructuradas.",
+                            "• `/guia-bitacora`: categorías y tipos disponibles.",
+                        )
                     )
         embed = build_help_embed(
             persona=self.persona,
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
-            extra_feature_guides=extra_feature_guides,
+            extra_feature_guides=(
+                "\n".join(extra_feature_lines) if extra_feature_lines else None
+            ),
         )
         await ctx.respond(embed=embed, ephemeral=False)
 

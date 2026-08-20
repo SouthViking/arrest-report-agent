@@ -34,6 +34,7 @@ from arrest_report_agent.deployments import (
 from arrest_report_agent.faction_directory import FactionDirectoryService
 from arrest_report_agent.faction_reports import FactionReportCog, FactionReportService
 from arrest_report_agent.faction_status import FactionStatusCog, FactionStatusService
+from arrest_report_agent.forum_shortcuts import ForumShortcutsCog
 from arrest_report_agent.infrastructure.discord import (
     ConfigurationAdminCog,
     DiscordProfileSynchronizer,
@@ -378,6 +379,7 @@ async def build_runtime(
     manual_quiz_repository = ManualQuizRepository(postgres)
     manual_quiz_sessions = ManualQuizSessionRegistry(manual_quiz_repository)
     bot.add_cog(ManualQuizCog(config_provider, manual_quiz_sessions, persona.profile))
+    bot.add_cog(ForumShortcutsCog(config_provider))
     if sarp_client is not None:
         faction_directory = FactionDirectoryService(sarp_client)
         faction_status_service = FactionStatusService(

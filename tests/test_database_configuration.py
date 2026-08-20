@@ -26,6 +26,7 @@ from arrest_report_agent.config import (
     AppSettings,
     ArrestReportLookupOptions,
     FactionReportOptions,
+    ForumShortcutsOptions,
     GuildAgentConfig,
     GuildConfigSnapshot,
     GuildFeatureSnapshot,
@@ -81,6 +82,26 @@ def test_faction_report_options_are_bounded() -> None:
         FactionReportOptions(faction_id=3, max_range_days=731)
     with pytest.raises(ValueError, match="greater than or equal to 500"):
         FactionReportOptions(faction_id=3, max_bank_records=499)
+
+
+def test_forum_shortcut_options_are_typed_and_bounded() -> None:
+    options = ForumShortcutsOptions.model_validate(
+        {
+            "organization_name": "LSSD",
+            "description": "Accesos oficiales.",
+            "banner_url": "https://example.com/banner.gif",
+            "sections": [
+                {
+                    "title": "Foro",
+                    "links": [
+                        {"label": "Inicio", "url": "https://example.com/forum"}
+                    ],
+                }
+            ],
+        }
+    )
+    assert options.organization_name == "LSSD"
+    assert options.sections[0].links[0].label == "Inicio"
 
 
 def test_role_request_retirement_requires_explicit_managed_catalog(settings) -> None:
@@ -747,6 +768,24 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         )
         assert resources[999]["enabled"] is False
         assert resources[999]["payload"] == {}
+        forum_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.enabled, feature.payload "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'forum_shortcuts' "
+                "ORDER BY revision.guild_id"
+            )
+        )
+        forums = {int(row["guild_id"]): row for row in forum_rows}
+        assert forums[1234674521416663070]["enabled"] is True
+        assert forums[1234674521416663070]["payload"]["banner_url"] == (
+            "https://i.imgur.com/gBxZZIT.gif"
+        )
+        assert len(forums[1234674521416663070]["payload"]["sections"]) == 3
+        assert forums[999]["enabled"] is False
+        assert forums[999]["payload"] == {}
     finally:
         await client.close()
 

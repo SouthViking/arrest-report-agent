@@ -1,26 +1,26 @@
 {
   "schema_version": 3,
-  "version": "0.12.7",
-  "title": "Más variedad en las preguntas del manual",
-  "summary": "Las preguntas del manual ahora rotan mejor e incorporan nuevos casos prácticos para poner a prueba la comprensión de los procedimientos.",
+  "version": "0.12.8",
+  "title": "Accesos directos al foro institucional",
+  "summary": "Toda la comunidad puede consultar rápidamente los espacios y procedimientos oficiales del foro desde Discord.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
       "type": "added",
-      "text": "/pregunta-manual incorpora 50 preguntas avanzadas basadas en situaciones y relaciones entre conceptos del manual."
+      "text": "El nuevo comando /foro reúne los principales accesos del foro oficial en un único panel privado."
     },
     {
       "type": "improved",
-      "text": "La selección ahora recorre las preguntas disponibles antes de repetirlas, manteniendo el orden impredecible."
+      "text": "Incluye oportunidades de empleo, transferencias laterales, reincorporaciones y el Field Training Program."
     },
     {
       "type": "improved",
-      "text": "Las alternativas avanzadas son más creíbles y requieren analizar el caso en lugar de reconocer una respuesta evidente."
+      "text": "También permite acceder a quejas y elogios públicos, además de las solicitudes de licencias CCW y de caza."
     },
     {
       "type": "improved",
-      "text": "Al responder, el resultado identifica al participante mediante su mención y muestra la alternativa seleccionada por separado."
+      "text": "El panel utiliza una presentación institucional con enlaces agrupados y está disponible en cualquier canal."
     }
   ],
   "acknowledgements": []
