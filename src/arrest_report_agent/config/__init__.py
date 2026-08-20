@@ -15,6 +15,7 @@ from .database import (
     OperationalResourcesOptions,
     PendingArrestReportsOptions,
     ReportOwnerAccessOptions,
+    RoleRequestOptions,
 )
 from .model_catalog import ModelCatalog, ResolvedModel
 from .persona import (
@@ -75,6 +76,7 @@ __all__ = [
     "OperationalResourcesOptions",
     "PendingArrestReportsOptions",
     "ReportOwnerAccessOptions",
+    "RoleRequestOptions",
     "LoadedPersona",
     "ModelCatalog",
     "PackagedPersonaProvider",

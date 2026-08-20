@@ -10,7 +10,7 @@ import discord
 
 from arrest_report_agent.config import PersonaRoleRequestMessages
 
-from .models import RoleRequest, RoleRequestDecision, RoleRequestStatus
+from .models import RoleRequest, RoleRequestDecision, RoleRequestKind, RoleRequestStatus
 
 CODEC_VERSION = "role-request:v1"
 APPROVE_ALL_CUSTOM_ID = f"{CODEC_VERSION}:approve-all"
@@ -18,6 +18,8 @@ APPROVE_PARTIAL_CUSTOM_ID = f"{CODEC_VERSION}:approve-partial"
 REJECT_CUSTOM_ID = f"{CODEC_VERSION}:reject"
 DECISION_CUSTOM_IDS = frozenset({APPROVE_ALL_CUSTOM_ID, APPROVE_PARTIAL_CUSTOM_ID, REJECT_CUSTOM_ID})
 EMPTY_VALUE = "—"
+REQUEST_KIND_FIELD_TITLE = "📤 Tipo de solicitud"
+RETIREMENT_REQUEST_VALUE = "Retiro de la facción · se retirarán los roles gestionados actuales."
 ADD_FIELD_TITLE = "➕ Roles para agregar"
 REMOVE_FIELD_TITLE = "➖ Roles para retirar"
 REASON_FIELD_TITLE = "📝 Motivo"
@@ -29,6 +31,7 @@ DECISION_COMMENT_TITLE = "💬 Comentario de supervisión"
 ADD_CHANGE_PREFIX = "Agregar"
 REMOVE_CHANGE_PREFIX = "Retirar"
 PENDING_FIELD_ORDER = (
+    REQUEST_KIND_FIELD_TITLE,
     ADD_FIELD_TITLE,
     REMOVE_FIELD_TITLE,
     REASON_FIELD_TITLE,
@@ -52,6 +55,7 @@ def build_pending_embed(
     ui: PersonaRoleRequestMessages,
     created_at: datetime,
     message_id: int | None = None,
+    kind: RoleRequestKind = RoleRequestKind.NORMAL,
 ) -> discord.Embed:
     """Build the polished pending request; the draft intentionally has no valid footer."""
 
@@ -67,6 +71,12 @@ def build_pending_embed(
         url=f"https://discord.com/users/{requester.id}",
         icon_url=str(avatar) if avatar else None,
     )
+    if kind is RoleRequestKind.RETIREMENT:
+        embed.add_field(
+            name=REQUEST_KIND_FIELD_TITLE,
+            value=RETIREMENT_REQUEST_VALUE,
+            inline=False,
+        )
     additions = tuple(add_role_ids)
     removals = tuple(remove_role_ids)
     if additions:
@@ -115,6 +125,12 @@ def build_decision_embed(
         url=f"https://discord.com/users/{request.requester_id}",
         icon_url=requester_avatar_url,
     )
+    if request.kind is RoleRequestKind.RETIREMENT:
+        embed.add_field(
+            name=REQUEST_KIND_FIELD_TITLE,
+            value=RETIREMENT_REQUEST_VALUE,
+            inline=False,
+        )
     if request.add_role_ids:
         embed.add_field(
             name=ADD_FIELD_TITLE,
@@ -212,9 +228,9 @@ def decode_pending_message(
         or any(name not in PENDING_FIELD_ORDER for name in field_names)
     ):
         raise RoleRequestCodecError("role request embed field layout is invalid")
-    _validate_pending_components(message)
-
     fields = {field.name: field.value for field in embed.fields}
+    request_kind = _parse_request_kind(fields.get(REQUEST_KIND_FIELD_TITLE))
+    _validate_pending_components(message, kind=request_kind)
     add_role_ids = _parse_role_mentions(fields.get(ADD_FIELD_TITLE, ""))
     remove_role_ids = _parse_role_mentions(fields.get(REMOVE_FIELD_TITLE, ""))
     if not add_role_ids and not remove_role_ids:
@@ -228,6 +244,7 @@ def decode_pending_message(
         guild_id=guild.id,
         channel_id=message.channel.id,
         requester_id=int(author_match.group("user_id")),
+        kind=request_kind,
         add_role_ids=add_role_ids,
         remove_role_ids=remove_role_ids,
         reason=None if reason_value in {EMPTY_VALUE, ""} else reason_value,
@@ -235,15 +252,32 @@ def decode_pending_message(
     )
 
 
-def _validate_pending_components(message: discord.Message) -> None:
+def _validate_pending_components(
+    message: discord.Message,
+    *,
+    kind: RoleRequestKind,
+) -> None:
     components: dict[str, bool] = {}
     for row in message.components:
         for child in getattr(row, "children", ()):  # Pycord action rows expose children.
             custom_id = getattr(child, "custom_id", None)
             if custom_id in DECISION_CUSTOM_IDS:
                 components[custom_id] = bool(getattr(child, "disabled", False))
-    if set(components) != DECISION_CUSTOM_IDS or any(components.values()):
+    if set(components) != DECISION_CUSTOM_IDS:
         raise RoleRequestCodecError("role request is no longer pending")
+    if components[APPROVE_ALL_CUSTOM_ID] or components[REJECT_CUSTOM_ID]:
+        raise RoleRequestCodecError("role request is no longer pending")
+    partial_disabled = components[APPROVE_PARTIAL_CUSTOM_ID]
+    if partial_disabled is not (kind is RoleRequestKind.RETIREMENT):
+        raise RoleRequestCodecError("role request is no longer pending")
+
+
+def _parse_request_kind(value: str | None) -> RoleRequestKind:
+    if value is None:
+        return RoleRequestKind.NORMAL
+    if value.strip() == RETIREMENT_REQUEST_VALUE:
+        return RoleRequestKind.RETIREMENT
+    raise RoleRequestCodecError("role request type is invalid")
 
 
 def _parse_role_mentions(value: str) -> tuple[int, ...]:

@@ -405,6 +405,13 @@ Sus títulos, etiquetas y ayudas son neutrales y comunes a todas las personalida
 Las validaciones esperables —como solicitar un rol ya asignado o retirar uno que no se posee— se
 presentan como alertas rojas y efímeras, con textos adaptados a la personalidad activa.
 
+Si el módulo configura un rol de retiro, el comando muestra primero dos opciones privadas:
+**Cambiar roles** y **Solicitar retiro**. El retiro usa un formulario reducido con motivo opcional
+y confirmación explícita; no presenta selectores de altas o bajas. La solicitud agrega el rol de
+retiro y muestra los roles gestionados actuales que se retirarán. Al aprobarla, el bot recalcula
+ese conjunto para incluir cambios posteriores, conserva los roles ajenos al catálogo y ejecuta una
+sola edición atómica. No existe aprobación parcial para un retiro.
+
 La solicitud se publica en el mismo canal con botones persistentes. El mensaje es la única fuente de
 verdad: su ID identifica el expediente y un codec versionado reconstruye solicitante, roles y estado.
 Solo se admite una solicitud pendiente por miembro entre todos los canales autorizados y visibles de

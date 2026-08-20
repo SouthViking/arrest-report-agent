@@ -8,7 +8,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-MAX_ROLES_PER_OPERATION = 10
+MAX_MANUAL_ROLES_PER_OPERATION = 10
+MAX_ROLES_PER_OPERATION = 40
 Snowflake = Annotated[int, Field(gt=0)]
 
 
@@ -20,6 +21,11 @@ class RoleRequestStatus(StrEnum):
     FAILED = "failed"
 
 
+class RoleRequestKind(StrEnum):
+    NORMAL = "normal"
+    RETIREMENT = "retirement"
+
+
 class RoleRequest(BaseModel):
     """One pending request recovered exclusively from a Discord message."""
 
@@ -29,6 +35,7 @@ class RoleRequest(BaseModel):
     guild_id: int = Field(gt=0)
     channel_id: int = Field(gt=0)
     requester_id: int = Field(gt=0)
+    kind: RoleRequestKind = RoleRequestKind.NORMAL
     add_role_ids: tuple[Snowflake, ...] = Field(max_length=MAX_ROLES_PER_OPERATION)
     remove_role_ids: tuple[Snowflake, ...] = Field(max_length=MAX_ROLES_PER_OPERATION)
     reason: str | None = Field(default=None, max_length=1000)
@@ -38,6 +45,8 @@ class RoleRequest(BaseModel):
     def validate_role_sets(self) -> RoleRequest:
         if not self.add_role_ids and not self.remove_role_ids:
             raise ValueError("role request must contain at least one role change")
+        if self.kind is RoleRequestKind.RETIREMENT and len(self.add_role_ids) != 1:
+            raise ValueError("a retirement request must add exactly one role")
         if len(set(self.add_role_ids)) != len(self.add_role_ids):
             raise ValueError("roles to add must be unique")
         if len(set(self.remove_role_ids)) != len(self.remove_role_ids):

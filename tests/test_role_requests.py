@@ -16,6 +16,7 @@ from arrest_report_agent.role_requests.codec import (
     REASON_FIELD_TITLE,
     REJECT_CUSTOM_ID,
     REMOVE_FIELD_TITLE,
+    REQUEST_KIND_FIELD_TITLE,
     STATUS_FIELD_TITLE,
     UNAPPROVED_CHANGES_TITLE,
     RoleRequestCodecError,
@@ -27,12 +28,18 @@ from arrest_report_agent.role_requests.discord import (
     CreateRoleRequestModal,
     PartialApprovalModal,
     RejectRoleRequestModal,
+    RetirementRoleRequestModal,
     RoleRequestCog,
     RoleRequestDecisionView,
     RoleRequestService,
+    RoleRequestStartView,
     RoleRequestValidationError,
 )
-from arrest_report_agent.role_requests.models import RoleRequest, RoleRequestStatus
+from arrest_report_agent.role_requests.models import (
+    RoleRequest,
+    RoleRequestKind,
+    RoleRequestStatus,
+)
 
 GUILD_ID = 100
 CHANNEL_ID = 200
@@ -389,6 +396,20 @@ def _interaction(env, message: FakeMessage, *, user=None):
     )
 
 
+def _retirement_service(env, retired_role_id: int = 704) -> tuple[RoleRequestService, FakeRole]:
+    retired = FakeRole(retired_role_id, name="Retired Employee", position=2)
+    retired.guild = env.guild
+    env.guild.roles.append(retired)
+    env.guild._roles[retired.id] = retired
+    configured = env.service.settings.model_copy(
+        update={
+            "role_request_allowed_role_ids_csv": f"701,702,703,{retired.id}",
+            "role_request_retired_role_id": retired.id,
+        }
+    )
+    return RoleRequestService(env.service.bot, configured, env.service.persona), retired
+
+
 def test_role_request_commands_are_root_commands() -> None:
     assert RoleRequestCog.request_roles.name == "solicitar-roles"
     assert RoleRequestCog.info_roles.name == "info-roles"
@@ -415,6 +436,53 @@ def test_pending_codec_round_trip_supports_add_only_request(role_request_env) ->
         STATUS_FIELD_TITLE,
     ]
     assert EMPTY_VALUE not in [field.value for field in message.embeds[0].fields]
+
+
+def test_pending_codec_round_trip_supports_retirement(role_request_env) -> None:
+    service, retired = _retirement_service(role_request_env)
+    embed = build_pending_embed(
+        requester=role_request_env.requester,
+        add_role_ids=(retired.id,),
+        remove_role_ids=(role_request_env.removable.id,),
+        reason=None,
+        ui=service.ui,
+        created_at=datetime(2026, 8, 8, 12, tzinfo=UTC),
+        message_id=850,
+        kind=RoleRequestKind.RETIREMENT,
+    )
+    message = FakeMessage(message_id=850, channel=role_request_env.channel, embed=embed)
+    message.components[0].children[1].disabled = True
+
+    request = decode_pending_message(
+        message,
+        bot_user_id=BOT_ID,
+        allowed_channel_ids=frozenset({CHANNEL_ID}),
+    )
+
+    assert request.kind is RoleRequestKind.RETIREMENT
+    assert request.add_role_ids == (retired.id,)
+    assert message.embeds[0].fields[0].name == REQUEST_KIND_FIELD_TITLE
+
+
+def test_retirement_codec_requires_only_partial_button_disabled(role_request_env) -> None:
+    service, retired = _retirement_service(role_request_env)
+    embed = build_pending_embed(
+        requester=role_request_env.requester,
+        add_role_ids=(retired.id,),
+        remove_role_ids=(703,),
+        reason=None,
+        ui=service.ui,
+        created_at=datetime.now(UTC),
+        message_id=851,
+        kind=RoleRequestKind.RETIREMENT,
+    )
+    message = FakeMessage(message_id=851, channel=role_request_env.channel, embed=embed)
+    with pytest.raises(RoleRequestCodecError):
+        decode_pending_message(
+            message,
+            bot_user_id=BOT_ID,
+            allowed_channel_ids=frozenset({CHANNEL_ID}),
+        )
 
 
 def test_pending_codec_accepts_legacy_empty_fields(role_request_env) -> None:
@@ -609,6 +677,95 @@ async def test_modals_offer_filtered_role_catalog_and_only_requested_partial_opt
     assert partial.comment_input.placeholder == (ROLE_REQUEST_MODAL_COPY.partial_comment_placeholder)
     assert rejection.title == ROLE_REQUEST_MODAL_COPY.reject_title
     assert rejection.reason_input.placeholder == (ROLE_REQUEST_MODAL_COPY.reject_reason_placeholder)
+
+
+@pytest.mark.asyncio
+async def test_retirement_uses_reduced_modal_and_is_excluded_from_normal_catalog(
+    role_request_env,
+) -> None:
+    service, retired = _retirement_service(role_request_env)
+
+    additions, removals = service.requestable_role_choices(role_request_env.requester)
+    modal = RetirementRoleRequestModal(
+        service,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+    )
+
+    assert retired not in additions
+    assert retired not in removals
+    assert modal.title == ROLE_REQUEST_MODAL_COPY.retirement_title
+    assert len(modal.children) == 2
+    assert modal.confirm.default is False
+
+
+@pytest.mark.asyncio
+async def test_retirement_approval_recalculates_managed_roles_and_preserves_external_roles(
+    role_request_env,
+) -> None:
+    service, retired = _retirement_service(role_request_env)
+    creation = _interaction(role_request_env, SimpleNamespace(id=0), user=role_request_env.requester)
+
+    await service.create_retirement_request(
+        creation,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+        reason="Cierre de etapa",
+    )
+
+    message = next(iter(role_request_env.channel.messages.values()))
+    request = decode_pending_message(
+        message,
+        bot_user_id=BOT_ID,
+        allowed_channel_ids=frozenset({CHANNEL_ID}),
+    )
+    assert request.kind is RoleRequestKind.RETIREMENT
+    assert request.add_role_ids == (retired.id,)
+    assert request.remove_role_ids == (role_request_env.removable.id,)
+    assert message.components[0].children[1].disabled is True
+
+    # This managed role was assigned after the request and must still be removed.
+    role_request_env.requester.roles.append(role_request_env.add_two)
+    decision = _interaction(role_request_env, message)
+    await service.approve_all(decision)
+
+    final_ids = {role.id for role in role_request_env.requester.roles}
+    assert final_ids == {role_request_env.requester.top_role.id, retired.id}
+    assert len(role_request_env.requester.edit_calls) == 1
+    approved = {
+        field.name: field.value
+        for field in message.embeds[0].fields
+    }[APPROVED_CHANGES_TITLE]
+    assert role_request_env.add_two.mention in approved
+
+
+@pytest.mark.asyncio
+async def test_retirement_cannot_be_partially_approved(role_request_env) -> None:
+    service, _retired = _retirement_service(role_request_env)
+    creation = _interaction(role_request_env, SimpleNamespace(id=0), user=role_request_env.requester)
+    await service.create_retirement_request(
+        creation,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+        reason=None,
+    )
+    message = next(iter(role_request_env.channel.messages.values()))
+    interaction = _interaction(role_request_env, message)
+
+    await service.approve_partial(
+        interaction,
+        guild_id=GUILD_ID,
+        channel_id=CHANNEL_ID,
+        message_id=message.id,
+        selected_add=(704,),
+        selected_remove=(703,),
+        comment=None,
+    )
+
+    assert not role_request_env.requester.edit_calls
+    assert ROLE_REQUEST_MODAL_COPY.retirement_partial_blocked in (
+        interaction.followup.messages[-1]["embed"].description
+    )
 
 
 @pytest.mark.asyncio
@@ -976,6 +1133,36 @@ async def test_request_command_does_not_apply_agent_user_allowlist(
 
     assert len(modals) == 1
     assert isinstance(modals[0], CreateRoleRequestModal)
+
+
+@pytest.mark.asyncio
+async def test_request_command_offers_private_retirement_choice_when_configured(
+    role_request_env,
+) -> None:
+    service, _retired = _retirement_service(role_request_env)
+    responses: list[dict[str, object]] = []
+    modals: list[object] = []
+
+    async def respond(content=None, **kwargs) -> None:
+        responses.append({"content": content, **kwargs})
+
+    async def send_modal(modal) -> None:
+        modals.append(modal)
+
+    ctx = SimpleNamespace(
+        guild=role_request_env.guild,
+        author=role_request_env.requester,
+        channel=role_request_env.channel,
+        respond=respond,
+        send_modal=send_modal,
+    )
+    cog = RoleRequestCog(service)
+
+    await cog.request_roles.callback(cog, ctx)
+
+    assert not modals
+    assert responses[-1]["ephemeral"] is True
+    assert isinstance(responses[-1]["view"], RoleRequestStartView)
 
 
 @pytest.mark.asyncio

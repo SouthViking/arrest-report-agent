@@ -133,6 +133,12 @@ IA ni persiste la solicitud en PostgreSQL: el mensaje versionado de Discord cons
 sus botones persistentes. PostgreSQL solo aporta su configuración dinámica. `/info-roles` permanece
 disponible en cualquier canal o hilo de una guild habilitada.
 
+Cuando `role_requests` define `retired_role_id`, `/solicitar-roles` ofrece un flujo separado para
+pedir el retiro de la facción. Ese formulario no solicita bajas manuales: al aprobarlo, el bot
+vuelve a consultar al miembro, retira todos los roles que pertenezcan al catálogo gestionado y
+asigna el rol de retiro mediante una única edición. Los roles externos al catálogo se conservan y
+la solicitud de retiro solo admite aprobación completa o rechazo.
+
 El módulo determinista de pagers persiste sus avisos, múltiples roles destinatarios y respondientes
 en PostgreSQL. `/pager` emite el aviso en el canal autorizado, `/pager-activos` enlaza los avisos
 abiertos, `/mis-pagers` entrega el historial privado del usuario y `/info-pager` publica una guía breve.
@@ -403,8 +409,9 @@ Comandos disponibles:
 - `/mis-reportes`: abre un modal privado para filtrar por periodo, estado y estación; entrega
   referencias directas a cada publicación y a su hilo cuando existe.
 - `/mi-resumen`: muestra de forma privada el estado personal del mes actual.
-- `/solicitar-roles`: abre un formulario privado para solicitar hasta diez altas y diez bajas;
-  publica un expediente en el canal de origen para aprobación completa, parcial o rechazo.
+- `/solicitar-roles`: permite elegir entre un cambio normal de hasta diez altas y diez bajas o,
+  cuando está configurado, un retiro que calcula automáticamente los roles gestionados a quitar;
+  publica un expediente en el canal de origen para su revisión.
 - `/info-roles`: publica una explicación breve sobre el uso y los resultados de las solicitudes.
 - `/pager`: abre un formulario privado y emite un pager en el canal actual; reutiliza el callsign
   registrado sin volver a solicitarlo.

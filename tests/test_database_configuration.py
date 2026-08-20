@@ -83,6 +83,76 @@ def test_faction_report_options_are_bounded() -> None:
         FactionReportOptions(faction_id=3, max_bank_records=499)
 
 
+def test_role_request_retirement_requires_explicit_managed_catalog(settings) -> None:
+    agent = GuildAgentConfig(
+        model=settings.openai_model,
+        reasoning_effort=settings.openai_reasoning_effort,
+        review_timeout_seconds=settings.review_timeout_seconds,
+        max_agent_turns=settings.max_agent_turns,
+        max_images_per_review=settings.max_images_per_review,
+        max_image_bytes=settings.max_image_bytes,
+        max_files_per_review=settings.max_files_per_review,
+        max_file_bytes=settings.max_file_bytes,
+        max_total_file_bytes=settings.max_total_file_bytes,
+        thread_context_max_messages=settings.thread_context_max_messages,
+        channel_context_max_messages=settings.channel_context_max_messages,
+        thread_context_max_chars=settings.thread_context_max_chars,
+        thread_context_max_message_chars=settings.thread_context_max_message_chars,
+        thread_context_max_historical_images=settings.thread_context_max_historical_images,
+        thread_context_max_historical_files=settings.thread_context_max_historical_files,
+        thread_auto_archive_minutes=settings.thread_auto_archive_minutes,  # type: ignore[arg-type]
+    )
+    policies = {
+        key: AccessPolicySnapshot(
+            key=key,
+            subject_type=POLICY_SUBJECT_TYPES[key],
+            mode=AccessPolicyMode.DISABLED,
+        )
+        for key in AccessPolicyKey
+    }
+    retired_role_id = 1255224113757294702
+    policies[AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES] = AccessPolicySnapshot(
+        key=AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES,
+        subject_type="role",
+        mode=AccessPolicyMode.RESTRICTED,
+        ids=(retired_role_id,),
+    )
+    values = {
+        "guild_id": 1,
+        "revision_id": uuid4(),
+        "revision": 1,
+        "agent": agent,
+        "policies": policies,
+        "features": {
+            "role_requests": GuildFeatureSnapshot(
+                key="role_requests",
+                enabled=True,
+                schema_version=1,
+                payload={"retired_role_id": retired_role_id},
+            )
+        },
+        "persona_revision_id": uuid4(),
+        "persona_id": "walter_vigil",
+        "persona_revision": 1,
+    }
+
+    snapshot = GuildConfigSnapshot.model_validate(values)
+    assert GuildRuntimeSettings(settings, snapshot).role_request_retired_role_id == retired_role_id
+
+    invalid = snapshot.model_dump()
+    invalid["policies"][AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]["mode"] = (
+        AccessPolicyMode.OPEN
+    )
+    invalid["policies"][AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]["ids"] = ()
+    with pytest.raises(ValueError, match="explicit managed-role catalog"):
+        GuildConfigSnapshot.model_validate(invalid)
+
+    invalid = snapshot.model_dump()
+    invalid["features"]["role_requests"]["payload"]["retired_role_id"] = 999
+    with pytest.raises(ValueError, match="must belong to the managed-role catalog"):
+        GuildConfigSnapshot.model_validate(invalid)
+
+
 def test_arrest_lookup_runtime_requires_valid_enabled_payload(settings) -> None:
     agent = GuildAgentConfig(
         model=settings.openai_model,

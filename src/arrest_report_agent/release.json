@@ -1,18 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.12.5",
-  "title": "Consultas privadas y guía de bitácora",
-  "summary": "Se corrigieron los reportes pendientes privados y se amplió el control sobre la visibilidad de la guía de bitácora.",
+  "version": "0.12.6",
+  "title": "Retiro simplificado de la facción",
+  "summary": "Las solicitudes de retiro ahora pueden presentarse sin enumerar manualmente cada rol que debe quitarse.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [1241206587079524442],
+  "changelog_targets": "all",
   "changes": [
     {
-      "type": "fixed",
-      "text": "/reportes-pendientes vuelve a entregar correctamente resultados privados de una sola página."
+      "type": "added",
+      "text": "/solicitar-roles incorpora una opción específica para solicitar el retiro de la facción."
     },
     {
       "type": "improved",
-      "text": "/guia-bitacora permite elegir entre ver la referencia privadamente o publicarla en el canal autorizado."
+      "text": "Al aprobar un retiro, el bot quita automáticamente los roles faccionarios gestionados y conserva el rol Retired Employee, evitando omisiones manuales."
+    },
+    {
+      "type": "improved",
+      "text": "/info-roles explica el nuevo flujo de retiro y sus condiciones."
     }
   ],
   "acknowledgements": []

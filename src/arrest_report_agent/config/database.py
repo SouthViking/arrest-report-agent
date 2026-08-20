@@ -131,6 +131,10 @@ class ReportOwnerAccessOptions(FrozenConfigModel):
     max_rounds: int = Field(ge=1, le=20)
 
 
+class RoleRequestOptions(FrozenConfigModel):
+    retired_role_id: int | None = Field(default=None, gt=0)
+
+
 class FactionStatusOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
 
@@ -190,6 +194,21 @@ class GuildConfigSnapshot(FrozenConfigModel):
                 "guild configuration is missing policies: "
                 + ", ".join(sorted(item.value for item in missing))
             )
+        role_requests_feature = self.features.get("role_requests")
+        if role_requests_feature is not None and role_requests_feature.enabled:
+            if role_requests_feature.schema_version != 1:
+                raise ValueError("role_requests requires feature schema version 1")
+            options = RoleRequestOptions.model_validate(role_requests_feature.payload)
+            if options.retired_role_id is not None:
+                allowed_roles = self.policies[AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]
+                if allowed_roles.mode is not AccessPolicyMode.RESTRICTED:
+                    raise ValueError(
+                        "role request retirement requires an explicit managed-role catalog"
+                    )
+                if options.retired_role_id not in allowed_roles.ids:
+                    raise ValueError(
+                        "role request retirement role must belong to the managed-role catalog"
+                    )
         feature = self.features.get("pagers")
         if feature is not None and feature.enabled:
             if feature.schema_version != 1:
@@ -361,6 +380,13 @@ class GuildRuntimeSettings:
     def role_request_reviewer_role_ids(self) -> tuple[int, ...]:
         policy = self.snapshot.policy(AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES)
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
+    def role_request_retired_role_id(self) -> int | None:
+        feature = self.snapshot.features.get("role_requests")
+        if feature is None or not feature.enabled:
+            return None
+        return RoleRequestOptions.model_validate(feature.payload).retired_role_id
 
     @property
     def pager_channel_allowlist(self) -> SnowflakeAllowlist:

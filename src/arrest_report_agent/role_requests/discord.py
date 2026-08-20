@@ -31,9 +31,11 @@ from .codec import (
     decode_pending_message,
 )
 from .models import (
+    MAX_MANUAL_ROLES_PER_OPERATION,
     MAX_ROLES_PER_OPERATION,
     RoleRequest,
     RoleRequestDecision,
+    RoleRequestKind,
     RoleRequestStatus,
 )
 
@@ -56,6 +58,19 @@ class RoleRequestModalCopy:
     remove_roles_placeholder: str = "Selecciona hasta diez roles que tengas actualmente."
     request_reason_label: str = "Motivo (opcional)"
     request_reason_placeholder: str = "Explica brevemente el cambio solicitado."
+    start_title: str = "¿Qué necesitas solicitar?"
+    start_description: str = "Elige un cambio de roles normal o el retiro de la facción."
+    normal_button: str = "Cambiar roles"
+    retirement_button: str = "Solicitar retiro"
+    retirement_title: str = "Solicitar retiro de la facción"
+    retirement_reason_label: str = "Motivo (opcional)"
+    retirement_reason_placeholder: str = "Puedes dejar una referencia breve para la revisión."
+    retirement_confirm_label: str = "Confirmo que solicito mi retiro"
+    retirement_confirmation_required: str = "Debes confirmar el retiro antes de enviar la solicitud."
+    retirement_already_owned: str = "Ya tienes el rol de retiro asignado."
+    retirement_partial_blocked: str = (
+        "Las solicitudes de retiro solo pueden aprobarse o rechazarse completas."
+    )
     partial_title: str = "Aprobar parcialmente"
     partial_add_label: str = "Roles que se agregarán"
     partial_remove_label: str = "Roles que se retirarán"
@@ -121,6 +136,7 @@ class RoleRequestService:
         self.reviewer_role_ids = frozenset(settings.role_request_reviewer_role_ids)
         self.allowed_roles = settings.role_request_allowed_role_allowlist
         self.allowed_role_order = settings.role_request_allowed_role_ids
+        self.retired_role_id = getattr(settings, "role_request_retired_role_id", None)
         self.registry: RoleRequestServiceRegistry | None = None
         self._locks: dict[int, asyncio.Lock] = {}
         self._lock_users: dict[int, int] = {}
@@ -152,6 +168,10 @@ class RoleRequestService:
 
     def channel_is_allowed(self, channel: discord.abc.GuildChannel) -> bool:
         return isinstance(channel, discord.TextChannel) and self.allowed_channels.allows(channel.id)
+
+    @property
+    def retirement_enabled(self) -> bool:
+        return self.retired_role_id is not None
 
     async def resolve_allowed_channels(
         self,
@@ -214,11 +234,18 @@ class RoleRequestService:
         removals = _unique_roles(remove_roles)
         if not additions and not removals:
             raise RoleRequestValidationError(self.ui.no_changes)
-        if len(additions) > MAX_ROLES_PER_OPERATION or len(removals) > MAX_ROLES_PER_OPERATION:
-            raise RoleRequestValidationError(self.ui.too_many_roles.format(limit=MAX_ROLES_PER_OPERATION))
+        if (
+            len(additions) > MAX_MANUAL_ROLES_PER_OPERATION
+            or len(removals) > MAX_MANUAL_ROLES_PER_OPERATION
+        ):
+            raise RoleRequestValidationError(
+                self.ui.too_many_roles.format(limit=MAX_MANUAL_ROLES_PER_OPERATION)
+            )
 
         add_ids = {role.id for role in additions}
         remove_ids = {role.id for role in removals}
+        if self.retired_role_id is not None and self.retired_role_id in (add_ids | remove_ids):
+            raise RoleRequestValidationError(self.ui.request_unavailable)
         unlisted = tuple(
             role
             for role in (*additions, *removals)
@@ -291,8 +318,18 @@ class RoleRequestService:
         if not catalog:
             raise RoleRequestValidationError(self.ui.no_requestable_roles)
         current_ids = {role.id for role in member.roles}
-        additions = tuple(role for role in catalog if role.id not in current_ids)
-        removals = tuple(role for role in catalog if role.id in current_ids)
+        additions = tuple(
+            role
+            for role in catalog
+            if role.id not in current_ids and role.id != self.retired_role_id
+        )
+        removals = tuple(
+            role
+            for role in catalog
+            if role.id in current_ids and role.id != self.retired_role_id
+        )
+        if not additions and not removals:
+            raise RoleRequestValidationError(self.ui.no_changes)
         select_count = _role_select_count(additions) + _role_select_count(removals)
         if len(catalog) > MAX_REQUESTABLE_ROLES_PER_GUILD or select_count > MAX_ROLE_SELECTS_PER_MODAL:
             log_event(
@@ -323,11 +360,56 @@ class RoleRequestService:
                 raise RoleRequestValidationError(self.ui.request_unavailable) from error
             if not self.allowed_roles.allows(role_id):
                 raise RoleRequestValidationError(self.ui.request_unavailable)
+            if self.retired_role_id is not None and role_id == self.retired_role_id:
+                raise RoleRequestValidationError(self.ui.request_unavailable)
             role = guild.get_role(role_id)
             if role is None:
                 raise RoleRequestValidationError(self.ui.request_unavailable)
             roles.append(role)
         return _unique_roles(roles)
+
+    def retirement_changes(
+        self,
+        member: discord.Member,
+    ) -> tuple[discord.Role, tuple[discord.Role, ...]]:
+        """Resolve the configured retirement role and current managed roles atomically."""
+
+        retired_role_id = self.retired_role_id
+        bot_member = member.guild.me
+        if (
+            retired_role_id is None
+            or bot_member is None
+            or not self.allowed_roles.is_restricted
+            or not self.allowed_roles.allows(retired_role_id)
+        ):
+            raise RoleRequestValidationError(self.ui.request_unavailable)
+        retired_role = member.guild.get_role(retired_role_id)
+        if retired_role is None or self._role_is_protected(retired_role, bot_member):
+            raise RoleRequestValidationError(self.ui.request_unavailable)
+        current_ids = {role.id for role in member.roles}
+        if retired_role_id in current_ids:
+            raise RoleRequestValidationError(ROLE_REQUEST_MODAL_COPY.retirement_already_owned)
+        removals = self._retirement_removals(member, bot_member)
+        return retired_role, removals
+
+    def _retirement_removals(
+        self,
+        member: discord.Member,
+        bot_member: discord.Member,
+    ) -> tuple[discord.Role, ...]:
+        candidates = tuple(
+            role
+            for role in member.roles
+            if role.id != self.retired_role_id
+            and self.allowed_roles.allows(role.id)
+            and role.id != role.guild.default_role.id
+            and not role.managed
+        )
+        if any(role >= bot_member.top_role for role in candidates):
+            raise RoleRequestValidationError(self.ui.subsystem_unavailable)
+        if len(candidates) > MAX_ROLES_PER_OPERATION:
+            raise RoleRequestValidationError(self.ui.subsystem_unavailable)
+        return candidates
 
     async def find_pending_request(
         self,
@@ -438,6 +520,123 @@ class RoleRequestService:
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
+
+    async def create_retirement_request(
+        self,
+        interaction: discord.Interaction,
+        *,
+        member: discord.Member,
+        channel: discord.TextChannel,
+        reason: str | None,
+    ) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            async with self._creation_lock(member.guild.id, member.id):
+                message, retired_role, removals = await self._publish_new_retirement_request(
+                    member=member,
+                    channel=channel,
+                    reason=reason,
+                )
+            log_event(
+                LOGGER,
+                "info",
+                "role_retirement_request_created",
+                guild_id=member.guild.id,
+                channel_id=channel.id,
+                message_id=message.id,
+                requester_id=member.id,
+                retired_role_id=retired_role.id,
+                remove_role_count=len(removals),
+            )
+            with suppress(discord.Forbidden, discord.HTTPException):
+                await interaction.followup.send(
+                    embed=self.build_notice_embed(
+                        title=self.ui.pending_title,
+                        description=self.ui.created_confirmation.format(jump_url=message.jump_url),
+                        color=discord.Color.gold(),
+                    ),
+                    ephemeral=True,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+        except RoleRequestValidationError as error:
+            await interaction.followup.send(
+                embed=self.build_alert_embed(error.public_message),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "role_retirement_request_creation_failed",
+                exc_info=error,
+                guild_id=member.guild.id,
+                channel_id=channel.id,
+                requester_id=member.id,
+                **exception_fields(error),
+            )
+            await interaction.followup.send(
+                embed=self.build_alert_embed(self.ui.operation_failed),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+
+    async def _publish_new_retirement_request(
+        self,
+        *,
+        member: discord.Member,
+        channel: discord.TextChannel,
+        reason: str | None,
+    ) -> tuple[discord.Message, discord.Role, tuple[discord.Role, ...]]:
+        if (
+            channel.guild.id != member.guild.id
+            or not self.settings.guild_allowlist.allows(member.guild.id)
+            or not self.channel_is_allowed(channel)
+        ):
+            raise RoleRequestValidationError(self.ui.request_unavailable)
+        self.validate_channel_permissions(member.guild, channel)
+        retired_role, removals = self.retirement_changes(member)
+        pending = await self.find_pending_request(member.guild, member.id)
+        if pending is not None:
+            raise RoleRequestValidationError(self.ui.pending_exists.format(jump_url=pending.jump_url))
+
+        normalized_reason = (reason or "").strip() or None
+        created_at = datetime.now(UTC)
+        draft = build_pending_embed(
+            requester=member,
+            add_role_ids=(retired_role.id,),
+            remove_role_ids=(role.id for role in removals),
+            reason=normalized_reason,
+            ui=self.ui,
+            created_at=created_at,
+            kind=RoleRequestKind.RETIREMENT,
+        )
+        message = await channel.send(embed=draft, allowed_mentions=discord.AllowedMentions.none())
+        embed = build_pending_embed(
+            requester=member,
+            add_role_ids=(retired_role.id,),
+            remove_role_ids=(role.id for role in removals),
+            reason=normalized_reason,
+            ui=self.ui,
+            created_at=created_at,
+            message_id=message.id,
+            kind=RoleRequestKind.RETIREMENT,
+        )
+        try:
+            await message.edit(
+                embed=embed,
+                view=RoleRequestDecisionView(
+                    self,
+                    registry=self.registry,
+                    partial_disabled=True,
+                ),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except Exception:
+            with suppress(discord.Forbidden, discord.HTTPException):
+                await message.delete()
+            raise
+        return message, retired_role, removals
 
     async def _publish_new_request(
         self,
@@ -655,6 +854,17 @@ class RoleRequestService:
                     channel_id,
                     message_id,
                 )
+                if request.kind is RoleRequestKind.RETIREMENT and (
+                    selected_add is not None or selected_remove is not None
+                ):
+                    await interaction.followup.send(
+                        embed=self.build_alert_embed(
+                            ROLE_REQUEST_MODAL_COPY.retirement_partial_blocked
+                        ),
+                        ephemeral=True,
+                        allowed_mentions=discord.AllowedMentions.none(),
+                    )
+                    return
                 requested_add = set(request.add_role_ids)
                 requested_remove = set(request.remove_role_ids)
                 approved_add = requested_add if selected_add is None else set(selected_add)
@@ -679,9 +889,24 @@ class RoleRequestService:
                 guild, member = context
 
                 current_ids = {role.id for role in member.roles if role.id != guild.default_role.id}
-                target_ids = set(current_ids)
-                target_ids.update(approved_add)
-                target_ids.difference_update(approved_remove)
+                if request.kind is RoleRequestKind.RETIREMENT:
+                    retired_role_id = self.retired_role_id
+                    bot_member = guild.me
+                    if (
+                        retired_role_id is None
+                        or requested_add != {retired_role_id}
+                        or bot_member is None
+                    ):
+                        raise RoleRequestCodecError("retirement configuration changed")
+                    approved_add = {retired_role_id}
+                    approved_remove = {
+                        role.id for role in self._retirement_removals(member, bot_member)
+                    }
+                    target_ids = (current_ids - approved_remove) | approved_add
+                else:
+                    target_ids = set(current_ids)
+                    target_ids.update(approved_add)
+                    target_ids.difference_update(approved_remove)
                 if target_ids != current_ids:
                     target_roles = sorted(
                         (role for role_id in target_ids if (role := guild.get_role(role_id)) is not None),
@@ -694,8 +919,16 @@ class RoleRequestService:
                         ),
                     )
 
-                unapproved_add = requested_add - approved_add
-                unapproved_remove = requested_remove - approved_remove
+                unapproved_add = (
+                    set()
+                    if request.kind is RoleRequestKind.RETIREMENT
+                    else requested_add - approved_add
+                )
+                unapproved_remove = (
+                    set()
+                    if request.kind is RoleRequestKind.RETIREMENT
+                    else requested_remove - approved_remove
+                )
                 status = (
                     RoleRequestStatus.APPROVED
                     if not unapproved_add and not unapproved_remove
@@ -817,15 +1050,34 @@ class RoleRequestService:
             )
             return None
 
-        requested_roles = tuple(
-            guild.get_role(role_id) for role_id in (*request.add_role_ids, *request.remove_role_ids)
-        )
         bot_member = guild.me
-        if (
-            any(role is None for role in requested_roles)
-            or bot_member is None
-            or any(self._role_is_protected(role, bot_member) for role in requested_roles if role is not None)
-        ):
+        if request.kind is RoleRequestKind.RETIREMENT:
+            retired_role = (
+                guild.get_role(self.retired_role_id)
+                if self.retired_role_id is not None
+                else None
+            )
+            invalid_roles = (
+                bot_member is None
+                or retired_role is None
+                or request.add_role_ids != (self.retired_role_id,)
+                or self._role_is_protected(retired_role, bot_member)
+            )
+        else:
+            requested_roles = tuple(
+                guild.get_role(role_id)
+                for role_id in (*request.add_role_ids, *request.remove_role_ids)
+            )
+            invalid_roles = (
+                any(role is None for role in requested_roles)
+                or bot_member is None
+                or any(
+                    self._role_is_protected(role, bot_member)
+                    for role in requested_roles
+                    if role is not None
+                )
+            )
+        if invalid_roles:
             await self._close_failed(
                 message,
                 request,
@@ -1007,6 +1259,7 @@ class RoleRequestService:
         )
 
 
+
 class RoleRequestDecisionView(discord.ui.View):
     """Persistent, generic controls resolved by the source message ID."""
 
@@ -1016,6 +1269,7 @@ class RoleRequestDecisionView(discord.ui.View):
         *,
         registry: RoleRequestServiceRegistry | None = None,
         disabled: bool = False,
+        partial_disabled: bool = False,
     ) -> None:
         super().__init__(timeout=None)
         self.service = service
@@ -1024,6 +1278,7 @@ class RoleRequestDecisionView(discord.ui.View):
         self.approve_all_button.label = ui.approve_all_button
         self.approve_partial_button.label = ui.approve_partial_button
         self.reject_button.label = ui.reject_button
+        self.approve_partial_button.disabled = partial_disabled
         if disabled:
             for child in self.children:
                 child.disabled = True
@@ -1081,6 +1336,15 @@ class RoleRequestDecisionView(discord.ui.View):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
+        if request.kind is RoleRequestKind.RETIREMENT:
+            await interaction.response.send_message(
+                embed=service.build_alert_embed(
+                    ROLE_REQUEST_MODAL_COPY.retirement_partial_blocked
+                ),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
         guild = interaction.guild
         if guild is None:
             await interaction.response.send_message(
@@ -1113,6 +1377,78 @@ class RoleRequestDecisionView(discord.ui.View):
             )
             return
         await interaction.response.send_modal(RejectRoleRequestModal(service, request))
+
+
+class RoleRequestStartView(discord.ui.View):
+    """Private entry choice shown only when a retirement role is configured."""
+
+    def __init__(
+        self,
+        service: RoleRequestService,
+        *,
+        member: discord.Member,
+        channel: discord.TextChannel,
+    ) -> None:
+        super().__init__(timeout=MODAL_TIMEOUT_SECONDS)
+        self.service = service
+        self.member = member
+        self.channel = channel
+        self.normal_button.label = ROLE_REQUEST_MODAL_COPY.normal_button
+        self.retirement_button.label = ROLE_REQUEST_MODAL_COPY.retirement_button
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.member.id:
+            return True
+        await interaction.response.send_message(
+            embed=self.service.build_alert_embed(self.service.ui.member_unavailable),
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        return False
+
+    @discord.ui.button(label="Cambiar roles", emoji="🔄", style=discord.ButtonStyle.primary)
+    async def normal_button(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        try:
+            modal = CreateRoleRequestModal(
+                self.service,
+                member=self.member,
+                channel=self.channel,
+            )
+        except RoleRequestValidationError as error:
+            await interaction.response.send_message(
+                embed=self.service.build_alert_embed(error.public_message),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="Solicitar retiro", emoji="📤", style=discord.ButtonStyle.danger)
+    async def retirement_button(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        try:
+            self.service.retirement_changes(self.member)
+        except RoleRequestValidationError as error:
+            await interaction.response.send_message(
+                embed=self.service.build_alert_embed(error.public_message),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await interaction.response.send_modal(
+            RetirementRoleRequestModal(
+                self.service,
+                member=self.member,
+                channel=self.channel,
+            )
+        )
 
 
 class CreateRoleRequestModal(discord.ui.DesignerModal):
@@ -1187,6 +1523,65 @@ class CreateRoleRequestModal(discord.ui.DesignerModal):
             channel=self.channel,
             add_roles=add_roles,
             remove_roles=remove_roles,
+            reason=self.reason_input.value,
+        )
+
+
+class RetirementRoleRequestModal(discord.ui.DesignerModal):
+    """Reduced form: retirement derives all managed removals server-side."""
+
+    def __init__(
+        self,
+        service: RoleRequestService,
+        *,
+        member: discord.Member,
+        channel: discord.TextChannel,
+    ) -> None:
+        self.service = service
+        self.member = member
+        self.channel = channel
+        copy = ROLE_REQUEST_MODAL_COPY
+        self.reason_input = discord.ui.InputText(
+            custom_id="role-request:v1:retirement:reason",
+            style=discord.InputTextStyle.long,
+            placeholder=copy.retirement_reason_placeholder,
+            required=False,
+            max_length=MAX_REASON_LENGTH,
+        )
+        self.confirm = discord.ui.Checkbox(
+            custom_id="role-request:v1:retirement:confirm",
+            default=False,
+        )
+        super().__init__(
+            discord.ui.Label(copy.retirement_reason_label, self.reason_input),
+            discord.ui.Label(copy.retirement_confirm_label, self.confirm),
+            title=copy.retirement_title,
+            custom_id=f"role-request:v1:retirement:{member.id}",
+            timeout=MODAL_TIMEOUT_SECONDS,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        member = interaction.user
+        if not isinstance(member, discord.Member) or member.id != self.member.id:
+            await interaction.response.send_message(
+                embed=self.service.build_alert_embed(self.service.ui.member_unavailable),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        if not self.confirm.value:
+            await interaction.response.send_message(
+                embed=self.service.build_alert_embed(
+                    ROLE_REQUEST_MODAL_COPY.retirement_confirmation_required
+                ),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await self.service.create_retirement_request(
+            interaction,
+            member=member,
+            channel=self.channel,
             reason=self.reason_input.value,
         )
 
@@ -1365,11 +1760,18 @@ class RoleRequestCog(commands.Cog):
             )
             return
         try:
-            modal = CreateRoleRequestModal(
-                service,
-                member=member,
-                channel=channel,
-            )
+            if service.retirement_enabled:
+                view = RoleRequestStartView(
+                    service,
+                    member=member,
+                    channel=channel,
+                )
+            else:
+                modal = CreateRoleRequestModal(
+                    service,
+                    member=member,
+                    channel=channel,
+                )
         except RoleRequestValidationError as error:
             await ctx.respond(
                 embed=service.build_alert_embed(error.public_message),
@@ -1377,7 +1779,19 @@ class RoleRequestCog(commands.Cog):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
-        await ctx.send_modal(modal)
+        if service.retirement_enabled:
+            await ctx.respond(
+                embed=service.build_notice_embed(
+                    title=ROLE_REQUEST_MODAL_COPY.start_title,
+                    description=ROLE_REQUEST_MODAL_COPY.start_description,
+                    color=discord.Color.blurple(),
+                ),
+                view=view,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        else:
+            await ctx.send_modal(modal)
 
     @discord.slash_command(
         name="info-roles",
@@ -1410,6 +1824,16 @@ class RoleRequestCog(commands.Cog):
         )
         embed.add_field(name=ui.info_usage_title, value=ui.info_usage, inline=False)
         embed.add_field(name=ui.info_rules_title, value=ui.info_rules, inline=False)
+        if service.retirement_enabled:
+            embed.add_field(
+                name="📤 Retiro de la facción",
+                value=(
+                    "Elige **Solicitar retiro** al abrir `/solicitar-roles`. "
+                    "No tendrás que indicar bajas: al aprobarse se conservará únicamente "
+                    "el rol de retiro dentro del catálogo gestionado."
+                ),
+                inline=False,
+            )
         embed.add_field(name=ui.info_channels_title, value=channels, inline=False)
         embed.add_field(name=ui.info_outcomes_title, value=ui.info_outcomes, inline=False)
         avatar = getattr(getattr(service.bot.user, "display_avatar", None), "url", None)

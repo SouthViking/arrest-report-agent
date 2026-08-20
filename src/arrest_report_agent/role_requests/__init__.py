@@ -6,13 +6,14 @@ from .discord import (
     RoleRequestService,
     RoleRequestServiceRegistry,
 )
-from .models import RoleRequest, RoleRequestDecision, RoleRequestStatus
+from .models import RoleRequest, RoleRequestDecision, RoleRequestKind, RoleRequestStatus
 
 __all__ = [
     "RoleRequest",
     "RoleRequestCog",
     "RoleRequestDecision",
     "RoleRequestDecisionView",
+    "RoleRequestKind",
     "RoleRequestService",
     "RoleRequestServiceRegistry",
     "RoleRequestStatus",
