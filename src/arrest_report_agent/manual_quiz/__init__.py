@@ -12,6 +12,7 @@ from .models import (
     QuizDurationSeconds,
     QuizOption,
     QuizQuestion,
+    QuizQuestionReservation,
     QuizQuestionStatus,
 )
 from .repository import ManualQuizRepository
@@ -33,5 +34,6 @@ __all__ = [
     "QuizDurationSeconds",
     "QuizOption",
     "QuizQuestion",
+    "QuizQuestionReservation",
     "QuizQuestionStatus",
 ]

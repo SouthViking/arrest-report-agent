@@ -875,6 +875,65 @@ manual_quiz_options = sa.Table(
     sa.Index("ix_manual_quiz_option_question", "question_id", "position"),
 )
 
+manual_quiz_rotations = sa.Table(
+    "manual_quiz_rotations",
+    metadata,
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("answer_mode_filter", sa.String(30), primary_key=True),
+    sa.Column("difficulty_filter", sa.String(20), primary_key=True),
+    sa.Column("cycle", sa.Integer, nullable=False, server_default="1"),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint(
+        "answer_mode_filter IN ('any','single_choice','true_false')",
+        name="ck_manual_quiz_rotation_answer_mode",
+    ),
+    sa.CheckConstraint(
+        "difficulty_filter IN ('any','basic','intermediate','advanced')",
+        name="ck_manual_quiz_rotation_difficulty",
+    ),
+    sa.CheckConstraint("cycle > 0", name="ck_manual_quiz_rotation_cycle_positive"),
+)
+
+manual_quiz_rotation_entries = sa.Table(
+    "manual_quiz_rotation_entries",
+    metadata,
+    sa.Column("guild_id", sa.BigInteger, primary_key=True),
+    sa.Column("answer_mode_filter", sa.String(30), primary_key=True),
+    sa.Column("difficulty_filter", sa.String(20), primary_key=True),
+    sa.Column("cycle", sa.Integer, primary_key=True),
+    sa.Column(
+        "question_id",
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("manual_quiz_questions.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("presented_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.ForeignKeyConstraint(
+        ["guild_id", "answer_mode_filter", "difficulty_filter"],
+        [
+            "manual_quiz_rotations.guild_id",
+            "manual_quiz_rotations.answer_mode_filter",
+            "manual_quiz_rotations.difficulty_filter",
+        ],
+        ondelete="CASCADE",
+        name="fk_manual_quiz_rotation_entry_scope",
+    ),
+    sa.CheckConstraint("cycle > 0", name="ck_manual_quiz_rotation_entry_cycle_positive"),
+    sa.Index(
+        "ix_manual_quiz_rotation_entry_scope",
+        "guild_id",
+        "answer_mode_filter",
+        "difficulty_filter",
+        "cycle",
+    ),
+)
+
 service_call_cursors = sa.Table(
     "service_call_cursors",
     metadata,

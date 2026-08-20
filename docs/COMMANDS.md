@@ -232,11 +232,12 @@ tipo aleatorio, selección única o verdadero/falso; y un plazo de 10, 15 o 30 s
 minutos. La primera respuesta válida cierra el ejercicio, deshabilita sus componentes y deja el
 resultado visible para todo el canal.
 
-El catálogo vive en PostgreSQL y se carga por guild. El seed inicial contiene 70 preguntas de
+El catálogo vive en PostgreSQL y se carga por guild. El seed contiene 120 preguntas de
 selección única y verdadero/falso, distribuidas entre organización, aspectos legales, procedimientos,
-escenarios, detección de errores, códigos radiales, alfabeto fonético y reportes. Las preguntas
-activas se seleccionan sin repetir para el mismo usuario hasta agotar el conjunto disponible. Solo
-puede mantener una pregunta pendiente y
+escenarios, detección de errores, códigos radiales, alfabeto fonético y reportes. Cincuenta son casos
+avanzados de comprensión y relación de conceptos. Las preguntas activas se seleccionan como un mazo
+compartido por servidor y combinación de filtros: ninguna se repite dentro de ese conjunto hasta que
+se hayan mostrado todas, incluso tras reiniciar el bot. Solo puede mantener una pregunta pendiente y
 debe esperar 30 segundos antes de pedir otra. Si nadie responde dentro del plazo seleccionado, el
 mismo embed cambia a `Tiempo agotado`, deshabilita las respuestas y muestra la solución, explicación
 y referencia del manual. Este MVP no registra respuestas, puntajes, precisión ni rankings, y nunca

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum, StrEnum
 from uuid import UUID
@@ -112,6 +113,16 @@ class QuizQuestion(BaseModel):
 
     def option(self, option_id: UUID) -> QuizOption | None:
         return next((option for option in self.options if option.id == option_id), None)
+
+
+@dataclass(frozen=True, slots=True)
+class QuizQuestionReservation:
+    """A question claimed from one durable guild/filter shuffle cycle."""
+
+    question: QuizQuestion
+    answer_mode_filter: str
+    difficulty_filter: str
+    cycle: int
 
 
 class QuizSessionError(RuntimeError):

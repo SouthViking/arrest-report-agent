@@ -1,22 +1,26 @@
 {
   "schema_version": 3,
-  "version": "0.12.6",
-  "title": "Retiro simplificado de la facción",
-  "summary": "Las solicitudes de retiro ahora pueden presentarse sin enumerar manualmente cada rol que debe quitarse.",
+  "version": "0.12.7",
+  "title": "Más variedad en las preguntas del manual",
+  "summary": "Las preguntas del manual ahora rotan mejor e incorporan nuevos casos prácticos para poner a prueba la comprensión de los procedimientos.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
       "type": "added",
-      "text": "/solicitar-roles incorpora una opción específica para solicitar el retiro de la facción."
+      "text": "/pregunta-manual incorpora 50 preguntas avanzadas basadas en situaciones y relaciones entre conceptos del manual."
     },
     {
       "type": "improved",
-      "text": "Al aprobar un retiro, el bot quita automáticamente los roles faccionarios gestionados y conserva el rol Retired Employee, evitando omisiones manuales."
+      "text": "La selección ahora recorre las preguntas disponibles antes de repetirlas, manteniendo el orden impredecible."
     },
     {
       "type": "improved",
-      "text": "/info-roles explica el nuevo flujo de retiro y sus condiciones."
+      "text": "Las alternativas avanzadas son más creíbles y requieren analizar el caso en lugar de reconocer una respuesta evidente."
+    },
+    {
+      "type": "improved",
+      "text": "Al responder, el resultado identifica al participante mediante su mención y muestra la alternativa seleccionada por separado."
     }
   ],
   "acknowledgements": []

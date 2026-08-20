@@ -416,7 +416,6 @@ class ManualQuizView(discord.ui.View):
                         option,
                         self.ui,
                         respondent_id=respondent.id,
-                        respondent_name=respondent.display_name,
                     ),
                     view=self,
                     allowed_mentions=discord.AllowedMentions.none(),
@@ -576,7 +575,6 @@ def build_result_embed(
     ui: PersonaManualQuizMessages,
     *,
     respondent_id: int,
-    respondent_name: str,
 ) -> discord.Embed:
     correct = selected.is_correct
     pool = ui.correct_messages if correct else ui.incorrect_messages
@@ -587,11 +585,8 @@ def build_result_embed(
         color=discord.Color.green() if correct else discord.Color.red(),
     )
     embed.add_field(name="Pregunta", value=question.prompt, inline=False)
-    embed.add_field(
-        name=f"Respuesta de {respondent_name}",
-        value=selected.text,
-        inline=False,
-    )
+    embed.add_field(name="Respondió", value=f"<@{respondent_id}>", inline=False)
+    embed.add_field(name="Respuesta seleccionada", value=selected.text, inline=False)
     if not correct:
         embed.add_field(
             name="Respuesta correcta",

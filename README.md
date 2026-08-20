@@ -485,10 +485,11 @@ psql "$DATABASE_URL" \
   --file=scripts/seed_manual_quiz_questions.sql
 ```
 
-El archivo valida que la guild exista, carga 70 preguntas activas con sus alternativas y puede
+El archivo valida que la guild exista, carga 120 preguntas activas con sus alternativas y puede
 ejecutarse nuevamente sin duplicarlas. La clave estable `slug` permite corregir preguntas existentes
 e incrementar su revisión solo cuando cambia su contenido. No altera otras guilds ni preguntas
-creadas fuera de ese seed.
+creadas fuera de ese seed. Cincuenta ejercicios avanzados plantean casos que combinan procedimientos,
+criterio operativo, comunicaciones, garantías legales y trazabilidad de reportes.
 
 Consulta [Comandos de Discord](docs/COMMANDS.md) para conocer acceso, navegación, fuentes, límites y
 el contenido exacto del FAQ.

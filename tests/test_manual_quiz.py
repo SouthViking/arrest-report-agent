@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json
 import os
 from collections import Counter
@@ -11,6 +12,7 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import discord
 import pytest
+import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 from pydantic import ValidationError
@@ -20,6 +22,8 @@ from arrest_report_agent.infrastructure.postgres.schema import (
     discord_guilds,
     manual_quiz_options,
     manual_quiz_questions,
+    manual_quiz_rotation_entries,
+    manual_quiz_rotations,
 )
 from arrest_report_agent.manual_quiz import (
     ActiveQuizSessionError,
@@ -35,6 +39,7 @@ from arrest_report_agent.manual_quiz import (
     QuizDurationSeconds,
     QuizOption,
     QuizQuestion,
+    QuizQuestionReservation,
     QuizQuestionStatus,
 )
 from arrest_report_agent.manual_quiz.discord import (
@@ -44,6 +49,12 @@ from arrest_report_agent.manual_quiz.discord import (
 )
 
 SEED_SQL_PATH = Path(__file__).parents[1] / "scripts" / "seed_manual_quiz_questions.sql"
+ADVANCED_MIGRATION_PATH = (
+    Path(__file__).parents[1]
+    / "migrations"
+    / "versions"
+    / "20260820_0042_manual_quiz_rotation.py"
+)
 
 
 def _seed_payload() -> list[dict[str, object]]:
@@ -130,12 +141,18 @@ def test_manual_quiz_seed_contains_a_varied_validated_question_bank() -> None:
     now = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
     slugs = [str(item["slug"]) for item in payload]
 
-    assert len(payload) == 70
+    assert len(payload) == 120
     assert len(slugs) == len(set(slugs))
     assert Counter(str(item["answer_mode"]) for item in payload) == {
-        "single_choice": 51,
+        "single_choice": 101,
         "true_false": 19,
     }
+    assert Counter(str(item["difficulty"]) for item in payload) == {
+        "basic": 35,
+        "intermediate": 29,
+        "advanced": 56,
+    }
+    assert sum(str(item["slug"]).startswith("advanced_") for item in payload) == 50
     assert set(str(item["category"]) for item in payload) == {category.value for category in QuizCategory}
 
     for item in payload:
@@ -167,30 +184,83 @@ def test_manual_quiz_seed_contains_a_varied_validated_question_bank() -> None:
         assert question.source_reference.startswith("Manual LSSD · ")
 
 
+def test_manual_quiz_advanced_migration_catalog_matches_seed_backup() -> None:
+    spec = importlib.util.spec_from_file_location("manual_quiz_rotation_migration", ADVANCED_MIGRATION_PATH)
+    assert spec is not None
+    assert spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    migration_payload = list(migration._catalog())
+    advanced_seed = [
+        item for item in _seed_payload() if str(item["slug"]).startswith("advanced_")
+    ]
+
+    assert migration_payload == advanced_seed
+    assert len(migration_payload) == 50
+    assert all(item["difficulty"] == "advanced" for item in migration_payload)
+    assert all(item["answer_mode"] == "single_choice" for item in migration_payload)
+    assert all(len(item["options"]) == 4 for item in migration_payload)
+
+
 class _QuestionPool:
     def __init__(self, questions: tuple[QuizQuestion, ...]) -> None:
         self.questions = questions
+        self.seen: dict[tuple[int, str, str], set[UUID]] = {}
+        self.cycles: dict[tuple[int, str, str], int] = {}
 
-    async def random_active(
+    async def reserve_random_active(
         self,
         guild_id: int,
         *,
-        exclude_question_ids: set[UUID] | tuple[UUID, ...] = (),
         answer_mode: QuizAnswerMode | None = None,
         difficulty: QuizDifficulty | None = None,
-    ) -> QuizQuestion | None:
-        excluded = set(exclude_question_ids)
-        return next(
+    ) -> QuizQuestionReservation | None:
+        answer_mode_filter = answer_mode.value if answer_mode is not None else "any"
+        difficulty_filter = difficulty.value if difficulty is not None else "any"
+        scope = (guild_id, answer_mode_filter, difficulty_filter)
+        candidates = tuple(
+            question
+            for question in self.questions
+            if question.guild_id == guild_id
+            and (answer_mode is None or question.answer_mode is answer_mode)
+            and (difficulty is None or question.difficulty is difficulty)
+        )
+        if not candidates:
+            return None
+        seen = self.seen.setdefault(scope, set())
+        question = next(
             (
                 question
-                for question in self.questions
-                if question.guild_id == guild_id
-                and question.id not in excluded
-                and (answer_mode is None or question.answer_mode is answer_mode)
-                and (difficulty is None or question.difficulty is difficulty)
+                for question in candidates
+                if question.id not in seen
             ),
             None,
         )
+        if question is None:
+            seen.clear()
+            self.cycles[scope] = self.cycles.get(scope, 1) + 1
+            question = candidates[0]
+        cycle = self.cycles.setdefault(scope, 1)
+        seen.add(question.id)
+        return QuizQuestionReservation(
+            question=question,
+            answer_mode_filter=answer_mode_filter,
+            difficulty_filter=difficulty_filter,
+            cycle=cycle,
+        )
+
+    async def cancel_reservation(
+        self,
+        guild_id: int,
+        reservation: QuizQuestionReservation,
+    ) -> None:
+        scope = (
+            guild_id,
+            reservation.answer_mode_filter,
+            reservation.difficulty_filter,
+        )
+        if self.cycles.get(scope, 1) == reservation.cycle:
+            self.seen.get(scope, set()).discard(reservation.question.id)
 
 
 @pytest.mark.asyncio
@@ -209,6 +279,22 @@ async def test_manual_quiz_sessions_prevent_concurrency_and_repeat_only_after_cy
     assert await sessions.reserve(1, 11) == second
     await sessions.release(1, 11, second.id)
     assert await sessions.reserve(1, 11) == first
+
+
+@pytest.mark.asyncio
+async def test_manual_quiz_rotation_is_shared_by_users_and_survives_registry_restart() -> None:
+    first = _question(question_id=uuid4())
+    second = _question(question_id=uuid4())
+    repository = _QuestionPool((first, second))
+    initial = ManualQuizSessionRegistry(repository, cooldown_seconds=0)  # type: ignore[arg-type]
+
+    assert await initial.reserve(1, 11) == first
+    await initial.release(1, 11, first.id)
+    assert await initial.reserve(1, 22) == second
+    await initial.release(1, 22, second.id)
+
+    restarted = ManualQuizSessionRegistry(repository, cooldown_seconds=0)  # type: ignore[arg-type]
+    assert await restarted.reserve(1, 33) == first
 
 
 @pytest.mark.asyncio
@@ -444,7 +530,14 @@ async def test_manual_quiz_view_accepts_first_public_answer_and_edits_same_messa
     await view.submit(public_interaction, question.options[1].id)  # type: ignore[arg-type]
 
     assert edits[0]["embed"].title == "❌ Respuesta incorrecta"
-    assert any(field.name == "Respuesta de Bob Deputy" for field in edits[0]["embed"].fields)
+    assert any(
+        field.name == "Respondió" and field.value == "<@12>"
+        for field in edits[0]["embed"].fields
+    )
+    assert any(
+        field.name == "Respuesta seleccionada" and field.value == question.options[1].text
+        for field in edits[0]["embed"].fields
+    )
     assert any(field.name == "Explicación" for field in edits[0]["embed"].fields)
     assert all(item.disabled for item in view.children)
     assert releases == [(1, 11, question.id)]
@@ -541,7 +634,6 @@ def test_manual_quiz_embeds_keep_formal_data_and_personality_copy(persona) -> No
         question.options[0],
         ui,
         respondent_id=12,
-        respondent_name="Bob Deputy",
     )
     timed_out = build_timeout_embed(
         question,
@@ -556,7 +648,9 @@ def test_manual_quiz_embeds_keep_formal_data_and_personality_copy(persona) -> No
     assert pending.author.name == "Publicada por Alice Deputy"
     assert result.title == "✅ Respuesta correcta"
     assert result.description in ui.correct_messages
-    assert result.fields[1].name == "Respuesta de Bob Deputy"
+    assert result.fields[1].name == "Respondió"
+    assert result.fields[1].value == "<@12>"
+    assert result.fields[2].name == "Respuesta seleccionada"
     assert question.source_reference in result.fields[-1].value
     assert "no registra puntaje" in result.footer.text
     assert timed_out.description in ui.expired_messages
@@ -576,25 +670,45 @@ async def test_manual_quiz_repository_reads_active_mvp_question_from_postgres(
     await client.open()
     guild_id = 876543210123456700
     question_id = uuid4()
+    second_question_id = uuid4()
     now = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
     try:
         await client.execute(discord_guilds.delete().where(discord_guilds.c.discord_id == guild_id))
         await client.execute(discord_guilds.insert().values(discord_id=guild_id, name="Manual quiz QA"))
         await client.execute(
             manual_quiz_questions.insert().values(
-                id=question_id,
-                guild_id=guild_id,
-                slug="integration_question",
-                answer_mode="single_choice",
-                category="procedure",
-                difficulty="basic",
-                prompt="Pregunta de integración",
-                explanation="Explicación de integración",
-                source_reference="Manual · QA",
-                status="active",
-                revision=1,
-                created_at=now,
-                updated_at=now,
+                [
+                    {
+                        "id": question_id,
+                        "guild_id": guild_id,
+                        "slug": "integration_question",
+                        "answer_mode": "single_choice",
+                        "category": "procedure",
+                        "difficulty": "basic",
+                        "prompt": "Pregunta de integración",
+                        "explanation": "Explicación de integración",
+                        "source_reference": "Manual · QA",
+                        "status": "active",
+                        "revision": 1,
+                        "created_at": now,
+                        "updated_at": now,
+                    },
+                    {
+                        "id": second_question_id,
+                        "guild_id": guild_id,
+                        "slug": "integration_question_two",
+                        "answer_mode": "single_choice",
+                        "category": "procedure",
+                        "difficulty": "basic",
+                        "prompt": "Segunda pregunta de integración",
+                        "explanation": "Segunda explicación de integración",
+                        "source_reference": "Manual · QA",
+                        "status": "active",
+                        "revision": 1,
+                        "created_at": now,
+                        "updated_at": now,
+                    },
+                ]
             )
         )
         await client.execute(
@@ -614,6 +728,20 @@ async def test_manual_quiz_repository_reads_active_mvp_question_from_postgres(
                         "text": "Incorrecta",
                         "is_correct": False,
                     },
+                    {
+                        "id": uuid4(),
+                        "question_id": second_question_id,
+                        "position": 0,
+                        "text": "Segunda correcta",
+                        "is_correct": True,
+                    },
+                    {
+                        "id": uuid4(),
+                        "question_id": second_question_id,
+                        "position": 1,
+                        "text": "Segunda incorrecta",
+                        "is_correct": False,
+                    },
                 ]
             )
         )
@@ -622,16 +750,43 @@ async def test_manual_quiz_repository_reads_active_mvp_question_from_postgres(
         loaded = await repository.random_active(guild_id)
 
         assert loaded is not None
-        assert loaded.id == question_id
-        assert loaded.slug == "integration_question"
-        assert loaded.correct_options[0].text == "Correcta"
+        assert loaded.id in {question_id, second_question_id}
+        assert loaded.slug in {"integration_question", "integration_question_two"}
+        assert loaded.correct_options[0].text in {"Correcta", "Segunda correcta"}
         assert (
             await repository.random_active(
                 guild_id,
-                exclude_question_ids=(question_id,),
+                exclude_question_ids=(question_id, second_question_id),
             )
             is None
         )
+
+        first_reservation, second_reservation = await asyncio.gather(
+            repository.reserve_random_active(guild_id),
+            repository.reserve_random_active(guild_id),
+        )
+        assert first_reservation is not None
+        assert second_reservation is not None
+        assert first_reservation.question.id != second_reservation.question.id
+
+        restarted_repository = ManualQuizRepository(client)
+        next_cycle = await restarted_repository.reserve_random_active(guild_id)
+        assert next_cycle is not None
+        assert next_cycle.cycle == 2
+        await restarted_repository.cancel_reservation(guild_id, next_cycle)
+        assert not await client.fetch_all(
+            sa.select(manual_quiz_rotation_entries).where(
+                manual_quiz_rotation_entries.c.guild_id == guild_id,
+                manual_quiz_rotation_entries.c.cycle == 2,
+            )
+        )
+        rotation = await client.fetch_one(
+            sa.select(manual_quiz_rotations).where(
+                manual_quiz_rotations.c.guild_id == guild_id,
+            )
+        )
+        assert rotation is not None
+        assert rotation["cycle"] == 2
     finally:
         await client.execute(discord_guilds.delete().where(discord_guilds.c.discord_id == guild_id))
         await client.close()

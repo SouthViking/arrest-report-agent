@@ -1,4 +1,4 @@
-"""Bounded in-memory quiz sessions without user analytics or durable attempts."""
+"""Bounded quiz sessions backed by durable guild/filter shuffle rotations."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from .models import (
     QuizCooldownError,
     QuizDifficulty,
     QuizQuestion,
+    QuizQuestionReservation,
 )
 from .repository import ManualQuizRepository
 
@@ -22,7 +23,7 @@ QUIZ_COOLDOWN_SECONDS = 30
 
 
 class ManualQuizSessionRegistry:
-    """Prevent concurrent questions and avoid repeats until a user's pool is exhausted."""
+    """Prevent concurrent questions while the repository owns durable rotation state."""
 
     def __init__(
         self,
@@ -34,8 +35,7 @@ class ManualQuizSessionRegistry:
         self.repository = repository
         self.cooldown_seconds = cooldown_seconds
         self.clock = clock
-        self._active: dict[tuple[int, int], UUID] = {}
-        self._seen: dict[tuple[int, int], set[UUID]] = {}
+        self._active: dict[tuple[int, int], QuizQuestionReservation] = {}
         self._last_started: dict[tuple[int, int], float] = {}
         self._lock = asyncio.Lock()
 
@@ -58,32 +58,23 @@ class ManualQuizSessionRegistry:
                 if elapsed < self.cooldown_seconds:
                     raise QuizCooldownError(max(1, math.ceil(self.cooldown_seconds - elapsed)))
 
-            seen = self._seen.setdefault(key, set())
-            question = await self.repository.random_active(
+            reservation = await self.repository.reserve_random_active(
                 guild_id,
-                exclude_question_ids=seen,
                 answer_mode=answer_mode,
                 difficulty=difficulty,
             )
-            if question is None and seen:
-                seen.clear()
-                question = await self.repository.random_active(
-                    guild_id,
-                    answer_mode=answer_mode,
-                    difficulty=difficulty,
-                )
-            if question is None:
+            if reservation is None:
                 raise NoQuizQuestionsError
 
-            self._active[key] = question.id
-            seen.add(question.id)
+            self._active[key] = reservation
             self._last_started[key] = now
-            return question
+            return reservation.question
 
     async def release(self, guild_id: int, user_id: int, question_id: UUID) -> None:
         key = (guild_id, user_id)
         async with self._lock:
-            if self._active.get(key) == question_id:
+            active = self._active.get(key)
+            if active is not None and active.question.id == question_id:
                 self._active.pop(key, None)
 
     async def cancel(self, guild_id: int, user_id: int, question_id: UUID) -> None:
@@ -91,11 +82,12 @@ class ManualQuizSessionRegistry:
 
         key = (guild_id, user_id)
         async with self._lock:
-            if self._active.get(key) != question_id:
+            reservation = self._active.get(key)
+            if reservation is None or reservation.question.id != question_id:
                 return
             self._active.pop(key, None)
-            self._seen.get(key, set()).discard(question_id)
             self._last_started.pop(key, None)
+            await self.repository.cancel_reservation(guild_id, reservation)
 
     async def is_active(self, guild_id: int, user_id: int) -> bool:
         async with self._lock:

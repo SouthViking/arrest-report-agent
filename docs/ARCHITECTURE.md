@@ -119,11 +119,14 @@ modelo no puede escoger una guild ni un canal de publicación.
   del subsistema de avisos operativos; no depende del agente ni de OpenAI.
 - `operational_profiles`: metadata reutilizable por guild y miembro, persistencia de callsigns,
   actualización privada, directorio agrupado y ayuda pública.
-- `manual_quiz`: catálogo PostgreSQL validado, filtros por dificultad y tipo, selección sin
-  repeticiones y sesiones públicas con vencimiento acotado en memoria
+- `manual_quiz`: catálogo PostgreSQL validado, filtros por dificultad y tipo, rotación persistente
+  por guild y combinación de filtros sin repeticiones hasta agotar cada conjunto, y sesiones públicas
+  con vencimiento acotado en memoria
   temporales de práctica; no depende del runner, no usa OpenAI y no guarda resultados personales.
-  Su seed SQL usa slugs estables por guild para cargar o actualizar en bloque las preguntas sin
-  duplicarlas ni afectar catálogos ajenos.
+  La rotación conserva como máximo una entrada por pregunta del ciclo activo y elimina el ciclo
+  anterior al comenzar el siguiente, por lo que no crea un historial creciente. Su seed SQL usa slugs
+  estables por guild para cargar o actualizar en bloque las preguntas sin duplicarlas ni afectar
+  catálogos ajenos.
 - `deployments`: contrato de webhooks Railway, inbox de eventos, outbox idempotente y renderer de
   changelog/alertas para Discord; no depende del runner ni de OpenAI.
 - `ci_notifications`: receptor firmado de GitHub Actions, inbox/outbox PostgreSQL y renderer de
