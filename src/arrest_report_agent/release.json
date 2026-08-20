@@ -1,26 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.12.8",
-  "title": "Accesos directos al foro institucional",
-  "summary": "Toda la comunidad puede consultar rápidamente los espacios y procedimientos oficiales del foro desde Discord.",
+  "version": "0.12.9",
+  "title": "Mejora visual del acceso al foro",
+  "summary": "El panel de /foro adopta un color verde para reforzar su presentación institucional.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "added",
-      "text": "El nuevo comando /foro reúne los principales accesos del foro oficial en un único panel privado."
-    },
-    {
       "type": "improved",
-      "text": "Incluye oportunidades de empleo, transferencias laterales, reincorporaciones y el Field Training Program."
-    },
-    {
-      "type": "improved",
-      "text": "También permite acceder a quejas y elogios públicos, además de las solicitudes de licencias CCW y de caza."
-    },
-    {
-      "type": "improved",
-      "text": "El panel utiliza una presentación institucional con enlaces agrupados y está disponible en cualquier canal."
+      "text": "El embed de /foro ahora utiliza color verde; sus enlaces, GIF y funcionamiento se mantienen sin cambios."
     }
   ],
   "acknowledgements": []

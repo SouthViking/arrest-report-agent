@@ -98,7 +98,7 @@ def build_forum_shortcuts_embed(
     embed = discord.Embed(
         title="🔗 Accesos oficiales",
         description=options.description,
-        color=discord.Color.gold(),
+        color=discord.Color.from_rgb(0, 82, 14),
     )
     embed.set_author(name=f"{options.organization_name} — Foro")
     for section in options.sections:

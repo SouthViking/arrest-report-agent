@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import discord
 import pytest
 
 from arrest_report_agent.config import ForumShortcutsOptions
@@ -61,6 +62,7 @@ def test_forum_embed_is_neutral_grouped_and_uses_the_configured_gif() -> None:
 
     assert embed.author.name == "Los Santos Sheriff's Department — Foro"
     assert embed.title == "🔗 Accesos oficiales"
+    assert embed.colour == discord.Color.from_rgb(0, 82, 14)
     assert embed.description == "Consulta rápidamente nuestros espacios oficiales."
     assert embed.fields[0].name == "🏛️ Foro institucional"
     assert "└─ [Página principal](https://sheriff.sarp.es/index.php)" in (embed.fields[0].value)
