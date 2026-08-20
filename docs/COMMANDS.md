@@ -66,7 +66,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/info-mdc` | `operational_staff_roles`; solo si SARP está activo | Pública; rechazo efímero | Persona activa |
 | `/conectados` | `operational_staff_roles`; módulo `faction_status` activo | Pública; rechazo efímero | Nómina de la facción en SARP |
 | `/recursos` | `operational_staff_roles`; módulo `operational_resources` activo | Pública; rechazo efímero | Configuración de PostgreSQL y API SARP |
-| `/foro` | Todos; módulo `forum_shortcuts` activo | Efímera | Catálogo institucional configurado en PostgreSQL |
+| `/foro` | Todos; módulo `forum_shortcuts` activo | Pública | Catálogo institucional configurado en PostgreSQL |
 | `/reportes-pendientes` | `operational_staff_roles`; módulo `pending_arrest_reports` activo | Modal privado; resultado público o efímero | Reportes de la facción en SARP |
 | `/informe-faccion` | `faction_report_roles`; módulo `faction_reports` activo | Modal privado; archivo público o efímero | Banco, nómina y rangos actuales de SARP |
 | `/bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Selector privado, modal adaptado y entrada pública | PostgreSQL, Railway Bucket y Discord |
@@ -195,8 +195,8 @@ esa sección. `/conectados` sigue siendo el comando para consultar el detalle no
 
 ## `/foro`
 
-Está disponible para todos los miembros, funciona en cualquier canal y responde de forma efímera para
-no desplazar la conversación. Publica un embed institucional y neutral con el GIF, las secciones y
+Está disponible para todos los miembros, funciona en cualquier canal y publica una respuesta visible
+para todos. Presenta un embed institucional y neutral con el GIF, las secciones y
 los enlaces oficiales definidos por la guild. No usa IA, la personalidad activa ni la API SARP.
 
 El módulo dinámico `forum_shortcuts` almacena el nombre institucional, la descripción, el banner y

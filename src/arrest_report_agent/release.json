@@ -1,14 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.12.9",
-  "title": "Mejora visual del acceso al foro",
-  "summary": "El panel de /foro adopta un color verde para reforzar su presentación institucional.",
+  "version": "0.12.10",
+  "title": "Panel del foro visible para todos",
+  "summary": "Las consultas realizadas con /foro ahora quedan publicadas en el canal para que todos puedan utilizar sus accesos.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
       "type": "improved",
-      "text": "El embed de /foro ahora utiliza color verde; sus enlaces, GIF y funcionamiento se mantienen sin cambios."
+      "text": "El embed de /foro dejó de ser efímero y ahora permanece visible para todos en el canal donde se ejecuta."
     }
   ],
   "acknowledgements": []

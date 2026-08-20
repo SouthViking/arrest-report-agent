@@ -577,7 +577,7 @@ y TeamSpeak, y los contadores de servidor, facción y servicio. Reutiliza la cac
 y consulta `GET /public/server-cache/download` con un caché adicional de cinco minutos para enlazar
 la versión vigente del caché oficial sin bloquear el resto del panel si ese dato no está disponible.
 
-`/foro` es un acceso público y efímero al catálogo institucional configurado en el módulo dinámico
+`/foro` es un acceso público y visible para todos al catálogo institucional configurado en el módulo dinámico
 `forum_shortcuts`. PostgreSQL conserva por guild el nombre, el texto neutral, el GIF y los enlaces
 agrupados; el comando no depende de roles, canales, personas, OpenAI ni SARP. Para LSSD se instala el
 foro principal y los accesos de empleo, transferencias, reincorporaciones, FTP, participación pública

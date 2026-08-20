@@ -56,7 +56,7 @@ class ForumShortcutsCog(commands.Cog):
                     options,
                     thumbnail_url=thumbnail_url,
                 ),
-                ephemeral=True,
+                ephemeral=False,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             log_event(

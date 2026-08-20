@@ -73,7 +73,7 @@ def test_forum_embed_is_neutral_grouped_and_uses_the_configured_gif() -> None:
     assert embed.footer.text == "Foro oficial · Los Santos Sheriff's Department"
 
 
-async def test_forum_command_is_public_and_ephemeral() -> None:
+async def test_forum_command_is_public_and_visible_to_everyone() -> None:
     responses: list[dict[str, object]] = []
     options = _options()
 
@@ -97,7 +97,7 @@ async def test_forum_command_is_public_and_ephemeral() -> None:
     await ForumShortcutsCog.forum.callback(cog, context)  # type: ignore[arg-type]
 
     assert len(responses) == 1
-    assert responses[0]["ephemeral"] is True
+    assert responses[0]["ephemeral"] is False
     assert responses[0]["embed"].title == "🔗 Accesos oficiales"
     assert responses[0]["allowed_mentions"].everyone is False
 
