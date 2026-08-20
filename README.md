@@ -384,8 +384,8 @@ Comandos disponibles:
   con referencia `BIT` y conserva los datos en PostgreSQL y los archivos en el Bucket.
 - `/info-bitacora`: explica públicamente el flujo en un canal de bitácora habilitado. `/ayuda`
   solo muestra esta guía cuando se ejecuta dentro de uno de esos canales.
-- `/guia-bitacora`: muestra privadamente una referencia compacta e indentada de todas las
-  categorías y subtipos vigentes, sin tener que recorrer el formulario.
+- `/guia-bitacora`: muestra una referencia compacta e indentada de todas las categorías y
+  subtipos vigentes, con opción de verla privadamente o publicarla en el canal.
 - `/faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
 - `/verguenza`: abre un modal para elegir mes actual o los últimos 7, 30 o 90 días, y publica por
   cada canal configurado un top 10 de quienes acumulan más expedientes que todavía no alcanzan el

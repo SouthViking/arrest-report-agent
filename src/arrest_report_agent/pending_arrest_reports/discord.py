@@ -169,12 +169,21 @@ class PendingArrestReportCog(commands.Cog):
                 result=result,
                 ui=ui,
             )
-            await interaction.followup.send(
-                embed=view.current_embed,
-                view=view if view.page_count > 1 else None,
-                ephemeral=private,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            if view.page_count > 1:
+                await interaction.followup.send(
+                    embed=view.current_embed,
+                    view=view,
+                    ephemeral=private,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            else:
+                # Pycord treats an explicit None as a supplied view and dereferences
+                # its timeout for ephemeral webhook responses. Omit it entirely.
+                await interaction.followup.send(
+                    embed=view.current_embed,
+                    ephemeral=private,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
             log_event(
                 LOGGER,
                 "info",

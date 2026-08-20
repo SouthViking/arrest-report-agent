@@ -70,7 +70,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/informe-faccion` | `faction_report_roles`; módulo `faction_reports` activo | Modal privado; archivo público o efímero | Banco, nómina y rangos actuales de SARP |
 | `/bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Selector privado, modal adaptado y entrada pública | PostgreSQL, Railway Bucket y Discord |
 | `/info-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Pública; rechazo efímero fuera de los canales | Persona activa y configuración de PostgreSQL |
-| `/guia-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Efímera; rechazo efímero fuera de los canales | Catálogo central de categorías y subtipos |
+| `/guia-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Modal privado; resultado público o efímero | Catálogo central de categorías y subtipos |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
 | `/verguenza` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/honor` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
@@ -163,9 +163,10 @@ contenido de los adjuntos se almacena en el Railway Bucket con claves basadas en
 `/info-bitacora` publica una explicación breve con el tono de la personalidad activa. Las categorías,
 montos, fechas y demás datos operacionales se muestran con redacción neutra.
 
-`/guia-bitacora` responde de forma efímera con un único embed compacto. Sus campos inline enumeran
-las categorías y subtipos del mismo catálogo utilizado por el formulario; Finanzas separa las
-opciones válidas de ingreso y retiro. Por ello, la guía no puede quedar desincronizada del modal.
+`/guia-bitacora` abre un selector mínimo que permite mantener la guía privada o publicarla en el
+canal. El resultado usa un único embed compacto cuyos campos inline enumeran las categorías y
+subtipos del mismo catálogo utilizado por el formulario; Finanzas separa las opciones válidas de
+ingreso y retiro. Por ello, la guía no puede quedar desincronizada del modal.
 
 ## `/conectados`
 

@@ -1,18 +1,18 @@
 {
   "schema_version": 3,
-  "version": "0.12.4",
-  "title": "Guía rápida para la bitácora",
-  "summary": "La bitácora ahora permite consultar todas sus categorías y tipos sin recorrer el formulario.",
+  "version": "0.12.5",
+  "title": "Consultas privadas y guía de bitácora",
+  "summary": "Se corrigieron los reportes pendientes privados y se amplió el control sobre la visibilidad de la guía de bitácora.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "added",
-      "text": "Nuevo comando /guia-bitacora con una referencia compacta de todas las categorías y tipos disponibles."
+      "type": "fixed",
+      "text": "/reportes-pendientes vuelve a entregar correctamente resultados privados de una sola página."
     },
     {
-      "type": "security",
-      "text": "La guía es privada y conserva las mismas restricciones de módulo y canal que la bitácora."
+      "type": "improved",
+      "text": "/guia-bitacora permite elegir entre ver la referencia privadamente o publicarla en el canal autorizado."
     }
   ],
   "acknowledgements": []

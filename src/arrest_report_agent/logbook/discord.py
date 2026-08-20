@@ -151,21 +151,58 @@ class LogbookCog(commands.Cog):
             if denial is not None:
                 await ctx.respond(embed=denial, ephemeral=True)
                 return
-            await ctx.respond(
-                embed=build_guide_embed(ui),
-                ephemeral=True,
-                allowed_mentions=discord.AllowedMentions.none(),
+            await ctx.send_modal(
+                LogbookGuideModal(
+                    cog=self,
+                    requester_id=ctx.author.id,
+                    guild_id=ctx.guild.id,
+                    channel_id=ctx.channel.id,
+                )
             )
             log_event(
                 LOGGER,
                 "info",
-                "logbook_guide_shared",
+                "logbook_guide_opened",
                 guild_id=ctx.guild.id,
                 channel_id=ctx.channel.id,
                 user_id=ctx.author.id,
             )
         except Exception as error:
             await self._command_failure(ctx, error, operation="guide")
+
+    async def show_guide(
+        self,
+        interaction: discord.Interaction,
+        *,
+        requester_id: int,
+        guild_id: int,
+        channel_id: int,
+        publish: bool,
+    ) -> None:
+        if not await _validate_modal_context(
+            interaction,
+            self,
+            requester_id,
+            guild_id,
+            channel_id,
+        ):
+            return
+        bundle = await self.provider.cached(guild_id)
+        ui = bundle.persona.profile.messages.interface.logbook
+        await interaction.response.send_message(
+            embed=build_guide_embed(ui),
+            ephemeral=not publish,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        log_event(
+            LOGGER,
+            "info",
+            "logbook_guide_shared",
+            guild_id=guild_id,
+            channel_id=channel_id,
+            user_id=requester_id,
+            visibility="public" if publish else "private",
+        )
 
     async def publish(
         self,
@@ -536,6 +573,40 @@ class LogbookEntryModal(discord.ui.DesignerModal):
             description=self.description.value or "",
             amount_text=(self.amount.value or "") if self.money_direction is not None else "",
             attachments=attachments,
+        )
+
+
+class LogbookGuideModal(discord.ui.DesignerModal):
+    def __init__(
+        self,
+        *,
+        cog: LogbookCog,
+        requester_id: int,
+        guild_id: int,
+        channel_id: int,
+    ) -> None:
+        self.cog = cog
+        self.requester_id = requester_id
+        self.guild_id = guild_id
+        self.channel_id = channel_id
+        self.publish = discord.ui.Checkbox(
+            custom_id="logbook:v1:guide:publish",
+            default=False,
+        )
+        super().__init__(
+            discord.ui.Label("Publicar la guía en este canal", self.publish),
+            title="Consultar guía de bitácora",
+            custom_id=f"logbook:v1:guide:{requester_id}",
+            timeout=MODAL_TIMEOUT_SECONDS,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        await self.cog.show_guide(
+            interaction,
+            requester_id=self.requester_id,
+            guild_id=self.guild_id,
+            channel_id=self.channel_id,
+            publish=bool(self.publish.value),
         )
 
 

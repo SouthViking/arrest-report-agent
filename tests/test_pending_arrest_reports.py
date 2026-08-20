@@ -249,6 +249,66 @@ async def test_modal_requires_visibility_choice_and_offers_both_scopes() -> None
     assert next(option for option in modal.visibility.options if option.default).value == "public"
 
 
+@pytest.mark.asyncio
+async def test_private_single_page_result_omits_the_absent_pagination_view(persona) -> None:
+    member = _member(11, (200,))
+    followups: list[dict[str, object]] = []
+    deferrals: list[dict[str, object]] = []
+    result = PendingArrestReportScan(
+        faction_id=3,
+        date_from=date(2026, 8, 14),
+        date_to=date(2026, 8, 20),
+        total_reports=4,
+    )
+
+    async def cached(_guild_id: int):
+        return SimpleNamespace(
+            settings=SimpleNamespace(
+                operational_staff_role_ids=(200,),
+                pending_arrest_reports_faction_id=3,
+                pending_arrest_reports_max_range_days=90,
+                pending_arrest_reports_max_records=1000,
+            ),
+            persona=SimpleNamespace(profile=persona),
+        )
+
+    async def scan(**_kwargs: object) -> PendingArrestReportScan:
+        return result
+
+    async def defer(**kwargs: object) -> None:
+        deferrals.append(kwargs)
+
+    async def send(**kwargs: object) -> None:
+        followups.append(kwargs)
+
+    cog = PendingArrestReportCog(
+        SimpleNamespace(cached=cached),
+        SimpleNamespace(scan=scan),
+        persona,
+    )
+    interaction = SimpleNamespace(
+        guild=member.guild,
+        channel=SimpleNamespace(id=456),
+        user=member,
+        response=SimpleNamespace(defer=defer),
+        followup=SimpleNamespace(send=send),
+    )
+
+    await cog.scan(  # type: ignore[arg-type]
+        interaction,
+        requester_id=member.id,
+        period=PendingReportPeriod.LAST_7_DAYS,
+        raw_date_from="",
+        raw_date_to="",
+        visibility=PendingReportVisibility.PRIVATE,
+    )
+
+    assert deferrals == [{"ephemeral": True}]
+    assert followups[0]["ephemeral"] is True
+    assert "view" not in followups[0]
+    assert followups[0]["embed"].title == "⏳ Reportes de arresto pendientes"
+
+
 def test_custom_range_validation_is_bounded() -> None:
     assert _resolve_date_range(
         PendingReportPeriod.CUSTOM,

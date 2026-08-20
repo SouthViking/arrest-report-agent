@@ -33,7 +33,7 @@ from arrest_report_agent.logbook import (
     build_guide_embed,
     parse_money_amount,
 )
-from arrest_report_agent.logbook.discord import LogbookCog, LogbookEntryModal
+from arrest_report_agent.logbook.discord import LogbookCog, LogbookEntryModal, LogbookGuideModal
 
 
 class FakeRepository:
@@ -143,15 +143,13 @@ def test_guide_lists_every_category_and_its_current_subtypes(persona) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("channel_id", "expected_title"), [(456, "📚 Guía de tipos de bitácora"), (999, None)]
-)
-async def test_logbook_guide_is_private_and_uses_the_logbook_channel_policy(
+@pytest.mark.parametrize("channel_id", [456, 999])
+async def test_logbook_guide_opens_visibility_selector_only_in_allowed_channels(
     persona,
     channel_id: int,
-    expected_title: str | None,
 ) -> None:
     responses: list[dict[str, object]] = []
+    modals: list[LogbookGuideModal] = []
 
     async def cached(_guild_id: int):
         return SimpleNamespace(
@@ -163,23 +161,64 @@ async def test_logbook_guide_is_private_and_uses_the_logbook_channel_policy(
     async def respond(**kwargs: object) -> None:
         responses.append(kwargs)
 
+    async def send_modal(modal: LogbookGuideModal) -> None:
+        modals.append(modal)
+
     cog = LogbookCog(SimpleNamespace(cached=cached), None, persona)  # type: ignore[arg-type]
     context = SimpleNamespace(
         guild=SimpleNamespace(id=123),
         channel=SimpleNamespace(id=channel_id),
         author=SimpleNamespace(id=321),
         respond=respond,
+        send_modal=send_modal,
     )
 
     await LogbookCog.guide.callback(cog, context)  # type: ignore[arg-type]
 
-    assert responses[0]["ephemeral"] is True
-    embed = responses[0]["embed"]
-    if expected_title is None:
+    if channel_id == 999:
+        assert responses[0]["ephemeral"] is True
+        embed = responses[0]["embed"]
         assert embed.title == persona.messages.interface.logbook.alert_title
         assert embed.description == persona.messages.interface.logbook.wrong_channel
     else:
-        assert embed.title == expected_title
+        assert responses == []
+        assert len(modals) == 1
+        assert modals[0].publish.default is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("publish", [False, True])
+async def test_logbook_guide_visibility_is_selected_in_the_modal(persona, publish: bool) -> None:
+    responses: list[dict[str, object]] = []
+
+    async def cached(_guild_id: int):
+        return SimpleNamespace(
+            snapshot=SimpleNamespace(features={"logbook": SimpleNamespace(enabled=True)}),
+            settings=SimpleNamespace(logbook_channel_ids=(456,)),
+            persona=SimpleNamespace(profile=persona),
+        )
+
+    async def send_message(**kwargs: object) -> None:
+        responses.append(kwargs)
+
+    cog = LogbookCog(SimpleNamespace(cached=cached), None, persona)  # type: ignore[arg-type]
+    interaction = SimpleNamespace(
+        user=SimpleNamespace(id=321),
+        guild=SimpleNamespace(id=123),
+        channel=SimpleNamespace(id=456),
+        response=SimpleNamespace(send_message=send_message),
+    )
+
+    await cog.show_guide(  # type: ignore[arg-type]
+        interaction,
+        requester_id=321,
+        guild_id=123,
+        channel_id=456,
+        publish=publish,
+    )
+
+    assert responses[0]["ephemeral"] is (not publish)
+    assert responses[0]["embed"].title == "📚 Guía de tipos de bitácora"
 
 
 @pytest.mark.asyncio
