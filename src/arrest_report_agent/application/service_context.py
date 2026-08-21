@@ -55,6 +55,7 @@ class ReviewRunContext:
     loaded_file_bytes: int = 0
     arrest_search_calls: int = 0
     arrest_detail_calls: int = 0
+    evidence_bag_calls: int = 0
 
     def __post_init__(self) -> None:
         """Seed multimodal budgets with attachments already present in the runner input."""

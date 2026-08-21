@@ -37,6 +37,7 @@ from .models import (
     SarpCharacterSearchResult,
     SarpEmergencyCallPage,
     SarpEnvelope,
+    SarpEvidenceDetail,
     SarpFactionArrestSearchPayload,
     SarpFactionBankPage,
     SarpFactionDetail,
@@ -69,6 +70,7 @@ FINE_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFinePage)
 WARRANT_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpWarrantPage)
 ARREST_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpArrestPage)
 ARREST_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpArrestDetail)
+EVIDENCE_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpEvidenceDetail)
 FACTION_ARREST_SEARCH_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionArrestSearchPayload)
 FACTION_BANK_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionBankPage)
 EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpEmergencyCallPage)
@@ -111,11 +113,7 @@ class SarpClientConfig:
 
     @classmethod
     def from_settings(cls, settings: AppSettings) -> SarpClientConfig:
-        token = (
-            settings.sarp_api_token.get_secret_value()
-            if settings.sarp_api_token is not None
-            else None
-        )
+        token = settings.sarp_api_token.get_secret_value() if settings.sarp_api_token is not None else None
         return cls(
             token=token,
             base_url=settings.sarp_api_base_url,
@@ -490,6 +488,17 @@ class SarpClient:
         )
         return response.payload
 
+    async def get_evidence(self, evidence_id: int) -> SarpEvidenceDetail:
+        """Fetch analyzed contents and custody logs for one evidence bag."""
+
+        _require_positive_id(evidence_id, "evidence_id")
+        response = await self.request(
+            "GET",
+            f"/police/evidences/{evidence_id}",
+            payload_adapter=EVIDENCE_DETAIL_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
     async def list_emergency_calls(
         self,
         *,
@@ -554,9 +563,7 @@ class SarpClient:
         if self.config.token is not None:
             headers["Authorization"] = f"Bearer {self.config.token}"
         request_params = (
-            {key: value for key, value in params.items() if value is not None}
-            if params is not None
-            else None
+            {key: value for key, value in params.items() if value is not None} if params is not None else None
         )
         kwargs: dict[str, Any] = {
             "headers": headers,
@@ -644,11 +651,7 @@ class SarpClient:
         )
 
     def _should_retry(self, method: str, error: SarpError, attempt: int) -> bool:
-        return (
-            method in SAFE_RETRY_METHODS
-            and error.retryable
-            and attempt <= self.config.max_retries
-        )
+        return method in SAFE_RETRY_METHODS and error.retryable and attempt <= self.config.max_retries
 
     def _retry_delay(self, error: SarpError, attempt: int) -> float:
         if isinstance(error, SarpApiError):

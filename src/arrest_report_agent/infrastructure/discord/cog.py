@@ -137,9 +137,7 @@ def build_help_embed(
     embed.add_field(
         name=copy.feature_guides_title,
         value=(
-            f"{copy.feature_guides}\n{extra_feature_guides}"
-            if extra_feature_guides
-            else copy.feature_guides
+            f"{copy.feature_guides}\n{extra_feature_guides}" if extra_feature_guides else copy.feature_guides
         ),
         inline=False,
     )
@@ -173,9 +171,7 @@ def build_report_info_embed(
     embed = discord.Embed(
         title="📋 Revisa tu propio reporte",
         description=(
-            copy.owner_info_intro
-            if report_owner_max_rounds is not None
-            else copy.owner_info_unavailable
+            copy.owner_info_intro if report_owner_max_rounds is not None else copy.owner_info_unavailable
         ),
         color=discord.Color.gold(),
     )
@@ -319,6 +315,7 @@ class ReviewCog(commands.Cog):
             personnel_text=persona.presence.personnel,
             records_text=persona.presence.records,
             evidence_text=persona.presence.evidence,
+            evidence_bag_text=persona.presence.evidence_bag,
             review_text=persona.presence.review,
             response_text=persona.presence.response,
         )
@@ -502,10 +499,7 @@ class ReviewCog(commands.Cog):
                 await self._redirect_unauthorized_user(message)
                 return
             access_level = AgentAccessLevel.REPORT_OWNER
-        if (
-            decision is not TriggerDecision.REVIEW
-            and access_level is not AgentAccessLevel.REPORT_OWNER
-        ):
+        if decision is not TriggerDecision.REVIEW and access_level is not AgentAccessLevel.REPORT_OWNER:
             return
         if evaluation.activation is None:
             log_event(
@@ -675,9 +669,7 @@ class ReviewCog(commands.Cog):
                     ),
                     attempt=attempt,
                     access_level=access_level,
-                    owner_round=(
-                        owner_reservation.round_number if owner_reservation is not None else None
-                    ),
+                    owner_round=(owner_reservation.round_number if owner_reservation is not None else None),
                     owner_max_rounds=(
                         owner_reservation.max_rounds if owner_reservation is not None else None
                     ),
@@ -698,9 +690,7 @@ class ReviewCog(commands.Cog):
                                     owner_reservation.run_id
                                 )
                             else:
-                                await self.report_owner_run_repository.mark_failed(
-                                    owner_reservation.run_id
-                                )
+                                await self.report_owner_run_repository.mark_failed(owner_reservation.run_id)
                         except Exception as error:
                             log_event(
                                 LOGGER,
@@ -915,17 +905,25 @@ class ReviewCog(commands.Cog):
     async def review_help(self, ctx: discord.ApplicationContext) -> None:
         bot_user = self.bot.user
         extra_feature_lines: list[str] = []
-        if (
-            self._config_provider is not None
-            and ctx.guild is not None
-            and ctx.channel is not None
-        ):
+        if self._config_provider is not None and ctx.guild is not None and ctx.channel is not None:
             with suppress(Exception):
                 bundle = await self._config_provider.cached(ctx.guild.id)  # type: ignore[attr-defined]
                 forum_feature = bundle.snapshot.features.get("forum_shortcuts")
                 if forum_feature is not None and forum_feature.enabled:
                     extra_feature_lines.append(
                         "• `/foro`: accesos oficiales y trámites disponibles en el foro."
+                    )
+                evidence_feature = bundle.snapshot.features.get("arrest_report_lookup")
+                if (
+                    evidence_feature is not None
+                    and evidence_feature.enabled
+                    and isinstance(ctx.author, discord.Member)
+                    and any(
+                        role.id in bundle.settings.operational_staff_role_ids for role in ctx.author.roles
+                    )
+                ):
+                    extra_feature_lines.append(
+                        "• `/ver-evidencia`: consulta una bolsa y su cadena de custodia."
                     )
                 feature = bundle.snapshot.features.get("logbook")
                 if (
@@ -942,9 +940,7 @@ class ReviewCog(commands.Cog):
         embed = build_help_embed(
             persona=self.persona,
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
-            extra_feature_guides=(
-                "\n".join(extra_feature_lines) if extra_feature_lines else None
-            ),
+            extra_feature_guides=("\n".join(extra_feature_lines) if extra_feature_lines else None),
         )
         await ctx.respond(embed=embed, ephemeral=False)
 
@@ -970,9 +966,7 @@ class ReviewCog(commands.Cog):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
-        owner_access_enabled = (
-            getattr(self.settings, "report_owner_access_max_rounds", None) is not None
-        )
+        owner_access_enabled = getattr(self.settings, "report_owner_access_max_rounds", None) is not None
         if not owner_access_enabled and not self.access_policy.allows_member(ctx.author):
             await ctx.respond(
                 embed=discord.Embed(
@@ -1000,9 +994,7 @@ class ReviewCog(commands.Cog):
         await ctx.respond(
             embed=build_report_info_embed(
                 persona=self.persona,
-                bot_mention=(
-                    bot_user.mention if bot_user else self.persona.identity.display_name
-                ),
+                bot_mention=(bot_user.mention if bot_user else self.persona.identity.display_name),
                 report_channel_ids=report_channel_ids,
                 report_owner_max_rounds=getattr(
                     self.settings,

@@ -31,7 +31,7 @@ from arrest_report_agent.knowledge import (
 
 from .errors import classify_error, public_error_message
 from .hooks import ReviewLifecycleHooks
-from .ports import ArrestReportLookup
+from .ports import ArrestReportLookup, EvidenceBagLookup
 from .prompt import PROMPT_VERSION, build_agent_instructions
 from .scope import build_scope_guardrail, scope_refusal_message
 from .service_context import ReviewRunContext
@@ -53,6 +53,7 @@ class ReviewService:
         persona: BotPersona,
         radio_catalog: RadioCodeCatalog | None = None,
         arrest_report_lookup: ArrestReportLookup | None = None,
+        evidence_bag_lookup: EvidenceBagLookup | None = None,
     ) -> None:
         self.settings = settings
         self.catalog_provider = as_charge_catalog_provider(catalog)
@@ -72,6 +73,7 @@ class ReviewService:
             image_detail=model.runtime_defaults.image_detail,
             access_level=AgentAccessLevel.FULL,
             arrest_report_lookup=arrest_report_lookup,
+            evidence_bag_lookup=evidence_bag_lookup,
             report_channel_ids=settings.report_channel_allowlist.ids or frozenset(),
         )
         owner_tools = build_agent_tools(
@@ -86,6 +88,7 @@ class ReviewService:
             image_detail=model.runtime_defaults.image_detail,
             access_level=AgentAccessLevel.REPORT_OWNER,
             arrest_report_lookup=arrest_report_lookup,
+            evidence_bag_lookup=None,
             report_channel_ids=settings.report_channel_allowlist.ids or frozenset(),
         )
         scope_guardrail = build_scope_guardrail(settings, model)
@@ -105,6 +108,7 @@ class ReviewService:
             instructions=build_agent_instructions(
                 persona,
                 arrest_lookup_enabled=arrest_report_lookup is not None,
+                evidence_lookup_enabled=evidence_bag_lookup is not None,
             ),
             model=model.id,
             model_settings=model_settings,
@@ -122,14 +126,13 @@ class ReviewService:
                 persona,
                 AgentAccessLevel.REPORT_OWNER,
                 arrest_lookup_enabled=arrest_report_lookup is not None,
+                evidence_lookup_enabled=False,
             ),
             model=model.id,
             model_settings=model_settings,
             tools=owner_tools,  # type: ignore[arg-type]
             input_guardrails=[scope_guardrail],
-            tool_use_behavior=StopAtTools(
-                stop_at_tool_names=["finish_interaction", "publish_review"]
-            ),
+            tool_use_behavior=StopAtTools(stop_at_tool_names=["finish_interaction", "publish_review"]),
             reset_tool_choice=False,
         )
 

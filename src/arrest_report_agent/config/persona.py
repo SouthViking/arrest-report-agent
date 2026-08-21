@@ -121,6 +121,7 @@ class PersonaPresence(FrozenPersonaModel):
     personnel: str = Field(min_length=1, max_length=128)
     records: str = Field(min_length=1, max_length=128)
     evidence: str = Field(min_length=1, max_length=128)
+    evidence_bag: str = Field(default="📦 Revisando bolsa", min_length=1, max_length=128)
     review: str = Field(min_length=1, max_length=128)
     response: str = Field(min_length=1, max_length=128)
 

@@ -31,6 +31,7 @@ from arrest_report_agent.deployments import (
     DeploymentRepository,
     RailwayWebhookReceiver,
 )
+from arrest_report_agent.evidence_bags import EvidenceBagCog, EvidenceBagService
 from arrest_report_agent.faction_directory import FactionDirectoryService
 from arrest_report_agent.faction_reports import FactionReportCog, FactionReportService
 from arrest_report_agent.faction_status import FactionStatusCog, FactionStatusService
@@ -166,14 +167,10 @@ class Runtime:
             "railway_webhook": self.railway_webhook_receiver is not None,
             "github_webhook": self.github_webhook_receiver is not None,
             "service_calls": (
-                self.service_call_worker.running
-                if self.service_call_worker is not None
-                else False
+                self.service_call_worker.running if self.service_call_worker is not None else False
             ),
             "stolen_vehicles": (
-                self.stolen_vehicle_worker.running
-                if self.stolen_vehicle_worker is not None
-                else False
+                self.stolen_vehicle_worker.running if self.stolen_vehicle_worker is not None else False
             ),
         }
 
@@ -204,8 +201,10 @@ async def build_runtime(
     local_catalog = ChargeCatalog.load_default()
     sarp_penal_code_provider: SarpPenalCodeProvider | None = None
     sarp_client: SarpClient | None = None
+    evidence_bag_service: EvidenceBagService | None = None
     if settings.sarp_api_enabled:
         sarp_client = SarpClient(SarpClientConfig.from_settings(settings))
+        evidence_bag_service = EvidenceBagService(sarp_client)
         sarp_penal_code_provider = SarpPenalCodeProvider(
             sarp_client,
             local_catalog,
@@ -236,7 +235,8 @@ async def build_runtime(
         guide,
         model_catalog,
         radio_catalog,
-        sarp_client,
+        sarp_client=sarp_client,
+        evidence_bag_lookup=evidence_bag_service,
     )
     try:
         if sarp_penal_code_provider is not None:
@@ -283,8 +283,7 @@ async def build_runtime(
     cost_monitoring = build_cost_monitoring_service(settings)
     all_bundles = [await config_provider.get(guild_id) for guild_id in guild_ids]
     logbook_enabled = any(
-        (feature := bundle.snapshot.features.get("logbook")) is not None
-        and feature.enabled
+        (feature := bundle.snapshot.features.get("logbook")) is not None and feature.enabled
         for bundle in all_bundles
     )
     bot.add_cog(
@@ -319,6 +318,7 @@ async def build_runtime(
             personnel_text=presence.personnel,
             records_text=presence.records,
             evidence_text=presence.evidence,
+            evidence_bag_text=presence.evidence_bag,
             review_text=presence.review,
             response_text=presence.response,
         )
@@ -343,9 +343,7 @@ async def build_runtime(
             poll_seconds=settings.sarp_emergency_call_poll_seconds,
             enabled_guild_ids=service_call_guild_ids,
         )
-        config_provider.register_guild_callback(
-            service_call_worker.configuration_updated
-        )
+        config_provider.register_guild_callback(service_call_worker.configuration_updated)
         service_call_worker.start()
         log_event(
             LOGGER,
@@ -371,9 +369,7 @@ async def build_runtime(
             poll_seconds=settings.sarp_stolen_vehicle_poll_seconds,
             enabled_guild_ids=stolen_vehicle_guild_ids,
         )
-        config_provider.register_guild_callback(
-            stolen_vehicle_worker.configuration_updated
-        )
+        config_provider.register_guild_callback(stolen_vehicle_worker.configuration_updated)
         stolen_vehicle_worker.start()
         log_event(
             LOGGER,
@@ -430,6 +426,8 @@ async def build_runtime(
     bot.add_cog(ManualQuizCog(config_provider, manual_quiz_sessions, persona.profile))
     bot.add_cog(ForumShortcutsCog(config_provider))
     if sarp_client is not None:
+        if evidence_bag_service is None:
+            raise RuntimeError("Evidence-bag service was not initialized")
         if stolen_vehicle_service is None:
             raise RuntimeError("Stolen-vehicle service was not initialized")
         faction_directory = FactionDirectoryService(sarp_client)
@@ -438,6 +436,13 @@ async def build_runtime(
             directory=faction_directory,
         )
         bot.add_cog(MdcCog(config_provider, MdcService(sarp_client), persona.profile))
+        bot.add_cog(
+            EvidenceBagCog(
+                config_provider,
+                evidence_bag_service,
+                persona.profile,
+            )
+        )
         bot.add_cog(
             FactionStatusCog(
                 config_provider,
@@ -523,8 +528,7 @@ async def build_runtime(
         configured_guilds=sum(
             1
             for bundle in all_bundles
-            if (feature := bundle.snapshot.features.get("logbook")) is not None
-            and feature.enabled
+            if (feature := bundle.snapshot.features.get("logbook")) is not None and feature.enabled
         ),
     )
     deployment_repository = DeploymentRepository(postgres)

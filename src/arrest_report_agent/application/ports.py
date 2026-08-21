@@ -321,6 +321,49 @@ class ArrestReportLookup(Protocol):
         """Fetch the current SARP detail linked to one Discord report root."""
 
 
+@dataclass(frozen=True)
+class EvidenceBagItem:
+    """One analyzed item preserved as authoritative SARP text."""
+
+    analysis_id: int
+    sample_id: int
+    result: str
+    officer_name: str
+    agency: str | None
+    examined_at: datetime
+
+
+@dataclass(frozen=True)
+class EvidenceBagCustodyEvent:
+    """One normalized chain-of-custody event."""
+
+    event_id: int
+    action: str
+    officer_name: str
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class EvidenceBagDetail:
+    """Current analyzed contents and custody history for one evidence bag."""
+
+    evidence_id: int
+    items: tuple[EvidenceBagItem, ...]
+    custody: tuple[EvidenceBagCustodyEvent, ...]
+
+
+@dataclass(frozen=True)
+class EvidenceBagLookupResult:
+    detail: EvidenceBagDetail | None
+    error: str | None = None
+    retry_after_seconds: float | None = None
+
+
+class EvidenceBagLookup(Protocol):
+    async def get(self, evidence_id: int) -> EvidenceBagLookupResult:
+        """Fetch one evidence bag while translating provider failures to safe states."""
+
+
 class ReviewPublisher(Protocol):
     async def mark_review_started(self) -> None:
         """Show deterministically that a classified review has started."""

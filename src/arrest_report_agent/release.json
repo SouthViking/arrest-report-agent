@@ -1,20 +1,18 @@
 {
   "schema_version": 3,
-  "version": "0.14.1",
-  "title": "Consumo de Railway por proyecto",
-  "summary": "El monitor interno ahora separa el gasto del proyecto del bot de los límites generales del workspace.",
+  "version": "0.14.2",
+  "title": "Consulta de bolsas de evidencias",
+  "summary": "Ahora es posible revisar el contenido registrado de una bolsa de evidencias directamente desde Discord.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
-      "type": "improved",
-      "text": "El consumo actual y la estimación de Railway se consultan usando el proyecto donde está desplegado el bot."
+      "type": "added",
+      "text": "El personal operativo puede usar /ver-evidencia con el número de una bolsa para consultar públicamente su contenido analizado y cadena de custodia."
     },
     {
       "type": "improved",
-      "text": "El mensaje distingue el consumo del proyecto del límite y margen globales del workspace, e informa cuando debe usar el alcance global como respaldo."
+      "text": "El agente puede contrastar bolsas de evidencias durante consultas y revisiones cuando exista una referencia clara, manteniendo los adjuntos como fuente alternativa."
     }
   ],
   "acknowledgements": []

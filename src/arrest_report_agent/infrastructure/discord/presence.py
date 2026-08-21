@@ -23,6 +23,7 @@ class PresenceMode(StrEnum):
     PERSONNEL = AgentActivity.PERSONNEL
     RECORDS = AgentActivity.RECORDS
     EVIDENCE = AgentActivity.EVIDENCE
+    EVIDENCE_BAG = AgentActivity.EVIDENCE_BAG
     REVIEW = AgentActivity.REVIEW
     RESPONSE = AgentActivity.RESPONSE
 
@@ -34,8 +35,9 @@ PRESENCE_PRIORITY = {
     PresenceMode.KNOWLEDGE: 3,
     PresenceMode.RECORDS: 4,
     PresenceMode.EVIDENCE: 5,
-    PresenceMode.REVIEW: 6,
-    PresenceMode.RESPONSE: 7,
+    PresenceMode.EVIDENCE_BAG: 6,
+    PresenceMode.REVIEW: 7,
+    PresenceMode.RESPONSE: 8,
 }
 
 
@@ -72,6 +74,7 @@ class ReviewPresence:
         personnel_text: str,
         records_text: str,
         evidence_text: str,
+        evidence_bag_text: str,
         review_text: str,
         response_text: str,
     ) -> None:
@@ -83,6 +86,7 @@ class ReviewPresence:
             PresenceMode.PERSONNEL: personnel_text,
             PresenceMode.RECORDS: records_text,
             PresenceMode.EVIDENCE: evidence_text,
+            PresenceMode.EVIDENCE_BAG: evidence_bag_text,
             PresenceMode.REVIEW: review_text,
             PresenceMode.RESPONSE: response_text,
         }
@@ -118,6 +122,7 @@ class ReviewPresence:
         personnel_text: str,
         records_text: str,
         evidence_text: str,
+        evidence_bag_text: str,
         review_text: str,
         response_text: str,
     ) -> None:
@@ -129,6 +134,7 @@ class ReviewPresence:
                 PresenceMode.PERSONNEL: personnel_text,
                 PresenceMode.RECORDS: records_text,
                 PresenceMode.EVIDENCE: evidence_text,
+                PresenceMode.EVIDENCE_BAG: evidence_bag_text,
                 PresenceMode.REVIEW: review_text,
                 PresenceMode.RESPONSE: response_text,
             }

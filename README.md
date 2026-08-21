@@ -375,6 +375,10 @@ Comandos disponibles:
 - `/info-mdc`: publica una guía breve para consultar nombres exactos, elegir la visibilidad y
   entender qué información puede devolver la ficha.
 - `/conectados`: publica para `operational_staff_roles` el personal conectado y en servicio.
+- `/ver-evidencia`: permite al personal de `operational_staff_roles` consultar públicamente una
+  bolsa por su número y ver el contenido analizado junto con su cadena de custodia. El agente con
+  acceso completo reutiliza la misma consulta cuando necesita contrastar una bolsa durante una
+  conversación o revisión.
 - `/vehiculos-robados`: abre un formulario para que `operational_staff_roles` consulte entre 1 y
   50 denuncias recientes, filtre por activas, resueltas o todas, y elija entre publicarlas en el
   canal o recibirlas de forma efímera. El resultado compacto usa paginación cuando corresponde.

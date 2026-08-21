@@ -32,6 +32,7 @@ from .client import PostgresClient
 from .repository import CONFIG_NOTIFY_CHANNEL, ConfigurationRepository
 
 if TYPE_CHECKING:
+    from arrest_report_agent.application.ports import EvidenceBagLookup
     from arrest_report_agent.infrastructure.sarp import SarpClient
 
 LOGGER = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ class DatabaseConfigProvider:
         model_catalog: ModelCatalog,
         radio_catalog: RadioCodeCatalog | None = None,
         sarp_client: SarpClient | None = None,
+        evidence_bag_lookup: EvidenceBagLookup | None = None,
     ) -> None:
         self.client = client
         self.repository = repository
@@ -68,6 +70,7 @@ class DatabaseConfigProvider:
         self.radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
         self.model_catalog = model_catalog
         self.sarp_client = sarp_client
+        self.evidence_bag_lookup = evidence_bag_lookup
         # Import lazily so repositories can import the PostgreSQL schema without
         # creating a package-initialization cycle through this provider.
         from arrest_report_agent.arrest_reports import ArrestReportBindingRepository
@@ -79,9 +82,7 @@ class DatabaseConfigProvider:
         self._refresh_task: asyncio.Task[None] | None = None
         self._stopped = asyncio.Event()
         self._global_callbacks: list[Callable[[LoadedPersona], Awaitable[None]]] = []
-        self._guild_callbacks: list[
-            Callable[[GuildRuntimeBundle], Awaitable[None]]
-        ] = []
+        self._guild_callbacks: list[Callable[[GuildRuntimeBundle], Awaitable[None]]] = []
 
     async def start(self) -> None:
         guild_ids = await self.repository.enabled_guild_ids()
@@ -161,6 +162,7 @@ class DatabaseConfigProvider:
                 persona.profile,
                 self.radio_catalog,
                 arrest_lookup,
+                evidence_bag_lookup=(self.evidence_bag_lookup if faction_id is not None else None),
             )
             bundle = GuildRuntimeBundle(
                 snapshot=snapshot,

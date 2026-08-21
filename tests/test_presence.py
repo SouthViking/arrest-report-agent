@@ -37,6 +37,7 @@ async def test_presence_uses_global_priority_across_concurrent_interactions() ->
         personnel_text="👥 Consultando personal",
         records_text="🗃️ Consultando registros",
         evidence_text="🖼️ Analizando evidencias",
+        evidence_bag_text="📦 Revisando bolsa",
         review_text="📂 Revisando expedientes",
         response_text="✍️ Preparando respuesta",
     )
@@ -60,6 +61,8 @@ async def test_presence_uses_global_priority_across_concurrent_interactions() ->
             assert presence.mode is PresenceMode.REVIEW
             await second.transition(AgentActivity.EVIDENCE)
             assert presence.mode is PresenceMode.EVIDENCE
+            await second.transition(AgentActivity.EVIDENCE_BAG)
+            assert presence.mode is PresenceMode.EVIDENCE_BAG
         assert presence.mode is PresenceMode.RECORDS
         await first.transition(AgentActivity.RESPONSE)
         assert presence.mode is PresenceMode.RESPONSE
@@ -73,6 +76,7 @@ async def test_presence_uses_global_priority_across_concurrent_interactions() ->
         "📚 Consultando manual y códigos",
         "📂 Revisando expedientes",
         "🖼️ Analizando evidencias",
+        "📦 Revisando bolsa",
         "🗃️ Consultando registros",
         "✍️ Preparando respuesta",
         "⭐ De guardia",
@@ -91,6 +95,7 @@ async def test_presence_failure_never_blocks_or_leaks_active_review_count() -> N
         personnel_text="👥 Consultando personal",
         records_text="🗃️ Consultando registros",
         evidence_text="🖼️ Analizando evidencias",
+        evidence_bag_text="📦 Revisando bolsa",
         review_text="📂 Revisando expedientes",
         response_text="✍️ Preparando respuesta",
     )

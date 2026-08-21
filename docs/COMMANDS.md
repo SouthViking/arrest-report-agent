@@ -36,8 +36,9 @@ menos un destino explícito; retirar el último canal detiene el polling sin des
 El módulo **Estado de facción** recibe `{"faction_id": 3}` y habilita `/conectados` para esa facción.
 El ID queda por guild en PostgreSQL y no se fija en el comando ni en el cliente SARP.
 
-El módulo **Consulta de reportes de arresto** recibe `{"faction_id": 3}`. No agrega un comando:
-habilita al agente completo para buscar y vincular arrestos de esa facción. En un expediente ya
+El módulo **Consulta de reportes de arresto** recibe `{"faction_id": 3}`. Habilita
+`/ver-evidencia` y permite al agente completo buscar y vincular arrestos de esa facción, además de
+consultar bolsas de evidencias cuando el usuario entrega una referencia explícita. En un expediente ya
 vinculado, el propietario con acceso limitado solo puede consultar su referencia vigente al pedir
 una nueva revisión. Si SARP está apagado globalmente, estas tools no se registran.
 
@@ -70,6 +71,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/mdc` | `operational_staff_roles`; solo si SARP está activo | Modal privado; resultado público o efímero | API SARP en vivo |
 | `/info-mdc` | `operational_staff_roles`; solo si SARP está activo | Pública; rechazo efímero | Persona activa |
 | `/conectados` | `operational_staff_roles`; módulo `faction_status` activo | Pública; rechazo efímero | Nómina de la facción en SARP |
+| `/ver-evidencia` | `operational_staff_roles`; módulo `arrest_report_lookup` activo | Pública; rechazo efímero | Bolsa de evidencias en SARP |
 | `/vehiculos-robados` | `operational_staff_roles`; módulo `stolen_vehicles` activo | Modal privado; resultado público o efímero | Denuncias recientes de vehículos en SARP |
 | `/recursos` | `operational_staff_roles`; módulo `operational_resources` activo | Pública; rechazo efímero | Configuración de PostgreSQL y API SARP |
 | `/foro` | Todos; módulo `forum_shortcuts` activo | Pública | Catálogo institucional configurado en PostgreSQL |
@@ -153,6 +155,20 @@ comandos, dirige a la guía de cada función:
 
 Mantiene como referencias rápidas `/guia`, `/cargos`, `/faq` y `/pregunta-manual`. Los flujos operacionales, comandos
 privados y herramientas de supervisión se explican en su guía especializada cuando corresponde.
+Cuando la consulta SARP está habilitada, `/ayuda` muestra `/ver-evidencia` únicamente al personal
+incluido en `operational_staff_roles`.
+
+## `/ver-evidencia`
+
+Recibe directamente un número positivo de bolsa, sin abrir un modal, y publica para todo el canal
+el contenido analizado y la cadena de custodia vigente en SARP. Solo puede usarlo el personal de
+`operational_staff_roles` cuando el módulo `arrest_report_lookup` y la integración SARP están
+activos. No muestra IDs técnicos de análisis, muestras o agentes.
+
+La misma consulta está disponible como tool para el agente con acceso completo, que puede utilizarla
+en conversaciones normales o durante una revisión cuando una bolsa esté identificada explícitamente.
+La lógica de consulta y manejo de fallos es compartida con el comando, y no conserva el contenido en
+caché. El acceso limitado del propietario no recibe esta tool para explorar bolsas arbitrarias.
 
 ## `/bitacora`, `/info-bitacora` y `/guia-bitacora`
 

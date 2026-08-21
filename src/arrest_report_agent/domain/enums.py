@@ -81,6 +81,7 @@ class AgentActivity(StrEnum):
     PERSONNEL = "personnel"
     RECORDS = "records"
     EVIDENCE = "evidence"
+    EVIDENCE_BAG = "evidence_bag"
     REVIEW = "review"
     RESPONSE = "response"
 

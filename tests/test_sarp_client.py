@@ -187,9 +187,10 @@ async def test_get_penal_code_uses_documented_endpoint_and_returns_typed_payload
             }
         )
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
         payload = await client.get_penal_code()
 
     assert payload.categories[0].id == 4
@@ -212,9 +213,10 @@ async def test_global_metrics_endpoint_returns_connected_account_counter() -> No
             }
         )
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
         metrics = await client.get_global_metrics()
 
     assert metrics == SarpGlobalMetrics(onlineAccountCounter=109)
@@ -239,9 +241,10 @@ async def test_server_cache_endpoint_returns_validated_artifact_metadata() -> No
             }
         )
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
         cache = await client.get_server_cache_info()
 
     assert cache == SarpServerCacheInfo.model_validate(
@@ -330,9 +333,10 @@ async def test_mdc_endpoints_use_documented_paths_filters_and_typed_payloads() -
             }
         )
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
         search = await client.search_characters("Terry_McKenzie")
         preview = await client.get_character_preview(44)
         possessions = await client.get_character_possessions(44)
@@ -395,9 +399,10 @@ async def test_emergency_call_endpoint_is_typed_and_treats_naive_dates_as_utc() 
             }
         )
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
         page = await client.list_emergency_calls(page=2, limit=25)
 
     assert page.items[0].id == 56221
@@ -442,9 +447,10 @@ async def test_stolen_vehicle_endpoint_uses_filters_and_parses_typed_payload() -
             }
         )
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
         page = await client.list_stolen_vehicles(
             page=2,
             limit=10,
@@ -458,6 +464,54 @@ async def test_stolen_vehicle_endpoint_uses_filters_and_parses_typed_payload() -
     assert page.items[0].colors == ("Negro", "Blanco")
     assert page.items[0].is_active is True
     assert page.items[0].created_at.utcoffset().total_seconds() == 0
+
+
+async def test_evidence_detail_endpoint_returns_contents_and_custody() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/police/evidences/4385409"
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "police-data",
+                "payload": {
+                    "id": 4385409,
+                    "results": [
+                        {
+                            "id": 23535,
+                            "evidence_id": 4385409,
+                            "sample_id": 4384680,
+                            "police_id": 2869,
+                            "police_name": "Deputy Sheriff Lemus Fagan",
+                            "police_agency": "Los Santos County Sheriff's Department",
+                            "result": "Lata de ECola, cantidad: 10, huellas: Tyler Morgan; ",
+                            "created_at": "2026-08-19 22:02:46",
+                        }
+                    ],
+                    "logs": [
+                        {
+                            "id": 16948,
+                            "evidence_id": 4385409,
+                            "police_id": 2869,
+                            "police_name": "Deputy Sheriff Lemus Fagan",
+                            "action": "guarda la bolsa en el almacén 917.",
+                            "created_at": "2026-08-16 06:13:26",
+                        }
+                    ],
+                },
+            }
+        )
+
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
+        detail = await client.get_evidence(4_385_409)
+
+    assert detail.id == 4_385_409
+    assert detail.results[0].sample_id == 4_384_680
+    assert detail.results[0].created_at.tzinfo is not None
+    assert detail.logs[0].action.endswith("almacén 917.")
 
 
 async def test_faction_detail_endpoint_returns_typed_live_member_states() -> None:
@@ -492,9 +546,10 @@ async def test_faction_detail_endpoint_returns_typed_live_member_states() -> Non
             }
         )
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
         detail = await client.get_faction_detail(3)
 
     assert isinstance(detail, SarpFactionDetail)
@@ -534,9 +589,10 @@ async def test_faction_rank_endpoint_returns_the_ordered_typed_catalog() -> None
             }
         )
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
         ranks = await client.get_faction_ranks(3)
 
     assert ranks == [
@@ -590,9 +646,10 @@ async def test_faction_bank_endpoint_sends_dates_and_returns_typed_movements() -
             }
         )
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
         page = await client.list_faction_bank_logs(
             3,
             date_from=date(2026, 8, 18),
@@ -693,9 +750,10 @@ async def test_client_maps_every_documented_error(
             headers={"Retry-After": "3"},
         )
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(base_url=base_url, max_retries=0)) as client,
+    ):
         with pytest.raises(error_type) as captured:
             await client.request("GET", "/probe", payload_adapter=PROBE_ADAPTER)
 
@@ -724,10 +782,13 @@ async def test_client_retries_safe_requests_using_retry_after() -> None:
     async def record_sleep(delay: float) -> None:
         delays.append(delay)
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(base_url=base_url, max_retries=1),
-        sleep=record_sleep,
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(
+            SarpClientConfig(base_url=base_url, max_retries=1),
+            sleep=record_sleep,
+        ) as client,
+    ):
         response = await client.request("GET", "/probe", payload_adapter=PROBE_ADAPTER)
 
     assert response.payload.ok is True
@@ -746,9 +807,10 @@ async def test_client_never_retries_writes_implicitly() -> None:
             status=500,
         )
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(base_url=base_url, max_retries=3)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(base_url=base_url, max_retries=3)) as client,
+    ):
         with pytest.raises(SarpServerError):
             await client.request(
                 "POST",
@@ -776,16 +838,13 @@ async def test_client_rejects_responses_outside_the_documented_contract(
         if response_kind == "html":
             return web.Response(status=403, text="<html>challenge</html>")
         if response_kind == "mismatched_status":
-            return web.json_response(
-                {"message": "OK", "httpCode": 201, "payload": {"ok": True}}
-            )
-        return web.json_response(
-            {"message": "OK", "httpCode": 200, "payload": {"ok": "not-a-bool"}}
-        )
+            return web.json_response({"message": "OK", "httpCode": 201, "payload": {"ok": True}})
+        return web.json_response({"message": "OK", "httpCode": 200, "payload": {"ok": "not-a-bool"}})
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(base_url=base_url, max_retries=0)) as client,
+    ):
         with pytest.raises(SarpInvalidResponseError, match=expected_message):
             await client.request("GET", "/probe", payload_adapter=PROBE_ADAPTER)
 
@@ -848,13 +907,12 @@ async def test_arrest_search_and_detail_follow_live_sarp_contract() -> None:
                     }
                 ],
             }
-        return web.json_response(
-            {"message": "OK", "httpCode": 200, "source": "pcu", "payload": payload}
-        )
+        return web.json_response({"message": "OK", "httpCode": 200, "source": "pcu", "payload": payload})
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
         search = await client.search_faction_arrests(
             3,
             suspect_name="Terry McKenzie",
@@ -903,8 +961,9 @@ async def test_arrest_search_rejects_invalid_filters(kwargs: dict[str, object]) 
     async def handler(_request: web.Request) -> web.Response:
         raise AssertionError("invalid filters must fail before transport")
 
-    async with serve_sarp(handler) as base_url, SarpClient(
-        SarpClientConfig(base_url=base_url, max_retries=0)
-    ) as client:
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(base_url=base_url, max_retries=0)) as client,
+    ):
         with pytest.raises(ValueError):
             await client.search_faction_arrests(3, **kwargs)  # type: ignore[arg-type]

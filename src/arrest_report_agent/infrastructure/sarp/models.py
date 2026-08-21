@@ -76,10 +76,7 @@ class SarpServerCacheInfo(BaseModel):
     @model_validator(mode="after")
     def validate_existing_artifact(self) -> SarpServerCacheInfo:
         if self.exists and (
-            self.filename is None
-            or self.url is None
-            or self.size_bytes is None
-            or self.version is None
+            self.filename is None or self.url is None or self.size_bytes is None or self.version is None
         ):
             raise ValueError("Existing SARP server cache requires complete artifact metadata")
         return self
@@ -363,6 +360,76 @@ class SarpArrestDetail(BaseModel):
         return value.astimezone(UTC)
 
 
+class SarpEvidenceAnalysis(BaseModel):
+    """One analyzed item returned for a police evidence bag."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    evidence_id: int = Field(gt=0)
+    sample_id: int = Field(gt=0)
+    police_id: int = Field(gt=0)
+    police_name: str = Field(min_length=1, max_length=150)
+    police_agency: str | None = Field(default=None, max_length=200)
+    result: str = Field(min_length=1)
+    created_at: datetime
+
+    @field_validator("police_agency", mode="before")
+    @classmethod
+    def normalize_optional_agency(cls, value: object) -> object:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+    @field_validator("created_at")
+    @classmethod
+    def assume_documented_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+
+class SarpEvidenceCustodyLog(BaseModel):
+    """One chain-of-custody event returned for a police evidence bag."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    evidence_id: int = Field(gt=0)
+    police_id: int = Field(gt=0)
+    police_name: str = Field(min_length=1, max_length=150)
+    action: str = Field(min_length=1)
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def assume_documented_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+
+class SarpEvidenceDetail(BaseModel):
+    """Analyzed contents and chain of custody for one evidence bag."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    results: list[SarpEvidenceAnalysis] = Field(default_factory=list)
+    logs: list[SarpEvidenceCustodyLog] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_related_evidence_ids(self) -> SarpEvidenceDetail:
+        related_ids = {
+            *(result.evidence_id for result in self.results),
+            *(entry.evidence_id for entry in self.logs),
+        }
+        if related_ids and related_ids != {self.id}:
+            raise ValueError("SARP evidence detail contains records from another evidence bag")
+        return self
+
+
 class SarpEmergencyCall(BaseModel):
     """One police emergency call returned by the live service feed."""
 
@@ -459,11 +526,7 @@ class SarpStolenVehicle(BaseModel):
         if value is None:
             return None
         if isinstance(value, (list, tuple, set)):
-            return tuple(
-                normalized
-                for item in value
-                if (normalized := str(item).strip())
-            ) or None
+            return tuple(normalized for item in value if (normalized := str(item).strip())) or None
         normalized = str(value).strip()
         return normalized or None
 
