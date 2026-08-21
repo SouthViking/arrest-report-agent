@@ -1,22 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.13.0",
-  "title": "Revisión privada de solicitudes de roles",
-  "summary": "Las solicitudes siguen visibles en su canal, mientras los motivos y comentarios internos quedan reservados al equipo autorizado.",
+  "version": "0.14.0",
+  "title": "Seguimiento de vehículos robados",
+  "summary": "El personal operativo puede consultar las denuncias recientes y dispatch recibe las nuevas alertas sin repetir el historial anterior.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
       "type": "improved",
-      "text": "El canal público conserva el estado de cada solicitud sin mostrar motivos ni comentarios internos."
+      "text": "Se agregó `/vehiculos-robados` con filtros por estado, cantidad y visibilidad del resultado."
     },
     {
       "type": "improved",
-      "text": "Las decisiones llegan por mensaje directo y, si el MD está cerrado, pueden consultarse de forma privada desde la solicitud."
+      "text": "Las denuncias nuevas pueden publicarse automáticamente en los canales configurados de dispatch."
     },
     {
       "type": "improved",
-      "text": "Los controles de aprobación y rechazo se concentran en los canales privados configurados."
+      "text": "La primera sincronización comienza desde la denuncia más reciente para evitar publicaciones antiguas."
     }
   ],
   "acknowledgements": []

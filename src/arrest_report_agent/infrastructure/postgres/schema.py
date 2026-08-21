@@ -960,6 +960,35 @@ service_call_cursors = sa.Table(
     sa.CheckConstraint("last_call_id > 0", name="ck_service_call_cursor_positive"),
 )
 
+stolen_vehicle_feed_cursors = sa.Table(
+    "stolen_vehicle_feed_cursors",
+    metadata,
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("channel_id", sa.BigInteger, primary_key=True),
+    sa.Column("last_report_id", sa.BigInteger, nullable=False),
+    sa.Column(
+        "created_at",
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now(),
+    ),
+    sa.Column(
+        "updated_at",
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now(),
+    ),
+    sa.CheckConstraint(
+        "last_report_id >= 0",
+        name="ck_stolen_vehicle_feed_cursor_nonnegative",
+    ),
+)
+
 report_arrest_bindings = sa.Table(
     "report_arrest_bindings",
     metadata,

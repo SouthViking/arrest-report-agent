@@ -235,6 +235,12 @@ class AppSettings(BaseSettings):
         ge=10,
         le=3600,
     )
+    sarp_stolen_vehicle_poll_seconds: int = Field(
+        default=60,
+        alias="SARP_STOLEN_VEHICLE_POLL_SECONDS",
+        ge=10,
+        le=3600,
+    )
 
     openai_model: str = Field(default="gpt-5.6-terra", alias="OPENAI_MODEL", min_length=1)
     openai_reasoning_effort: str = Field(default="medium", alias="OPENAI_REASONING_EFFORT", min_length=1)

@@ -46,6 +46,7 @@ class AccessPolicyKey(StrEnum):
     )
     CI_FAILURE_NOTIFICATION_CHANNELS = "ci_failure_notification_channels"
     SERVICE_CALL_CHANNELS = "service_call_channels"
+    STOLEN_VEHICLE_CHANNELS = "stolen_vehicle_channels"
     LOGBOOK_CHANNELS = "logbook_channels"
 
 
@@ -72,6 +73,7 @@ POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] 
     AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: "channel",
     AccessPolicyKey.CI_FAILURE_NOTIFICATION_CHANNELS: "channel",
     AccessPolicyKey.SERVICE_CALL_CHANNELS: "channel",
+    AccessPolicyKey.STOLEN_VEHICLE_CHANNELS: "channel",
     AccessPolicyKey.LOGBOOK_CHANNELS: "channel",
 }
 
@@ -316,6 +318,20 @@ class GuildConfigSnapshot(FrozenConfigModel):
                 raise ValueError(
                     "enabled service_calls requires restricted service-call channels"
                 )
+        stolen_vehicles_feature = self.features.get("stolen_vehicles")
+        if stolen_vehicles_feature is not None and stolen_vehicles_feature.enabled:
+            if stolen_vehicles_feature.schema_version != 1 or stolen_vehicles_feature.payload:
+                raise ValueError(
+                    "stolen_vehicles requires feature schema version 1 with empty options"
+                )
+            channels = self.policies[AccessPolicyKey.STOLEN_VEHICLE_CHANNELS]
+            if channels.mode is AccessPolicyMode.OPEN:
+                raise ValueError("stolen vehicle notification channels cannot be open")
+            roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
+            if roles.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError(
+                    "enabled stolen_vehicles requires restricted operational staff roles"
+                )
         faction_status_feature = self.features.get("faction_status")
         if faction_status_feature is not None and faction_status_feature.enabled:
             if faction_status_feature.schema_version != 1:
@@ -484,6 +500,16 @@ class GuildRuntimeSettings:
     def service_call_channel_ids(self) -> tuple[int, ...]:
         policy = self.snapshot.policy(AccessPolicyKey.SERVICE_CALL_CHANNELS)
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
+    def stolen_vehicle_channel_ids(self) -> tuple[int, ...]:
+        policy = self.snapshot.policy(AccessPolicyKey.STOLEN_VEHICLE_CHANNELS)
+        return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
+    def stolen_vehicles_enabled(self) -> bool:
+        feature = self.snapshot.features.get("stolen_vehicles")
+        return bool(feature is not None and feature.enabled)
 
     @property
     def logbook_channel_ids(self) -> tuple[int, ...]:

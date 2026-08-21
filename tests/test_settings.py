@@ -28,7 +28,7 @@ def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings)
     assert settings.max_total_file_bytes == 52_428_800
     assert settings.channel_context_max_messages == 5
     assert settings.thread_context_max_historical_files == 2
-    assert settings.app_version == "0.13.0"
+    assert settings.app_version == "0.14.0"
 
 
 def test_empty_escalation_roles_disable_mentions_and_legacy_name_is_supported() -> None:
@@ -123,7 +123,7 @@ def test_railway_webhook_requires_complete_identity_and_url_safe_secret() -> Non
 
     assert settings.railway_webhook_enabled is True
     assert settings.railway_webhook_identity_is_complete is True
-    assert settings.app_version == "0.13.0"
+    assert settings.app_version == "0.14.0"
 
     with pytest.raises(ValidationError, match="RAILWAY_ENVIRONMENT_ID"):
         AppSettings(**{key: value for key, value in values.items() if key != "RAILWAY_ENVIRONMENT_ID"})
@@ -183,6 +183,7 @@ def test_sarp_client_settings_are_optional_normalized_and_secret() -> None:
         SARP_API_TIMEOUT_SECONDS="12",
         SARP_API_MAX_RETRIES="3",
         SARP_EMERGENCY_CALL_POLL_SECONDS="45",
+        SARP_STOLEN_VEHICLE_POLL_SECONDS="75",
     )
 
     assert settings.sarp_api_token is not None
@@ -193,6 +194,7 @@ def test_sarp_client_settings_are_optional_normalized_and_secret() -> None:
     assert settings.sarp_api_timeout_seconds == 12
     assert settings.sarp_api_max_retries == 3
     assert settings.sarp_emergency_call_poll_seconds == 45
+    assert settings.sarp_stolen_vehicle_poll_seconds == 75
 
 
 def test_sarp_api_is_disabled_by_default_and_enabled_mode_requires_token() -> None:

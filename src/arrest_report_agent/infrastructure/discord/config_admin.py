@@ -59,6 +59,7 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
     ),
     AccessPolicyKey.CI_FAILURE_NOTIFICATION_CHANNELS: "Canales de errores de CI",
     AccessPolicyKey.SERVICE_CALL_CHANNELS: "Canales de llamadas de servicio",
+    AccessPolicyKey.STOLEN_VEHICLE_CHANNELS: "Canales de vehículos robados",
     AccessPolicyKey.LOGBOOK_CHANNELS: "Canales de bitácora",
 }
 FEATURE_LABELS = {
@@ -68,6 +69,7 @@ FEATURE_LABELS = {
     "faction_reports": "Informes de facción",
     "deployment_notifications": "Notificaciones de despliegue",
     "service_calls": "Llamadas de servicio",
+    "stolen_vehicles": "Vehículos robados",
     "faction_status": "Estado de facción",
     "operational_resources": "Recursos operativos",
     "forum_shortcuts": "Accesos al foro",
@@ -942,6 +944,10 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     value="service_calls",
                 ),
                 discord.SelectOption(
+                    label="Vehículos robados",
+                    value="stolen_vehicles",
+                ),
+                discord.SelectOption(
                     label="Estado de facción",
                     value="faction_status",
                 ),
@@ -1009,6 +1015,8 @@ class FeatureConfigurationModal(BaseConfigurationModal):
             if key == "deployment_notifications" and payload:
                 raise ValueError("Este módulo no admite opciones JSON.")
             if key == "service_calls" and payload:
+                raise ValueError("Este módulo no admite opciones JSON.")
+            if key == "stolen_vehicles" and payload:
                 raise ValueError("Este módulo no admite opciones JSON.")
             if key == "logbook" and payload:
                 raise ValueError("Este módulo no admite opciones JSON.")

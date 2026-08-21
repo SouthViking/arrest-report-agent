@@ -397,6 +397,20 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 mode=AccessPolicyMode.DISABLED,
             ),
             AccessPolicySnapshot(
+                key=AccessPolicyKey.STOLEN_VEHICLE_CHANNELS,
+                subject_type="channel",
+                mode=(
+                    AccessPolicyMode.RESTRICTED
+                    if guild_id == 1234674521416663070
+                    else AccessPolicyMode.DISABLED
+                ),
+                ids=(
+                    (1539037905014759485,)
+                    if guild_id == 1234674521416663070
+                    else ()
+                ),
+            ),
+            AccessPolicySnapshot(
                 key=AccessPolicyKey.LOGBOOK_CHANNELS,
                 subject_type="channel",
                 mode=AccessPolicyMode.DISABLED,
@@ -446,6 +460,15 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                     GuildFeatureSnapshot(
                         key="service_calls",
                         enabled=False,
+                        schema_version=1,
+                        payload={},
+                    ),
+                    GuildFeatureSnapshot(
+                        key="stolen_vehicles",
+                        enabled=(
+                            guild_id == 1234674521416663070
+                            and bool(supervisor_roles[guild_id])
+                        ),
                         schema_version=1,
                         payload={},
                     ),

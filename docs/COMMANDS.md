@@ -28,6 +28,11 @@ El módulo **Llamadas de servicio** no recibe opciones JSON. Sus destinos se adm
 política **Canales de llamadas de servicio**, que exige IDs explícitos. Al retirar el último canal o
 deshabilitar el módulo, el polling se detiene y deja de consumir la API SARP.
 
+El módulo **Vehículos robados** tampoco recibe opciones JSON. `/vehiculos-robados` reutiliza
+`operational_staff_roles` en cualquier canal y permite elegir cantidad, estado y visibilidad. El
+feed automático solo consulta SARP cuando la política **Canales de vehículos robados** contiene al
+menos un destino explícito; retirar el último canal detiene el polling sin deshabilitar el comando.
+
 El módulo **Estado de facción** recibe `{"faction_id": 3}` y habilita `/conectados` para esa facción.
 El ID queda por guild en PostgreSQL y no se fija en el comando ni en el cliente SARP.
 
@@ -65,6 +70,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/mdc` | `operational_staff_roles`; solo si SARP está activo | Modal privado; resultado público o efímero | API SARP en vivo |
 | `/info-mdc` | `operational_staff_roles`; solo si SARP está activo | Pública; rechazo efímero | Persona activa |
 | `/conectados` | `operational_staff_roles`; módulo `faction_status` activo | Pública; rechazo efímero | Nómina de la facción en SARP |
+| `/vehiculos-robados` | `operational_staff_roles`; módulo `stolen_vehicles` activo | Modal privado; resultado público o efímero | Denuncias recientes de vehículos en SARP |
 | `/recursos` | `operational_staff_roles`; módulo `operational_resources` activo | Pública; rechazo efímero | Configuración de PostgreSQL y API SARP |
 | `/foro` | Todos; módulo `forum_shortcuts` activo | Pública | Catálogo institucional configurado en PostgreSQL |
 | `/reportes-pendientes` | `operational_staff_roles`; módulo `pending_arrest_reports` activo | Modal privado; resultado público o efímero | Reportes de la facción en SARP |
@@ -192,6 +198,19 @@ El módulo dinámico `operational_resources` almacena por guild el `faction_id`,
 servidor y los enlaces oficiales. Reutiliza el servicio y las cachés de `/conectados`; la metadata
 del caché oficial se conserva durante cinco minutos y, si esa consulta falla, se omite solamente
 esa sección. `/conectados` sigue siendo el comando para consultar el detalle nominal del personal.
+
+## `/vehiculos-robados`
+
+Se registra únicamente con `SARP_API_ENABLED=true` y funciona en cualquier canal para miembros de
+`operational_staff_roles`. El formulario permite solicitar entre 1 y 50 denuncias recientes,
+filtrar por activas, resueltas o todas, y elegir una respuesta pública o efímera. El listado usa una
+fila compacta por vehículo, una leyenda de estados y paginación de diez resultados ligada a quien
+inició la consulta.
+
+El feed automático comparte el mismo servicio, pero solo consulta denuncias activas cuando existen
+canales explícitos en `stolen_vehicle_channels`. Publica cada denuncia nueva con matrícula, modelo,
+colores, propietario, descripción y hora relativa. No persiste esos datos: guarda únicamente el
+último ID entregado a cada canal.
 
 ## `/foro`
 

@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 43
+PERSONA_SCHEMA_VERSION = 44
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -899,6 +899,19 @@ class PersonaPendingArrestReportsMessages(FrozenPersonaModel):
         return self
 
 
+class PersonaStolenVehicleMessages(FrozenPersonaModel):
+    """Personality-aware copy for deterministic stolen-vehicle queries."""
+
+    alert_title: str = Field(min_length=1, max_length=256)
+    unauthorized: str = Field(min_length=1, max_length=400)
+    unavailable: str = Field(min_length=1, max_length=400)
+    operation_failed: str = Field(min_length=1, max_length=400)
+    invalid_count: str = Field(min_length=1, max_length=400)
+    busy: str = Field(min_length=1, max_length=400)
+    no_results: str = Field(min_length=1, max_length=500)
+    other_query: str = Field(min_length=1, max_length=400)
+
+
 class PersonaFactionReportMessages(FrozenPersonaModel):
     """Personality-aware copy for restricted faction XLSX reports."""
 
@@ -1016,6 +1029,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     mdc_description: str = Field(min_length=1, max_length=100)
     info_mdc_description: str = Field(min_length=1, max_length=100)
     connected_members_description: str = Field(min_length=1, max_length=100)
+    stolen_vehicles_description: str = Field(min_length=1, max_length=100)
     pending_arrest_reports_description: str = Field(min_length=1, max_length=100)
     faction_report_description: str = Field(min_length=1, max_length=100)
     resources_description: str = Field(min_length=1, max_length=100)
@@ -1050,6 +1064,7 @@ class PersonaInterfaceMessages(FrozenPersonaModel):
     operational_resources: PersonaOperationalResourcesMessages
     logbook: PersonaLogbookMessages
     pending_arrest_reports: PersonaPendingArrestReportsMessages
+    stolen_vehicles: PersonaStolenVehicleMessages
     faction_reports: PersonaFactionReportMessages
     review: PersonaReviewMessages
     commands: PersonaCommandMessages

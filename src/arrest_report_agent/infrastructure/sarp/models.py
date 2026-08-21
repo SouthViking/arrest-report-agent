@@ -417,6 +417,85 @@ class SarpEmergencyCallPage(BaseModel):
     pages: int = Field(ge=0)
 
 
+class SarpStolenVehicle(BaseModel):
+    """One police vehicle-theft report returned by SARP."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    owner_id: int | None = Field(default=None, gt=0)
+    owner_name: str | None = Field(default=None, max_length=100)
+    model: int | str | None = None
+    plate: str = Field(min_length=1, max_length=32)
+    colors: str | tuple[str, ...] | None = None
+    description: str = ""
+    is_active: bool
+    created_at: datetime
+
+    @field_validator("owner_name", mode="before")
+    @classmethod
+    def normalize_owner_name(cls, value: object) -> object:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+    @field_validator("model", mode="before")
+    @classmethod
+    def normalize_model(cls, value: object) -> object:
+        if value is None or isinstance(value, int):
+            return value
+        normalized = str(value).strip()
+        return normalized or None
+
+    @field_validator("plate", "description", mode="before")
+    @classmethod
+    def normalize_text(cls, value: object) -> str:
+        return str(value or "").strip()
+
+    @field_validator("colors", mode="before")
+    @classmethod
+    def normalize_colors(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, (list, tuple, set)):
+            return tuple(
+                normalized
+                for item in value
+                if (normalized := str(item).strip())
+            ) or None
+        normalized = str(value).strip()
+        return normalized or None
+
+    @field_validator("is_active", mode="before")
+    @classmethod
+    def normalize_active_state(cls, value: object) -> bool:
+        if value in (True, 1, "1"):
+            return True
+        if value in (False, 0, "0"):
+            return False
+        raise ValueError("SARP stolen vehicle state must be 0 or 1")
+
+    @field_validator("created_at")
+    @classmethod
+    def assume_documented_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+
+class SarpStolenVehiclePage(BaseModel):
+    """Paginated vehicle-theft reports ordered newest first by SARP."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    items: list[SarpStolenVehicle] = Field(default_factory=list)
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    limit: int = Field(ge=1, le=100)
+    pages: int = Field(ge=0)
+
+
 class SarpFactionMember(BaseModel):
     """One member returned by the authenticated faction detail endpoint."""
 

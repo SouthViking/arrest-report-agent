@@ -45,6 +45,8 @@ from .models import (
     SarpRateLimit,
     SarpResponse,
     SarpServerCacheInfo,
+    SarpStolenVehicle,
+    SarpStolenVehiclePage,
     SarpWarrant,
     SarpWarrantPage,
 )
@@ -94,6 +96,8 @@ __all__ = [
     "SarpRateLimitError",
     "SarpResponse",
     "SarpServerCacheInfo",
+    "SarpStolenVehicle",
+    "SarpStolenVehiclePage",
     "SarpServerError",
     "SarpTransportError",
     "SarpWarrant",

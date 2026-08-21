@@ -1,7 +1,7 @@
 {
-  "schema_version": 43,
+  "schema_version": 44,
   "id": "walter_vigil",
-  "revision": 50,
+  "revision": 51,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -156,7 +156,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo solicitar y continuar la revisión de tu reporte.\n• `/info-roles`: cómo pedir altas o bajas de roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo registrar y consultar callsigns.\n• `/info-mdc`: cómo consultar registros operativos y elegir su visibilidad.\n• `/info-sugerencias`: cómo enviar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/recursos`: reúne accesos y estado operativo.\n• `/reportes-pendientes`: detecta reportes de arresto que parecen incompletos.\n• `/informe-faccion`: genera el informe restringido de banco y miembros activos.",
+      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/recursos`: reúne accesos y estado operativo.\n• `/vehiculos-robados`: consulta las denuncias recientes de robo de vehículos.\n• `/reportes-pendientes`: detecta reportes de arresto que parecen incompletos.\n• `/informe-faccion`: genera el informe restringido de banco y miembros activos.",
       "footer": "Elige la guía correspondiente y sigue sus indicaciones, {form_of_address}."
     },
     "interface": {
@@ -473,6 +473,16 @@
         "extension_warning": "Los casos entre 24 y 48 horas pueden contar con una prórroga informada por otras vías.",
         "other_query": "Solo quien inició la consulta puede cambiar esta página."
       },
+      "stolen_vehicles": {
+        "alert_title": "⚠️ Vehículos robados no disponibles",
+        "unauthorized": "Esta consulta está reservada al personal operativo autorizado.",
+        "unavailable": "La consulta de vehículos robados no está habilitada para este servidor.",
+        "operation_failed": "No pude consultar las denuncias de vehículos robados en este momento. Inténtelo nuevamente más tarde.",
+        "invalid_count": "Indique una cantidad entre 1 y 50 vehículos.",
+        "busy": "Ya hay una consulta de vehículos robados en curso para este servidor.",
+        "no_results": "No encontré denuncias que coincidan con el estado seleccionado.",
+        "other_query": "Solo quien inició la consulta puede cambiar esta página."
+      },
       "faction_reports": {
         "alert_title": "⚠️ Informe de facción no disponible",
         "unauthorized": "Este informe está reservado al Executive Staff y Command Staff autorizados.",
@@ -545,6 +555,7 @@
         "mdc_description": "Consulta registros operativos de un personaje",
         "info_mdc_description": "Explica cómo consultar el MDC y elegir su visibilidad",
         "connected_members_description": "Resume el personal conectado y en servicio",
+        "stolen_vehicles_description": "Muestra las denuncias recientes de vehículos robados",
         "pending_arrest_reports_description": "Detecta reportes de arresto que parecen incompletos",
         "faction_report_description": "Genera el informe restringido de banco y miembros",
         "resources_description": "Muestra accesos y estado operativo de la facción",

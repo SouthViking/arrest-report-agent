@@ -135,6 +135,8 @@ modelo no puede escoger una guild ni un canal de publicación.
   alertas internas de CI; usa una política de canales independiente y no depende de OpenAI.
 - `service_calls`: polling dinámico del endpoint de emergencias SARP, publicación segura en Discord
   y un cursor mínimo por guild/canal; no persiste el contenido de los llamados ni usa OpenAI.
+- `stolen_vehicles`: consulta determinista y feed dinámico de denuncias SARP; comparte servicio entre
+  el comando y el worker, guarda solo el último ID publicado por guild/canal y no usa OpenAI.
 - `faction_status`: consulta agrupada y con caché corto del roster SARP configurado por guild; no
   persiste estados de conexión ni usa OpenAI.
 

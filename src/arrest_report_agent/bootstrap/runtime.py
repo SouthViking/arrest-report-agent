@@ -92,6 +92,12 @@ from arrest_report_agent.role_requests import (
     RoleRequestServiceRegistry,
 )
 from arrest_report_agent.service_calls import ServiceCallFeedWorker, ServiceCallRepository
+from arrest_report_agent.stolen_vehicles import (
+    StolenVehicleCog,
+    StolenVehicleFeedRepository,
+    StolenVehicleFeedWorker,
+    StolenVehicleService,
+)
 from arrest_report_agent.suggestions import SuggestionCog, SuggestionRepository
 
 from .database import build_bucket_storage, build_postgres_client
@@ -119,6 +125,7 @@ class Runtime:
     github_webhook_receiver: GitHubWebhookReceiver | None
     cost_monitoring: CostMonitoringService | None
     service_call_worker: ServiceCallFeedWorker | None
+    stolen_vehicle_worker: StolenVehicleFeedWorker | None
     postgres: PostgresClient
     config_provider: DatabaseConfigProvider
 
@@ -163,6 +170,11 @@ class Runtime:
                 if self.service_call_worker is not None
                 else False
             ),
+            "stolen_vehicles": (
+                self.stolen_vehicle_worker.running
+                if self.stolen_vehicle_worker is not None
+                else False
+            ),
         }
 
     async def close(self) -> None:
@@ -172,6 +184,8 @@ class Runtime:
             await self.cost_monitoring.close()
         if self.service_call_worker is not None:
             await self.service_call_worker.close()
+        if self.stolen_vehicle_worker is not None:
+            await self.stolen_vehicle_worker.close()
         await self.config_provider.close()
         if self.sarp_penal_code_provider is not None:
             await self.sarp_penal_code_provider.close()
@@ -311,6 +325,8 @@ async def build_runtime(
 
     config_provider.register_global_callback(synchronize_global_persona)
     service_call_worker: ServiceCallFeedWorker | None = None
+    stolen_vehicle_worker: StolenVehicleFeedWorker | None = None
+    stolen_vehicle_service: StolenVehicleService | None = None
     if sarp_client is not None:
         service_call_guild_ids = tuple(
             bundle.snapshot.guild_id
@@ -338,6 +354,34 @@ async def build_runtime(
             configured_guilds=len(service_call_guild_ids),
             running=service_call_worker.running,
             poll_seconds=settings.sarp_emergency_call_poll_seconds,
+        )
+        stolen_vehicle_service = StolenVehicleService(sarp_client)
+        stolen_vehicle_guild_ids = tuple(
+            bundle.snapshot.guild_id
+            for bundle in all_bundles
+            if (feature := bundle.snapshot.features.get("stolen_vehicles")) is not None
+            and feature.enabled
+            and bundle.settings.stolen_vehicle_channel_ids
+        )
+        stolen_vehicle_worker = StolenVehicleFeedWorker(
+            bot,
+            config_provider,
+            StolenVehicleFeedRepository(postgres),
+            stolen_vehicle_service,
+            poll_seconds=settings.sarp_stolen_vehicle_poll_seconds,
+            enabled_guild_ids=stolen_vehicle_guild_ids,
+        )
+        config_provider.register_guild_callback(
+            stolen_vehicle_worker.configuration_updated
+        )
+        stolen_vehicle_worker.start()
+        log_event(
+            LOGGER,
+            "info",
+            "stolen_vehicle_subsystem_registered",
+            configured_guilds=len(stolen_vehicle_guild_ids),
+            running=stolen_vehicle_worker.running,
+            poll_seconds=settings.sarp_stolen_vehicle_poll_seconds,
         )
     role_request_bundles = [
         bundle
@@ -386,6 +430,8 @@ async def build_runtime(
     bot.add_cog(ManualQuizCog(config_provider, manual_quiz_sessions, persona.profile))
     bot.add_cog(ForumShortcutsCog(config_provider))
     if sarp_client is not None:
+        if stolen_vehicle_service is None:
+            raise RuntimeError("Stolen-vehicle service was not initialized")
         faction_directory = FactionDirectoryService(sarp_client)
         faction_status_service = FactionStatusService(
             sarp_client,
@@ -417,6 +463,13 @@ async def build_runtime(
             FactionReportCog(
                 config_provider,
                 FactionReportService(sarp_client, faction_directory),
+                persona.profile,
+            )
+        )
+        bot.add_cog(
+            StolenVehicleCog(
+                config_provider,
+                stolen_vehicle_service,
                 persona.profile,
             )
         )
@@ -545,6 +598,7 @@ async def build_runtime(
         github_webhook_receiver=github_webhook_receiver,
         cost_monitoring=cost_monitoring,
         service_call_worker=service_call_worker,
+        stolen_vehicle_worker=stolen_vehicle_worker,
         postgres=postgres,
         config_provider=config_provider,
     )

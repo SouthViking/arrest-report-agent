@@ -405,6 +405,61 @@ async def test_emergency_call_endpoint_is_typed_and_treats_naive_dates_as_utc() 
     assert page.items[0].location == "Mulholland Drive"
 
 
+async def test_stolen_vehicle_endpoint_uses_filters_and_parses_typed_payload() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/police/stolen-vehicles"
+        assert request.query == {
+            "page": "2",
+            "limit": "10",
+            "is_active": "1",
+            "plate": "ABC123",
+            "owner_id": "44",
+        }
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "pcu",
+                "payload": {
+                    "items": [
+                        {
+                            "id": 902,
+                            "owner_id": 44,
+                            "owner_name": "Terry Davis",
+                            "model": 560,
+                            "plate": "ABC123",
+                            "colors": ["Negro", "Blanco"],
+                            "description": "Sultan denunciado como robado.",
+                            "is_active": 1,
+                            "created_at": "2026-08-21 18:15:00",
+                        }
+                    ],
+                    "total": 11,
+                    "page": 2,
+                    "limit": 10,
+                    "pages": 2,
+                },
+            }
+        )
+
+    async with serve_sarp(handler) as base_url, SarpClient(
+        SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)
+    ) as client:
+        page = await client.list_stolen_vehicles(
+            page=2,
+            limit=10,
+            is_active=True,
+            plate=" ABC123 ",
+            owner_id=44,
+        )
+
+    assert page.total == 11
+    assert page.items[0].id == 902
+    assert page.items[0].colors == ("Negro", "Blanco")
+    assert page.items[0].is_active is True
+    assert page.items[0].created_at.utcoffset().total_seconds() == 0
+
+
 async def test_faction_detail_endpoint_returns_typed_live_member_states() -> None:
     async def handler(request: web.Request) -> web.Response:
         assert request.path == "/api/my-faction/faction/3"

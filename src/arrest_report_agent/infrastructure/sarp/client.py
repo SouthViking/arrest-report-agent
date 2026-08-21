@@ -47,6 +47,7 @@ from .models import (
     SarpRateLimit,
     SarpResponse,
     SarpServerCacheInfo,
+    SarpStolenVehiclePage,
     SarpWarrantPage,
 )
 
@@ -71,6 +72,7 @@ ARREST_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpArrestDetail)
 FACTION_ARREST_SEARCH_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionArrestSearchPayload)
 FACTION_BANK_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionBankPage)
 EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpEmergencyCallPage)
+STOLEN_VEHICLE_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpStolenVehiclePage)
 FACTION_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionDetail)
 FACTION_RANKS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionRank])
 GLOBAL_METRICS_PAYLOAD_ADAPTER = TypeAdapter(SarpGlobalMetrics)
@@ -502,6 +504,35 @@ class SarpClient:
             "/police/emergency-calls",
             params={"page": page, "limit": limit},
             payload_adapter=EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def list_stolen_vehicles(
+        self,
+        *,
+        page: int = 1,
+        limit: int = 25,
+        is_active: bool | None = None,
+        plate: str | None = None,
+        owner_id: int | None = None,
+    ) -> SarpStolenVehiclePage:
+        """List police vehicle-theft reports using the documented filters."""
+
+        _validate_page(page, limit)
+        normalized_plate = _normalize_optional_search(plate, "plate")
+        if owner_id is not None:
+            _require_positive_id(owner_id, "owner_id")
+        response = await self.request(
+            "GET",
+            "/police/stolen-vehicles",
+            params={
+                "page": page,
+                "limit": limit,
+                "is_active": int(is_active) if is_active is not None else None,
+                "plate": normalized_plate,
+                "owner_id": owner_id,
+            },
+            payload_adapter=STOLEN_VEHICLE_PAGE_PAYLOAD_ADAPTER,
         )
         return response.payload
 

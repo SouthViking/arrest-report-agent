@@ -819,6 +819,34 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         other_review = [row for row in review_rows if int(row["guild_id"]) == 999]
         assert other_review[0]["mode"] == "disabled"
         assert other_review[0]["snowflake_id"] is None
+        stolen_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, policy.mode, feature.enabled, feature.payload, "
+                "member.snowflake_id "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_access_policies policy "
+                "ON policy.config_revision_id = revision.id "
+                "AND policy.policy_key = 'stolen_vehicle_channels' "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'stolen_vehicles' "
+                "LEFT JOIN guild_access_policy_members member ON member.policy_id = policy.id "
+                "ORDER BY revision.guild_id, member.position"
+            )
+        )
+        stolen = {int(row["guild_id"]): row for row in stolen_rows}
+        assert stolen[1234674521416663070]["mode"] == "restricted"
+        assert stolen[1234674521416663070]["enabled"] is True
+        assert stolen[1234674521416663070]["payload"] == {}
+        assert int(stolen[1234674521416663070]["snowflake_id"]) == 1539037905014759485
+        assert stolen[999]["mode"] == "disabled"
+        assert stolen[999]["enabled"] is False
+        assert stolen[999]["snowflake_id"] is None
+        cursor_table = await client.fetch_one(
+            sa.text("SELECT to_regclass('public.stolen_vehicle_feed_cursors') AS name")
+        )
+        assert cursor_table is not None
+        assert cursor_table["name"] == "stolen_vehicle_feed_cursors"
     finally:
         await client.close()
 
@@ -1080,8 +1108,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 50
-        assert persona["schema_version"] == 43
+        assert persona["revision"] == 51
+        assert persona["schema_version"] == 44
         assert set(persona["payload"]["presence"]) == {
             "idle",
             "conversation",
@@ -1166,6 +1194,15 @@ async def _assert_callsign_migration(
             "resources_description"
         ]
         assert "/recursos" in persona["payload"]["messages"]["help"][
+            "quick_references"
+        ]
+        assert persona["payload"]["messages"]["interface"]["stolen_vehicles"][
+            "no_results"
+        ]
+        assert persona["payload"]["messages"]["interface"]["commands"][
+            "stolen_vehicles_description"
+        ]
+        assert "/vehiculos-robados" in persona["payload"]["messages"]["help"][
             "quick_references"
         ]
         resource_feature = await client.fetch_one(

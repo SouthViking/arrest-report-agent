@@ -53,6 +53,8 @@ requeriría.
 
 Cada canal configurado en `service_call_channels` requiere únicamente `View Channel`, `Send
 Messages` y `Embed Links`. El feed desactiva menciones y no necesita leer el historial del canal.
+Los canales de `stolen_vehicle_channels` utilizan el mismo conjunto mínimo de permisos y tampoco
+requieren leer historial ni mencionar usuarios.
 
 La biografía propia del bot se sincroniza mediante el perfil de miembro de cada servidor y no
 requiere agregar un permiso de Discord.
