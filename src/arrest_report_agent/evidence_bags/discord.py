@@ -35,7 +35,7 @@ class EvidenceBagCog(commands.Cog):
         name="ver-evidencia",
         description="Consulta una bolsa de evidencias",
     )
-    @discord.option(
+    @discord.option(  # type: ignore[no-untyped-call,untyped-decorator]
         "bolsa",
         int,
         description="Número de la bolsa",
