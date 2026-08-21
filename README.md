@@ -517,7 +517,7 @@ el contenido exacto del FAQ.
 | `OPENAI_ADMIN_KEY` | vacío | Admin API key separada y de solo backend para consultar costos y límites de OpenAI desde el panel owner-only. |
 | `OPENAI_PROJECT_ID` | vacío | Proyecto de OpenAI que acota el gasto y el límite; sin él se usa el alcance de organización. |
 | `RAILWAY_API_TOKEN` | vacío | Token de Railway limitado al workspace consultado por el monitor de consumo. |
-| `RAILWAY_WORKSPACE_ID` | vacío | Workspace de Railway cuyo uso, estimación y hard limit se consultan. |
+| `RAILWAY_WORKSPACE_ID` | vacío | Workspace de Railway cuyo periodo, hard limit y margen se consultan. El uso del proyecto se filtra automáticamente con `RAILWAY_PROJECT_ID`. |
 | `COST_MONITOR_TIMEOUT_SECONDS` | `10` | Timeout individual de las consultas de consumo. |
 | `COST_MONITOR_CACHE_SECONDS` | `300` | Vigencia en memoria del último resumen válido para evitar consultas repetidas. |
 | `SARP_API_ENABLED` | `false` | Kill switch global. Apagado evita crear el cliente o realizar solicitudes; el código penal permanece local. |

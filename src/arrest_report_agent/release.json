@@ -1,22 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.14.0",
-  "title": "Seguimiento de vehículos robados",
-  "summary": "El personal operativo puede consultar las denuncias recientes y dispatch recibe las nuevas alertas sin repetir el historial anterior.",
+  "version": "0.14.1",
+  "title": "Consumo de Railway por proyecto",
+  "summary": "El monitor interno ahora separa el gasto del proyecto del bot de los límites generales del workspace.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
       "type": "improved",
-      "text": "Se agregó `/vehiculos-robados` con filtros por estado, cantidad y visibilidad del resultado."
+      "text": "El consumo actual y la estimación de Railway se consultan usando el proyecto donde está desplegado el bot."
     },
     {
       "type": "improved",
-      "text": "Las denuncias nuevas pueden publicarse automáticamente en los canales configurados de dispatch."
-    },
-    {
-      "type": "improved",
-      "text": "La primera sincronización comienza desde la denuncia más reciente para evitar publicaciones antiguas."
+      "text": "El mensaje distingue el consumo del proyecto del límite y margen globales del workspace, e informa cuando debe usar el alcance global como respaldo."
     }
   ],
   "acknowledgements": []

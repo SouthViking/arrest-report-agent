@@ -117,6 +117,7 @@ def build_cost_monitoring_service(settings: AppSettings) -> CostMonitoringServic
         RailwayCostProvider(
             settings.railway_api_token.get_secret_value(),
             settings.railway_workspace_id,
+            project_id=settings.railway_project_id,
             timeout_seconds=settings.cost_monitor_timeout_seconds,
         )
         if settings.railway_cost_monitoring_enabled

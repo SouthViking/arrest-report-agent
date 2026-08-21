@@ -20,12 +20,13 @@ class OpenAICostSnapshot:
 
 @dataclass(frozen=True, slots=True)
 class RailwayCostSnapshot:
-    """Current Railway workspace usage and enforced limit."""
+    """Current Railway project/workspace usage and workspace-enforced limit."""
 
     current_usage: Decimal | None
     estimated_bill: Decimal | None
     hard_limit: Decimal | None
     remaining: Decimal | None
+    usage_scope: Literal["project", "workspace"] = "workspace"
 
 
 @dataclass(frozen=True, slots=True)

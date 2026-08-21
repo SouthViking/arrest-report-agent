@@ -26,9 +26,7 @@ class FakeOpenAIClient:
         self.admin = SimpleNamespace(
             organization=SimpleNamespace(
                 usage=SimpleNamespace(costs=self.costs),
-                projects=SimpleNamespace(
-                    spend_limit=SimpleNamespace(retrieve=self.project_spend_limit)
-                ),
+                projects=SimpleNamespace(spend_limit=SimpleNamespace(retrieve=self.project_spend_limit)),
                 spend_limit=SimpleNamespace(retrieve=self.organization_spend_limit),
             )
         )
@@ -105,9 +103,7 @@ async def test_railway_provider_reads_usage_estimate_and_hard_limit() -> None:
             {
                 "data": {
                     "usage": [{"measurement": "NETWORK_TX_GB", "value": 68.4}],
-                    "estimatedUsage": [
-                        {"measurement": "NETWORK_TX_GB", "estimatedValue": 98}
-                    ],
+                    "estimatedUsage": [{"measurement": "NETWORK_TX_GB", "estimatedValue": 98}],
                 }
             }
         )
@@ -120,6 +116,7 @@ async def test_railway_provider_reads_usage_estimate_and_hard_limit() -> None:
             provider = RailwayCostProvider(
                 "workspace-token",
                 "workspace-1",
+                project_id="project-1",
                 timeout_seconds=5,
                 endpoint=str(test_client.make_url("/graphql")),
                 session=session,
@@ -128,12 +125,14 @@ async def test_railway_provider_reads_usage_estimate_and_hard_limit() -> None:
         finally:
             await session.close()
 
-    assert snapshot.current_usage == Decimal("3.42")
+    assert snapshot.current_usage == Decimal("3.420")
     assert snapshot.estimated_bill == Decimal("4.900")
     assert snapshot.hard_limit == Decimal("10")
     assert snapshot.remaining == Decimal("6.58")
+    assert snapshot.usage_scope == "project"
     assert len(requests) == 2
     assert requests[1]["variables"]["workspaceId"] == "workspace-1"  # type: ignore[index]
+    assert requests[1]["variables"]["projectId"] == "project-1"  # type: ignore[index]
 
 
 class FakeProvider:
@@ -209,6 +208,27 @@ def test_embed_omits_unavailable_fields_and_providers() -> None:
     rendered = "\n".join(field.value for field in embed.fields)
     assert "USD 1,84" in rendered
     assert "USD 3,42" in rendered
+    assert "Uso actual del workspace" in rendered
+    assert "Mostrando consumo global del workspace" in rendered
     assert "Límite" not in rendered
     assert "estimada" not in rendered
     assert "disponible mediante API" not in rendered
+
+
+def test_embed_omits_global_usage_note_for_railway_project_scope() -> None:
+    snapshot = CostMonitoringSnapshot(
+        fetched_at=datetime(2026, 8, 15, 12, tzinfo=UTC),
+        railway=RailwayCostSnapshot(
+            current_usage=Decimal("1.25"),
+            estimated_bill=Decimal("2.50"),
+            hard_limit=Decimal("10"),
+            remaining=Decimal("6.58"),
+            usage_scope="project",
+        ),
+    )
+
+    embed = build_cost_monitoring_embed(snapshot)
+
+    rendered = "\n".join(field.value for field in embed.fields)
+    assert "Uso actual del proyecto" in rendered
+    assert "Mostrando consumo global" not in rendered

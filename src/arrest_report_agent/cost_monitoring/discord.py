@@ -30,14 +30,17 @@ def build_cost_monitoring_embed(snapshot: CostMonitoringSnapshot) -> discord.Emb
     if snapshot.railway is not None:
         railway = snapshot.railway
         railway_lines: list[str] = []
+        usage_scope = "del proyecto" if railway.usage_scope == "project" else "del workspace"
         if railway.current_usage is not None:
-            railway_lines.append(f"**Uso actual:** `{_usd(railway.current_usage)}`")
+            railway_lines.append(f"**Uso actual {usage_scope}:** `{_usd(railway.current_usage)}`")
         if railway.estimated_bill is not None:
-            railway_lines.append(f"**Factura estimada:** `{_usd(railway.estimated_bill)}`")
+            railway_lines.append(f"**Factura estimada {usage_scope}:** `{_usd(railway.estimated_bill)}`")
         if railway.hard_limit is not None:
-            railway_lines.append(f"**Límite de gasto:** `{_usd(railway.hard_limit)}`")
+            railway_lines.append(f"**Límite del workspace:** `{_usd(railway.hard_limit)}`")
         if railway.remaining is not None:
-            railway_lines.append(f"**Margen disponible:** `{_usd(railway.remaining)}`")
+            railway_lines.append(f"**Margen del workspace:** `{_usd(railway.remaining)}`")
+        if railway.usage_scope == "workspace":
+            railway_lines.append("ℹ️ *Mostrando consumo global del workspace.*")
         if railway_lines:
             embed.add_field(name="🚂 Railway", value="\n".join(railway_lines), inline=False)
 

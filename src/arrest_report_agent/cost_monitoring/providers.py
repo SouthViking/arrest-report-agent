@@ -51,14 +51,15 @@ query WorkspaceUsageContext($workspaceId: String!) {
 RAILWAY_ESTIMATE_QUERY = """
 query WorkspaceCostEstimate(
   $workspaceId: String!
+  $projectId: String
   $measurements: [MetricMeasurement!]!
   $startDate: DateTime!
   $endDate: DateTime!
 ) {
   usage(
     workspaceId: $workspaceId
+    projectId: $projectId
     measurements: $measurements
-    groupBy: [PROJECT_ID]
     startDate: $startDate
     endDate: $endDate
     includeDeleted: true
@@ -68,6 +69,7 @@ query WorkspaceCostEstimate(
   }
   estimatedUsage(
     workspaceId: $workspaceId
+    projectId: $projectId
     measurements: $measurements
     includeDeleted: true
   ) {
@@ -198,11 +200,13 @@ class RailwayCostProvider:
         api_token: str,
         workspace_id: str,
         *,
+        project_id: str | None = None,
         timeout_seconds: float,
         endpoint: str = RAILWAY_GRAPHQL_ENDPOINT,
         session: aiohttp.ClientSession | None = None,
     ) -> None:
         self.workspace_id = workspace_id
+        self.project_id = project_id
         self.endpoint = endpoint
         self._session = session or aiohttp.ClientSession(
             headers={"Authorization": f"Bearer {api_token}"},
@@ -218,7 +222,11 @@ class RailwayCostProvider:
         workspace = _mapping(context.get("workspace"), "workspace")
         customer = _mapping(workspace.get("customer"), "workspace.customer")
         billing_period = _mapping(customer.get("billingPeriod"), "billingPeriod")
-        current_usage = _optional_decimal(customer.get("currentUsage"), "currentUsage")
+        workspace_current_usage = _optional_decimal(
+            customer.get("currentUsage"),
+            "currentUsage",
+        )
+        current_usage = None if self.project_id is not None else workspace_current_usage
         hard_limit = self._hard_limit(customer.get("usageLimit"))
 
         estimated_bill: Decimal | None = None
@@ -227,6 +235,7 @@ class RailwayCostProvider:
                 RAILWAY_ESTIMATE_QUERY,
                 {
                     "workspaceId": self.workspace_id,
+                    "projectId": self.project_id,
                     "measurements": list(RAILWAY_USAGE_MEASUREMENTS),
                     "startDate": _required_string(billing_period.get("start"), "billingPeriod.start"),
                     "endDate": _required_string(billing_period.get("end"), "billingPeriod.end"),
@@ -237,12 +246,16 @@ class RailwayCostProvider:
                 estimate.get("estimatedUsage"),
                 value_key="estimatedValue",
             )
-            adjustment = (
-                max(Decimal("0"), current_usage - measured_cost)
-                if current_usage is not None
-                else Decimal("0")
-            )
-            estimated_bill = estimated_cost + adjustment
+            if self.project_id is not None:
+                current_usage = measured_cost
+                estimated_bill = estimated_cost
+            else:
+                adjustment = (
+                    max(Decimal("0"), current_usage - measured_cost)
+                    if current_usage is not None
+                    else Decimal("0")
+                )
+                estimated_bill = estimated_cost + adjustment
         except (ProviderResponseError, aiohttp.ClientError, TimeoutError) as error:
             log_event(
                 LOGGER,
@@ -252,8 +265,8 @@ class RailwayCostProvider:
             )
 
         remaining = (
-            max(Decimal("0"), hard_limit - current_usage)
-            if hard_limit is not None and current_usage is not None
+            max(Decimal("0"), hard_limit - workspace_current_usage)
+            if hard_limit is not None and workspace_current_usage is not None
             else None
         )
         return RailwayCostSnapshot(
@@ -261,6 +274,7 @@ class RailwayCostProvider:
             estimated_bill=estimated_bill,
             hard_limit=hard_limit,
             remaining=remaining,
+            usage_scope="project" if self.project_id is not None else "workspace",
         )
 
     async def _graphql(
