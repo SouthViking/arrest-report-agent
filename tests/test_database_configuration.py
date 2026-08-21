@@ -138,6 +138,12 @@ def test_role_request_retirement_requires_explicit_managed_catalog(settings) -> 
         mode=AccessPolicyMode.RESTRICTED,
         ids=(retired_role_id,),
     )
+    policies[AccessPolicyKey.ROLE_REQUEST_REVIEW_CHANNELS] = AccessPolicySnapshot(
+        key=AccessPolicyKey.ROLE_REQUEST_REVIEW_CHANNELS,
+        subject_type="channel",
+        mode=AccessPolicyMode.RESTRICTED,
+        ids=(1261076248541532240, 1234678185124298853),
+    )
     values = {
         "guild_id": 1,
         "revision_id": uuid4(),
@@ -158,7 +164,12 @@ def test_role_request_retirement_requires_explicit_managed_catalog(settings) -> 
     }
 
     snapshot = GuildConfigSnapshot.model_validate(values)
-    assert GuildRuntimeSettings(settings, snapshot).role_request_retired_role_id == retired_role_id
+    runtime = GuildRuntimeSettings(settings, snapshot)
+    assert runtime.role_request_retired_role_id == retired_role_id
+    assert runtime.role_request_review_channel_ids == (
+        1261076248541532240,
+        1234678185124298853,
+    )
 
     invalid = snapshot.model_dump()
     invalid["policies"][AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]["mode"] = (
@@ -786,6 +797,28 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         assert len(forums[1234674521416663070]["payload"]["sections"]) == 3
         assert forums[999]["enabled"] is False
         assert forums[999]["payload"] == {}
+        review_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, policy.mode, member.snowflake_id "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_access_policies policy "
+                "ON policy.config_revision_id = revision.id "
+                "AND policy.policy_key = 'role_request_review_channels' "
+                "LEFT JOIN guild_access_policy_members member ON member.policy_id = policy.id "
+                "ORDER BY revision.guild_id, member.position"
+            )
+        )
+        lssd_review = [
+            row for row in review_rows if int(row["guild_id"]) == 1234674521416663070
+        ]
+        assert lssd_review[0]["mode"] == "restricted"
+        assert [int(row["snowflake_id"]) for row in lssd_review] == [
+            1261076248541532240,
+            1234678185124298853,
+        ]
+        other_review = [row for row in review_rows if int(row["guild_id"]) == 999]
+        assert other_review[0]["mode"] == "disabled"
+        assert other_review[0]["snowflake_id"] is None
     finally:
         await client.close()
 

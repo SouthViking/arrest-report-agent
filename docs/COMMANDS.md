@@ -81,7 +81,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/ranking` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/mis-reportes` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
 | `/mi-resumen` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
-| `/solicitar-roles` | Todos en guild y canal habilitados | Modal privado; solicitud pública en el canal | Mensaje versionado de Discord |
+| `/solicitar-roles` | Todos en guild y canal habilitados | Estado público y revisión privada | PostgreSQL y Discord |
 | `/info-roles` | Todos en una guild habilitada | Pública | Persona y configuración actuales |
 | `/pager` | Roles emisores, en canales habilitados | Modal privado; pager público | PostgreSQL y Discord |
 | `/pager-activos` | Todos en canales de pager | Pública y paginada | PostgreSQL |
@@ -122,8 +122,8 @@ comandos. Esta autorización tampoco depende de los usuarios habilitados para el
 Los comandos de roles se registran únicamente cuando `ROLE_REQUEST_REVIEWER_ROLE_IDS` contiene al
 menos un ID explícito. `ROLE_REQUEST_ALLOWED_ROLE_IDS` ausente, vacío o con `*` permite todos los
 roles seguros de la guild; un CSV define un catálogo cerrado. No aplican `AUTHORIZED_USER_IDS`.
-Los botones de una solicitud son visibles,
-pero sus callbacks verifican siempre que quien decide posea uno de esos roles. Tanto los IDs de
+Los botones aparecen solo en los canales de `role_request_review_channels` y sus callbacks verifican
+siempre que quien decide posea uno de esos roles. Tanto los IDs de
 revisores como los de canales pueden mezclar distintas guilds; en cada interacción solo se resuelven
 los objetos pertenecientes a la guild actual.
 
@@ -424,20 +424,22 @@ retiro y muestra los roles gestionados actuales que se retirarán. Al aprobarla,
 ese conjunto para incluir cambios posteriores, conserva los roles ajenos al catálogo y ejecuta una
 sola edición atómica. No existe aprobación parcial para un retiro.
 
-La solicitud se publica en el mismo canal con botones persistentes. El mensaje es la única fuente de
-verdad: su ID identifica el expediente y un codec versionado reconstruye solicitante, roles y estado.
-Solo se admite una solicitud pendiente por miembro entre todos los canales autorizados y visibles de
-esa guild.
+La solicitud deja en el mismo canal un embed público sin motivo, revisor ni comentario. PostgreSQL
+conserva el expediente y las referencias a sus copias privadas; cada canal configurado en
+`role_request_review_channels` recibe el detalle completo y los botones persistentes. Solo se admite
+una solicitud pendiente por miembro en la guild. Las solicitudes antiguas basadas únicamente en el
+mensaje público siguen resolviéndose con su codec v1.
 El embed omite altas, bajas, motivo, comentarios y grupos de cambios cuando no contienen información;
 nunca utiliza una raya como valor de relleno. El codec sigue aceptando solicitudes antiguas que sí la
 incluyan.
 
 Un supervisor puede aprobar todo, abrir un segundo modal para seleccionar un subconjunto exacto o
-rechazar con motivo. La resolución edita el mismo embed, registra supervisor y fecha, deshabilita los
-tres botones y modifica los roles en una sola operación cuando corresponde. Los clics repetidos,
-mensajes alterados o solicitudes ya resueltas no vuelven a ejecutar cambios.
-Las confirmaciones privadas de creación y resolución también se presentan como embeds con colores
-coherentes con su estado; el subsistema no utiliza respuestas planas.
+rechazar con motivo. Aprobaciones parciales y rechazos exigen comentario. La resolución edita el
+estado público y todas las copias privadas, deshabilita los botones y modifica los roles en una sola
+operación cuando corresponde. El solicitante recibe el comentario por MD; si Discord bloquea el MD,
+el mensaje público ofrece **Ver resolución**, visible de forma privada solo para ese solicitante.
+Los botones no agregan confirmaciones efímeras de éxito: las ediciones de los mensajes son la
+confirmación. Los clics repetidos no vuelven a ejecutar cambios.
 
 ## `/info-roles`
 

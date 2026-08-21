@@ -28,6 +28,10 @@ from .codec import (
     RoleRequestCodecError,
     build_decision_embed,
     build_pending_embed,
+    build_private_pending_embed,
+    build_public_decision_embed,
+    build_public_pending_embed,
+    build_requester_decision_embed,
     decode_pending_message,
 )
 from .models import (
@@ -37,7 +41,10 @@ from .models import (
     RoleRequestDecision,
     RoleRequestKind,
     RoleRequestStatus,
+    StoredRoleRequest,
+    StoredRoleRequestStatus,
 )
+from .repository import PendingRoleRequestError, RoleRequestRepository
 
 LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
@@ -74,8 +81,8 @@ class RoleRequestModalCopy:
     partial_title: str = "Aprobar parcialmente"
     partial_add_label: str = "Roles que se agregarán"
     partial_remove_label: str = "Roles que se retirarán"
-    partial_comment_label: str = "Comentario (opcional)"
-    partial_comment_placeholder: str = "Explica la decisión si es necesario."
+    partial_comment_label: str = "Motivo de la aprobación parcial"
+    partial_comment_placeholder: str = "Explica por qué solo se autoriza una parte."
     reject_title: str = "Rechazar solicitud"
     reject_reason_label: str = "Motivo del rechazo"
     reject_reason_placeholder: str = "Explica por qué no se autorizan los cambios."
@@ -95,9 +102,15 @@ class RoleRequestValidationError(ValueError):
 class RoleRequestServiceRegistry:
     """Resolve an immutable role-request service for the interaction's guild."""
 
-    def __init__(self, bot: discord.Bot, config_provider: object) -> None:
+    def __init__(
+        self,
+        bot: discord.Bot,
+        config_provider: object,
+        repository: RoleRequestRepository | None = None,
+    ) -> None:
         self.bot = bot
         self.config_provider = config_provider
+        self.repository = repository
         self._services: dict[object, RoleRequestService] = {}
 
     async def get(self, guild_id: int) -> RoleRequestService:
@@ -113,6 +126,7 @@ class RoleRequestServiceRegistry:
                 self.bot,
                 bundle.settings,
                 bundle.persona.profile,
+                repository=self.repository,
             )
             service.registry = self
             self._services[key] = service
@@ -127,6 +141,7 @@ class RoleRequestService:
         bot: discord.Bot,
         settings: AppSettings | GuildRuntimeSettings,
         persona: BotPersona,
+        repository: RoleRequestRepository | None = None,
     ) -> None:
         self.bot = bot
         self.settings = settings
@@ -137,6 +152,10 @@ class RoleRequestService:
         self.allowed_roles = settings.role_request_allowed_role_allowlist
         self.allowed_role_order = settings.role_request_allowed_role_ids
         self.retired_role_id = getattr(settings, "role_request_retired_role_id", None)
+        self.review_channel_ids = tuple(
+            getattr(settings, "role_request_review_channel_ids", ())
+        )
+        self.repository = repository
         self.registry: RoleRequestServiceRegistry | None = None
         self._locks: dict[int, asyncio.Lock] = {}
         self._lock_users: dict[int, int] = {}
@@ -205,6 +224,27 @@ class RoleRequestService:
             return self.ui.info_all_channels
         channels = await self.resolve_allowed_channels(guild)
         return "\n".join(f"• {channel.mention}" for channel in channels) or self.ui.no_available_channels
+
+    def resolve_review_channels(self, guild: discord.Guild) -> tuple[discord.TextChannel, ...]:
+        """Resolve configured private mirrors only when the bot can publish there."""
+
+        bot_member = guild.me
+        if bot_member is None:
+            return ()
+        channels: list[discord.TextChannel] = []
+        for channel_id in self.review_channel_ids:
+            channel = guild.get_channel(channel_id)
+            if not isinstance(channel, discord.TextChannel):
+                continue
+            permissions = channel.permissions_for(bot_member)
+            if (
+                permissions.view_channel
+                and permissions.send_messages
+                and permissions.embed_links
+                and permissions.read_message_history
+            ):
+                channels.append(channel)
+        return tuple(channels)
 
     def validate_channel_permissions(
         self,
@@ -459,6 +499,7 @@ class RoleRequestService:
         try:
             async with self._creation_lock(member.guild.id, member.id):
                 message, additions, removals = await self._publish_new_request(
+                    interaction_id=getattr(interaction, "id", None),
                     member=member,
                     channel=channel,
                     add_roles=add_roles,
@@ -533,6 +574,7 @@ class RoleRequestService:
         try:
             async with self._creation_lock(member.guild.id, member.id):
                 message, retired_role, removals = await self._publish_new_retirement_request(
+                    interaction_id=getattr(interaction, "id", None),
                     member=member,
                     channel=channel,
                     reason=reason,
@@ -584,6 +626,7 @@ class RoleRequestService:
     async def _publish_new_retirement_request(
         self,
         *,
+        interaction_id: int | None = None,
         member: discord.Member,
         channel: discord.TextChannel,
         reason: str | None,
@@ -596,6 +639,17 @@ class RoleRequestService:
             raise RoleRequestValidationError(self.ui.request_unavailable)
         self.validate_channel_permissions(member.guild, channel)
         retired_role, removals = self.retirement_changes(member)
+        if self.repository is not None:
+            message = await self._publish_v2_request(
+                interaction_id=interaction_id,
+                member=member,
+                channel=channel,
+                add_roles=(retired_role,),
+                remove_roles=removals,
+                reason=reason,
+                kind=RoleRequestKind.RETIREMENT,
+            )
+            return message, retired_role, removals
         pending = await self.find_pending_request(member.guild, member.id)
         if pending is not None:
             raise RoleRequestValidationError(self.ui.pending_exists.format(jump_url=pending.jump_url))
@@ -641,6 +695,7 @@ class RoleRequestService:
     async def _publish_new_request(
         self,
         *,
+        interaction_id: int | None = None,
         member: discord.Member,
         channel: discord.TextChannel,
         add_roles: Iterable[discord.Role],
@@ -655,6 +710,17 @@ class RoleRequestService:
             raise RoleRequestValidationError(self.ui.request_unavailable)
         self.validate_channel_permissions(member.guild, channel)
         additions, removals = self.validate_submission(member, add_roles, remove_roles)
+        if self.repository is not None:
+            message = await self._publish_v2_request(
+                interaction_id=interaction_id,
+                member=member,
+                channel=channel,
+                add_roles=additions,
+                remove_roles=removals,
+                reason=reason,
+                kind=RoleRequestKind.NORMAL,
+            )
+            return message, additions, removals
         pending = await self.find_pending_request(member.guild, member.id)
         if pending is not None:
             raise RoleRequestValidationError(self.ui.pending_exists.format(jump_url=pending.jump_url))
@@ -693,6 +759,132 @@ class RoleRequestService:
                 await message.delete()
             raise
         return message, additions, removals
+
+    async def _publish_v2_request(
+        self,
+        *,
+        interaction_id: int | None,
+        member: discord.Member,
+        channel: discord.TextChannel,
+        add_roles: tuple[discord.Role, ...],
+        remove_roles: tuple[discord.Role, ...],
+        reason: str | None,
+        kind: RoleRequestKind,
+    ) -> discord.Message:
+        """Publish a sanitized public card and complete private review mirrors."""
+
+        repository = self.repository
+        if repository is None or interaction_id is None:
+            raise RoleRequestValidationError(self.ui.subsystem_unavailable)
+        review_channels = self.resolve_review_channels(member.guild)
+        if not review_channels:
+            raise RoleRequestValidationError(self.ui.subsystem_unavailable)
+        pending = await self.find_pending_request(member.guild, member.id)
+        if pending is not None:
+            raise RoleRequestValidationError(self.ui.pending_exists.format(jump_url=pending.jump_url))
+
+        normalized_reason = (reason or "").strip() or None
+        add_ids = tuple(role.id for role in add_roles)
+        remove_ids = tuple(role.id for role in remove_roles)
+        try:
+            stored, created = await repository.reserve(
+                guild_id=member.guild.id,
+                interaction_id=interaction_id,
+                requester_id=member.id,
+                kind=kind,
+                add_role_ids=add_ids,
+                remove_role_ids=remove_ids,
+                reason=normalized_reason,
+                public_channel_id=channel.id,
+            )
+        except PendingRoleRequestError as error:
+            existing = error.request
+            if existing.public_message_id is not None:
+                jump_url = (
+                    f"https://discord.com/channels/{existing.guild_id}/"
+                    f"{existing.public_channel_id}/{existing.public_message_id}"
+                )
+                raise RoleRequestValidationError(
+                    self.ui.pending_exists.format(jump_url=jump_url)
+                ) from error
+            raise RoleRequestValidationError(self.ui.request_unavailable) from error
+        if not created:
+            if stored.public_message_id is not None:
+                jump_url = (
+                    f"https://discord.com/channels/{stored.guild_id}/"
+                    f"{stored.public_channel_id}/{stored.public_message_id}"
+                )
+                raise RoleRequestValidationError(
+                    self.ui.pending_exists.format(jump_url=jump_url)
+                )
+            raise RoleRequestValidationError(self.ui.request_unavailable)
+
+        public_message: discord.Message | None = None
+        private_messages: list[discord.Message] = []
+        try:
+            public_message = await channel.send(
+                embed=build_public_pending_embed(
+                    requester=member,
+                    add_role_ids=add_ids,
+                    remove_role_ids=remove_ids,
+                    ui=self.ui,
+                    created_at=stored.created_at,
+                    kind=kind,
+                ),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            private_embed = build_private_pending_embed(
+                requester=member,
+                add_role_ids=add_ids,
+                remove_role_ids=remove_ids,
+                reason=normalized_reason,
+                ui=self.ui,
+                created_at=stored.created_at,
+                public_jump_url=public_message.jump_url,
+                kind=kind,
+            )
+            for review_channel in review_channels:
+                try:
+                    private_messages.append(
+                        await review_channel.send(
+                            embed=private_embed,
+                            view=RoleRequestDecisionView(
+                                self,
+                                registry=self.registry,
+                                partial_disabled=kind is RoleRequestKind.RETIREMENT,
+                            ),
+                            allowed_mentions=discord.AllowedMentions.none(),
+                        )
+                    )
+                except (discord.Forbidden, discord.HTTPException) as error:
+                    log_event(
+                        LOGGER,
+                        "warning",
+                        "role_request_private_mirror_failed",
+                        exc_info=error,
+                        guild_id=member.guild.id,
+                        channel_id=review_channel.id,
+                        request_id=str(stored.id),
+                        **exception_fields(error),
+                    )
+            if not private_messages:
+                raise RoleRequestValidationError(self.ui.subsystem_unavailable)
+            await repository.mark_published(
+                stored.id,
+                public_message_id=public_message.id,
+                review_messages=tuple(
+                    (private_message.channel.id, private_message.id)
+                    for private_message in private_messages
+                ),
+            )
+            return public_message
+        except Exception:
+            await repository.mark_failed(stored.id)
+            for published in (*private_messages, public_message):
+                if published is not None:
+                    with suppress(discord.Forbidden, discord.HTTPException):
+                        await published.delete()
+            raise
 
     async def authorize_reviewer_interaction(
         self,
@@ -734,8 +926,40 @@ class RoleRequestService:
             allowed_channel_ids=self.allowed_channels.ids,
         )
 
+    async def resolve_interaction_request(
+        self,
+        interaction: discord.Interaction,
+    ) -> tuple[RoleRequest, StoredRoleRequest | None]:
+        """Resolve v2 private mirrors first, then compatible v1 public messages."""
+
+        message = interaction.message
+        guild = interaction.guild
+        channel = getattr(interaction, "channel", None)
+        if (
+            self.repository is not None
+            and message is not None
+            and guild is not None
+            and channel is not None
+        ):
+            stored = await self.repository.get_by_review_message(
+                guild.id,
+                channel.id,
+                message.id,
+            )
+            if stored is not None:
+                if stored.status is not StoredRoleRequestStatus.PENDING:
+                    raise RoleRequestCodecError("role request is no longer pending")
+                return (
+                    stored.as_legacy_request(
+                        source_channel_id=channel.id,
+                        source_message_id=message.id,
+                    ),
+                    stored,
+                )
+        return self.decode_interaction_message(interaction), None
+
     async def approve_all(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=False)
         await self._approve(interaction, selected_add=None, selected_remove=None, comment=None)
 
     async def approve_partial(
@@ -749,7 +973,7 @@ class RoleRequestService:
         selected_remove: tuple[int, ...],
         comment: str | None,
     ) -> None:
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=False)
         await self._approve(
             interaction,
             selected_add=selected_add,
@@ -767,10 +991,14 @@ class RoleRequestService:
         message_id: int,
         reason: str,
     ) -> None:
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=False)
         if not await self._reauthorize_after_modal(interaction, guild_id):
             return
         try:
+            stored = await self._get_stored_review_request(guild_id, channel_id, message_id)
+            if stored is not None:
+                await self._reject_v2(interaction, stored=stored, reason=reason.strip())
+                return
             async with self._decision_lock(message_id):
                 message, request = await self._fetch_pending_request(
                     guild_id,
@@ -805,14 +1033,6 @@ class RoleRequestService:
                     add_role_count=len(request.add_role_ids),
                     remove_role_count=len(request.remove_role_ids),
                 )
-                await interaction.followup.send(
-                    embed=self.build_notice_embed(
-                        title=self.ui.status_rejected,
-                        color=discord.Color.red(),
-                    ),
-                    ephemeral=True,
-                    allowed_mentions=discord.AllowedMentions.none(),
-                )
         except (RoleRequestCodecError, discord.NotFound) as error:
             await self._publish_stale(interaction, error, message_id=message_id)
         except Exception as error:
@@ -834,8 +1054,10 @@ class RoleRequestService:
     ) -> None:
         try:
             if expected is None:
-                request = self.decode_interaction_message(interaction)
+                request, stored = await self.resolve_interaction_request(interaction)
                 expected = (request.guild_id, request.channel_id, request.message_id)
+            else:
+                stored = await self._get_stored_review_request(*expected)
             guild_id, channel_id, message_id = expected
             if not await self._reauthorize_after_modal(interaction, guild_id):
                 return
@@ -845,6 +1067,26 @@ class RoleRequestService:
                 error,
                 message_id=getattr(interaction.message, "id", "none"),
             )
+            return
+
+        if stored is not None:
+            try:
+                await self._approve_v2(
+                    interaction,
+                    stored=stored,
+                    selected_add=selected_add,
+                    selected_remove=selected_remove,
+                    comment=comment,
+                )
+            except (RoleRequestCodecError, discord.NotFound) as error:
+                await self._publish_stale(interaction, error, message_id=message_id)
+            except Exception as error:
+                await self._publish_operation_failure(
+                    interaction,
+                    error,
+                    event="role_request_approval_failed",
+                    message_id=message_id,
+                )
             return
 
         try:
@@ -960,22 +1202,6 @@ class RoleRequestService:
                     unapproved_add_role_count=len(unapproved_add),
                     unapproved_remove_role_count=len(unapproved_remove),
                 )
-                await interaction.followup.send(
-                    embed=self.build_notice_embed(
-                        title=(
-                            self.ui.status_approved
-                            if status is RoleRequestStatus.APPROVED
-                            else self.ui.status_partial
-                        ),
-                        color=(
-                            discord.Color.green()
-                            if status is RoleRequestStatus.APPROVED
-                            else discord.Color.gold()
-                        ),
-                    ),
-                    ephemeral=True,
-                    allowed_mentions=discord.AllowedMentions.none(),
-                )
         except (RoleRequestCodecError, discord.NotFound) as error:
             await self._publish_stale(interaction, error, message_id=message_id)
         except Exception as error:
@@ -985,6 +1211,341 @@ class RoleRequestService:
                 event="role_request_approval_failed",
                 message_id=message_id,
             )
+
+    async def _get_stored_review_request(
+        self,
+        guild_id: int,
+        channel_id: int,
+        message_id: int,
+    ) -> StoredRoleRequest | None:
+        if self.repository is None:
+            return None
+        return await self.repository.get_by_review_message(guild_id, channel_id, message_id)
+
+    async def _approve_v2(
+        self,
+        interaction: discord.Interaction,
+        *,
+        stored: StoredRoleRequest,
+        selected_add: tuple[int, ...] | None,
+        selected_remove: tuple[int, ...] | None,
+        comment: str | None,
+    ) -> None:
+        repository = self.repository
+        if repository is None:
+            raise RoleRequestCodecError("role request repository is unavailable")
+        if stored.kind is RoleRequestKind.RETIREMENT and (
+            selected_add is not None or selected_remove is not None
+        ):
+            await interaction.followup.send(
+                embed=self.build_alert_embed(ROLE_REQUEST_MODAL_COPY.retirement_partial_blocked),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        if (selected_add is not None or selected_remove is not None) and not (comment or "").strip():
+            await interaction.followup.send(
+                embed=self.build_alert_embed("Debes explicar el motivo de la aprobación parcial."),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        claimed = await repository.claim_decision(stored.id)
+        if claimed is None:
+            await self._publish_stale(
+                interaction,
+                RoleRequestCodecError("role request was already claimed"),
+                message_id=stored.public_message_id or "none",
+            )
+            return
+        try:
+            guild, member = await self._resolve_v2_member(claimed)
+            requested_add = set(claimed.add_role_ids)
+            requested_remove = set(claimed.remove_role_ids)
+            approved_add = requested_add if selected_add is None else set(selected_add)
+            approved_remove = requested_remove if selected_remove is None else set(selected_remove)
+            if not approved_add <= requested_add or not approved_remove <= requested_remove:
+                raise RoleRequestCodecError("partial approval is not a request subset")
+            if not approved_add and not approved_remove:
+                await repository.release_decision(claimed.id)
+                await interaction.followup.send(
+                    embed=self.build_alert_embed(self.ui.partial_empty),
+                    ephemeral=True,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+                return
+
+            current_ids = {role.id for role in member.roles if role.id != guild.default_role.id}
+            if claimed.kind is RoleRequestKind.RETIREMENT:
+                retired_role_id = self.retired_role_id
+                bot_member = guild.me
+                if (
+                    retired_role_id is None
+                    or requested_add != {retired_role_id}
+                    or bot_member is None
+                ):
+                    raise RoleRequestCodecError("retirement configuration changed")
+                approved_add = {retired_role_id}
+                approved_remove = {
+                    role.id for role in self._retirement_removals(member, bot_member)
+                }
+                target_ids = (current_ids - approved_remove) | approved_add
+            else:
+                target_ids = (current_ids | approved_add) - approved_remove
+            if target_ids != current_ids:
+                target_roles = sorted(
+                    (
+                        role
+                        for role_id in target_ids
+                        if (role := guild.get_role(role_id)) is not None
+                    ),
+                    key=lambda role: role.position,
+                )
+                await member.edit(
+                    roles=target_roles,
+                    reason=(
+                        f"Solicitud de roles {claimed.public_message_id or claimed.id} "
+                        f"aprobada por {interaction.user.id}"
+                    ),
+                )
+            unapproved_add = (
+                set() if claimed.kind is RoleRequestKind.RETIREMENT else requested_add - approved_add
+            )
+            unapproved_remove = (
+                set()
+                if claimed.kind is RoleRequestKind.RETIREMENT
+                else requested_remove - approved_remove
+            )
+            status = (
+                RoleRequestStatus.APPROVED
+                if not unapproved_add and not unapproved_remove
+                else RoleRequestStatus.PARTIALLY_APPROVED
+            )
+            decision = RoleRequestDecision(
+                status=status,
+                reviewer_id=interaction.user.id,
+                approved_add_role_ids=tuple(sorted(approved_add)),
+                approved_remove_role_ids=tuple(sorted(approved_remove)),
+                unapproved_add_role_ids=tuple(sorted(unapproved_add)),
+                unapproved_remove_role_ids=tuple(sorted(unapproved_remove)),
+                comment=(comment or "").strip() or None,
+                decided_at=datetime.now(UTC),
+            )
+            decided = await repository.finalize(claimed.id, decision)
+            await self._publish_v2_decision(decided, decision)
+            log_event(
+                LOGGER,
+                "info",
+                "role_request_decided",
+                guild_id=claimed.guild_id,
+                channel_id=claimed.public_channel_id,
+                message_id=claimed.public_message_id or "none",
+                request_id=str(claimed.id),
+                requester_id=claimed.requester_id,
+                reviewer_id=interaction.user.id,
+                decision=status.value,
+            )
+        except Exception:
+            await repository.release_decision(claimed.id)
+            raise
+
+    async def _reject_v2(
+        self,
+        interaction: discord.Interaction,
+        *,
+        stored: StoredRoleRequest,
+        reason: str,
+    ) -> None:
+        repository = self.repository
+        if repository is None:
+            raise RoleRequestCodecError("role request repository is unavailable")
+        if not reason:
+            await interaction.followup.send(
+                embed=self.build_alert_embed("Debes indicar el motivo del rechazo."),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        claimed = await repository.claim_decision(stored.id)
+        if claimed is None:
+            await self._publish_stale(
+                interaction,
+                RoleRequestCodecError("role request was already claimed"),
+                message_id=stored.public_message_id or "none",
+            )
+            return
+        try:
+            decision = RoleRequestDecision(
+                status=RoleRequestStatus.REJECTED,
+                reviewer_id=interaction.user.id,
+                unapproved_add_role_ids=claimed.add_role_ids,
+                unapproved_remove_role_ids=claimed.remove_role_ids,
+                comment=reason,
+                decided_at=datetime.now(UTC),
+            )
+            decided = await repository.finalize(claimed.id, decision)
+            await self._publish_v2_decision(decided, decision)
+            log_event(
+                LOGGER,
+                "info",
+                "role_request_rejected",
+                guild_id=claimed.guild_id,
+                channel_id=claimed.public_channel_id,
+                message_id=claimed.public_message_id or "none",
+                request_id=str(claimed.id),
+                requester_id=claimed.requester_id,
+                reviewer_id=interaction.user.id,
+            )
+        except Exception:
+            await repository.release_decision(claimed.id)
+            raise
+
+    async def _resolve_v2_member(
+        self,
+        stored: StoredRoleRequest,
+    ) -> tuple[discord.Guild, discord.Member]:
+        guild = self.bot.get_guild(stored.guild_id)
+        if guild is None:
+            raise RoleRequestCodecError("role request guild is unavailable")
+        try:
+            member = await guild.fetch_member(stored.requester_id)
+        except discord.NotFound as error:
+            raise RoleRequestCodecError("role request member is unavailable") from error
+        bot_member = guild.me
+        if stored.kind is RoleRequestKind.RETIREMENT:
+            retired_role = (
+                guild.get_role(self.retired_role_id) if self.retired_role_id is not None else None
+            )
+            invalid = (
+                bot_member is None
+                or retired_role is None
+                or stored.add_role_ids != (self.retired_role_id,)
+                or self._role_is_protected(retired_role, bot_member)
+            )
+        else:
+            roles = tuple(
+                guild.get_role(role_id)
+                for role_id in (*stored.add_role_ids, *stored.remove_role_ids)
+            )
+            invalid = (
+                bot_member is None
+                or any(role is None for role in roles)
+                or any(
+                    self._role_is_protected(role, bot_member)
+                    for role in roles
+                    if role is not None
+                )
+            )
+        if invalid:
+            raise RoleRequestCodecError("role request roles are unavailable")
+        return guild, member
+
+    async def _publish_v2_decision(
+        self,
+        stored: StoredRoleRequest,
+        decision: RoleRequestDecision,
+    ) -> None:
+        repository = self.repository
+        guild = self.bot.get_guild(stored.guild_id)
+        if repository is None or guild is None or stored.public_message_id is None:
+            return
+        requester = guild.get_member(stored.requester_id)
+        if requester is None:
+            with suppress(discord.NotFound, discord.Forbidden, discord.HTTPException):
+                requester = await guild.fetch_member(stored.requester_id)
+        requester_name = requester.display_name if requester else str(stored.requester_id)
+        avatar = getattr(getattr(requester, "display_avatar", None), "url", None)
+        public_request = stored.as_legacy_request(
+            source_channel_id=stored.public_channel_id,
+            source_message_id=stored.public_message_id,
+        )
+
+        dm_delivered = False
+        if requester is not None:
+            try:
+                await requester.send(
+                    embed=build_requester_decision_embed(public_request, decision, ui=self.ui),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+                dm_delivered = True
+            except (discord.Forbidden, discord.HTTPException):
+                dm_delivered = False
+        await repository.mark_dm_delivery(stored.id, dm_delivered)
+
+        public_channel = guild.get_channel(stored.public_channel_id)
+        if isinstance(public_channel, discord.TextChannel):
+            try:
+                public_message = await public_channel.fetch_message(stored.public_message_id)
+                await public_message.edit(
+                    embed=build_public_decision_embed(
+                        public_request,
+                        decision,
+                        requester_name=requester_name,
+                        requester_avatar_url=str(avatar) if avatar else None,
+                        ui=self.ui,
+                    ),
+                    view=(
+                        None
+                        if dm_delivered
+                        else RoleRequestResolutionView(self, registry=self.registry)
+                    ),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
+                log_event(
+                    LOGGER,
+                    "warning",
+                    "role_request_public_update_failed",
+                    exc_info=error,
+                    guild_id=stored.guild_id,
+                    channel_id=stored.public_channel_id,
+                    message_id=stored.public_message_id,
+                    request_id=str(stored.id),
+                    **exception_fields(error),
+                )
+
+        private_embed = build_decision_embed(
+            public_request,
+            decision,
+            requester_name=requester_name,
+            requester_avatar_url=str(avatar) if avatar else None,
+            ui=self.ui,
+        )
+        private_embed.add_field(
+            name="🔗 Solicitud pública",
+            value=(
+                f"[Abrir solicitud](https://discord.com/channels/{stored.guild_id}/"
+                f"{stored.public_channel_id}/{stored.public_message_id})"
+            ),
+            inline=False,
+        )
+        for mirror in await repository.review_messages(stored.id):
+            review_channel = guild.get_channel(mirror.channel_id)
+            if not isinstance(review_channel, discord.TextChannel):
+                continue
+            try:
+                review_message = await review_channel.fetch_message(mirror.message_id)
+                await review_message.edit(
+                    embed=private_embed,
+                    view=RoleRequestDecisionView(
+                        self,
+                        registry=self.registry,
+                        disabled=True,
+                    ),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
+                log_event(
+                    LOGGER,
+                    "warning",
+                    "role_request_private_update_failed",
+                    exc_info=error,
+                    guild_id=stored.guild_id,
+                    channel_id=mirror.channel_id,
+                    message_id=mirror.message_id,
+                    request_id=str(stored.id),
+                    **exception_fields(error),
+                )
 
     @asynccontextmanager
     async def _decision_lock(self, message_id: int):
@@ -1259,7 +1820,6 @@ class RoleRequestService:
         )
 
 
-
 class RoleRequestDecisionView(discord.ui.View):
     """Persistent, generic controls resolved by the source message ID."""
 
@@ -1328,7 +1888,7 @@ class RoleRequestDecisionView(discord.ui.View):
     ) -> None:
         service = await self._service_for(interaction)
         try:
-            request = service.decode_interaction_message(interaction)
+            request, _stored = await service.resolve_interaction_request(interaction)
         except RoleRequestCodecError:
             await interaction.response.send_message(
                 embed=service.build_alert_embed(service.ui.stale_request),
@@ -1368,7 +1928,7 @@ class RoleRequestDecisionView(discord.ui.View):
     ) -> None:
         service = await self._service_for(interaction)
         try:
-            request = service.decode_interaction_message(interaction)
+            request, _stored = await service.resolve_interaction_request(interaction)
         except RoleRequestCodecError:
             await interaction.response.send_message(
                 embed=service.build_alert_embed(service.ui.stale_request),
@@ -1377,6 +1937,86 @@ class RoleRequestDecisionView(discord.ui.View):
             )
             return
         await interaction.response.send_modal(RejectRoleRequestModal(service, request))
+
+
+class RoleRequestResolutionView(discord.ui.View):
+    """Requester-only fallback when Discord blocks the decision DM."""
+
+    def __init__(
+        self,
+        service: RoleRequestService,
+        *,
+        registry: RoleRequestServiceRegistry | None = None,
+    ) -> None:
+        super().__init__(timeout=None)
+        self.service = service
+        self.registry = registry
+
+    async def _service_for(self, interaction: discord.Interaction) -> RoleRequestService:
+        guild = interaction.guild
+        if self.registry is None or guild is None:
+            return self.service
+        return await self.registry.get(guild.id)
+
+    @discord.ui.button(
+        label="Ver resolución",
+        emoji="📩",
+        style=discord.ButtonStyle.secondary,
+        custom_id="role-request:v2:view-resolution",
+    )
+    async def view_resolution(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        try:
+            service = await self._service_for(interaction)
+        except LookupError:
+            service = self.service
+        repository = service.repository
+        guild = interaction.guild
+        channel = getattr(interaction, "channel", None)
+        message = interaction.message
+        if repository is None or guild is None or channel is None or message is None:
+            await interaction.response.send_message(
+                embed=service.build_alert_embed(service.ui.request_unavailable),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        stored = await repository.get_by_public_message(guild.id, channel.id, message.id)
+        if (
+            stored is None
+            or stored.requester_id != interaction.user.id
+            or not stored.status.terminal
+            or stored.reviewer_id is None
+            or stored.decided_at is None
+        ):
+            await interaction.response.send_message(
+                embed=service.build_alert_embed(service.ui.request_unavailable),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        request = stored.as_legacy_request(
+            source_channel_id=stored.public_channel_id,
+            source_message_id=stored.public_message_id or message.id,
+        )
+        decision = RoleRequestDecision(
+            status=RoleRequestStatus(stored.status.value),
+            reviewer_id=stored.reviewer_id,
+            approved_add_role_ids=stored.approved_add_role_ids,
+            approved_remove_role_ids=stored.approved_remove_role_ids,
+            unapproved_add_role_ids=stored.unapproved_add_role_ids,
+            unapproved_remove_role_ids=stored.unapproved_remove_role_ids,
+            comment=stored.decision_comment,
+            decided_at=stored.decided_at,
+        )
+        await interaction.response.send_message(
+            embed=build_requester_decision_embed(request, decision, ui=service.ui),
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
 
 class RoleRequestStartView(discord.ui.View):
@@ -1621,7 +2261,8 @@ class PartialApprovalModal(discord.ui.DesignerModal):
             custom_id="role-request:v1:partial:comment",
             style=discord.InputTextStyle.long,
             placeholder=copy.partial_comment_placeholder,
-            required=False,
+            required=True,
+            min_length=1,
             max_length=MAX_REASON_LENGTH,
         )
         children.append(discord.ui.Label(copy.partial_comment_label, self.comment_input))
@@ -1824,6 +2465,14 @@ class RoleRequestCog(commands.Cog):
         )
         embed.add_field(name=ui.info_usage_title, value=ui.info_usage, inline=False)
         embed.add_field(name=ui.info_rules_title, value=ui.info_rules, inline=False)
+        embed.add_field(
+            name="🔒 Privacidad de la revisión",
+            value=(
+                "El canal conserva el estado de la solicitud. El motivo y los comentarios "
+                "de revisión se tratan en espacios privados; la resolución te llegará por MD."
+            ),
+            inline=False,
+        )
         if service.retirement_enabled:
             embed.add_field(
                 name="📤 Retiro de la facción",

@@ -242,18 +242,17 @@ o protegidos, separa altas de bajas según el estado actual del miembro y divide
 25 elementos sin superar los cinco campos del modal. Los valores recibidos del cliente se vuelven a
 resolver y validar contra el catálogo antes de publicar.
 
-La solicitud en sí no se duplica en PostgreSQL. El adaptador publica un embed provisional, obtiene su ID y lo
-edita con el marcador visible `Solicitud <message_id>` y tres `custom_id` internos y versionados. El codec
-valida autor del bot, guild, canal, footer, autor lógico, orden de campos, menciones de roles y estado
-de los componentes. Por eso una vista genérica registrada al arrancar puede resolver una solicitud
-después de reiniciar usando únicamente `interaction.message.id` y el mensaje vuelto a descargar.
+Las solicitudes nuevas se reservan de forma idempotente en `role_requests`. El canal de origen recibe
+un embed saneado y cada canal de `role_request_review_channels` recibe una referencia en
+`role_request_review_messages` con el detalle y los controles. La decisión se reclama mediante una
+transición atómica `pending → processing`, luego se persiste y se replica en todos los mensajes. Las
+solicitudes v1 conservan su codec estricto basado en el mensaje para poder resolverse tras el cambio.
 
-Cada decisión usa un lock por ID y revalida supervisor, miembro, roles protegidos y jerarquía dentro
-del lock. La aprobación completa o parcial calcula el conjunto final desde los roles actuales y lo
+Cada decisión v2 usa un claim en PostgreSQL; v1 conserva un lock por ID. Ambas revalidan supervisor,
+miembro, roles protegidos y jerarquía. La aprobación completa o parcial calcula el conjunto final desde los roles actuales y lo
 aplica mediante una sola edición del miembro, considerando satisfechos los cambios hechos
-manualmente. La resolución terminal edita el mismo embed y deshabilita todos los componentes. Un
-error HTTP transitorio deja el mensaje pendiente; la ausencia definitiva del miembro, de un rol o de
-una jerarquía válida lo cierra como fallido.
+manualmente. La resolución terminal edita el estado público y todas las copias privadas, entrega el
+detalle al solicitante por MD y deshabilita todos los componentes.
 
 ## Personas
 

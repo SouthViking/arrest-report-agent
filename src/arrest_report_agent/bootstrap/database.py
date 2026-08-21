@@ -312,6 +312,20 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 not settings.role_request_allowed_channel_allowlist.is_restricted,
                 role_request_channels[guild_id],
             ),
+            AccessPolicySnapshot(
+                key=AccessPolicyKey.ROLE_REQUEST_REVIEW_CHANNELS,
+                subject_type="channel",
+                mode=(
+                    AccessPolicyMode.RESTRICTED
+                    if guild_id == 1234674521416663070
+                    else AccessPolicyMode.DISABLED
+                ),
+                ids=(
+                    (1261076248541532240, 1234678185124298853)
+                    if guild_id == 1234674521416663070
+                    else ()
+                ),
+            ),
             policy(
                 AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES,
                 "role",

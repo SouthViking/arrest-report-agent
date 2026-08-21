@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -24,6 +25,89 @@ class RoleRequestStatus(StrEnum):
 class RoleRequestKind(StrEnum):
     NORMAL = "normal"
     RETIREMENT = "retirement"
+
+
+class StoredRoleRequestStatus(StrEnum):
+    """Lifecycle persisted for private, mirrored role-request reviews."""
+
+    PUBLISHING = "publishing"
+    PENDING = "pending"
+    PROCESSING = "processing"
+    APPROVED = "approved"
+    PARTIALLY_APPROVED = "partially_approved"
+    REJECTED = "rejected"
+    FAILED = "failed"
+
+    @property
+    def terminal(self) -> bool:
+        return self in {
+            StoredRoleRequestStatus.APPROVED,
+            StoredRoleRequestStatus.PARTIALLY_APPROVED,
+            StoredRoleRequestStatus.REJECTED,
+            StoredRoleRequestStatus.FAILED,
+        }
+
+
+class StoredRoleRequest(BaseModel):
+    """Database-backed request used by the v2 public/private flow."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    id: UUID
+    guild_id: Snowflake
+    interaction_id: Snowflake
+    requester_id: Snowflake
+    kind: RoleRequestKind
+    add_role_ids: tuple[Snowflake, ...] = Field(max_length=MAX_ROLES_PER_OPERATION)
+    remove_role_ids: tuple[Snowflake, ...] = Field(max_length=MAX_ROLES_PER_OPERATION)
+    reason: str | None = Field(default=None, max_length=1000)
+    status: StoredRoleRequestStatus
+    public_channel_id: Snowflake
+    public_message_id: Snowflake | None = None
+    reviewer_id: Snowflake | None = None
+    decision_comment: str | None = Field(default=None, max_length=1000)
+    approved_add_role_ids: tuple[Snowflake, ...] = Field(
+        default=(), max_length=MAX_ROLES_PER_OPERATION
+    )
+    approved_remove_role_ids: tuple[Snowflake, ...] = Field(
+        default=(), max_length=MAX_ROLES_PER_OPERATION
+    )
+    unapproved_add_role_ids: tuple[Snowflake, ...] = Field(
+        default=(), max_length=MAX_ROLES_PER_OPERATION
+    )
+    unapproved_remove_role_ids: tuple[Snowflake, ...] = Field(
+        default=(), max_length=MAX_ROLES_PER_OPERATION
+    )
+    requester_dm_delivered: bool | None = None
+    version: int = Field(ge=1)
+    created_at: datetime
+    updated_at: datetime
+    decided_at: datetime | None = None
+
+    def as_legacy_request(self, *, source_channel_id: int, source_message_id: int) -> RoleRequest:
+        """Adapt persisted state to the validated role-change engine."""
+
+        return RoleRequest(
+            message_id=source_message_id,
+            guild_id=self.guild_id,
+            channel_id=source_channel_id,
+            requester_id=self.requester_id,
+            kind=self.kind,
+            add_role_ids=self.add_role_ids,
+            remove_role_ids=self.remove_role_ids,
+            reason=self.reason,
+            created_at=self.created_at,
+        )
+
+
+class RoleRequestReviewMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    request_id: UUID
+    channel_id: Snowflake
+    message_id: Snowflake
+    created_at: datetime
+    updated_at: datetime
 
 
 class RoleRequest(BaseModel):

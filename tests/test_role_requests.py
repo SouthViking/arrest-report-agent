@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from uuid import uuid4
 
 import discord
 import pytest
@@ -17,10 +18,14 @@ from arrest_report_agent.role_requests.codec import (
     REJECT_CUSTOM_ID,
     REMOVE_FIELD_TITLE,
     REQUEST_KIND_FIELD_TITLE,
+    REVIEWER_FIELD_TITLE,
     STATUS_FIELD_TITLE,
     UNAPPROVED_CHANGES_TITLE,
     RoleRequestCodecError,
     build_pending_embed,
+    build_private_pending_embed,
+    build_public_decision_embed,
+    build_public_pending_embed,
     decode_pending_message,
 )
 from arrest_report_agent.role_requests.discord import (
@@ -31,14 +36,19 @@ from arrest_report_agent.role_requests.discord import (
     RetirementRoleRequestModal,
     RoleRequestCog,
     RoleRequestDecisionView,
+    RoleRequestResolutionView,
     RoleRequestService,
     RoleRequestStartView,
     RoleRequestValidationError,
 )
 from arrest_report_agent.role_requests.models import (
     RoleRequest,
+    RoleRequestDecision,
     RoleRequestKind,
+    RoleRequestReviewMessage,
     RoleRequestStatus,
+    StoredRoleRequest,
+    StoredRoleRequestStatus,
 )
 
 GUILD_ID = 100
@@ -107,10 +117,20 @@ class FakeMember:
         self.display_avatar = SimpleNamespace(url="https://cdn.example/avatar.png")
         self.guild = None
         self.edit_calls: list[dict[str, object]] = []
+        self.dm_calls: list[dict[str, object]] = []
+        self.dm_blocked = False
 
     async def edit(self, **kwargs) -> None:
         self.edit_calls.append(kwargs)
         self.roles = list(kwargs["roles"])
+
+    async def send(self, **kwargs) -> None:
+        if self.dm_blocked:
+            raise discord.Forbidden(
+                SimpleNamespace(status=403, reason="Forbidden"),
+                "DMs disabled",
+            )
+        self.dm_calls.append(kwargs)
 
 
 class FakeChannel:
@@ -225,6 +245,7 @@ class FakeMessage:
         self.edit_calls: list[dict[str, object]] = []
         self.jump_url = f"https://discord.com/channels/{GUILD_ID}/{channel.id}/{message_id}"
         channel.messages[message_id] = self
+        self.deleted = False
 
     async def edit(self, **kwargs) -> None:
         self.edit_calls.append(kwargs)
@@ -242,6 +263,10 @@ class FakeMessage:
                     ]
                 )
             ]
+
+    async def delete(self) -> None:
+        self.deleted = True
+        self.channel.messages.pop(self.id, None)
 
 
 class FakeResponse:
@@ -273,6 +298,119 @@ class FakeFollowup:
 
     async def send(self, content: str | None = None, **kwargs) -> None:
         self.messages.append({"content": content, **kwargs})
+
+
+class FakeRoleRequestRepository:
+    def __init__(self) -> None:
+        self.request: StoredRoleRequest | None = None
+        self.mirrors: tuple[RoleRequestReviewMessage, ...] = ()
+        self.dm_delivered: bool | None = None
+
+    async def reserve(self, **values) -> tuple[StoredRoleRequest, bool]:
+        now = datetime.now(UTC)
+        self.request = StoredRoleRequest(
+            id=uuid4(),
+            guild_id=values["guild_id"],
+            interaction_id=values["interaction_id"],
+            requester_id=values["requester_id"],
+            kind=values["kind"],
+            add_role_ids=values["add_role_ids"],
+            remove_role_ids=values["remove_role_ids"],
+            reason=values["reason"],
+            status=StoredRoleRequestStatus.PUBLISHING,
+            public_channel_id=values["public_channel_id"],
+            version=1,
+            created_at=now,
+            updated_at=now,
+        )
+        return self.request, True
+
+    async def mark_published(
+        self,
+        request_id,
+        *,
+        public_message_id: int,
+        review_messages: tuple[tuple[int, int], ...],
+    ) -> StoredRoleRequest:
+        assert self.request is not None and self.request.id == request_id
+        now = datetime.now(UTC)
+        self.request = self.request.model_copy(
+            update={
+                "public_message_id": public_message_id,
+                "status": StoredRoleRequestStatus.PENDING,
+                "version": 2,
+                "updated_at": now,
+            }
+        )
+        self.mirrors = tuple(
+            RoleRequestReviewMessage(
+                request_id=request_id,
+                channel_id=channel_id,
+                message_id=message_id,
+                created_at=now,
+                updated_at=now,
+            )
+            for channel_id, message_id in review_messages
+        )
+        return self.request
+
+    async def mark_failed(self, _request_id) -> None:
+        if self.request is not None:
+            self.request = self.request.model_copy(
+                update={"status": StoredRoleRequestStatus.FAILED}
+            )
+
+    async def get_by_review_message(self, guild_id: int, channel_id: int, message_id: int):
+        if self.request is None or self.request.guild_id != guild_id:
+            return None
+        return (
+            self.request
+            if any(
+                mirror.channel_id == channel_id and mirror.message_id == message_id
+                for mirror in self.mirrors
+            )
+            else None
+        )
+
+    async def claim_decision(self, request_id):
+        if (
+            self.request is None
+            or self.request.id != request_id
+            or self.request.status is not StoredRoleRequestStatus.PENDING
+        ):
+            return None
+        self.request = self.request.model_copy(
+            update={"status": StoredRoleRequestStatus.PROCESSING}
+        )
+        return self.request
+
+    async def release_decision(self, request_id) -> None:
+        if self.request is not None and self.request.id == request_id:
+            self.request = self.request.model_copy(
+                update={"status": StoredRoleRequestStatus.PENDING}
+            )
+
+    async def finalize(self, request_id, decision: RoleRequestDecision):
+        assert self.request is not None and self.request.id == request_id
+        self.request = self.request.model_copy(
+            update={
+                "status": StoredRoleRequestStatus(decision.status.value),
+                "reviewer_id": decision.reviewer_id,
+                "decision_comment": decision.comment,
+                "approved_add_role_ids": decision.approved_add_role_ids,
+                "approved_remove_role_ids": decision.approved_remove_role_ids,
+                "unapproved_add_role_ids": decision.unapproved_add_role_ids,
+                "unapproved_remove_role_ids": decision.unapproved_remove_role_ids,
+                "decided_at": decision.decided_at,
+            }
+        )
+        return self.request
+
+    async def review_messages(self, _request_id):
+        return self.mirrors
+
+    async def mark_dm_delivery(self, _request_id, delivered: bool) -> None:
+        self.dm_delivered = delivered
 
 
 def _not_found() -> discord.NotFound:
@@ -388,7 +526,9 @@ def _pending_message(
 
 def _interaction(env, message: FakeMessage, *, user=None):
     return SimpleNamespace(
+        id=9900,
         guild=env.guild,
+        channel=getattr(message, "channel", env.channel),
         user=user or env.reviewer,
         message=message,
         response=FakeResponse(),
@@ -436,6 +576,129 @@ def test_pending_codec_round_trip_supports_add_only_request(role_request_env) ->
         STATUS_FIELD_TITLE,
     ]
     assert EMPTY_VALUE not in [field.value for field in message.embeds[0].fields]
+
+
+def test_v2_public_embed_hides_sensitive_fields_and_private_embed_keeps_them(
+    role_request_env,
+) -> None:
+    created_at = datetime(2026, 8, 21, 12, tzinfo=UTC)
+    public = build_public_pending_embed(
+        requester=role_request_env.requester,
+        add_role_ids=(701,),
+        remove_role_ids=(703,),
+        ui=role_request_env.service.ui,
+        created_at=created_at,
+        kind=RoleRequestKind.NORMAL,
+    )
+    private = build_private_pending_embed(
+        requester=role_request_env.requester,
+        add_role_ids=(701,),
+        remove_role_ids=(703,),
+        reason="Motivo reservado",
+        ui=role_request_env.service.ui,
+        created_at=created_at,
+        public_jump_url="https://discord.com/channels/100/200/300",
+        kind=RoleRequestKind.NORMAL,
+    )
+    assert REASON_FIELD_TITLE not in {field.name for field in public.fields}
+    assert "Motivo reservado" not in str(public.to_dict())
+    assert "Motivo reservado" in str(private.to_dict())
+
+    request = RoleRequest(
+        message_id=300,
+        guild_id=GUILD_ID,
+        channel_id=CHANNEL_ID,
+        requester_id=REQUESTER_ID,
+        add_role_ids=(701,),
+        remove_role_ids=(703,),
+        reason="Motivo reservado",
+        created_at=created_at,
+    )
+    decision = RoleRequestDecision(
+        status=RoleRequestStatus.REJECTED,
+        reviewer_id=REVIEWER_ID,
+        unapproved_add_role_ids=(701,),
+        unapproved_remove_role_ids=(703,),
+        comment="Comentario privado",
+        decided_at=created_at,
+    )
+    terminal = build_public_decision_embed(
+        request,
+        decision,
+        requester_name="Persona",
+        requester_avatar_url=None,
+        ui=role_request_env.service.ui,
+    )
+    terminal_names = {field.name for field in terminal.fields}
+    assert REASON_FIELD_TITLE not in terminal_names
+    assert REVIEWER_FIELD_TITLE not in terminal_names
+    assert "Comentario privado" not in str(terminal.to_dict())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("dm_blocked", (False, True))
+async def test_v2_request_publishes_public_state_and_two_private_review_mirrors(
+    role_request_env,
+    dm_blocked: bool,
+) -> None:
+    repository = FakeRoleRequestRepository()
+    service = role_request_env.service
+    service.repository = repository  # type: ignore[assignment]
+    first_review = FakeChannel(210)
+    second_review = FakeChannel(211)
+    for channel in (first_review, second_review):
+        channel.guild = role_request_env.guild
+        role_request_env.guild._channels[channel.id] = channel
+        role_request_env.guild.text_channels.append(channel)
+    service.review_channel_ids = (first_review.id, second_review.id)
+    role_request_env.requester.dm_blocked = dm_blocked
+    interaction = SimpleNamespace(
+        id=9910,
+        response=FakeResponse(),
+        followup=FakeFollowup(),
+    )
+
+    await service.create_request(
+        interaction,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+        add_roles=(role_request_env.add_one,),
+        remove_roles=(role_request_env.removable,),
+        reason="Motivo reservado",
+    )
+
+    assert len(role_request_env.channel.send_calls) == 1
+    assert "view" not in role_request_env.channel.send_calls[0]
+    public_embed = role_request_env.channel.send_calls[0]["embed"]
+    assert "Motivo reservado" not in str(public_embed.to_dict())
+    assert len(first_review.send_calls) == len(second_review.send_calls) == 1
+    assert "Motivo reservado" in str(first_review.send_calls[0]["embed"].to_dict())
+    assert first_review.send_calls[0]["view"] is not None
+    assert repository.request is not None
+    assert repository.request.status is StoredRoleRequestStatus.PENDING
+    assert len(repository.mirrors) == 2
+
+    private_message = next(iter(first_review.messages.values()))
+    decision = _interaction(role_request_env, private_message)
+    await service.approve_all(decision)
+
+    assert repository.request.status is StoredRoleRequestStatus.APPROVED
+    assert repository.dm_delivered is not dm_blocked
+    assert len(role_request_env.requester.dm_calls) == (0 if dm_blocked else 1)
+    assert not decision.followup.messages
+    public_message = next(iter(role_request_env.channel.messages.values()))
+    public_rendered = str(public_message.embeds[0].to_dict())
+    assert "Motivo reservado" not in public_rendered
+    assert f"<@{REVIEWER_ID}>" not in public_rendered
+    final_public_view = public_message.edit_calls[-1]["view"]
+    if dm_blocked:
+        assert isinstance(final_public_view, RoleRequestResolutionView)
+    else:
+        assert final_public_view is None
+    for review_channel in (first_review, second_review):
+        mirror = next(iter(review_channel.messages.values()))
+        assert all(child.disabled for child in mirror.components[0].children)
+        assert f"<@{REVIEWER_ID}>" in str(mirror.embeds[0].to_dict())
 
 
 def test_pending_codec_round_trip_supports_retirement(role_request_env) -> None:
@@ -675,6 +938,8 @@ async def test_modals_offer_filtered_role_catalog_and_only_requested_partial_opt
     assert [option.value for option in partial.remove_select.options] == ["703"]
     assert partial.add_select.min_values == 0
     assert partial.comment_input.placeholder == (ROLE_REQUEST_MODAL_COPY.partial_comment_placeholder)
+    assert partial.comment_input.required is True
+    assert partial.comment_input.min_length == 1
     assert rejection.title == ROLE_REQUEST_MODAL_COPY.reject_title
     assert rejection.reason_input.placeholder == (ROLE_REQUEST_MODAL_COPY.reject_reason_placeholder)
 
@@ -902,18 +1167,14 @@ async def test_full_approval_applies_roles_once_and_disables_buttons(role_reques
 
     await role_request_env.service.approve_all(interaction)
 
-    assert interaction.response.deferred == [True]
+    assert interaction.response.deferred == [False]
     assert len(role_request_env.requester.edit_calls) == 1
     role_ids = {role.id for role in role_request_env.requester.roles}
     assert 701 in role_ids
     assert 703 not in role_ids
     assert all(child.disabled for child in message.components[0].children)
     assert message.embeds[0].title == role_request_env.service.ui.status_approved
-    approval_notice = interaction.followup.messages[-1]
-    assert approval_notice["content"] is None
-    assert approval_notice["ephemeral"] is True
-    assert approval_notice["embed"].title == role_request_env.service.ui.status_approved
-    assert approval_notice["embed"].color == discord.Color.green()
+    assert not interaction.followup.messages
 
     second = _interaction(role_request_env, message)
     await role_request_env.service.approve_all(second)
@@ -987,10 +1248,7 @@ async def test_partial_approval_applies_subset_and_closes_omitted_changes(
     assert "<@&702>" in fields[UNAPPROVED_CHANGES_TITLE]
     assert "<@&703>" in fields[UNAPPROVED_CHANGES_TITLE]
     assert EMPTY_VALUE not in fields.values()
-    partial_notice = interaction.followup.messages[-1]
-    assert partial_notice["content"] is None
-    assert partial_notice["embed"].title == role_request_env.service.ui.status_partial
-    assert partial_notice["embed"].color == discord.Color.gold()
+    assert not interaction.followup.messages
 
 
 @pytest.mark.asyncio
@@ -1011,10 +1269,7 @@ async def test_rejection_keeps_roles_and_records_terminal_result(role_request_en
     assert not role_request_env.requester.edit_calls
     assert message.embeds[0].title == role_request_env.service.ui.status_rejected
     assert all(child.disabled for child in message.components[0].children)
-    rejection_notice = interaction.followup.messages[-1]
-    assert rejection_notice["content"] is None
-    assert rejection_notice["embed"].title == role_request_env.service.ui.status_rejected
-    assert rejection_notice["embed"].color == discord.Color.red()
+    assert not interaction.followup.messages
 
 
 @pytest.mark.asyncio
@@ -1214,17 +1469,10 @@ async def test_concurrent_decisions_apply_at_most_once(role_request_env) -> None
     )
 
     assert len(role_request_env.requester.edit_calls) == 1
-    outcomes = [followup.messages[-1] for followup in (first.followup, second.followup)]
-    assert any(
-        outcome.get("embed") is not None
-        and outcome["embed"].title == role_request_env.service.ui.status_approved
-        for outcome in outcomes
-    )
-    assert any(
-        outcome.get("embed") is not None
-        and outcome["embed"].description == role_request_env.service.ui.stale_request
-        for outcome in outcomes
-    )
+    outcomes = [followup.messages for followup in (first.followup, second.followup)]
+    assert sum(bool(messages) for messages in outcomes) == 1
+    stale = next(messages[-1] for messages in outcomes if messages)
+    assert stale["embed"].description == role_request_env.service.ui.stale_request
 
 
 @pytest.mark.asyncio

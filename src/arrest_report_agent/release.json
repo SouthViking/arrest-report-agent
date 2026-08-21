@@ -1,14 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.12.10",
-  "title": "Panel del foro visible para todos",
-  "summary": "Las consultas realizadas con /foro ahora quedan publicadas en el canal para que todos puedan utilizar sus accesos.",
+  "version": "0.13.0",
+  "title": "Revisión privada de solicitudes de roles",
+  "summary": "Las solicitudes siguen visibles en su canal, mientras los motivos y comentarios internos quedan reservados al equipo autorizado.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [1241206587079524442],
+  "changelog_targets": "all",
   "changes": [
     {
       "type": "improved",
-      "text": "El embed de /foro dejó de ser efímero y ahora permanece visible para todos en el canal donde se ejecuta."
+      "text": "El canal público conserva el estado de cada solicitud sin mostrar motivos ni comentarios internos."
+    },
+    {
+      "type": "improved",
+      "text": "Las decisiones llegan por mensaje directo y, si el MD está cerrado, pueden consultarse de forma privada desde la solicitud."
+    },
+    {
+      "type": "improved",
+      "text": "Los controles de aprobación y rechazo se concentran en los canales privados configurados."
     }
   ],
   "acknowledgements": []

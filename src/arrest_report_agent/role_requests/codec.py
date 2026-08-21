@@ -28,6 +28,7 @@ APPROVED_CHANGES_TITLE = "✅ Cambios aprobados"
 UNAPPROVED_CHANGES_TITLE = "➖ Cambios no aprobados"
 REVIEWER_FIELD_TITLE = "🛡️ Resuelto por"
 DECISION_COMMENT_TITLE = "💬 Comentario de supervisión"
+PUBLIC_REQUEST_FIELD_TITLE = "🔗 Solicitud pública"
 ADD_CHANGE_PREFIX = "Agregar"
 REMOVE_CHANGE_PREFIX = "Retirar"
 PENDING_FIELD_ORDER = (
@@ -100,6 +101,62 @@ def build_pending_embed(
     )
     if message_id is not None:
         embed.set_footer(text=f"Solicitud {message_id}")
+    return embed
+
+
+def build_public_pending_embed(
+    *,
+    requester: discord.Member,
+    add_role_ids: Iterable[int],
+    remove_role_ids: Iterable[int],
+    ui: PersonaRoleRequestMessages,
+    created_at: datetime,
+    kind: RoleRequestKind,
+) -> discord.Embed:
+    """Render the public audit card without the requester's private reason."""
+
+    embed = build_pending_embed(
+        requester=requester,
+        add_role_ids=add_role_ids,
+        remove_role_ids=remove_role_ids,
+        reason=None,
+        ui=ui,
+        created_at=created_at,
+        kind=kind,
+    )
+    embed.description = (
+        "La solicitud quedó registrada y este mensaje se actualizará cuando sea resuelta."
+    )
+    return embed
+
+
+def build_private_pending_embed(
+    *,
+    requester: discord.Member,
+    add_role_ids: Iterable[int],
+    remove_role_ids: Iterable[int],
+    reason: str | None,
+    ui: PersonaRoleRequestMessages,
+    created_at: datetime,
+    public_jump_url: str,
+    kind: RoleRequestKind,
+) -> discord.Embed:
+    """Render the complete review card for authorized private channels."""
+
+    embed = build_pending_embed(
+        requester=requester,
+        add_role_ids=add_role_ids,
+        remove_role_ids=remove_role_ids,
+        reason=reason,
+        ui=ui,
+        created_at=created_at,
+        kind=kind,
+    )
+    embed.add_field(
+        name=PUBLIC_REQUEST_FIELD_TITLE,
+        value=f"[Abrir solicitud]({public_jump_url})",
+        inline=False,
+    )
     return embed
 
 
@@ -188,6 +245,66 @@ def build_decision_embed(
             inline=False,
         )
     embed.set_footer(text=f"Solicitud {request.message_id}")
+    return embed
+
+
+def build_public_decision_embed(
+    request: RoleRequest,
+    decision: RoleRequestDecision,
+    *,
+    requester_name: str,
+    requester_avatar_url: str | None,
+    ui: PersonaRoleRequestMessages,
+) -> discord.Embed:
+    """Render a terminal public card without reasons or supervisor details."""
+
+    sanitized_request = request.model_copy(update={"reason": None})
+    embed = build_decision_embed(
+        sanitized_request,
+        decision,
+        requester_name=requester_name,
+        requester_avatar_url=requester_avatar_url,
+        ui=ui,
+    )
+    embed.description = "La solicitud fue resuelta."
+    sensitive_names = {REVIEWER_FIELD_TITLE, DECISION_COMMENT_TITLE}
+    for index in reversed(range(len(embed.fields))):
+        if embed.fields[index].name in sensitive_names:
+            embed.remove_field(index)
+    return embed
+
+
+def build_requester_decision_embed(
+    request: RoleRequest,
+    decision: RoleRequestDecision,
+    *,
+    ui: PersonaRoleRequestMessages,
+) -> discord.Embed:
+    """Render the private resolution delivered by DM or requester-only fallback."""
+
+    title, status, color = _decision_presentation(decision.status, ui)
+    embed = discord.Embed(
+        title=title,
+        description="Esta es la resolución de tu solicitud de roles.",
+        color=color,
+        timestamp=decision.decided_at,
+    )
+    embed.add_field(name=STATUS_FIELD_TITLE, value=status, inline=False)
+    approved = _render_changes(
+        decision.approved_add_role_ids,
+        decision.approved_remove_role_ids,
+    )
+    if approved:
+        embed.add_field(name=APPROVED_CHANGES_TITLE, value=approved, inline=False)
+    unapproved = _render_changes(
+        decision.unapproved_add_role_ids,
+        decision.unapproved_remove_role_ids,
+    )
+    if unapproved:
+        embed.add_field(name=UNAPPROVED_CHANGES_TITLE, value=unapproved, inline=False)
+    if decision.comment:
+        embed.add_field(name=DECISION_COMMENT_TITLE, value=decision.comment, inline=False)
+    embed.set_footer(text=f"Solicitud pública {request.message_id}")
     return embed
 
 

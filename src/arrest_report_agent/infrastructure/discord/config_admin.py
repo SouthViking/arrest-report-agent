@@ -43,6 +43,7 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
     AccessPolicyKey.REPORT_ANALYTICS_ROLES: "Roles de analítica de reportes",
     AccessPolicyKey.REVIEW_ESCALATION_ROLES: "Roles de derivación",
     AccessPolicyKey.ROLE_REQUEST_CHANNELS: "Canales de solicitudes de roles",
+    AccessPolicyKey.ROLE_REQUEST_REVIEW_CHANNELS: "Canales privados de revisión de roles",
     AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES: "Roles solicitables",
     AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES: "Revisores de roles",
     AccessPolicyKey.CONFIG_ADMIN_ROLES: "Administradores de configuración",

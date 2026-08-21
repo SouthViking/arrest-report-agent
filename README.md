@@ -126,12 +126,12 @@ visibles para él y para el solicitante, evitando referencias `#desconocido` ent
 El subsistema de solicitudes de roles se habilita al configurar uno o más IDs explícitos en
 `ROLE_REQUEST_REVIEWER_ROLE_IDS`. `ROLE_REQUEST_ALLOWED_ROLE_IDS` sigue la regla uniforme de las
 allowlists: ausente, vacío o `*` permite todos los roles seguros; un CSV define un catálogo cerrado.
-`/solicitar-roles` publica la solicitud en el mismo canal de texto
-donde se ejecuta; `ROLE_REQUEST_ALLOWED_CHANNEL_IDS` puede abrir todos esos canales con `*` o
-restringirlos mediante CSV. No aplica `AUTHORIZED_USER_IDS`, no funciona dentro de hilos y no usa
-IA ni persiste la solicitud en PostgreSQL: el mensaje versionado de Discord conserva la solicitud y
-sus botones persistentes. PostgreSQL solo aporta su configuración dinámica. `/info-roles` permanece
-disponible en cualquier canal o hilo de una guild habilitada.
+`/solicitar-roles` publica un estado saneado en el mismo canal de texto donde se ejecuta;
+`ROLE_REQUEST_ALLOWED_CHANNEL_IDS` puede abrir todos esos canales con `*` o restringirlos mediante
+CSV. El motivo y los controles se replican únicamente en los canales privados de la política
+`role_request_review_channels`. No aplica `AUTHORIZED_USER_IDS`, no funciona dentro de hilos, no usa
+IA y persiste el expediente y sus referencias en PostgreSQL. `/info-roles` permanece disponible en
+cualquier canal o hilo de una guild habilitada.
 
 Cuando `role_requests` define `retired_role_id`, `/solicitar-roles` ofrece un flujo separado para
 pedir el retiro de la facción. Ese formulario no solicita bajas manuales: al aprobarlo, el bot
@@ -411,7 +411,7 @@ Comandos disponibles:
 - `/mi-resumen`: muestra de forma privada el estado personal del mes actual.
 - `/solicitar-roles`: permite elegir entre un cambio normal de hasta diez altas y diez bajas o,
   cuando está configurado, un retiro que calcula automáticamente los roles gestionados a quitar;
-  publica un expediente en el canal de origen para su revisión.
+  publica el estado en el canal de origen y deriva la revisión detallada a canales privados.
 - `/info-roles`: publica una explicación breve sobre el uso y los resultados de las solicitudes.
 - `/pager`: abre un formulario privado y emite un pager en el canal actual; reutiliza el callsign
   registrado sin volver a solicitarlo.

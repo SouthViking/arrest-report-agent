@@ -30,6 +30,7 @@ class AccessPolicyKey(StrEnum):
     REPORT_ANALYTICS_ROLES = "report_analytics_roles"
     REVIEW_ESCALATION_ROLES = "review_escalation_roles"
     ROLE_REQUEST_CHANNELS = "role_request_channels"
+    ROLE_REQUEST_REVIEW_CHANNELS = "role_request_review_channels"
     ROLE_REQUEST_ALLOWED_ROLES = "role_request_allowed_roles"
     ROLE_REQUEST_REVIEWER_ROLES = "role_request_reviewer_roles"
     CONFIG_ADMIN_ROLES = "config_admin_roles"
@@ -57,6 +58,7 @@ POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] 
     AccessPolicyKey.REPORT_ANALYTICS_ROLES: "role",
     AccessPolicyKey.REVIEW_ESCALATION_ROLES: "role",
     AccessPolicyKey.ROLE_REQUEST_CHANNELS: "channel",
+    AccessPolicyKey.ROLE_REQUEST_REVIEW_CHANNELS: "channel",
     AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES: "role",
     AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES: "role",
     AccessPolicyKey.CONFIG_ADMIN_ROLES: "role",
@@ -413,6 +415,11 @@ class GuildRuntimeSettings:
     @property
     def role_request_allowed_channel_allowlist(self) -> SnowflakeAllowlist:
         return self.snapshot.policy(AccessPolicyKey.ROLE_REQUEST_CHANNELS).as_allowlist()
+
+    @property
+    def role_request_review_channel_ids(self) -> tuple[int, ...]:
+        policy = self.snapshot.policy(AccessPolicyKey.ROLE_REQUEST_REVIEW_CHANNELS)
+        return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
 
     @property
     def role_request_allowed_role_allowlist(self) -> SnowflakeAllowlist:

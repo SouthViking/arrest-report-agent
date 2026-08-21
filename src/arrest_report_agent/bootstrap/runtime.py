@@ -86,6 +86,8 @@ from arrest_report_agent.review_analytics import ReportReviewRepository
 from arrest_report_agent.role_requests import (
     RoleRequestCog,
     RoleRequestDecisionView,
+    RoleRequestRepository,
+    RoleRequestResolutionView,
     RoleRequestService,
     RoleRequestServiceRegistry,
 )
@@ -344,14 +346,17 @@ async def build_runtime(
     ]
     role_requests_enabled = bool(role_request_bundles)
     default_bundle = role_request_bundles[0] if role_request_bundles else initial_bundle
+    role_request_repository = RoleRequestRepository(postgres)
     role_request_service = RoleRequestService(
         bot,
         default_bundle.settings,
         default_bundle.persona.profile,
+        repository=role_request_repository,
     )
-    registry = RoleRequestServiceRegistry(bot, config_provider)
+    registry = RoleRequestServiceRegistry(bot, config_provider, role_request_repository)
     role_request_service.registry = registry
     bot.add_view(RoleRequestDecisionView(role_request_service, registry=registry))
+    bot.add_view(RoleRequestResolutionView(role_request_service, registry=registry))
     bot.add_cog(RoleRequestCog(role_request_service, registry=registry))
     log_event(
         LOGGER,

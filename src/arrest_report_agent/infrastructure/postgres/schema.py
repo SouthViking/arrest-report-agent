@@ -990,3 +990,87 @@ report_arrest_bindings = sa.Table(
     sa.CheckConstraint("sarp_arrest_id > 0", name="ck_report_arrest_binding_positive"),
     sa.Index("ix_report_arrest_binding_arrest", "guild_id", "sarp_arrest_id"),
 )
+
+role_requests = sa.Table(
+    "role_requests",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("interaction_id", sa.BigInteger, nullable=False, unique=True),
+    sa.Column("requester_id", sa.BigInteger, nullable=False),
+    sa.Column("kind", sa.String(20), nullable=False),
+    sa.Column("add_role_ids", postgresql.ARRAY(sa.BigInteger), nullable=False),
+    sa.Column("remove_role_ids", postgresql.ARRAY(sa.BigInteger), nullable=False),
+    sa.Column("reason", sa.Text),
+    sa.Column("status", sa.String(30), nullable=False),
+    sa.Column("public_channel_id", sa.BigInteger, nullable=False),
+    sa.Column("public_message_id", sa.BigInteger),
+    sa.Column("reviewer_id", sa.BigInteger),
+    sa.Column("decision_comment", sa.Text),
+    sa.Column("approved_add_role_ids", postgresql.ARRAY(sa.BigInteger), nullable=False, server_default="{}"),
+    sa.Column(
+        "approved_remove_role_ids",
+        postgresql.ARRAY(sa.BigInteger),
+        nullable=False,
+        server_default="{}",
+    ),
+    sa.Column(
+        "unapproved_add_role_ids",
+        postgresql.ARRAY(sa.BigInteger),
+        nullable=False,
+        server_default="{}",
+    ),
+    sa.Column(
+        "unapproved_remove_role_ids",
+        postgresql.ARRAY(sa.BigInteger),
+        nullable=False,
+        server_default="{}",
+    ),
+    sa.Column("requester_dm_delivered", sa.Boolean),
+    sa.Column("version", sa.Integer, nullable=False, server_default="1"),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("decided_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint("kind IN ('normal','retirement')", name="ck_role_request_kind"),
+    sa.CheckConstraint(
+        "status IN ('publishing','pending','processing','approved','partially_approved','rejected','failed')",
+        name="ck_role_request_status",
+    ),
+    sa.CheckConstraint("version > 0", name="ck_role_request_version_positive"),
+    sa.UniqueConstraint(
+        "guild_id", "public_channel_id", "public_message_id", name="uq_role_request_public_message"
+    ),
+    sa.Index("ix_role_request_requester", "guild_id", "requester_id", "created_at"),
+    sa.Index("ix_role_request_status", "guild_id", "status", "created_at"),
+    sa.Index(
+        "uq_role_request_live_requester",
+        "guild_id",
+        "requester_id",
+        unique=True,
+        postgresql_where=sa.text("status IN ('publishing','pending','processing')"),
+    ),
+)
+
+role_request_review_messages = sa.Table(
+    "role_request_review_messages",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "request_id",
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("role_requests.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("channel_id", sa.BigInteger, nullable=False),
+    sa.Column("message_id", sa.BigInteger, nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.UniqueConstraint("request_id", "channel_id", name="uq_role_request_review_channel"),
+    sa.UniqueConstraint("channel_id", "message_id", name="uq_role_request_review_message"),
+    sa.Index("ix_role_request_review_request", "request_id"),
+)
