@@ -35,14 +35,16 @@ class EvidenceBagCog(commands.Cog):
         name="ver-evidencia",
         description="Consulta una bolsa de evidencias",
     )
+    @discord.option(
+        "bolsa",
+        int,
+        description="Número de la bolsa",
+        min_value=1,
+    )
     async def view_evidence(
         self,
         ctx: discord.ApplicationContext,
-        bolsa: discord.Option(  # type: ignore[valid-type]
-            int,
-            description="Número de la bolsa",
-            min_value=1,
-        ),
+        bolsa: int,
     ) -> None:
         if ctx.guild is None or not isinstance(ctx.author, discord.Member):
             await ctx.respond(

@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import discord
 from agents.tool_context import ToolContext
+from discord.commands import Option
+from discord.ext import commands
 
 from arrest_report_agent.application.ports import (
     EvidenceBagCustodyEvent,
@@ -272,7 +274,29 @@ def test_evidence_instructions_are_exposed_only_to_full_agent(persona) -> None:
 
     assert "<sarp_evidence_bags>" in full
     assert "get_evidence_bag" in full
+    assert "como máximo un emoji" in full
+    assert "no agregues ninguno" in full
     assert "<sarp_evidence_bags>" not in owner
+
+
+async def test_command_exposes_evidence_id_as_a_real_integer_option() -> None:
+    bot = commands.Bot(intents=discord.Intents.none())
+    bot.add_cog(
+        EvidenceBagCog(
+            SimpleNamespace(),
+            SimpleNamespace(),
+            SimpleNamespace(),
+        )
+    )
+    command = next(command for command in bot.pending_application_commands if command.name == "ver-evidencia")
+    assert [option.name for option in command.options] == ["bolsa"]
+    option = command.options[0]
+
+    assert isinstance(option, Option)
+    assert option._raw_type is int  # noqa: SLF001 - regression for Pycord's invoke parser
+    assert option.input_type is discord.SlashCommandOptionType.integer
+    assert option.min_value == 1
+    await bot.close()
 
 
 def test_public_embed_preserves_results_and_custody_without_internal_ids() -> None:

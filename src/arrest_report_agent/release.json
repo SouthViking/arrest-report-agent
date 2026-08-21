@@ -1,18 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.14.2",
-  "title": "Consulta de bolsas de evidencias",
-  "summary": "Ahora es posible revisar el contenido registrado de una bolsa de evidencias directamente desde Discord.",
+  "version": "0.14.3",
+  "title": "Corrección de consulta de evidencias",
+  "summary": "La consulta directa de bolsas vuelve a funcionar correctamente y mejora la presentación de sus resultados.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
-      "type": "added",
-      "text": "El personal operativo puede usar /ver-evidencia con el número de una bolsa para consultar públicamente su contenido analizado y cadena de custodia."
+      "type": "fixed",
+      "text": "Se corrigió /ver-evidencia para que Discord procese correctamente el número de bolsa ingresado."
     },
     {
       "type": "improved",
-      "text": "El agente puede contrastar bolsas de evidencias durante consultas y revisiones cuando exista una referencia clara, manteniendo los adjuntos como fuente alternativa."
+      "text": "Las respuestas del agente pueden distinguir visualmente los elementos de una bolsa con emojis relacionados, sin recargar el mensaje."
     }
   ],
   "acknowledgements": []
