@@ -24,6 +24,7 @@ from arrest_report_agent.evidence_bags import (
     EvidenceBagService,
     build_evidence_bag_embed,
 )
+from arrest_report_agent.evidence_bags.service import _strip_samp_color_tags
 from arrest_report_agent.infrastructure.sarp import (
     SarpEvidenceDetail,
     SarpRateLimit,
@@ -42,9 +43,9 @@ def evidence_payload(evidence_id: int = 4_385_409) -> SarpEvidenceDetail:
                     "evidence_id": evidence_id,
                     "sample_id": 4384680,
                     "police_id": 2869,
-                    "police_name": "Deputy Sheriff Lemus Fagan",
-                    "police_agency": "Los Santos County Sheriff's Department",
-                    "result": "Lata de ECola, cantidad: 10, huellas: Tyler Morgan; ",
+                    "police_name": "{B8C0CB}Deputy Sheriff Lemus Fagan{A9C4E4}",
+                    "police_agency": "{A9C4E4}Los Santos County Sheriff's Department",
+                    "result": "{B8C0CB}Lata de ECola, cantidad: 10, huellas: Tyler Morgan; ",
                     "created_at": "2026-08-19 22:02:46",
                 },
                 {
@@ -54,7 +55,7 @@ def evidence_payload(evidence_id: int = 4_385_409) -> SarpEvidenceDetail:
                     "police_id": 2869,
                     "police_name": "Deputy Sheriff Lemus Fagan",
                     "police_agency": "Los Santos County Sheriff's Department",
-                    "result": "Radio UHF, cantidad: 4032, huellas: Tyler Morgan; ",
+                    "result": "{B8C0CBFF}Radio UHF, cantidad: 4032, huellas: Tyler Morgan; ",
                     "created_at": "2026-08-19 22:02:46",
                 },
             ],
@@ -64,7 +65,7 @@ def evidence_payload(evidence_id: int = 4_385_409) -> SarpEvidenceDetail:
                     "evidence_id": evidence_id,
                     "police_id": 2869,
                     "police_name": "Deputy Sheriff Lemus Fagan",
-                    "action": f"guarda la bolsa de evidencias #{evidence_id} en el almacén 917.",
+                    "action": f"{{D0AD9F}}guarda la bolsa de evidencias #{evidence_id} en el almacén 917.",
                     "created_at": "2026-08-16 06:13:26",
                 }
             ],
@@ -159,6 +160,15 @@ def tools(lookup: FakeEvidenceLookup, access_level: AgentAccessLevel) -> dict[st
     }
 
 
+def test_samp_color_sanitizer_preserves_plain_text_and_removes_rgb_and_rgba_tags() -> None:
+    assert _strip_samp_color_tags("Casquillo 9x19 sin coincidencias.") == "Casquillo 9x19 sin coincidencias."
+    assert (
+        _strip_samp_color_tags("{B8C0CB}[Balística: 4254915]{A9C4E4} Casquillo 9x19")
+        == "[Balística: 4254915] Casquillo 9x19"
+    )
+    assert _strip_samp_color_tags("{B8C0CBFF}Muestra de sangre") == "Muestra de sangre"
+
+
 async def test_service_normalizes_one_live_evidence_bag_without_caching() -> None:
     client = FakeEvidenceClient(evidence_payload())
     service = EvidenceBagService(client)
@@ -174,6 +184,9 @@ async def test_service_normalizes_one_live_evidence_bag_without_caching() -> Non
     ]
     assert first.detail.items[0].examined_at.tzinfo is UTC
     assert first.detail.custody[0].action.endswith("almacén 917.")
+    assert first.detail.items[0].officer_name == "Deputy Sheriff Lemus Fagan"
+    assert first.detail.items[0].agency == "Los Santos County Sheriff's Department"
+    assert "{" not in first.detail.custody[0].action
     assert second == first
     assert client.calls == [4_385_409, 4_385_409]
 

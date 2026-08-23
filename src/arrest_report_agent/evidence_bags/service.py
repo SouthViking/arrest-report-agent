@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Protocol
 
 from arrest_report_agent.application.ports import (
@@ -20,6 +21,7 @@ from arrest_report_agent.infrastructure.sarp import (
 )
 
 LOGGER = logging.getLogger(__name__)
+_SAMP_COLOR_TAG = re.compile(r"\{[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?\}")
 
 
 class EvidenceBagApiClient(Protocol):
@@ -60,9 +62,13 @@ class EvidenceBagService:
                 EvidenceBagItem(
                     analysis_id=item.id,
                     sample_id=item.sample_id,
-                    result=item.result.strip(),
-                    officer_name=item.police_name.strip(),
-                    agency=item.police_agency,
+                    result=_strip_samp_color_tags(item.result),
+                    officer_name=_strip_samp_color_tags(item.police_name),
+                    agency=(
+                        _strip_samp_color_tags(item.police_agency)
+                        if item.police_agency is not None
+                        else None
+                    ),
                     examined_at=item.created_at,
                 )
                 for item in payload.results
@@ -70,8 +76,8 @@ class EvidenceBagService:
             custody=tuple(
                 EvidenceBagCustodyEvent(
                     event_id=entry.id,
-                    action=entry.action.strip(),
-                    officer_name=entry.police_name.strip(),
+                    action=_strip_samp_color_tags(entry.action),
+                    officer_name=_strip_samp_color_tags(entry.police_name),
                     created_at=entry.created_at,
                 )
                 for entry in payload.logs
@@ -86,6 +92,11 @@ class EvidenceBagService:
             custody_event_count=len(detail.custody),
         )
         return EvidenceBagLookupResult(detail=detail)
+
+
+def _strip_samp_color_tags(value: str) -> str:
+    """Remove SA-MP/open.mp RGB or RGBA color tags from API-supplied display text."""
+    return _SAMP_COLOR_TAG.sub("", value).strip()
 
 
 def _safe_failure(error: Exception) -> tuple[str, float | None]:
