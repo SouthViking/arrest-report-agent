@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "version": "0.15.0",
+  "version": "0.15.1",
   "title": "Consulta y auditoría de comunicaciones radiales",
   "summary": "El personal autorizado ahora puede consultar registros de radio y revisar de forma asistida su cumplimiento con el manual de comunicaciones.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
