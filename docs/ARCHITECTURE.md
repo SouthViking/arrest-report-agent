@@ -297,6 +297,14 @@ Railway. El panel muestra su acción únicamente a owners, consulta ambos provee
 publica el snapshot resultante en el canal actual. Un fallo parcial omite solo ese proveedor; la caché
 en memoria evita repetir consultas durante la ventana configurada y no persiste datos financieros.
 
+`radio_audit` separa la adquisición determinista del análisis. `RadioLogService` pagina y normaliza
+una muestra acotada desde SARP para `/radios-faccion` y `/auditar-radio`; el runner especializado
+recibe esa muestra inmutable y no conoce el cliente HTTP. Sus tools solo avanzan por lotes sobre la
+memoria ya descargada, descubren o filtran secciones concretas del catálogo de comunicación y
+consultan el catálogo local de códigos radiales. El
+workflow `radio_usage_audit` registra conteos y uso, pero excluye contenido sensible del trace y no
+crea tablas de resultados.
+
 En `on_ready`, `DiscordProfileSynchronizer` aplica username y avatar desde la persona, el banner
 verde musgo global de LSSD y la biografía por guild. Los campos globales se envían por separado para
 que el cooldown de uno no bloquee los demás. Un lock evita duplicados durante reconexiones; un error

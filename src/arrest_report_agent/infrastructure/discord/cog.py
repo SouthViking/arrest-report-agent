@@ -937,6 +937,21 @@ class ReviewCog(commands.Cog):
                             "• `/guia-bitacora`: categorías y tipos disponibles.",
                         )
                     )
+                radio_feature = bundle.snapshot.features.get("radio_audit")
+                if (
+                    radio_feature is not None
+                    and radio_feature.enabled
+                    and isinstance(ctx.author, discord.Member)
+                ):
+                    member_role_ids = {role.id for role in ctx.author.roles}
+                    if member_role_ids.intersection(bundle.settings.operational_staff_role_ids):
+                        extra_feature_lines.append(
+                            "• `/radios-faccion`: consulta registros de radio por fecha, slot y miembro."
+                        )
+                    if member_role_ids.intersection(bundle.settings.radio_audit_role_ids):
+                        extra_feature_lines.append(
+                            "• `/auditar-radio`: analiza el uso del slot 1 según el manual."
+                        )
         embed = build_help_embed(
             persona=self.persona,
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,

@@ -1,20 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.14.3",
-  "title": "Corrección de consulta de evidencias",
-  "summary": "La consulta directa de bolsas vuelve a funcionar correctamente y mejora la presentación de sus resultados.",
+  "version": "0.15.0",
+  "title": "Consulta y auditoría de comunicaciones radiales",
+  "summary": "El personal autorizado ahora puede consultar registros de radio y revisar de forma asistida su cumplimiento con el manual de comunicaciones.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
-      "type": "fixed",
-      "text": "Se corrigió /ver-evidencia para que Discord procese correctamente el número de bolsa ingresado."
+      "type": "added",
+      "text": "Se agregó /radios-faccion para consultar comunicaciones por período, slot y miembro, con resultados públicos o privados."
+    },
+    {
+      "type": "added",
+      "text": "Se agregó /auditar-radio para que los roles de supervisión configurados midan la gravedad de posibles faltas comunicacionales del slot 1 usando el manual vigente."
     },
     {
       "type": "improved",
-      "text": "Las respuestas del agente pueden distinguir visualmente los elementos de una bolsa con emojis relacionados, sin recargar el mensaje."
+      "text": "El análisis puede enfocar sus búsquedas en secciones concretas del manual, y las consultas extensas incluyen paginación y un CSV de respaldo sin almacenar el contenido de los radios."
     }
   ],
   "acknowledgements": []

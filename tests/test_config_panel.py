@@ -300,6 +300,9 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
     assert AccessPolicyKey.SERVICE_CALL_CHANNELS.value in {
         option.value for option in access_modal.policy.options
     }
+    assert AccessPolicyKey.RADIO_AUDIT_ROLES.value in {
+        option.value for option in access_modal.policy.options
+    }
     assert AgentConfigurationModal(cog, 42, provider.snapshot.agent).title == "Configurar agente"
     feature_modal = FeatureConfigurationModal(cog, 42)
     assert feature_modal.title == "Configurar módulo"
@@ -321,6 +324,7 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
     assert "pending_arrest_reports" in {
         option.value for option in feature_modal.key.options
     }
+    assert "radio_audit" in {option.value for option in feature_modal.key.options}
     persona_modal = PersonaConfigurationModal(cog, 42, include_global_profile=True)
     assert persona_modal.title == "Administrar personas"
     assert [option.value for option in persona_modal.action.options][-1] == "global"

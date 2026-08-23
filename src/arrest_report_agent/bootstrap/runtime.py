@@ -81,6 +81,11 @@ from arrest_report_agent.pending_arrest_reports import (
     PendingArrestReportCog,
     PendingArrestReportService,
 )
+from arrest_report_agent.radio_audit import (
+    RadioAuditCog,
+    RadioLogService,
+    RadioManualCatalog,
+)
 from arrest_report_agent.release import ReleaseManifest
 from arrest_report_agent.report_owner_access import ReportOwnerRunRepository
 from arrest_report_agent.review_analytics import ReportReviewRepository
@@ -475,6 +480,15 @@ async def build_runtime(
             StolenVehicleCog(
                 config_provider,
                 stolen_vehicle_service,
+                persona.profile,
+            )
+        )
+        bot.add_cog(
+            RadioAuditCog(
+                config_provider,
+                RadioLogService(sarp_client),
+                radio_catalog,
+                RadioManualCatalog.load_default(),
                 persona.profile,
             )
         )

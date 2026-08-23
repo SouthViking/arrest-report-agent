@@ -46,6 +46,12 @@ El módulo **Reportes de arresto pendientes** recibe
 `{"faction_id": 3, "max_range_days": 90, "max_records": 1000}`. Habilita la consulta manual
 determinista, reutiliza `operational_staff_roles` y no requiere una política de canales.
 
+El módulo **Consulta y auditoría de radios** recibe
+`{"faction_id": 3, "query_max_range_days": 30, "query_max_records": 2000,
+"audit_max_range_days": 7, "audit_max_records": 500}`. `/radios-faccion` reutiliza
+`operational_staff_roles`; `/auditar-radio` exige la política independiente `radio_audit_roles`.
+Ambos permisos se modifican y publican por `/config` sin redesplegar.
+
 La acción **Publicar consumo** consulta los proveedores configurados, omite cualquier campo que no
 haya sido devuelto y envía un embed público en el canal donde se abrió `/config`. No usa IA. Los
 resultados se conservan en memoria por cinco minutos; las credenciales nunca se muestran ni se
@@ -77,6 +83,8 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/foro` | Todos; módulo `forum_shortcuts` activo | Pública | Catálogo institucional configurado en PostgreSQL |
 | `/reportes-pendientes` | `operational_staff_roles`; módulo `pending_arrest_reports` activo | Modal privado; resultado público o efímero | Reportes de la facción en SARP |
 | `/informe-faccion` | `faction_report_roles`; módulo `faction_reports` activo | Modal privado; archivo público o efímero | Banco, nómina y rangos actuales de SARP |
+| `/radios-faccion` | `operational_staff_roles`; módulo `radio_audit` activo | Modal privado; resultado público o efímero | Registros de radio de la facción en SARP |
+| `/auditar-radio` | `radio_audit_roles`; módulo `radio_audit` activo | Modal privado; resultado público o efímero | Muestra fija de SARP, sección IV del manual y códigos radiales |
 | `/bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Selector privado, modal adaptado y entrada pública | PostgreSQL, Railway Bucket y Discord |
 | `/info-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Pública; rechazo efímero fuera de los canales | Persona activa y configuración de PostgreSQL |
 | `/guia-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Modal privado; resultado público o efímero | Catálogo central de categorías y subtipos |
@@ -202,6 +210,25 @@ servicio. Se muestran como máximo diez nombres por grupo y cada sección indica
 
 La consulta recupera la nómina completa mediante una sola solicitud agrupada. Un caché compartido de
 quince segundos evita multiplicar consumo cuando varias personas ejecutan el comando al mismo tiempo.
+
+## `/radios-faccion` y `/auditar-radio`
+
+`/radios-faccion` funciona en cualquier canal para `operational_staff_roles`. Permite elegir 1, 2,
+7, 14 o 30 días, un rango personalizado de fechas UTC, un slot —el 1 por defecto—, un miembro
+opcional y la visibilidad. El servicio descarga de forma paginada una muestra acotada, interpreta el
+prefijo `[CH: ..., S: N]` sin depender de mayúsculas o espacios exactos y aplica localmente los
+filtros. Muestra diez filas por página; sobre cien filas adjunta un CSV generado en memoria con el
+resultado completo. No guarda radios ni archivos.
+
+`/auditar-radio` está reservado a `radio_audit_roles`, usa siempre el slot 1 de SCC y admite hasta el
+rango y volumen configurados. La muestra se obtiene una sola vez antes de OpenAI y queda inmutable;
+el agente no puede volver a consultar SARP. Sus únicas herramientas permiten leer el resto de esa
+muestra, buscar códigos radiales, descubrir el índice de comunicación y consultar por conceptos o
+claves concretas el catálogo local extraído exclusivamente de la sección IV del manual. El índice
+solo se consulta cuando el tema es incierto; una búsqueda conocida puede ir directamente a las
+secciones relevantes. El resultado agrupa hallazgos por miembro y clasifica gravedad comunicacional leve,
+moderada o grave, sin recomendar sanciones. Los traces usan el workflow `radio_usage_audit` y no
+incluyen el contenido de los mensajes.
 
 ## `/recursos`
 

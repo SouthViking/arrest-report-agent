@@ -82,5 +82,7 @@ module = [
     "arrest_report_agent.review_analytics.discord",
     "arrest_report_agent.manual_quiz.discord",
     "arrest_report_agent.pending_arrest_reports.discord",
+    "arrest_report_agent.radio_audit.discord",
+    "arrest_report_agent.radio_audit.forms",
 ]
 ignore_errors = true

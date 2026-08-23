@@ -657,3 +657,43 @@ class SarpFactionBankPage(BaseModel):
 
     data: list[SarpFactionBankEntry] = Field(default_factory=list)
     total: int = Field(ge=0)
+
+
+class SarpFactionRadioLog(BaseModel):
+    """One authenticated radio transmission returned by the faction log endpoint."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    faction: int = Field(gt=0)
+    frequency: int | float | str | None = None
+    character_id: int = Field(gt=0)
+    character_name: str = Field(min_length=1, max_length=100)
+    message: str = Field(min_length=1, max_length=4_000)
+    created_at: datetime
+
+    @field_validator("character_name", mode="before")
+    @classmethod
+    def normalize_radio_character_name(cls, value: object) -> str:
+        return " ".join(str(value).replace("_", " ").split())
+
+    @field_validator("message", mode="before")
+    @classmethod
+    def strip_radio_message(cls, value: object) -> str:
+        return str(value).strip()
+
+    @field_validator("created_at")
+    @classmethod
+    def assume_radio_timestamp_is_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+
+class SarpFactionRadioLogPage(BaseModel):
+    """Paginated faction radio response returned as ``{data, total}``."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    data: list[SarpFactionRadioLog] = Field(default_factory=list)
+    total: int = Field(ge=0)

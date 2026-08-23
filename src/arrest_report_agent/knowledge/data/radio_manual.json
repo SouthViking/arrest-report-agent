@@ -1,0 +1,170 @@
+{
+  "version": "2026-08-23",
+  "source": "LSSD Manual de Políticas y Procedimientos (SA-RP), sección IV · Comunicación",
+  "sections": [
+    {
+      "key": "format_and_callsigns",
+      "title": "Códigos radiales e indicativos",
+      "aliases": ["formato", "callsign", "indicativo", "estación"],
+      "content": [
+        "El formato base es número de sector de patrullaje y callsign; por ejemplo: 280 George 1, código 3.",
+        "El nombre de la estación solo es obligatorio cuando se pide el parche, por una emergencia o una emisión de crimen.",
+        "Callsigns ordinarios: sin letra, Adam, Boy, David y Edward. King identifica soporte FTP fase 3; Robert reserva; George supresión de pandillas; Tom tráfico; Sam sargento; Lincoln teniente; Charles capitán."
+      ]
+    },
+    {
+      "key": "division_callsigns",
+      "title": "Callsigns de divisiones",
+      "aliases": ["MCB", "OSS", "SEB", "Majors", "William", "K9"],
+      "content": [
+        "Major Crimes Bureau utiliza el prefijo Majors David 4.",
+        "Operation Safe Streets utiliza OSS antes del callsign.",
+        "Las unidades SEB dedicadas usan el prefijo SEB; si realizan patrullaje normal usan el prefijo de su estación."
+      ]
+    },
+    {
+      "key": "jargon",
+      "title": "Jergas radiales y modismos",
+      "aliases": ["apoyo", "asistencia", "obs", "uncoop", "deps", "GSW", "DIS"],
+      "content": [
+        "Apoyo es rutinario, sin luces ni sirenas; no es una emergencia. Asistencia es apoyo de emergencia en código 3.",
+        "Obs. significa visión; Re. significa con respecto a; Uncoop. significa que no coopera; Deps. abrevia deputies.",
+        "DIS refiere a disparos con participación de un deputy; GSW a heridas de bala; TC a accidente de tráfico."
+      ]
+    },
+    {
+      "key": "prohibited_words",
+      "title": "Palabras prohibidas y alternativas",
+      "aliases": ["sintaxis", "vocabulario", "despacho", "agente", "comisaría", "masculino"],
+      "content": [
+        "Evitar tripulante o unitripulado; usar pasajero u ocupante. Evitar bitripulado; usar dos pasajeros u ocupantes.",
+        "Evitar rótame, gestióname o despáchame; usar ruédame, envíame, consígueme o dame. Evitar despacho; usar SCC.",
+        "Evitar agente o policía local; usar oficial o LSPD. Evitar detención/parada de tránsito; usar parada de tráfico.",
+        "Evitar loc. y sosp.; usar localización/ubicación y sospechoso/individuo/sujeto. Evitar masculino/femenino; usar hombre/mujer.",
+        "No se deben inventar formas radiales: la sintaxis explicada en los ejemplos del manual se respeta casi al pie de la letra."
+      ]
+    },
+    {
+      "key": "patch",
+      "title": "Conceptos y uso de parche",
+      "aliases": ["parche", "simplex", "dúplex", "10-33", "10-34"],
+      "content": [
+        "En simplex, el tráfico de campo es recibido por SCC y la estación; los demás ayudantes oyen ocupado. El parche dúplex permite comunicación directa entre canales parcheados.",
+        "El nombre de estación se menciona cuando se pide o se está en el parche.",
+        "El parche se pide ante situaciones de emergencia asociadas a asistencia; apoyo no es emergencia.",
+        "El parche no expira por sí solo: debe concluirse la situación con código 4 e informarse a SCC."
+      ]
+    },
+    {
+      "key": "response_and_arrival",
+      "title": "Respuesta y llegada a escena",
+      "aliases": ["respondiendo", "10-97", "código 6", "ETA", "llegada"],
+      "content": [
+        "Para responder se usa callsign y respondiendo/código 3, pudiendo sumar tiempo estimado. Al no decir código se entiende apoyo rutinario.",
+        "El 10-97 procede cuando previamente se informó que se estaba respondiendo; si no se informó, se usa código 6.",
+        "Ejemplos válidos: 283 Boy, código 3, dos minutos; 283 Adam, en uno; 283 Boy, 10-97 en la avenida Artesia; 283 Boy, código 6 en Artesia."
+      ]
+    },
+    {
+      "key": "service_calls",
+      "title": "Respuesta a llamadas 911",
+      "aliases": ["911", "llamada de servicio", "PR", "10-22", "10-98"],
+      "content": [
+        "Una llamada rutinaria se responde sin código; una urgente donde corre riesgo la integridad admite respuesta en código 3.",
+        "Si se informó 10-97, al finalizar se informa 10-98. Se usa 10-22 cuando no se informó 10-97 y no hay rastros, es falsa alarma o no se encuentra a la persona reportante.",
+        "Si la llamada está cerca, enviar únicamente el callsign puede comunicar que se está respondiendo."
+      ]
+    },
+    {
+      "key": "traffic_stop",
+      "title": "Parada de tráfico",
+      "aliases": ["tráfico", "placa", "matrícula", "ocupantes", "vehículo"],
+      "content": [
+        "La transmisión incluye callsign, código 6 con parada de tráfico, vehículo, cantidad de ocupantes si es mayor que uno, matrícula, lugar y petición de apoyo si corresponde.",
+        "La matrícula se comunica con el alfabeto radiofónico APCO."
+      ]
+    },
+    {
+      "key": "felony_stop",
+      "title": "Parada forzosa",
+      "aliases": ["felony stop", "frank stop", "código 9", "punta de pistola"],
+      "content": [
+        "Una parada forzosa comienza con 10-33 y petición de parche, estación y callsign, código 9, descripción/ocupantes, razón, placas, dirección, asistencia y verificación aérea si corresponde.",
+        "Al detenerse el vehículo se informa ubicación y orientación, indicando que se realiza la detención a punta de pistola."
+      ]
+    },
+    {
+      "key": "custody",
+      "title": "Sospechoso en custodia",
+      "aliases": ["10-15", "esposado", "custodia", "detenido"],
+      "content": [
+        "El 10-15 solo se informa cuando se esposa al sospechoso.",
+        "En un felony no se informa hasta que esté esposado y en el asiento trasero de una unidad o el riesgo de fuga o lucha sea mínimo."
+      ]
+    },
+    {
+      "key": "pursuit",
+      "title": "Persecución",
+      "aliases": ["persecución", "dirección", "velocidad", "tráfico", "ocupantes"],
+      "content": [
+        "Por radio debe indicarse unidad, ubicación, velocidad y dirección, razón específica, ocupantes, condiciones del tráfico y riesgos o armas.",
+        "La petición usa 10-33, parche y unidades en código cuando la situación lo requiere."
+      ]
+    },
+    {
+      "key": "lost_observation",
+      "title": "Pérdida de observación en persecución",
+      "aliases": ["pérdida", "observación", "vehículo perdido", "última vez visto"],
+      "content": [
+        "Al perder observación durante una persecución ya parcheada no se pide otro parche; se emite última ubicación, vehículo, ocupantes, placas, dirección y razón de búsqueda, y luego se autoriza tirar el parche."
+      ]
+    },
+    {
+      "key": "support_and_emergency",
+      "title": "Apoyo, asistencia y situación controlada",
+      "aliases": ["apoyo", "asistencia", "código 4", "código 14", "emergencia"],
+      "content": [
+        "Apoyo es respuesta rutinaria. Asistencia es emergencia y requiere código 3 y parche.",
+        "Código 4 indica que no se precisa más asistencia y no permite pedir más. Código 14 reanuda labores en incidentes grandes; las unidades liberadas no necesitan usar 10-98."
+      ]
+    },
+    {
+      "key": "deputy_shooting",
+      "title": "Disparos de deputies",
+      "aliases": ["998", "DIS", "disparos", "unidad Sam", "contabilizados"],
+      "content": [
+        "Ante 998 se pide parche y se informa ubicación, asistencia en código y unidad Sam. Quien tome el mando entrega el detalle completo, ambulancia y referencias.",
+        "Decir que todos los deputies están contabilizados significa que no hay deputies heridos; si falta uno debe aclararse."
+      ]
+    },
+    {
+      "key": "third_party_shooting",
+      "title": "Disparos de un tercero",
+      "aliases": ["923", "tiroteo", "disparos ilegales", "persona armada"],
+      "content": [
+        "Los disparos ilegales se informan con 10-33, parche, estación/callsign, código 923, ubicación, cantidad o tipo de disparos y solicitud de asistencia."
+      ]
+    },
+    {
+      "key": "crime_broadcast",
+      "title": "Emisión de crimen",
+      "aliases": ["10-34", "hot shot", "descripción", "última vez visto", "emisión"],
+      "content": [
+        "Una emisión comienza con callsign con estación y 10-34; después se usa callsign sin estación, código del crimen, tiempo y ubicación exacta.",
+        "La descripción sigue sexo, etnia, edad, altura, peso, contextura, vestimenta y accesorios, seguida de dirección de huida y arma si existe.",
+        "Las líneas se transmiten separadas para lectura cómoda y se finaliza indicando que SCC puede tirar el parche."
+      ]
+    },
+    {
+      "key": "operational_requests",
+      "title": "Solicitudes operativas",
+      "aliases": ["K9", "ambulancia", "902R", "grúa", "10-21", "traslado"],
+      "content": [
+        "K9: callsign, petición de equipo, calle y tarea concreta.",
+        "Ambulancia: callsign, 902R, ubicación, descripción del herido, heridas y estado; 902R jamás se usa por radio interdepartamental.",
+        "Grúa: callsign, SCC, ubicación y descripción del vehículo. Contactar el depósito ocurre después del pedido radial.",
+        "10-21 solicita contacto telefónico cuando la distancia impide comunicación simplex. 10-19 comunica regreso o traslado a una ubicación."
+      ]
+    }
+  ]
+}

@@ -17,6 +17,7 @@ from .database import (
     GuildRuntimeSettings,
     OperationalResourcesOptions,
     PendingArrestReportsOptions,
+    RadioAuditOptions,
     ReportOwnerAccessOptions,
     RoleRequestOptions,
 )
@@ -82,6 +83,7 @@ __all__ = [
     "GuildRuntimeSettings",
     "OperationalResourcesOptions",
     "PendingArrestReportsOptions",
+    "RadioAuditOptions",
     "ReportOwnerAccessOptions",
     "RoleRequestOptions",
     "LoadedPersona",

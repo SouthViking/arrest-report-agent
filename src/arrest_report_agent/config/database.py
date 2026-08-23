@@ -39,6 +39,7 @@ class AccessPolicyKey(StrEnum):
     PAGER_RECIPIENT_ROLES = "pager_recipient_roles"
     PAGER_CLOSER_ROLES = "pager_closer_roles"
     OPERATIONAL_STAFF_ROLES = "operational_staff_roles"
+    RADIO_AUDIT_ROLES = "radio_audit_roles"
     FACTION_REPORT_ROLES = "faction_report_roles"
     DEPLOYMENT_NOTIFICATION_CHANNELS = "deployment_notification_channels"
     DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS = (
@@ -68,6 +69,7 @@ POLICY_SUBJECT_TYPES: dict[AccessPolicyKey, Literal["channel", "role", "user"]] 
     AccessPolicyKey.PAGER_RECIPIENT_ROLES: "role",
     AccessPolicyKey.PAGER_CLOSER_ROLES: "role",
     AccessPolicyKey.OPERATIONAL_STAFF_ROLES: "role",
+    AccessPolicyKey.RADIO_AUDIT_ROLES: "role",
     AccessPolicyKey.FACTION_REPORT_ROLES: "role",
     AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: "channel",
     AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: "channel",
@@ -157,6 +159,22 @@ class FactionReportOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
     max_range_days: int = Field(default=366, ge=1, le=730)
     max_bank_records: int = Field(default=10_000, ge=500, le=25_000)
+
+
+class RadioAuditOptions(FrozenConfigModel):
+    faction_id: int = Field(gt=0)
+    query_max_range_days: int = Field(default=30, ge=1, le=90)
+    query_max_records: int = Field(default=2_000, ge=100, le=10_000)
+    audit_max_range_days: int = Field(default=7, ge=1, le=30)
+    audit_max_records: int = Field(default=500, ge=50, le=1_000)
+
+    @model_validator(mode="after")
+    def validate_relative_limits(self) -> RadioAuditOptions:
+        if self.audit_max_range_days > self.query_max_range_days:
+            raise ValueError("audit range cannot exceed deterministic query range")
+        if self.audit_max_records > self.query_max_records:
+            raise ValueError("audit records cannot exceed deterministic query records")
+        return self
 
 
 class OperationalResourcesOptions(FrozenConfigModel):
@@ -377,6 +395,19 @@ class GuildConfigSnapshot(FrozenConfigModel):
             channels = self.policies[AccessPolicyKey.LOGBOOK_CHANNELS]
             if channels.mode is not AccessPolicyMode.RESTRICTED:
                 raise ValueError("enabled logbook requires restricted logbook channels")
+        radio_audit_feature = self.features.get("radio_audit")
+        if radio_audit_feature is not None and radio_audit_feature.enabled:
+            if radio_audit_feature.schema_version != 1:
+                raise ValueError("radio_audit requires feature schema version 1")
+            RadioAuditOptions.model_validate(radio_audit_feature.payload)
+            operational_roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
+            if operational_roles.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError(
+                    "enabled radio_audit requires restricted operational staff roles"
+                )
+            audit_roles = self.policies[AccessPolicyKey.RADIO_AUDIT_ROLES]
+            if audit_roles.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError("enabled radio_audit requires restricted audit roles")
         return self
 
     def policy(self, key: AccessPolicyKey) -> AccessPolicySnapshot:
@@ -480,6 +511,11 @@ class GuildRuntimeSettings:
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
 
     @property
+    def radio_audit_role_ids(self) -> tuple[int, ...]:
+        policy = self.snapshot.policy(AccessPolicyKey.RADIO_AUDIT_ROLES)
+        return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
     def faction_report_role_ids(self) -> tuple[int, ...]:
         policy = self.snapshot.policy(AccessPolicyKey.FACTION_REPORT_ROLES)
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
@@ -572,6 +608,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return FactionReportOptions.model_validate(feature.payload)
+
+    @property
+    def radio_audit_options(self) -> RadioAuditOptions | None:
+        feature = self.snapshot.features.get("radio_audit")
+        if feature is None or not feature.enabled:
+            return None
+        return RadioAuditOptions.model_validate(feature.payload)
 
     @property
     def pager_starting_number(self) -> int:

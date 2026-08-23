@@ -514,6 +514,60 @@ async def test_evidence_detail_endpoint_returns_contents_and_custody() -> None:
     assert detail.logs[0].action.endswith("almacén 917.")
 
 
+async def test_faction_radio_logs_endpoint_returns_typed_page_and_filters() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/my-faction/logs/radio/3"
+        assert request.query == {
+            "dateFrom": "2026-08-20",
+            "dateTo": "2026-08-22",
+            "page": "2",
+            "limit": "50",
+            "search": "Derek Valdez",
+            "sortField": "created_at",
+            "sortOrder": "asc",
+        }
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "pcu",
+                "payload": {
+                    "data": [
+                        {
+                            "id": 77,
+                            "faction": 3,
+                            "frequency": 911.0,
+                            "character_id": 42,
+                            "character_name": "Derek_Valdez",
+                            "message": "[CH: SCC, S: 1] Derek Valdez: 10-8",
+                            "created_at": "2026-08-22 19:30:00",
+                        }
+                    ],
+                    "total": 51,
+                },
+            }
+        )
+
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
+        page = await client.list_faction_radio_logs(
+            3,
+            date_from=date(2026, 8, 20),
+            date_to=date(2026, 8, 22),
+            page=2,
+            limit=50,
+            search=" Derek Valdez ",
+            sort_order="asc",
+        )
+
+    assert page.total == 51
+    assert page.data[0].character_name == "Derek Valdez"
+    assert page.data[0].message.endswith("10-8")
+    assert page.data[0].created_at.utcoffset().total_seconds() == 0
+
+
 async def test_faction_detail_endpoint_returns_typed_live_member_states() -> None:
     async def handler(request: web.Request) -> web.Response:
         assert request.path == "/api/my-faction/faction/3"

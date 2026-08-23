@@ -44,3 +44,26 @@ def resolve_date_range(
     if (date_to - date_from).days + 1 > max_days:
         raise ValueError("date range exceeds configured maximum")
     return date_from, date_to
+
+
+def resolve_compact_date_range(
+    period: DateRangePeriod,
+    raw_range: str,
+    *,
+    max_days: int,
+    today: date | None = None,
+) -> tuple[date, date]:
+    """Resolve presets or one compact ``AAAA-MM-DD / AAAA-MM-DD`` form value."""
+
+    if period is not DateRangePeriod.CUSTOM:
+        return resolve_date_range(period, "", "", max_days=max_days, today=today)
+    parts = [part.strip() for part in raw_range.split("/")]
+    if len(parts) != 2 or not all(parts):
+        raise ValueError("custom range must contain two ISO dates separated by slash")
+    return resolve_date_range(
+        period,
+        parts[0],
+        parts[1],
+        max_days=max_days,
+        today=today,
+    )

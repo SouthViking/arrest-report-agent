@@ -34,6 +34,7 @@ from arrest_report_agent.config import (
     ModelCatalog,
     PackagedPersonaProvider,
     PendingArrestReportsOptions,
+    RadioAuditOptions,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
 from arrest_report_agent.deployments import DeploymentRepository, RailwayDeploymentEvent
@@ -82,6 +83,26 @@ def test_faction_report_options_are_bounded() -> None:
         FactionReportOptions(faction_id=3, max_range_days=731)
     with pytest.raises(ValueError, match="greater than or equal to 500"):
         FactionReportOptions(faction_id=3, max_bank_records=499)
+
+
+def test_radio_audit_options_are_typed_and_keep_ai_within_query_limits() -> None:
+    options = RadioAuditOptions(faction_id=3)
+    assert options.query_max_range_days == 30
+    assert options.query_max_records == 2_000
+    assert options.audit_max_range_days == 7
+    assert options.audit_max_records == 500
+    with pytest.raises(ValueError, match="audit range"):
+        RadioAuditOptions(
+            faction_id=3,
+            query_max_range_days=7,
+            audit_max_range_days=8,
+        )
+    with pytest.raises(ValueError, match="audit records"):
+        RadioAuditOptions(
+            faction_id=3,
+            query_max_records=100,
+            audit_max_records=101,
+        )
 
 
 def test_forum_shortcut_options_are_typed_and_bounded() -> None:

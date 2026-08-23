@@ -41,6 +41,7 @@ from .models import (
     SarpFactionArrestSearchPayload,
     SarpFactionBankPage,
     SarpFactionDetail,
+    SarpFactionRadioLogPage,
     SarpFactionRank,
     SarpFinePage,
     SarpGlobalMetrics,
@@ -77,6 +78,7 @@ EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpEmergencyCallPage)
 STOLEN_VEHICLE_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpStolenVehiclePage)
 FACTION_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionDetail)
 FACTION_RANKS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionRank])
+FACTION_RADIO_LOG_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionRadioLogPage)
 GLOBAL_METRICS_PAYLOAD_ADAPTER = TypeAdapter(SarpGlobalMetrics)
 SERVER_CACHE_INFO_PAYLOAD_ADAPTER = TypeAdapter(SarpServerCacheInfo)
 
@@ -330,6 +332,42 @@ class SarpClient:
                 "sortOrder": "desc",
             },
             payload_adapter=FACTION_BANK_PAGE_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def list_faction_radio_logs(
+        self,
+        faction_id: int,
+        *,
+        date_from: date,
+        date_to: date,
+        page: int = 1,
+        limit: int = 500,
+        search: str | None = None,
+        sort_order: Literal["asc", "desc"] = "desc",
+    ) -> SarpFactionRadioLogPage:
+        """List authenticated faction radio traffic for one inclusive UTC date range."""
+
+        _require_positive_id(faction_id, "faction_id")
+        _validate_page(page, limit, max_limit=500)
+        if date_from > date_to:
+            raise ValueError("date_from cannot be after date_to")
+        normalized_search = _normalize_optional_search(search, "search")
+        if sort_order not in {"asc", "desc"}:
+            raise ValueError("sort_order must be 'asc' or 'desc'")
+        response = await self.request(
+            "GET",
+            f"/my-faction/logs/radio/{faction_id}",
+            params={
+                "dateFrom": date_from.isoformat(),
+                "dateTo": date_to.isoformat(),
+                "page": page,
+                "limit": limit,
+                "search": normalized_search,
+                "sortField": "created_at",
+                "sortOrder": sort_order,
+            },
+            payload_adapter=FACTION_RADIO_LOG_PAGE_PAYLOAD_ADAPTER,
         )
         return response.payload
 

@@ -20,6 +20,7 @@ from arrest_report_agent.config import (
     GuildAgentConfig,
     GuildFeatureSnapshot,
     OperationalResourcesOptions,
+    RadioAuditOptions,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
 from arrest_report_agent.config.logging import exception_fields, log_event
@@ -52,6 +53,7 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
     AccessPolicyKey.PAGER_RECIPIENT_ROLES: "Destinatarios de pagers",
     AccessPolicyKey.PAGER_CLOSER_ROLES: "Responsables de cierre de pagers",
     AccessPolicyKey.OPERATIONAL_STAFF_ROLES: "Personal operativo con callsign",
+    AccessPolicyKey.RADIO_AUDIT_ROLES: "Roles para auditoría radial con IA",
     AccessPolicyKey.FACTION_REPORT_ROLES: "Roles para informes de facción",
     AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: "Canales de despliegues",
     AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: (
@@ -76,6 +78,7 @@ FEATURE_LABELS = {
     "arrest_report_lookup": "Consulta de reportes de arresto",
     "pending_arrest_reports": "Reportes de arresto pendientes",
     "logbook": "Bitácora",
+    "radio_audit": "Consulta y auditoría de radios",
 }
 MODE_LABELS = {
     AccessPolicyMode.OPEN: "abierta",
@@ -967,6 +970,10 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     label="Reportes de arresto pendientes",
                     value="pending_arrest_reports",
                 ),
+                discord.SelectOption(
+                    label="Consulta y auditoría de radios",
+                    value="radio_audit",
+                ),
                 discord.SelectOption(label="Bitácora", value="logbook"),
             ],
         )
@@ -1041,6 +1048,14 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     raise ValueError(
                         "Accesos al foro requiere `organization_name`, `description`, "
                         "`banner_url` y una lista válida de `sections`."
+                    ) from error
+            if key == "radio_audit" and self.enabled.values[0] == "true":
+                try:
+                    RadioAuditOptions.model_validate(payload)
+                except ValueError as error:
+                    raise ValueError(
+                        "Consulta y auditoría de radios requiere `faction_id` y límites "
+                        "válidos de período y registros."
                     ) from error
             if (
                 key == "arrest_report_lookup"
