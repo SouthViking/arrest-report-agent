@@ -298,7 +298,8 @@ publica el snapshot resultante en el canal actual. Un fallo parcial omite solo e
 en memoria evita repetir consultas durante la ventana configurada y no persiste datos financieros.
 
 `radio_audit` separa la adquisición determinista del análisis. `RadioLogService` pagina y normaliza
-una muestra acotada desde SARP para `/radios-faccion` y `/auditar-radio`; el runner especializado
+una muestra acotada desde SARP para `/radios-faccion` y `/auditar-radio`, recorta el intervalo UTC a
+nivel de minutos y detiene la lectura al cruzar su límite inferior; el runner especializado
 recibe esa muestra inmutable y no conoce el cliente HTTP. Sus tools solo avanzan por lotes sobre la
 memoria ya descargada, descubren o filtran secciones concretas del catálogo de comunicación y
 consultan el catálogo local de códigos radiales. El

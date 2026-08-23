@@ -213,15 +213,18 @@ quince segundos evita multiplicar consumo cuando varias personas ejecutan el com
 
 ## `/radios-faccion` y `/auditar-radio`
 
-`/radios-faccion` funciona en cualquier canal para `operational_staff_roles`. Permite elegir 1, 2,
-7, 14 o 30 días, un rango personalizado de fechas UTC, un slot —el 1 por defecto—, un miembro
-opcional y la visibilidad. El servicio descarga de forma paginada una muestra acotada, interpreta el
-prefijo `[CH: ..., S: N]` sin depender de mayúsculas o espacios exactos y aplica localmente los
-filtros. Muestra diez filas por página; sobre cien filas adjunta un CSV generado en memoria con el
-resultado completo. No guarda radios ni archivos.
+`/radios-faccion` funciona en cualquier canal para `operational_staff_roles`. Permite elegir la
+última 1, 2, 4 u 8 horas; los últimos 1, 2, 7, 14 o 30 días; o un rango UTC personalizado con
+`AAAA-MM-DD HH:MM / AAAA-MM-DD HH:MM`. También admite slot —el 1 por defecto—, miembro opcional y
+visibilidad. El servicio solicita a SARP el rango de días documentado, aplica localmente las horas
+exactas, interpreta el prefijo `[CH: ..., S: N]` sin depender de mayúsculas o espacios exactos y deja
+de paginar al alcanzar registros anteriores al intervalo. Muestra diez líneas compactas por página,
+sin IDs técnicos; sobre cien filas adjunta un TXT generado en memoria con un registro por línea. No
+guarda radios ni archivos.
 
-`/auditar-radio` está reservado a `radio_audit_roles`, usa siempre el slot 1 de SCC y admite hasta el
-rango y volumen configurados. La muestra se obtiene una sola vez antes de OpenAI y queda inmutable;
+`/auditar-radio` está reservado a `radio_audit_roles`, usa siempre el slot 1 de SCC, comparte los
+presets de una hora a siete días y admite un rango horario personalizado hasta el máximo configurado.
+La muestra se obtiene una sola vez antes de OpenAI y queda inmutable;
 el agente no puede volver a consultar SARP. Sus únicas herramientas permiten leer el resto de esa
 muestra, buscar códigos radiales, descubrir el índice de comunicación y consultar por conceptos o
 claves concretas el catálogo local extraído exclusivamente de la sección IV del manual. El índice

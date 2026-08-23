@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class RadioLogScanTooLargeError(RuntimeError):
-    """Raised before downloading a result set that exceeds a configured bound."""
+    """Raised before a paginated scan would exceed its configured bound."""
 
     def __init__(self, *, total: int, limit: int) -> None:
         super().__init__(f"radio log scan contains {total} rows; maximum is {limit}")

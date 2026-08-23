@@ -63,12 +63,12 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
 
     assert manifest.version == "0.15.0"
     assert manifest.repository_url == "https://github.com/SouthViking/arrest-report-agent"
-    assert manifest.changelog_targets == "all"
+    assert manifest.changelog_targets == (1241206587079524442,)
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
     assert "/radios-faccion" in rendered_changes
     assert "/auditar-radio" in rendered_changes
-    assert "CSV" in rendered_changes
+    assert "TXT" in rendered_changes
     assert manifest.acknowledgements == ()
 
 

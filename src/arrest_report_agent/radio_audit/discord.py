@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import asyncio
-import csv
 import io
 import logging
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from math import ceil
 
 import discord
 from discord.ext import commands
 
-from arrest_report_agent.application.date_ranges import DateRangePeriod, resolve_compact_date_range
+from arrest_report_agent.application.date_ranges import (
+    DateTimeRangePeriod,
+    resolve_compact_datetime_range,
+)
 from arrest_report_agent.config import BotPersona, RadioAuditOptions
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
@@ -22,9 +24,9 @@ from arrest_report_agent.knowledge import RadioCodeCatalog
 from .agent import RadioAuditAgent
 from .forms import (
     RadioResultVisibility,
-    build_period_select,
+    build_interval_select,
     build_visibility_select,
-    selected_period,
+    selected_interval,
     selected_visibility,
 )
 from .manual import RadioManualCatalog
@@ -44,6 +46,18 @@ VIEW_TIMEOUT_SECONDS = 300
 RADIOS_PER_PAGE = 10
 MAX_EMBED_RADIOS = 100
 AUDIT_FINDINGS_PER_PAGE = 5
+QUERY_INTERVALS = (
+    DateTimeRangePeriod.LAST_1_HOUR,
+    DateTimeRangePeriod.LAST_2_HOURS,
+    DateTimeRangePeriod.LAST_4_HOURS,
+    DateTimeRangePeriod.LAST_8_HOURS,
+    DateTimeRangePeriod.LAST_1_DAY,
+    DateTimeRangePeriod.LAST_2_DAYS,
+    DateTimeRangePeriod.LAST_7_DAYS,
+    DateTimeRangePeriod.LAST_14_DAYS,
+    DateTimeRangePeriod.LAST_30_DAYS,
+)
+AUDIT_INTERVALS = QUERY_INTERVALS[:7]
 
 
 class RadioAuditCog(commands.Cog):
@@ -124,7 +138,7 @@ class RadioAuditCog(commands.Cog):
         interaction: discord.Interaction,
         *,
         requester_id: int,
-        period: DateRangePeriod,
+        period: DateTimeRangePeriod,
         raw_range: str,
         raw_slot: str,
         member_query: str,
@@ -135,7 +149,7 @@ class RadioAuditCog(commands.Cog):
             return
         bundle, options = context
         try:
-            date_from, date_to = resolve_compact_date_range(
+            date_from, date_to = resolve_compact_datetime_range(
                 period,
                 raw_range,
                 max_days=options.query_max_range_days,
@@ -144,8 +158,8 @@ class RadioAuditCog(commands.Cog):
         except ValueError:
             await interaction.response.send_message(
                 embed=_alert(
-                    "Use un slot positivo y fechas válidas. Para un rango personalizado escriba "
-                    "`AAAA-MM-DD / AAAA-MM-DD`."
+                    "Use un slot positivo y un intervalo UTC válido. Para un rango personalizado "
+                    "escriba `AAAA-MM-DD HH:MM / AAAA-MM-DD HH:MM`."
                 ),
                 ephemeral=True,
             )
@@ -163,7 +177,7 @@ class RadioAuditCog(commands.Cog):
                 newest_first=True,
             )
             view = RadioLogPaginationView(requester_id=requester_id, result=result)
-            file = _radio_csv(result) if len(result.items) > MAX_EMBED_RADIOS else None
+            file = _radio_log_file(result) if len(result.items) > MAX_EMBED_RADIOS else None
             kwargs: dict[str, object] = {
                 "embed": view.current_embed,
                 "ephemeral": private,
@@ -192,8 +206,8 @@ class RadioAuditCog(commands.Cog):
         except RadioLogScanTooLargeError as error:
             await interaction.followup.send(
                 embed=_alert(
-                    f"El filtro contiene {error.total} registros y el máximo es {error.limit}. "
-                    "Acote las fechas o el miembro."
+                    f"La búsqueda necesita revisar más de {error.limit} registros. "
+                    "Acote el intervalo o el miembro."
                 ),
                 ephemeral=private,
             )
@@ -205,7 +219,7 @@ class RadioAuditCog(commands.Cog):
         interaction: discord.Interaction,
         *,
         requester_id: int,
-        period: DateRangePeriod,
+        period: DateTimeRangePeriod,
         raw_range: str,
         member_query: str,
         visibility: RadioResultVisibility,
@@ -215,7 +229,7 @@ class RadioAuditCog(commands.Cog):
             return
         bundle, options = context
         try:
-            date_from, date_to = resolve_compact_date_range(
+            date_from, date_to = resolve_compact_datetime_range(
                 period,
                 raw_range,
                 max_days=options.audit_max_range_days,
@@ -224,7 +238,7 @@ class RadioAuditCog(commands.Cog):
             await interaction.response.send_message(
                 embed=_alert(
                     f"La auditoría admite hasta {options.audit_max_range_days} días. Para un "
-                    "rango personalizado escriba `AAAA-MM-DD / AAAA-MM-DD`."
+                    "rango personalizado escriba `AAAA-MM-DD HH:MM / AAAA-MM-DD HH:MM`."
                 ),
                 ephemeral=True,
             )
@@ -301,8 +315,8 @@ class RadioAuditCog(commands.Cog):
         except RadioLogScanTooLargeError as error:
             await interaction.followup.send(
                 embed=_alert(
-                    f"La consulta previa contiene {error.total} registros y el máximo es "
-                    f"{error.limit}. Acote las fechas o el miembro."
+                    f"La consulta previa necesita revisar más de {error.limit} registros. "
+                    "Acote el intervalo o el miembro."
                 ),
                 ephemeral=private,
             )
@@ -374,38 +388,38 @@ class RadioLogQueryModal(discord.ui.DesignerModal):
     def __init__(self, cog: RadioAuditCog, requester_id: int) -> None:
         self.cog = cog
         self.requester_id = requester_id
-        self.period = build_period_select(
-            "radio_logs:v1:period",
-            allowed_days=(1, 2, 7, 14, 30),
+        self.period = build_interval_select(
+            "radio_logs:v2:period",
+            allowed_periods=QUERY_INTERVALS,
         )
         self.custom_range = discord.ui.InputText(
-            custom_id="radio_logs:v1:range",
-            placeholder="AAAA-MM-DD / AAAA-MM-DD",
+            custom_id="radio_logs:v2:range",
+            placeholder="AAAA-MM-DD HH:MM / AAAA-MM-DD HH:MM · UTC",
             required=False,
-            max_length=23,
+            max_length=35,
         )
         self.slot = discord.ui.InputText(
-            custom_id="radio_logs:v1:slot",
+            custom_id="radio_logs:v2:slot",
             value="1",
             placeholder="Vacío para todos",
             required=False,
             max_length=4,
         )
         self.member = discord.ui.InputText(
-            custom_id="radio_logs:v1:member",
+            custom_id="radio_logs:v2:member",
             placeholder="Nombre parcial · opcional",
             required=False,
             max_length=100,
         )
-        self.visibility = build_visibility_select("radio_logs:v1:visibility")
+        self.visibility = build_visibility_select("radio_logs:v2:visibility")
         super().__init__(
-            discord.ui.Label("Período", self.period),
-            discord.ui.Label("Rango personalizado", self.custom_range),
+            discord.ui.Label("Intervalo UTC", self.period),
+            discord.ui.Label("Rango personalizado · UTC", self.custom_range),
             discord.ui.Label("Slot", self.slot),
             discord.ui.Label("Miembro", self.member),
             discord.ui.Label("Quién puede ver el resultado", self.visibility),
             title="Consultar radios de la facción",
-            custom_id=f"radio_logs:v1:query:{requester_id}",
+            custom_id=f"radio_logs:v2:query:{requester_id}",
             timeout=MODAL_TIMEOUT_SECONDS,
         )
 
@@ -413,7 +427,7 @@ class RadioLogQueryModal(discord.ui.DesignerModal):
         await self.cog.run_query(
             interaction,
             requester_id=self.requester_id,
-            period=selected_period(self.period),
+            period=selected_interval(self.period),
             raw_range=self.custom_range.value or "",
             raw_slot=self.slot.value or "",
             member_query=self.member.value or "",
@@ -425,30 +439,30 @@ class RadioAuditModal(discord.ui.DesignerModal):
     def __init__(self, cog: RadioAuditCog, requester_id: int) -> None:
         self.cog = cog
         self.requester_id = requester_id
-        self.period = build_period_select(
-            "radio_audit:v1:period",
-            allowed_days=(1, 2, 7),
+        self.period = build_interval_select(
+            "radio_audit:v2:period",
+            allowed_periods=AUDIT_INTERVALS,
         )
         self.custom_range = discord.ui.InputText(
-            custom_id="radio_audit:v1:range",
-            placeholder="AAAA-MM-DD / AAAA-MM-DD",
+            custom_id="radio_audit:v2:range",
+            placeholder="AAAA-MM-DD HH:MM / AAAA-MM-DD HH:MM · UTC",
             required=False,
-            max_length=23,
+            max_length=35,
         )
         self.member = discord.ui.InputText(
-            custom_id="radio_audit:v1:member",
+            custom_id="radio_audit:v2:member",
             placeholder="Nombre parcial · opcional",
             required=False,
             max_length=100,
         )
-        self.visibility = build_visibility_select("radio_audit:v1:visibility")
+        self.visibility = build_visibility_select("radio_audit:v2:visibility")
         super().__init__(
-            discord.ui.Label("Período · máximo 7 días", self.period),
-            discord.ui.Label("Rango personalizado", self.custom_range),
+            discord.ui.Label("Intervalo UTC · máximo 7 días", self.period),
+            discord.ui.Label("Rango personalizado · UTC", self.custom_range),
             discord.ui.Label("Miembro", self.member),
             discord.ui.Label("Quién puede ver el resultado", self.visibility),
             title="Auditar radio de SCC · slot 1",
-            custom_id=f"radio_audit:v1:audit:{requester_id}",
+            custom_id=f"radio_audit:v2:audit:{requester_id}",
             timeout=MODAL_TIMEOUT_SECONDS,
         )
 
@@ -456,7 +470,7 @@ class RadioAuditModal(discord.ui.DesignerModal):
         await self.cog.run_audit(
             interaction,
             requester_id=self.requester_id,
-            period=selected_period(self.period),
+            period=selected_interval(self.period),
             raw_range=self.custom_range.value or "",
             member_query=self.member.value or "",
             visibility=selected_visibility(self.visibility),
@@ -516,8 +530,8 @@ class RadioAuditPaginationView(discord.ui.View):
         requester_id: int,
         result: RadioAuditResult,
         sample: RadioLogQueryResult,
-        date_from: date,
-        date_to: date,
+        date_from: datetime,
+        date_to: datetime,
     ) -> None:
         super().__init__(timeout=VIEW_TIMEOUT_SECONDS, disable_on_timeout=True)
         self.requester_id = requester_id
@@ -576,33 +590,31 @@ def build_radio_log_embed(
     page: int,
     page_count: int,
 ) -> discord.Embed:
+    date_from, date_to = _result_interval(result)
     slot = str(result.slot) if result.slot is not None else "Todos"
     members = len({item.character_id for item in result.items})
     description = (
-        f"📅 **Período UTC:** {result.date_from} → {result.date_to}\n"
+        f"📅 **Período UTC:** {_format_interval(date_from, date_to)}\n"
         f"🎚️ **Slot:** {slot} · 👥 **Miembros:** {members} · 📨 **Registros:** {len(result.items)}"
     )
     if result.member_query:
         description += f"\n🔎 **Miembro:** {discord.utils.escape_markdown(result.member_query)}"
+    if items:
+        include_date = date_from.date() != date_to.date()
+        description += "\n\n" + "\n".join(
+            _compact_radio_line(item, include_date=include_date) for item in items
+        )
+    else:
+        description += "\n\nNo hay radios que coincidan con el filtro."
     embed = discord.Embed(
         title="📻 Registros de radio de la facción",
         description=description,
         color=discord.Color.blurple(),
         timestamp=datetime.now(UTC),
     )
-    if not items:
-        embed.add_field(
-            name="Sin resultados", value="No hay radios que coincidan con el filtro.", inline=False
-        )
-    for item in items:
-        timestamp = int(item.created_at.timestamp())
-        header = f"<t:{timestamp}:t> · {item.character_name} · #{item.id}"
-        prefix = "⚠️ Formato no reconocido · " if item.malformed else ""
-        body = discord.utils.escape_markdown(_truncate(item.body, 350))
-        embed.add_field(name=header, value=f"{prefix}{body}", inline=False)
     footer = f"Página {page} de {page_count}"
     if len(result.items) > MAX_EMBED_RADIOS:
-        footer += f" · Mostrando 100 de {len(result.items)} · CSV adjunto con el resultado completo"
+        footer += f" · Mostrando 100 de {len(result.items)} · TXT adjunto con el resultado completo"
     if result.malformed_count:
         footer += f" · {result.malformed_count} registros con formato no reconocido"
     embed.set_footer(text=footer)
@@ -614,8 +626,8 @@ def build_radio_audit_embed(
     sample: RadioLogQueryResult,
     findings: tuple[RadioAuditFinding, ...],
     *,
-    date_from: date,
-    date_to: date,
+    date_from: datetime,
+    date_to: datetime,
     page: int,
     page_count: int,
 ) -> discord.Embed:
@@ -624,7 +636,7 @@ def build_radio_audit_embed(
         title="📡 Auditoría de radio · SCC / Slot 1",
         description=(
             f"{result.summary}\n\n"
-            f"📅 **Período UTC:** {date_from.isoformat()} → {date_to.isoformat()}\n"
+            f"📅 **Período UTC:** {_format_interval(date_from, date_to)}\n"
             f"📨 **Radios:** {result.total_radios} · 👥 **Miembros:** {result.total_members} · "
             f"✅ **Sin hallazgos:** {result.clean_members}\n"
             f"🟡 **Leves:** {result.light_count} · 🟠 **Moderadas:** {result.moderate_count} · "
@@ -661,31 +673,59 @@ def build_radio_audit_embed(
     return embed
 
 
-def _radio_csv(result: RadioLogQueryResult) -> discord.File:
-    text = io.StringIO(newline="")
-    writer = csv.writer(text)
-    writer.writerow(("id", "timestamp_utc", "channel", "slot", "character", "message"))
+def _radio_log_file(result: RadioLogQueryResult) -> discord.File:
+    date_from, date_to = _result_interval(result)
+    slot_label = str(result.slot) if result.slot is not None else "Todos"
+    lines = [
+        "REGISTROS DE RADIO DE LA FACCIÓN",
+        f"PERÍODO UTC: {_format_interval(date_from, date_to)}",
+        f"SLOT: {slot_label}",
+    ]
+    if result.member_query:
+        lines.append(f"MIEMBRO: {result.member_query}")
+    lines.extend(("", f"TOTAL: {len(result.items)}", ""))
     for item in result.items:
-        writer.writerow(
-            (
-                item.id,
-                item.created_at.isoformat(),
-                item.channel or "",
-                item.slot or "",
-                item.character_name,
-                item.body,
-            )
+        timestamp = item.created_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
+        source = (
+            f"{item.channel or 'Canal desconocido'} · Slot {item.slot}"
+            if not item.malformed
+            else "Formato no reconocido"
         )
-    payload = io.BytesIO(text.getvalue().encode("utf-8-sig"))
+        lines.append(f"[{timestamp}] [{source}] {item.character_name}: {_single_line(item.body)}")
+    payload = io.BytesIO(("\n".join(lines) + "\n").encode("utf-8-sig"))
     slot = f"slot-{result.slot}" if result.slot is not None else "todos-los-slots"
-    return discord.File(payload, filename=f"radios-faccion-{result.date_from}-{slot}.csv")
+    stamp = date_from.strftime("%Y%m%d-%H%M")
+    return discord.File(payload, filename=f"radios-faccion-{stamp}-{slot}.txt")
 
 
-def _empty_audit_embed(date_from: date, date_to: date) -> discord.Embed:
+def _compact_radio_line(item: ParsedRadioLog, *, include_date: bool) -> str:
+    time_format = "%d/%m %H:%M" if include_date else "%H:%M"
+    timestamp = item.created_at.astimezone(UTC).strftime(time_format)
+    name = _truncate(discord.utils.escape_markdown(item.character_name), 90)
+    body = _truncate(discord.utils.escape_markdown(_single_line(item.body)), 240)
+    warning = "⚠️ " if item.malformed else ""
+    return f"`{timestamp}` · {warning}**{name}:** {body}"
+
+
+def _result_interval(result: RadioLogQueryResult) -> tuple[datetime, datetime]:
+    return datetime.fromisoformat(result.date_from), datetime.fromisoformat(result.date_to)
+
+
+def _format_interval(date_from: datetime, date_to: datetime) -> str:
+    start = date_from.astimezone(UTC).strftime("%Y-%m-%d %H:%M")
+    end = date_to.astimezone(UTC).strftime("%Y-%m-%d %H:%M")
+    return f"{start} → {end}"
+
+
+def _single_line(value: str) -> str:
+    return " ".join(value.split())
+
+
+def _empty_audit_embed(date_from: datetime, date_to: datetime) -> discord.Embed:
     return discord.Embed(
         title="📡 Auditoría de radio · SCC / Slot 1",
         description=(
-            f"📅 **Período UTC:** {date_from.isoformat()} → {date_to.isoformat()}\n\n"
+            f"📅 **Período UTC:** {_format_interval(date_from, date_to)}\n\n"
             "No hay registros del slot 1 que coincidan con el filtro. No se ejecutó la IA."
         ),
         color=discord.Color.green(),

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from datetime import date
+from datetime import UTC, datetime
 from math import ceil
 
 from arrest_report_agent.infrastructure.sarp import SarpClient, SarpFactionRadioLog
@@ -30,8 +30,8 @@ class RadioLogService:
         self,
         *,
         faction_id: int,
-        date_from: date,
-        date_to: date,
+        date_from: datetime,
+        date_to: datetime,
         slot: int | None,
         member_query: str | None,
         max_raw_records: int,
@@ -39,39 +39,48 @@ class RadioLogService:
     ) -> RadioLogQueryResult:
         if max_raw_records < 1:
             raise ValueError("max_raw_records must be positive")
+        date_from = _as_utc(date_from)
+        date_to = _as_utc(date_to)
+        if date_from > date_to:
+            raise ValueError("date_from cannot be after date_to")
         if slot is not None and (isinstance(slot, bool) or slot <= 0):
             raise ValueError("slot must be a positive integer")
         normalized_member = _normalize_optional_member(member_query)
-        first = await self.client.list_faction_radio_logs(
-            faction_id,
-            date_from=date_from,
-            date_to=date_to,
-            page=1,
-            limit=min(TRANSPORT_PAGE_SIZE, max_raw_records),
-            search=normalized_member,
-            sort_order="desc",
-        )
-        if first.total > max_raw_records:
-            raise RadioLogScanTooLargeError(total=first.total, limit=max_raw_records)
-
-        raw_rows = list(first.data)
-        page_size = min(TRANSPORT_PAGE_SIZE, max_raw_records)
-        for page in range(2, ceil(first.total / page_size) + 1):
+        page_size = _bounded_page_size(max_raw_records)
+        raw_rows: list[SarpFactionRadioLog] = []
+        first_total = 0
+        page = 1
+        while True:
             result = await self.client.list_faction_radio_logs(
                 faction_id,
-                date_from=date_from,
-                date_to=date_to,
+                date_from=date_from.date(),
+                date_to=date_to.date(),
                 page=page,
                 limit=page_size,
                 search=normalized_member,
                 sort_order="desc",
             )
+            if page == 1:
+                first_total = result.total
             raw_rows.extend(result.data)
+            total_pages = ceil(result.total / page_size)
+            if not result.data or _page_reaches_interval_start(result.data, date_from) or page >= total_pages:
+                break
+            next_page_rows = min(page_size, max(0, result.total - page * page_size))
+            if len(raw_rows) + next_page_rows > max_raw_records:
+                raise RadioLogScanTooLargeError(total=first_total, limit=max_raw_records)
+            page += 1
 
         deduplicated = {row.id: row for row in raw_rows}
         parsed = tuple(_parse_radio_log(row) for row in deduplicated.values())
+        interval_rows = tuple(
+            row
+            for row in parsed
+            if _within_interval(row, date_from, date_to)
+            and _matches_member(row, normalized_member)
+        )
         filtered = tuple(
-            row for row in parsed if _matches_slot(row, slot) and _matches_member(row, normalized_member)
+            row for row in interval_rows if _matches_slot(row, slot)
         )
         ordered = tuple(
             sorted(
@@ -86,11 +95,37 @@ class RadioLogService:
             date_to=date_to.isoformat(),
             slot=slot,
             member_query=normalized_member,
-            raw_total=first.total,
+            raw_total=first_total,
             scanned_count=len(deduplicated),
-            malformed_count=sum(row.malformed for row in parsed),
+            malformed_count=sum(row.malformed for row in interval_rows),
             items=ordered,
         )
+
+
+def _bounded_page_size(max_raw_records: int) -> int:
+    return min(TRANSPORT_PAGE_SIZE, max_raw_records)
+
+
+def _page_reaches_interval_start(
+    rows: list[SarpFactionRadioLog],
+    date_from: datetime,
+) -> bool:
+    return min(_as_utc(row.created_at) for row in rows) < date_from
+
+
+def _within_interval(
+    row: ParsedRadioLog,
+    date_from: datetime,
+    date_to: datetime,
+) -> bool:
+    created_at = _as_utc(row.created_at)
+    return date_from <= created_at <= date_to
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _parse_radio_log(row: SarpFactionRadioLog) -> ParsedRadioLog:

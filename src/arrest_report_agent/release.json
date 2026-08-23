@@ -4,7 +4,9 @@
   "title": "Consulta y auditoría de comunicaciones radiales",
   "summary": "El personal autorizado ahora puede consultar registros de radio y revisar de forma asistida su cumplimiento con el manual de comunicaciones.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
       "type": "added",
@@ -16,7 +18,7 @@
     },
     {
       "type": "improved",
-      "text": "El análisis puede enfocar sus búsquedas en secciones concretas del manual, y las consultas extensas incluyen paginación y un CSV de respaldo sin almacenar el contenido de los radios."
+      "text": "Las consultas permiten acotar horas exactas, muestran cada comunicación en una línea sin identificadores técnicos y adjuntan un registro TXT ordenado cuando el resultado es extenso."
     }
   ],
   "acknowledgements": []

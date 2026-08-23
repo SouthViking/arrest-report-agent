@@ -391,8 +391,9 @@ Comandos disponibles:
   `.xlsx` con el registro bancario del período y la nómina activa actual. Una casilla permite
   publicarlo en el canal y, si queda desmarcada, el archivo se entrega privadamente. La nómina se
   ordena por rango descendente y nombre. No incluye IDs internos, conexión exacta ni datos OOC.
-- `/radios-faccion`: permite a `operational_staff_roles` consultar radios por fechas, slot y miembro,
-  publicarlos o recibirlos de forma privada y descargar un CSV cuando el resultado es extenso.
+- `/radios-faccion`: permite a `operational_staff_roles` consultar radios por intervalos UTC desde
+  una hora hasta 30 días, o por un rango horario personalizado, slot y miembro. Puede publicarlos o
+  recibirlos de forma privada y descargar un registro TXT cuando el resultado es extenso.
 - `/auditar-radio`: entrega a `radio_audit_roles` una auditoría asistida del slot 1, fundamentada en
   la sección de comunicaciones del manual y en el catálogo de códigos, sin proponer sanciones.
 - `/bitacora`: disponible únicamente en los canales configurados en `logbook_channels`. Permite
@@ -621,9 +622,11 @@ canales y el módulo pueden cambiarse desde `/config` sin redesplegar.
 El módulo dinámico `radio_audit` registra `/radios-faccion` y `/auditar-radio` cuando la integración
 SARP está activa. El primero usa `operational_staff_roles`; el segundo usa la política separada
 `radio_audit_roles`. La consulta compartida pagina `GET /my-faction/logs/radio/:factionId`, normaliza
-el prefijo de canal y slot y rechaza muestras que excedan los límites configurados antes de descargar
-el resto. La auditoría recibe una copia fija del slot 1 y solo puede recorrerla en memoria o consultar
-los catálogos locales del manual y códigos. Ni los radios, ni el CSV, ni los hallazgos se persisten.
+el prefijo de canal y slot y aplica localmente el intervalo UTC exacto porque SARP filtra por día. La
+paginación se detiene al alcanzar registros anteriores al intervalo y las páginas visibles reutilizan
+la muestra en memoria. La auditoría recibe una copia fija del slot 1 y solo puede recorrerla en memoria
+o consultar los catálogos locales del manual y códigos. Ni los radios, ni el TXT, ni los hallazgos se
+persisten.
 
 El catálogo versionado
 [`models.json`](src/arrest_report_agent/config/data/models.json) contiene las capacidades, defaults y
