@@ -675,7 +675,21 @@ async def _seed_service_call_configuration_targets(database_url: str) -> None:
                             {"revision_id": revision_id},
                         )
                     ).scalar_one_or_none()
-                    if supervisor_policy_id is not None:
+                    if supervisor_policy_id is None:
+                        supervisor_policy_id = uuid.uuid4()
+                        await tx.execute(
+                            sa.text(
+                                "INSERT INTO guild_access_policies "
+                                "(id, config_revision_id, policy_key, subject_type, mode) "
+                                "VALUES (:id, :revision_id, 'supervisor_roles', "
+                                "'role', 'restricted')"
+                            ),
+                            {
+                                "id": supervisor_policy_id,
+                                "revision_id": revision_id,
+                            },
+                        )
+                    else:
                         await tx.execute(
                             sa.text(
                                 "UPDATE guild_access_policies SET mode = 'restricted' "
@@ -683,20 +697,20 @@ async def _seed_service_call_configuration_targets(database_url: str) -> None:
                             ),
                             {"policy_id": supervisor_policy_id},
                         )
-                        for position, role_id in enumerate((201, 202, 203)):
-                            await tx.execute(
-                                sa.text(
-                                    "INSERT INTO guild_access_policy_members "
-                                    "(id, policy_id, snowflake_id, position) "
-                                    "VALUES (:id, :policy_id, :role_id, :position)"
-                                ),
-                                {
-                                    "id": uuid.uuid4(),
-                                    "policy_id": supervisor_policy_id,
-                                    "role_id": role_id,
-                                    "position": position,
-                                },
-                            )
+                    for position, role_id in enumerate((201, 202, 203)):
+                        await tx.execute(
+                            sa.text(
+                                "INSERT INTO guild_access_policy_members "
+                                "(id, policy_id, snowflake_id, position) "
+                                "VALUES (:id, :policy_id, :role_id, :position)"
+                            ),
+                            {
+                                "id": uuid.uuid4(),
+                                "policy_id": supervisor_policy_id,
+                                "role_id": role_id,
+                                "position": position,
+                            },
+                        )
     finally:
         await client.close()
 

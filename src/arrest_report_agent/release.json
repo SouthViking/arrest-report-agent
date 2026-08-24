@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.16.0",
-  "title": "Análisis general de miembros",
-  "summary": "El personal de supervisión y mando ahora dispone de un resumen compacto de la actividad y distribución de los miembros de la facción.",
+  "version": "0.16.1",
+  "title": "Corrección del análisis general de miembros",
+  "summary": "Se corrigió la migración del análisis general de miembros para asegurar despliegues y validaciones consistentes.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -19,6 +19,10 @@
     {
       "type": "improved",
       "text": "El resultado puede publicarse en el canal o mostrarse de forma privada; la publicación para todos viene seleccionada por defecto."
+    },
+    {
+      "type": "fixed",
+      "text": "Se corrigió la reversión de la configuración de personalidades asociada a /actividad-miembros."
     }
   ],
   "acknowledgements": []

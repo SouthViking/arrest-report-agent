@@ -240,3 +240,7 @@ def _restore_persona_revision(
             ),
             {"previous": ids[previous_revision], "next": ids[next_revision]},
         )
+        connection.execute(
+            sa.text("DELETE FROM persona_revisions WHERE id = :next"),
+            {"next": ids[next_revision]},
+        )
