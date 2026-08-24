@@ -145,8 +145,11 @@ async def test_analysis_uses_ordinal_divisions_and_deterministic_activity_bands(
     assert calls == {"roster": 1, "divisions": 1}
     assert snapshot.total_members == 7
     assert snapshot.connected_members == 1
-    assert snapshot.on_duty_members == 2
+    assert snapshot.on_duty_members == 1
     assert snapshot.connected_off_duty_members == 0
+    assert snapshot.on_duty_members + snapshot.connected_off_duty_members == (
+        snapshot.connected_members
+    )
     assert snapshot.has_off_duty_attention is False
     assert (
         replace(
@@ -201,7 +204,7 @@ async def test_analysis_embed_is_compact_and_surfaces_attention(persona) -> None
     assert [(field.name, field.value) for field in embed.fields[:3]] == [
         ("👥 Miembros", "7"),
         ("🟢 Conectados", "1"),
-        ("🚓 En servicio", "2"),
+        ("🚓 En servicio", "1"),
     ]
     activity = next(field for field in embed.fields if field.name.startswith("📈"))
     assert "🟢 **Muy activo:** 2 · 28,6%" in activity.value

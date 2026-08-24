@@ -73,7 +73,7 @@ class FactionMemberAnalysisService:
             generated_at=current,
             total_members=len(roster),
             connected_members=sum(member.online for member in roster),
-            on_duty_members=sum(member.factionduty for member in roster),
+            on_duty_members=sum(member.online and member.factionduty for member in roster),
             connected_off_duty_members=sum(
                 member.online and not member.factionduty for member in roster
             ),

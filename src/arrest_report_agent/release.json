@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.16.4",
-  "title": "Actividad operativa más precisa",
-  "summary": "El análisis de miembros ahora distingue correctamente la conexión del estado de servicio y destaca solo proporciones operativas relevantes.",
+  "version": "0.16.5",
+  "title": "Contador de servicio corregido",
+  "summary": "El análisis ahora muestra como personal en servicio únicamente a los miembros que también están conectados.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -22,7 +22,7 @@
     },
     {
       "type": "fixed",
-      "text": "Los miembros desconectados que conservan el servicio activo ya no se consideran una inconsistencia ni generan una alerta."
+      "text": "El contador En servicio ahora incluye exclusivamente a miembros conectados con el servicio activo."
     },
     {
       "type": "improved",
