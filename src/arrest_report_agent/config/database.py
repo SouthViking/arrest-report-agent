@@ -152,6 +152,8 @@ class FactionMemberAnalysisOptions(FrozenConfigModel):
     inactivity_critical_days: int = Field(default=30, ge=2, le=365)
     inactivity_warning_percentage: int = Field(default=20, ge=1, le=100)
     inactivity_critical_percentage: int = Field(default=30, ge=2, le=100)
+    off_duty_alert_min_connected: int = Field(default=5, ge=2, le=500)
+    off_duty_alert_percentage: int = Field(default=70, ge=1, le=100)
 
     @model_validator(mode="after")
     def validate_analysis_thresholds(self) -> FactionMemberAnalysisOptions:

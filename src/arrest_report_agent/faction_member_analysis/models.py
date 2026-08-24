@@ -28,6 +28,7 @@ class FactionMemberAnalysisSnapshot:
     total_members: int
     connected_members: int
     on_duty_members: int
+    connected_off_duty_members: int
     activity: tuple[FactionActivityCount, ...]
     divisions: tuple[FactionDivisionCount, ...]
     unassigned_divisions: int
@@ -35,11 +36,12 @@ class FactionMemberAnalysisSnapshot:
     over_warning_days: int
     over_critical_days: int
     unknown_activity: int
-    inconsistent_duty_state: int
     inactivity_warning_days: int
     inactivity_critical_days: int
     inactivity_warning_percentage: int
     inactivity_critical_percentage: int
+    off_duty_alert_min_connected: int
+    off_duty_alert_percentage: int
 
     def percentage(self, count: int) -> float:
         if self.total_members == 0:
@@ -48,6 +50,19 @@ class FactionMemberAnalysisSnapshot:
 
     def activity_count(self, level: FactionActivityLevel) -> int:
         return next((item.count for item in self.activity if item.level is level), 0)
+
+    @property
+    def connected_off_duty_percentage(self) -> float:
+        if self.connected_members == 0:
+            return 0.0
+        return self.connected_off_duty_members / self.connected_members * 100
+
+    @property
+    def has_off_duty_attention(self) -> bool:
+        return bool(
+            self.connected_members >= self.off_duty_alert_min_connected
+            and self.connected_off_duty_percentage >= self.off_duty_alert_percentage
+        )
 
     @property
     def base_division_count(self) -> int:
@@ -66,7 +81,7 @@ class FactionMemberAnalysisSnapshot:
                 self.unknown_activity,
                 self.unassigned_divisions,
                 self.invalid_divisions,
-                self.inconsistent_duty_state,
+                self.has_off_duty_attention,
             )
         )
 

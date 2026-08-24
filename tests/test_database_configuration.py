@@ -95,6 +95,8 @@ def test_faction_member_analysis_options_are_typed_and_bounded() -> None:
     assert options.inactivity_critical_days == 30
     assert options.inactivity_warning_percentage == 20
     assert options.inactivity_critical_percentage == 30
+    assert options.off_duty_alert_min_connected == 5
+    assert options.off_duty_alert_percentage == 70
     with pytest.raises(ValueError, match="at least 1 item"):
         FactionMemberAnalysisOptions(faction_id=3, base_divisions=())
     with pytest.raises(ValueError, match="critical inactivity days"):
@@ -115,6 +117,18 @@ def test_faction_member_analysis_options_are_typed_and_bounded() -> None:
         FactionMemberAnalysisOptions(
             faction_id=3,
             base_divisions=("GNT", "gnt"),
+        )
+    with pytest.raises(ValueError, match="greater than or equal to 2"):
+        FactionMemberAnalysisOptions(
+            faction_id=3,
+            base_divisions=("GNT", "DLM"),
+            off_duty_alert_min_connected=1,
+        )
+    with pytest.raises(ValueError, match="less than or equal to 100"):
+        FactionMemberAnalysisOptions(
+            faction_id=3,
+            base_divisions=("GNT", "DLM"),
+            off_duty_alert_percentage=101,
         )
 
 

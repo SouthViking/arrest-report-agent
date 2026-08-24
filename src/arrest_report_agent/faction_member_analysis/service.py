@@ -44,7 +44,6 @@ class FactionMemberAnalysisService:
         invalid_divisions = 0
         over_warning_days = 0
         over_critical_days = 0
-        inconsistent_duty = 0
 
         for member in roster:
             level = activity_level_for(member.last_connected_at, now=current)
@@ -61,9 +60,6 @@ class FactionMemberAnalysisService:
                 invalid_divisions += 1
             else:
                 division_counts[member.division - 1] += 1
-            if member.factionduty and not member.online:
-                inconsistent_duty += 1
-
         divisions = tuple(
             FactionDivisionCount(
                 name=division.name,
@@ -77,7 +73,10 @@ class FactionMemberAnalysisService:
             generated_at=current,
             total_members=len(roster),
             connected_members=sum(member.online for member in roster),
-            on_duty_members=sum(member.online and member.factionduty for member in roster),
+            on_duty_members=sum(member.factionduty for member in roster),
+            connected_off_duty_members=sum(
+                member.online and not member.factionduty for member in roster
+            ),
             activity=tuple(
                 FactionActivityCount(level=level, count=activity_counts[level])
                 for level in FactionActivityLevel
@@ -88,11 +87,12 @@ class FactionMemberAnalysisService:
             over_warning_days=over_warning_days,
             over_critical_days=over_critical_days,
             unknown_activity=activity_counts[FactionActivityLevel.UNKNOWN],
-            inconsistent_duty_state=inconsistent_duty,
             inactivity_warning_days=options.inactivity_warning_days,
             inactivity_critical_days=options.inactivity_critical_days,
             inactivity_warning_percentage=options.inactivity_warning_percentage,
             inactivity_critical_percentage=options.inactivity_critical_percentage,
+            off_duty_alert_min_connected=options.off_duty_alert_min_connected,
+            off_duty_alert_percentage=options.off_duty_alert_percentage,
         )
 
 

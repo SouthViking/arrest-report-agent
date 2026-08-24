@@ -298,11 +298,12 @@ def _attention_lines(snapshot: FactionMemberAnalysisSnapshot) -> tuple[str, ...]
             f"• {_member_count(snapshot.invalid_divisions)} "
             f"{_has_verb(snapshot.invalid_divisions)} una división fuera del catálogo."
         )
-    if snapshot.inconsistent_duty_state:
+    if snapshot.has_off_duty_attention:
         lines.append(
-            f"• {_member_count(snapshot.inconsistent_duty_state)} "
-            f"{_appear_verb(snapshot.inconsistent_duty_state)} en servicio pero "
-            f"{_disconnected_word(snapshot.inconsistent_duty_state)}."
+            f"• {snapshot.connected_off_duty_members} de {snapshot.connected_members} "
+            "miembros conectados están fuera de servicio "
+            f"({_percentage(snapshot.connected_off_duty_percentage)}; "
+            f"umbral: {snapshot.off_duty_alert_percentage}%)."
         )
     return tuple(lines)
 
@@ -325,14 +326,6 @@ def _have_verb(count: int) -> str:
 
 def _has_verb(count: int) -> str:
     return "tiene" if count == 1 else "tienen"
-
-
-def _appear_verb(count: int) -> str:
-    return "figura" if count == 1 else "figuran"
-
-
-def _disconnected_word(count: int) -> str:
-    return "desconectado" if count == 1 else "desconectados"
 
 
 def _member_has_any_role(

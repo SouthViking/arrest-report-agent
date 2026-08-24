@@ -145,7 +145,17 @@ async def test_analysis_uses_ordinal_divisions_and_deterministic_activity_bands(
     assert calls == {"roster": 1, "divisions": 1}
     assert snapshot.total_members == 7
     assert snapshot.connected_members == 1
-    assert snapshot.on_duty_members == 1
+    assert snapshot.on_duty_members == 2
+    assert snapshot.connected_off_duty_members == 0
+    assert snapshot.has_off_duty_attention is False
+    assert (
+        replace(
+            snapshot,
+            connected_members=4,
+            connected_off_duty_members=4,
+        ).has_off_duty_attention
+        is False
+    )
     assert snapshot.activity_count(FactionActivityLevel.VERY_ACTIVE) == 2
     assert snapshot.activity_count(FactionActivityLevel.ACTIVE) == 1
     assert snapshot.activity_count(FactionActivityLevel.REGULAR) == 1
@@ -166,7 +176,6 @@ async def test_analysis_uses_ordinal_divisions_and_deterministic_activity_bands(
     assert snapshot.over_warning_days == 2
     assert snapshot.over_critical_days == 1
     assert snapshot.unknown_activity == 1
-    assert snapshot.inconsistent_duty_state == 1
     assert snapshot.is_critical is True
 
 
@@ -192,7 +201,7 @@ async def test_analysis_embed_is_compact_and_surfaces_attention(persona) -> None
     assert [(field.name, field.value) for field in embed.fields[:3]] == [
         ("👥 Miembros", "7"),
         ("🟢 Conectados", "1"),
-        ("🚓 En servicio", "1"),
+        ("🚓 En servicio", "2"),
     ]
     activity = next(field for field in embed.fields if field.name.startswith("📈"))
     assert "🟢 **Muy activo:** 2 · 28,6%" in activity.value
@@ -213,7 +222,23 @@ async def test_analysis_embed_is_compact_and_surfaces_attention(persona) -> None
     assert "umbral de atención: 20%" in attention.value
     assert "1 miembro supera los 30 días" in attention.value
     assert "1 miembro no tiene división" in attention.value
-    assert "1 miembro figura en servicio pero desconectado" in attention.value
+    assert "servicio pero desconectado" not in attention.value
+
+    off_duty_snapshot = replace(
+        snapshot,
+        connected_members=5,
+        connected_off_duty_members=4,
+    )
+    off_duty_embed = build_faction_member_analysis_embed(
+        off_duty_snapshot,
+        persona.messages.interface.faction_member_analysis,
+    )
+    off_duty_attention = next(
+        field for field in off_duty_embed.fields if field.name == "⚠️ Atención"
+    )
+    assert "4 de 5 miembros conectados están fuera de servicio (80,0%; umbral: 70%)" in (
+        off_duty_attention.value
+    )
 
 
 async def test_command_uses_supervisor_whitelist_and_opens_public_by_default_modal(

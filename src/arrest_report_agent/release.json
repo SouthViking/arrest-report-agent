@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.16.3",
-  "title": "Acceso corregido al análisis de miembros",
-  "summary": "Se corrigió la validación de permisos de /actividad-miembros para que utilice los roles de supervisión configurados en cada servidor.",
+  "version": "0.16.4",
+  "title": "Actividad operativa más precisa",
+  "summary": "El análisis de miembros ahora distingue correctamente la conexión del estado de servicio y destaca solo proporciones operativas relevantes.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -22,7 +22,11 @@
     },
     {
       "type": "fixed",
-      "text": "Se corrigió un error que impedía abrir y publicar el análisis aunque el usuario tuviera un rol autorizado."
+      "text": "Los miembros desconectados que conservan el servicio activo ya no se consideran una inconsistencia ni generan una alerta."
+    },
+    {
+      "type": "improved",
+      "text": "Se agregó una observación cuando una proporción alta de los miembros conectados está fuera de servicio, evitando alertas con muestras pequeñas."
     }
   ],
   "acknowledgements": []
