@@ -481,6 +481,11 @@ class GuildRuntimeSettings:
         return self.snapshot.policy(AccessPolicyKey.SUPERVISOR_ROLES).as_allowlist()
 
     @property
+    def supervisor_role_ids(self) -> tuple[int, ...]:
+        policy = self.snapshot.policy(AccessPolicyKey.SUPERVISOR_ROLES)
+        return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
     def report_analytics_role_allowlist(self) -> SnowflakeAllowlist:
         return self.snapshot.policy(AccessPolicyKey.REPORT_ANALYTICS_ROLES).as_allowlist()
 

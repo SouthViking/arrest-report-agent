@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from enum import StrEnum
 
 import discord
@@ -334,8 +335,11 @@ def _disconnected_word(count: int) -> str:
     return "desconectado" if count == 1 else "desconectados"
 
 
-def _member_has_any_role(member: discord.Member, role_ids: tuple[int, ...]) -> bool:
-    allowed = set(role_ids)
+def _member_has_any_role(
+    member: discord.Member,
+    role_ids: Iterable[int] | None,
+) -> bool:
+    allowed = set(role_ids or ())
     return bool(allowed and any(role.id in allowed for role in member.roles))
 
 

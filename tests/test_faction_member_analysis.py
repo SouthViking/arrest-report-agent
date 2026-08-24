@@ -7,7 +7,16 @@ from types import SimpleNamespace
 import discord
 import pytest
 
-from arrest_report_agent.config import FactionMemberAnalysisOptions
+from arrest_report_agent.config import (
+    AccessPolicyKey,
+    AccessPolicyMode,
+    AccessPolicySnapshot,
+    AppSettings,
+    FactionMemberAnalysisOptions,
+    GuildConfigSnapshot,
+    GuildFeatureSnapshot,
+    GuildRuntimeSettings,
+)
 from arrest_report_agent.faction_directory import FactionActivityLevel
 from arrest_report_agent.faction_member_analysis import (
     FactionDivisionCount,
@@ -40,6 +49,29 @@ def _options() -> FactionMemberAnalysisOptions:
         inactivity_warning_percentage=20,
         inactivity_critical_percentage=30,
     )
+
+
+def _runtime_settings(settings: AppSettings) -> GuildRuntimeSettings:
+    snapshot = GuildConfigSnapshot.model_construct(
+        guild_id=1,
+        policies={
+            AccessPolicyKey.SUPERVISOR_ROLES: AccessPolicySnapshot(
+                key=AccessPolicyKey.SUPERVISOR_ROLES,
+                subject_type="role",
+                mode=AccessPolicyMode.RESTRICTED,
+                ids=(200,),
+            )
+        },
+        features={
+            "faction_member_analysis": GuildFeatureSnapshot(
+                key="faction_member_analysis",
+                enabled=True,
+                schema_version=1,
+                payload=_options().model_dump(mode="json"),
+            )
+        },
+    )
+    return GuildRuntimeSettings(settings, snapshot)
 
 
 def _roster(now: datetime) -> tuple[SarpFactionMember, ...]:
@@ -186,6 +218,7 @@ async def test_analysis_embed_is_compact_and_surfaces_attention(persona) -> None
 
 async def test_command_uses_supervisor_whitelist_and_opens_public_by_default_modal(
     persona,
+    settings: AppSettings,
 ) -> None:
     denied_responses: list[dict[str, object]] = []
     allowed_modals: list[FactionMemberAnalysisModal] = []
@@ -194,10 +227,7 @@ async def test_command_uses_supervisor_whitelist_and_opens_public_by_default_mod
 
     async def cached(_guild_id: int):
         return SimpleNamespace(
-            settings=SimpleNamespace(
-                supervisor_role_ids=(200,),
-                faction_member_analysis_options=_options(),
-            ),
+            settings=_runtime_settings(settings),
             persona=SimpleNamespace(profile=persona),
         )
 
@@ -255,6 +285,7 @@ async def test_modal_checkbox_maps_to_public_and_private_visibility() -> None:
 )
 async def test_analysis_visibility_controls_defer_and_followup(
     persona,
+    settings: AppSettings,
     visibility: FactionMemberAnalysisVisibility,
     ephemeral: bool,
 ) -> None:
@@ -265,10 +296,7 @@ async def test_analysis_visibility_controls_defer_and_followup(
 
     async def cached(_guild_id: int):
         return SimpleNamespace(
-            settings=SimpleNamespace(
-                supervisor_role_ids=(200,),
-                faction_member_analysis_options=_options(),
-            ),
+            settings=_runtime_settings(settings),
             persona=SimpleNamespace(profile=persona),
         )
 

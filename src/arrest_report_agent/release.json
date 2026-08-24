@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.16.2",
-  "title": "Inicio corregido del análisis de miembros",
-  "summary": "Se corrigió la activación de las personalidades para que el bot pueda iniciar normalmente con el análisis general de miembros.",
+  "version": "0.16.3",
+  "title": "Acceso corregido al análisis de miembros",
+  "summary": "Se corrigió la validación de permisos de /actividad-miembros para que utilice los roles de supervisión configurados en cada servidor.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -22,7 +22,7 @@
     },
     {
       "type": "fixed",
-      "text": "Se corrigió la actualización de la personalidad global que impedía completar el despliegue de /actividad-miembros."
+      "text": "Se corrigió un error que impedía abrir y publicar el análisis aunque el usuario tuviera un rol autorizado."
     }
   ],
   "acknowledgements": []
