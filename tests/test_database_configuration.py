@@ -525,6 +525,33 @@ def test_callsign_migration_copies_staff_roles_and_publishes_persona() -> None:
             os.environ["DATABASE_URL"] = previous
 
 
+def test_global_persona_repair_migration_updates_an_already_applied_revision() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = database_url
+    alembic = Config("alembic.ini")
+    try:
+        command.downgrade(alembic, "base")
+        command.upgrade(alembic, "20260812_0005")
+        asyncio.run(_seed_pre_callsign_configuration(database_url))
+        command.upgrade(alembic, "20260824_0047")
+        asyncio.run(_set_global_persona_revision(database_url, "walter_vigil", 51))
+        asyncio.run(_assert_global_persona_revision(database_url, "walter_vigil", 51, 44))
+
+        command.upgrade(alembic, "head")
+
+        asyncio.run(_assert_global_persona_revision(database_url, "walter_vigil", 52, 45))
+    finally:
+        command.downgrade(alembic, "base")
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
+
+
 def test_callsign_alphabet_migration_adds_chat_without_replacing_deployment_channel() -> None:
     database_url = os.getenv("TEST_DATABASE_URL")
     if not database_url:
@@ -1238,6 +1265,19 @@ async def _assert_callsign_migration(
         assert persona is not None
         assert persona["revision"] == 52
         assert persona["schema_version"] == 45
+        global_persona = await client.fetch_one(
+            sa.text(
+                "SELECT persona.slug, revision.revision, revision.schema_version "
+                "FROM bot_application_profile profile "
+                "JOIN persona_revisions revision ON revision.id = profile.persona_revision_id "
+                "JOIN personas persona ON persona.id = revision.persona_id "
+                "WHERE profile.singleton_id = 1"
+            )
+        )
+        assert global_persona is not None
+        assert global_persona["slug"] == "walter_vigil"
+        assert global_persona["revision"] == 52
+        assert global_persona["schema_version"] == 45
         assert set(persona["payload"]["presence"]) == {
             "idle",
             "conversation",
@@ -1364,6 +1404,58 @@ async def _assert_callsign_migration(
         assert persona["payload"]["messages"]["interface"]["commands"]["teamspeak_unauthorized"]
         table = await client.fetch_one(sa.text("SELECT to_regclass('public.guild_member_profiles') AS name"))
         assert table is not None and table["name"] == "guild_member_profiles"
+    finally:
+        await client.close()
+
+
+async def _set_global_persona_revision(
+    database_url: str,
+    slug: str,
+    revision: int,
+) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        await client.execute(
+            sa.text(
+                "UPDATE bot_application_profile profile "
+                "SET persona_revision_id = revision.id "
+                "FROM personas persona "
+                "JOIN persona_revisions revision ON revision.persona_id = persona.id "
+                "WHERE profile.singleton_id = 1 "
+                "AND persona.slug = :slug AND revision.revision = :revision"
+            ),
+            {"slug": slug, "revision": revision},
+        )
+    finally:
+        await client.close()
+
+
+async def _assert_global_persona_revision(
+    database_url: str,
+    slug: str,
+    revision: int,
+    schema_version: int,
+) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        row = await client.fetch_one(
+            sa.text(
+                "SELECT persona.slug, revision.revision, revision.schema_version, "
+                "revision.payload "
+                "FROM bot_application_profile profile "
+                "JOIN persona_revisions revision ON revision.id = profile.persona_revision_id "
+                "JOIN personas persona ON persona.id = revision.persona_id "
+                "WHERE profile.singleton_id = 1"
+            )
+        )
+        assert row is not None
+        assert row["slug"] == slug
+        assert row["revision"] == revision
+        assert row["schema_version"] == schema_version
+        if schema_version == 45:
+            assert row["payload"]["messages"]["interface"]["faction_member_analysis"]
     finally:
         await client.close()
 

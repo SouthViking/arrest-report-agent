@@ -176,13 +176,7 @@ def _install_persona_revision(
             },
         )
         _copy_assets(connection, source["revision_id"], next_id)
-    connection.execute(
-        sa.text(
-            "UPDATE guild_persona_assignments SET persona_revision_id = :next "
-            "WHERE persona_revision_id = :previous"
-        ),
-        {"next": next_id, "previous": source["revision_id"]},
-    )
+    _activate_revision(connection, source["revision_id"], next_id)
 
 
 def _copy_assets(
@@ -213,6 +207,27 @@ def _copy_assets(
         )
 
 
+def _activate_revision(
+    connection: sa.Connection,
+    previous_id: uuid.UUID,
+    next_id: uuid.UUID,
+) -> None:
+    connection.execute(
+        sa.text(
+            "UPDATE guild_persona_assignments SET persona_revision_id = :next "
+            "WHERE persona_revision_id = :previous"
+        ),
+        {"next": next_id, "previous": previous_id},
+    )
+    connection.execute(
+        sa.text(
+            "UPDATE bot_application_profile SET persona_revision_id = :next "
+            "WHERE persona_revision_id = :previous"
+        ),
+        {"next": next_id, "previous": previous_id},
+    )
+
+
 def _restore_persona_revision(
     connection: sa.Connection,
     slug: str,
@@ -232,15 +247,11 @@ def _restore_persona_revision(
         .all()
     )
     ids = {int(row["revision"]): row["id"] for row in rows}
-    if previous_revision in ids and next_revision in ids:
-        connection.execute(
-            sa.text(
-                "UPDATE guild_persona_assignments SET persona_revision_id = :previous "
-                "WHERE persona_revision_id = :next"
-            ),
-            {"previous": ids[previous_revision], "next": ids[next_revision]},
-        )
-        connection.execute(
-            sa.text("DELETE FROM persona_revisions WHERE id = :next"),
-            {"next": ids[next_revision]},
-        )
+    previous_id, next_id = ids.get(previous_revision), ids.get(next_revision)
+    if previous_id is None or next_id is None:
+        return
+    _activate_revision(connection, next_id, previous_id)
+    connection.execute(
+        sa.text("DELETE FROM persona_revisions WHERE id = :next"),
+        {"next": next_id},
+    )
