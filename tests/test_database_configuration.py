@@ -25,6 +25,7 @@ from arrest_report_agent.config import (
     AccessPolicySnapshot,
     AppSettings,
     ArrestReportLookupOptions,
+    FactionMemberAnalysisOptions,
     FactionReportOptions,
     ForumShortcutsOptions,
     GuildAgentConfig,
@@ -83,6 +84,38 @@ def test_faction_report_options_are_bounded() -> None:
         FactionReportOptions(faction_id=3, max_range_days=731)
     with pytest.raises(ValueError, match="greater than or equal to 500"):
         FactionReportOptions(faction_id=3, max_bank_records=499)
+
+
+def test_faction_member_analysis_options_are_typed_and_bounded() -> None:
+    options = FactionMemberAnalysisOptions(
+        faction_id=3,
+        base_divisions=("GNT", "DLM"),
+    )
+    assert options.inactivity_warning_days == 14
+    assert options.inactivity_critical_days == 30
+    assert options.inactivity_warning_percentage == 20
+    assert options.inactivity_critical_percentage == 30
+    with pytest.raises(ValueError, match="at least 1 item"):
+        FactionMemberAnalysisOptions(faction_id=3, base_divisions=())
+    with pytest.raises(ValueError, match="critical inactivity days"):
+        FactionMemberAnalysisOptions(
+            faction_id=3,
+            base_divisions=("GNT", "DLM"),
+            inactivity_warning_days=30,
+            inactivity_critical_days=30,
+        )
+    with pytest.raises(ValueError, match="critical inactivity percentage"):
+        FactionMemberAnalysisOptions(
+            faction_id=3,
+            base_divisions=("GNT", "DLM"),
+            inactivity_warning_percentage=40,
+            inactivity_critical_percentage=30,
+        )
+    with pytest.raises(ValueError, match="non-empty and unique"):
+        FactionMemberAnalysisOptions(
+            faction_id=3,
+            base_divisions=("GNT", "gnt"),
+        )
 
 
 def test_radio_audit_options_are_typed_and_keep_ai_within_query_limits() -> None:
@@ -631,6 +664,39 @@ async def _seed_service_call_configuration_targets(database_url: str) -> None:
                     ),
                     {"revision_id": revision_id, "guild_id": guild_id},
                 )
+                if guild_id == 1234674521416663070:
+                    supervisor_policy_id = (
+                        await tx.execute(
+                            sa.text(
+                                "SELECT id FROM guild_access_policies "
+                                "WHERE config_revision_id = :revision_id "
+                                "AND policy_key = 'supervisor_roles'"
+                            ),
+                            {"revision_id": revision_id},
+                        )
+                    ).scalar_one_or_none()
+                    if supervisor_policy_id is not None:
+                        await tx.execute(
+                            sa.text(
+                                "UPDATE guild_access_policies SET mode = 'restricted' "
+                                "WHERE id = :policy_id"
+                            ),
+                            {"policy_id": supervisor_policy_id},
+                        )
+                        for position, role_id in enumerate((201, 202, 203)):
+                            await tx.execute(
+                                sa.text(
+                                    "INSERT INTO guild_access_policy_members "
+                                    "(id, policy_id, snowflake_id, position) "
+                                    "VALUES (:id, :policy_id, :role_id, :position)"
+                                ),
+                                {
+                                    "id": uuid.uuid4(),
+                                    "policy_id": supervisor_policy_id,
+                                    "role_id": role_id,
+                                    "position": position,
+                                },
+                            )
     finally:
         await client.close()
 
@@ -863,6 +929,33 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         assert stolen[999]["mode"] == "disabled"
         assert stolen[999]["enabled"] is False
         assert stolen[999]["snowflake_id"] is None
+        analysis_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.enabled, feature.payload "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'faction_member_analysis' "
+                "ORDER BY revision.guild_id"
+            )
+        )
+        lssd_analysis = [
+            row
+            for row in analysis_rows
+            if int(row["guild_id"]) == 1234674521416663070
+        ]
+        assert lssd_analysis[0]["enabled"] is True
+        assert lssd_analysis[0]["payload"] == {
+            "faction_id": 3,
+            "base_divisions": ["GNT", "DLM"],
+            "inactivity_warning_days": 14,
+            "inactivity_critical_days": 30,
+            "inactivity_warning_percentage": 20,
+            "inactivity_critical_percentage": 30,
+        }
+        other_analysis = [row for row in analysis_rows if int(row["guild_id"]) == 999]
+        assert other_analysis[0]["enabled"] is False
+        assert other_analysis[0]["payload"] == {}
         cursor_table = await client.fetch_one(
             sa.text("SELECT to_regclass('public.stolen_vehicle_feed_cursors') AS name")
         )
@@ -1129,8 +1222,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 51
-        assert persona["schema_version"] == 44
+        assert persona["revision"] == 52
+        assert persona["schema_version"] == 45
         assert set(persona["payload"]["presence"]) == {
             "idle",
             "conversation",
@@ -1226,6 +1319,23 @@ async def _assert_callsign_migration(
         assert "/vehiculos-robados" in persona["payload"]["messages"]["help"][
             "quick_references"
         ]
+        assert persona["payload"]["messages"]["interface"][
+            "faction_member_analysis"
+        ]["intro"]
+        assert persona["payload"]["messages"]["interface"]["commands"][
+            "faction_member_analysis_description"
+        ]
+        analysis_feature = await client.fetch_one(
+            sa.text(
+                "SELECT enabled, payload FROM guild_feature_settings "
+                "WHERE config_revision_id = :revision_id "
+                "AND feature_key = 'faction_member_analysis'"
+            ),
+            {"revision_id": identifiers["config_revision_id"]},
+        )
+        assert analysis_feature is not None
+        assert analysis_feature["enabled"] is False
+        assert analysis_feature["payload"] == {}
         resource_feature = await client.fetch_one(
             sa.text(
                 "SELECT enabled, payload FROM guild_feature_settings "

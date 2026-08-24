@@ -145,6 +145,26 @@ class FactionStatusOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
 
 
+class FactionMemberAnalysisOptions(FrozenConfigModel):
+    faction_id: int = Field(gt=0)
+    base_divisions: tuple[str, ...] = Field(min_length=1, max_length=10)
+    inactivity_warning_days: int = Field(default=14, ge=1, le=90)
+    inactivity_critical_days: int = Field(default=30, ge=2, le=365)
+    inactivity_warning_percentage: int = Field(default=20, ge=1, le=100)
+    inactivity_critical_percentage: int = Field(default=30, ge=2, le=100)
+
+    @model_validator(mode="after")
+    def validate_analysis_thresholds(self) -> FactionMemberAnalysisOptions:
+        if self.inactivity_critical_days <= self.inactivity_warning_days:
+            raise ValueError("critical inactivity days must exceed warning days")
+        if self.inactivity_critical_percentage <= self.inactivity_warning_percentage:
+            raise ValueError("critical inactivity percentage must exceed warning percentage")
+        normalized = tuple(name.strip().casefold() for name in self.base_divisions)
+        if any(not name for name in normalized) or len(set(normalized)) != len(normalized):
+            raise ValueError("base divisions must be non-empty and unique")
+        return self
+
+
 class ArrestReportLookupOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
 
@@ -355,6 +375,16 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if faction_status_feature.schema_version != 1:
                 raise ValueError("faction_status requires feature schema version 1")
             FactionStatusOptions.model_validate(faction_status_feature.payload)
+        member_analysis_feature = self.features.get("faction_member_analysis")
+        if member_analysis_feature is not None and member_analysis_feature.enabled:
+            if member_analysis_feature.schema_version != 1:
+                raise ValueError("faction_member_analysis requires feature schema version 1")
+            FactionMemberAnalysisOptions.model_validate(member_analysis_feature.payload)
+            roles = self.policies[AccessPolicyKey.SUPERVISOR_ROLES]
+            if roles.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError(
+                    "enabled faction_member_analysis requires restricted supervisor roles"
+                )
         resources_feature = self.features.get("operational_resources")
         if resources_feature is not None and resources_feature.enabled:
             if resources_feature.schema_version != 1:
@@ -558,6 +588,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return FactionStatusOptions.model_validate(feature.payload).faction_id
+
+    @property
+    def faction_member_analysis_options(self) -> FactionMemberAnalysisOptions | None:
+        feature = self.snapshot.features.get("faction_member_analysis")
+        if feature is None or not feature.enabled:
+            return None
+        return FactionMemberAnalysisOptions.model_validate(feature.payload)
 
     @property
     def operational_resources_options(self) -> OperationalResourcesOptions | None:

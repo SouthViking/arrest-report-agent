@@ -571,6 +571,7 @@ class SarpFactionMember(BaseModel):
     rank: int | None = Field(default=None, ge=0)
     last_connected_at: datetime | None = Field(default=None, alias="lastcon")
     faction_time_minutes: int = Field(default=0, alias="factiontime", ge=0)
+    division: int = Field(default=0, ge=0)
 
     @field_validator("online", "factionduty", mode="before")
     @classmethod
@@ -622,6 +623,16 @@ class SarpFactionRank(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     member_tier: int = Field(default=0, ge=0)
     paycheck: int | float | None = Field(default=None, ge=0)
+
+
+class SarpFactionDivision(BaseModel):
+    """One ordered division returned by the authenticated faction endpoint."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    faction: int = Field(gt=0)
+    name: str = Field(min_length=1, max_length=100)
 
 
 class SarpFactionBankEntry(BaseModel):

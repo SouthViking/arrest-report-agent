@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import zipfile
 from datetime import UTC, date, datetime, timedelta
@@ -31,6 +32,7 @@ from arrest_report_agent.infrastructure.sarp import (
     SarpFactionBankEntry,
     SarpFactionBankPage,
     SarpFactionDetail,
+    SarpFactionDivision,
     SarpFactionRank,
 )
 
@@ -131,6 +133,32 @@ async def test_shared_directory_maps_one_based_ranks_and_sorts_hierarchy_then_na
     ]
     assert second == first
     assert calls == {"detail": 1, "ranks": 1}
+
+
+async def test_shared_directory_coalesces_and_caches_division_catalog() -> None:
+    calls = 0
+
+    async def divisions(_faction_id: int) -> list[SarpFactionDivision]:
+        nonlocal calls
+        calls += 1
+        return [
+            SarpFactionDivision(id=5, faction=3, name="GNT"),
+            SarpFactionDivision(id=6, faction=3, name="DLM"),
+        ]
+
+    directory = FactionDirectoryService(
+        SimpleNamespace(get_faction_divisions=divisions),
+        roster_cache_seconds=30,
+        rank_cache_seconds=300,
+    )
+    first, second = await asyncio.gather(
+        directory.divisions(3),
+        directory.divisions(3),
+    )
+    third = await directory.divisions(3)
+
+    assert first == second == third
+    assert calls == 1
 
 
 def test_activity_classifier_uses_stable_pcu_bands() -> None:

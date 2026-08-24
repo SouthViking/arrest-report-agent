@@ -1,7 +1,7 @@
 {
-  "schema_version": 44,
+  "schema_version": 45,
   "id": "walter_vigil",
-  "revision": 51,
+  "revision": 52,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -438,6 +438,14 @@
         "connected_intro": "Estado actual del personal conectado y en servicio.",
         "no_connected": "No aparece ningún miembro de la facción conectado en este momento."
       },
+      "faction_member_analysis": {
+        "alert_title": "⚠️ Análisis de miembros no disponible",
+        "unauthorized": "Esta consulta está reservada al personal de supervisión, mando y dirección autorizado.",
+        "unavailable": "El análisis general de miembros no está habilitado para este servidor.",
+        "operation_failed": "No pude preparar el análisis de miembros en este momento. Inténtelo nuevamente más tarde.",
+        "intro": "Resumen general de actividad y distribución del personal de la facción.",
+        "no_alerts": "No se detectaron alertas deterministas en la plantilla actual."
+      },
       "operational_resources": {
         "alert_title": "⚠️ Recursos operativos no disponibles",
         "unauthorized": "Este panel está reservado al personal operativo autorizado.",
@@ -555,6 +563,7 @@
         "mdc_description": "Consulta registros operativos de un personaje",
         "info_mdc_description": "Explica cómo consultar el MDC y elegir su visibilidad",
         "connected_members_description": "Resume el personal conectado y en servicio",
+        "faction_member_analysis_description": "Analiza actividad y distribución de los miembros",
         "stolen_vehicles_description": "Muestra las denuncias recientes de vehículos robados",
         "pending_arrest_reports_description": "Detecta reportes de arresto que parecen incompletos",
         "faction_report_description": "Genera el informe restringido de banco y miembros",

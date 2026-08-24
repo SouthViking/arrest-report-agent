@@ -16,6 +16,7 @@ from arrest_report_agent.config import (
     AccessPolicySnapshot,
     AppSettings,
     BotPersona,
+    FactionMemberAnalysisOptions,
     ForumShortcutsOptions,
     GuildAgentConfig,
     GuildFeatureSnapshot,
@@ -73,6 +74,7 @@ FEATURE_LABELS = {
     "service_calls": "Llamadas de servicio",
     "stolen_vehicles": "Vehículos robados",
     "faction_status": "Estado de facción",
+    "faction_member_analysis": "Análisis de miembros",
     "operational_resources": "Recursos operativos",
     "forum_shortcuts": "Accesos al foro",
     "arrest_report_lookup": "Consulta de reportes de arresto",
@@ -955,6 +957,10 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     value="faction_status",
                 ),
                 discord.SelectOption(
+                    label="Análisis de miembros",
+                    value="faction_member_analysis",
+                ),
+                discord.SelectOption(
                     label="Recursos operativos",
                     value="operational_resources",
                 ),
@@ -1033,6 +1039,14 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 and "faction_id" not in payload
             ):
                 raise ValueError("Estado de facción requiere `faction_id`.")
+            if key == "faction_member_analysis" and self.enabled.values[0] == "true":
+                try:
+                    FactionMemberAnalysisOptions.model_validate(payload)
+                except ValueError as error:
+                    raise ValueError(
+                        "Análisis de miembros requiere `faction_id`, divisiones base y "
+                        "umbrales de inactividad válidos."
+                    ) from error
             if key == "operational_resources" and self.enabled.values[0] == "true":
                 try:
                     OperationalResourcesOptions.model_validate(payload)

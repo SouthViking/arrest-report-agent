@@ -18,6 +18,7 @@ from arrest_report_agent.infrastructure.sarp import (
     SarpClientNotOpenError,
     SarpConflictError,
     SarpFactionDetail,
+    SarpFactionDivision,
     SarpFactionRank,
     SarpForbiddenError,
     SarpGlobalMetrics,
@@ -585,6 +586,7 @@ async def test_faction_detail_endpoint_returns_typed_live_member_states() -> Non
                             "online": 1,
                             "factionduty": 0,
                             "rank": 8,
+                            "division": 2,
                             "lastcon": "2026-08-18 12:30:00",
                             "factiontime": 878,
                         },
@@ -610,6 +612,7 @@ async def test_faction_detail_endpoint_returns_typed_live_member_states() -> Non
     assert detail.faction_members[0].online is True
     assert detail.faction_members[0].factionduty is False
     assert detail.faction_members[0].rank == 8
+    assert detail.faction_members[0].division == 2
     assert detail.faction_members[0].last_connected_at is not None
     assert detail.faction_members[0].last_connected_at.utcoffset().total_seconds() == 0
     assert detail.faction_members[0].faction_time_minutes == 878
@@ -664,6 +667,33 @@ async def test_faction_rank_endpoint_returns_the_ordered_typed_catalog() -> None
             member_tier=0,
             paycheck=725,
         ),
+    ]
+
+
+async def test_faction_division_endpoint_returns_the_ordered_typed_catalog() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/my-faction/divisions/3"
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "pcu",
+                "payload": [
+                    {"id": 5, "faction": 3, "name": "GNT"},
+                    {"id": 6, "faction": 3, "name": "DLM"},
+                ],
+            }
+        )
+
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
+        divisions = await client.get_faction_divisions(3)
+
+    assert divisions == [
+        SarpFactionDivision(id=5, faction=3, name="GNT"),
+        SarpFactionDivision(id=6, faction=3, name="DLM"),
     ]
 
 

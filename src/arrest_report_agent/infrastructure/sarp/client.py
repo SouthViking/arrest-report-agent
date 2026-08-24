@@ -41,6 +41,7 @@ from .models import (
     SarpFactionArrestSearchPayload,
     SarpFactionBankPage,
     SarpFactionDetail,
+    SarpFactionDivision,
     SarpFactionRadioLogPage,
     SarpFactionRank,
     SarpFinePage,
@@ -77,6 +78,7 @@ FACTION_BANK_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionBankPage)
 EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpEmergencyCallPage)
 STOLEN_VEHICLE_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpStolenVehiclePage)
 FACTION_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionDetail)
+FACTION_DIVISIONS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionDivision])
 FACTION_RANKS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionRank])
 FACTION_RADIO_LOG_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionRadioLogPage)
 GLOBAL_METRICS_PAYLOAD_ADAPTER = TypeAdapter(SarpGlobalMetrics)
@@ -302,6 +304,17 @@ class SarpClient:
             "GET",
             f"/my-faction/ranks/{faction_id}",
             payload_adapter=FACTION_RANKS_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def get_faction_divisions(self, faction_id: int) -> list[SarpFactionDivision]:
+        """Fetch the faction's ordered division catalog."""
+
+        _require_positive_id(faction_id, "faction_id")
+        response = await self.request(
+            "GET",
+            f"/my-faction/divisions/{faction_id}",
+            payload_adapter=FACTION_DIVISIONS_PAYLOAD_ADAPTER,
         )
         return response.payload
 

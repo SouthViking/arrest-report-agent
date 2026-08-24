@@ -61,14 +61,14 @@ def test_railway_payload_normalizes_supported_events_and_identity() -> None:
 def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     manifest = ReleaseManifest.load_packaged()
 
-    assert manifest.version == "0.15.1"
+    assert manifest.version == "0.16.0"
     assert manifest.repository_url == "https://github.com/SouthViking/arrest-report-agent"
     assert manifest.changelog_targets == (1241206587079524442,)
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "/radios-faccion" in rendered_changes
-    assert "/auditar-radio" in rendered_changes
-    assert "TXT" in rendered_changes
+    assert "/actividad-miembros" in rendered_changes
+    assert "mayor a menor" in rendered_changes
+    assert "forma privada" in rendered_changes
     assert manifest.acknowledgements == ()
 
 
@@ -126,7 +126,7 @@ def test_deployment_embeds_keep_operational_data_and_persona_framing(persona) ->
 
     embed = build_deployment_embed(event, manifest, persona)
 
-    assert embed.title == "🚀 Consulta y auditoría de comunicaciones radiales · v0.15.1"
+    assert embed.title == "🚀 Análisis general de miembros · v0.16.0"
     assert persona.messages.interface.deployments.release_intro in (embed.description or "")
     assert any(field.name == "Cambios" for field in embed.fields)
     assert all(field.name != "Agradecimientos" for field in embed.fields)
@@ -245,7 +245,7 @@ async def test_success_event_waits_for_the_matching_runtime_and_then_targets_cha
 
     assert repository.processed == [event.id]
     assert [target.channel_id for target in repository.targets] == [456, 789]
-    assert all(target.notification_key.endswith(":0.15.1") for target in repository.targets)
+    assert all(target.notification_key.endswith(":0.16.0") for target in repository.targets)
 
 
 @pytest.mark.asyncio

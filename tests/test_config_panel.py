@@ -303,6 +303,7 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
     assert AccessPolicyKey.RADIO_AUDIT_ROLES.value in {
         option.value for option in access_modal.policy.options
     }
+    assert len(access_modal.policy.options) <= 25
     assert AgentConfigurationModal(cog, 42, provider.snapshot.agent).title == "Configurar agente"
     feature_modal = FeatureConfigurationModal(cog, 42)
     assert feature_modal.title == "Configurar módulo"
@@ -313,6 +314,9 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
         option.value for option in feature_modal.key.options
     }
     assert "faction_status" in {
+        option.value for option in feature_modal.key.options
+    }
+    assert "faction_member_analysis" in {
         option.value for option in feature_modal.key.options
     }
     assert "operational_resources" in {

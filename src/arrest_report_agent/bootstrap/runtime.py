@@ -33,6 +33,10 @@ from arrest_report_agent.deployments import (
 )
 from arrest_report_agent.evidence_bags import EvidenceBagCog, EvidenceBagService
 from arrest_report_agent.faction_directory import FactionDirectoryService
+from arrest_report_agent.faction_member_analysis import (
+    FactionMemberAnalysisCog,
+    FactionMemberAnalysisService,
+)
 from arrest_report_agent.faction_reports import FactionReportCog, FactionReportService
 from arrest_report_agent.faction_status import FactionStatusCog, FactionStatusService
 from arrest_report_agent.forum_shortcuts import ForumShortcutsCog
@@ -452,6 +456,13 @@ async def build_runtime(
             FactionStatusCog(
                 config_provider,
                 faction_status_service,
+                persona.profile,
+            )
+        )
+        bot.add_cog(
+            FactionMemberAnalysisCog(
+                config_provider,
+                FactionMemberAnalysisService(faction_directory),
                 persona.profile,
             )
         )

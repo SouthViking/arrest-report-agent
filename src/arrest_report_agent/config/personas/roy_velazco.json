@@ -1,7 +1,7 @@
 {
-  "schema_version": 44,
+  "schema_version": 45,
   "id": "roy_velazco",
-  "revision": 58,
+  "revision": 59,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -458,6 +458,14 @@
         "connected_intro": "Ahí tenís el estado de los conectados y quiénes andan de servicio.",
         "no_connected": "No aparece ni un miembro de la facción conectado ahora mismo."
       },
+      "faction_member_analysis": {
+        "alert_title": "⚠️ No pude analizar la plantilla",
+        "unauthorized": "Esto es pa supervisores y mando autorizado, no pa cualquiera q quiera sapear la plantilla.",
+        "unavailable": "No dejaron habilitado el análisis general de miembros en este servidor.",
+        "operation_failed": "No pude armar el análisis de miembros ahora. Prueba de nuevo más rato.",
+        "intro": "Ahí tenís el resumen de actividad y cómo está repartida la plantilla.",
+        "no_alerts": "No encontré alertas deterministas en la plantilla actual. Milagro, está todo bastante ordenado."
+      },
       "operational_resources": {
         "alert_title": "⚠️ No pude cargar los recursos",
         "unauthorized": "Este panel es pa personal operativo, no pa cualquiera q venga a sapear accesos.",
@@ -575,6 +583,7 @@
         "mdc_description": "Busca registros operativos de un personaje",
         "info_mdc_description": "Explica cómo usar el MDC y decidir quién ve la ficha",
         "connected_members_description": "Resume quién está conectado y en servicio",
+        "faction_member_analysis_description": "Analiza actividad y distribución de los miembros",
         "stolen_vehicles_description": "Muestra las denuncias recientes de vehículos robados",
         "pending_arrest_reports_description": "Busca reportes de arresto q parecen incompletos",
         "faction_report_description": "Arma el informe restringido de banco y personal",

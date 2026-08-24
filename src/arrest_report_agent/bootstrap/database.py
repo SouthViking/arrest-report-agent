@@ -479,6 +479,27 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         payload={},
                     ),
                     GuildFeatureSnapshot(
+                        key="faction_member_analysis",
+                        enabled=(
+                            guild_id == 1234674521416663070
+                            and bool(supervisor_roles[guild_id])
+                        ),
+                        schema_version=1,
+                        payload=(
+                            {
+                                "faction_id": 3,
+                                "base_divisions": ["GNT", "DLM"],
+                                "inactivity_warning_days": 14,
+                                "inactivity_critical_days": 30,
+                                "inactivity_warning_percentage": 20,
+                                "inactivity_critical_percentage": 30,
+                            }
+                            if guild_id == 1234674521416663070
+                            and bool(supervisor_roles[guild_id])
+                            else {}
+                        ),
+                    ),
+                    GuildFeatureSnapshot(
                         key="operational_resources",
                         enabled=(
                             guild_id == 1234674521416663070

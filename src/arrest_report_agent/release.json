@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.15.1",
-  "title": "Consulta y auditoría de comunicaciones radiales",
-  "summary": "El personal autorizado ahora puede consultar registros de radio y revisar de forma asistida su cumplimiento con el manual de comunicaciones.",
+  "version": "0.16.0",
+  "title": "Análisis general de miembros",
+  "summary": "El personal de supervisión y mando ahora dispone de un resumen compacto de la actividad y distribución de los miembros de la facción.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,15 +10,15 @@
   "changes": [
     {
       "type": "added",
-      "text": "Se agregó /radios-faccion para consultar comunicaciones por período, slot y miembro, con resultados públicos o privados."
-    },
-    {
-      "type": "added",
-      "text": "Se agregó /auditar-radio para que los roles de supervisión configurados midan la gravedad de posibles faltas comunicacionales del slot 1 usando el manual vigente."
+      "text": "Se agregó /actividad-miembros con contadores de miembros, conectados, personal en servicio y niveles de actividad según la última conexión."
     },
     {
       "type": "improved",
-      "text": "Las consultas permiten acotar horas exactas, muestran cada comunicación en una línea sin identificadores técnicos y adjuntan un registro TXT ordenado cuando el resultado es extenso."
+      "text": "El análisis resume estaciones, especialidades y alertas relevantes, ordenando cada distribución de mayor a menor para facilitar su lectura."
+    },
+    {
+      "type": "improved",
+      "text": "El resultado puede publicarse en el canal o mostrarse de forma privada; la publicación para todos viene seleccionada por defecto."
     }
   ],
   "acknowledgements": []
