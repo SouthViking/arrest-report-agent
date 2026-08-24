@@ -1,16 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.17.1",
-  "title": "Selector de bitácora corregido",
-  "summary": "La categoría elegida ahora permanece visible al configurar el resumen.",
+  "version": "0.17.2",
+  "title": "Consultas de bitácora identificadas",
+  "summary": "Los resúmenes ahora indican claramente quién hizo la consulta.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "El selector de /resumen-bitacora ya no vuelve visualmente a Todas las categorías."
+      "type": "improved",
+      "text": "/resumen-bitacora ahora muestra el nombre y avatar de quien realizó la consulta."
     }
   ],
   "acknowledgements": []

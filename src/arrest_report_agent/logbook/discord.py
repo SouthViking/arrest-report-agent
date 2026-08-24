@@ -338,7 +338,11 @@ class LogbookCog(commands.Cog):
                 subtype=subtype,
             )
             await interaction.followup.send(
-                embed=build_summary_embed(result),
+                embed=build_summary_embed(
+                    result,
+                    requester_name=interaction.user.display_name,
+                    requester_avatar_url=str(interaction.user.display_avatar.url),
+                ),
                 ephemeral=private,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -1115,7 +1119,12 @@ def build_entry_embed(entry: LogbookEntry, *, attachment_count: int = 0) -> disc
     return embed
 
 
-def build_summary_embed(summary: LogbookSummary) -> discord.Embed:
+def build_summary_embed(
+    summary: LogbookSummary,
+    *,
+    requester_name: str,
+    requester_avatar_url: str,
+) -> discord.Embed:
     category_label = (
         CATEGORY_PRESENTATION[summary.category_filter].label
         if summary.category_filter is not None
@@ -1133,6 +1142,10 @@ def build_summary_embed(summary: LogbookSummary) -> discord.Embed:
             f"**{category_label} › {subtype_filter_label}**"
         ),
         color=discord.Color.dark_blue(),
+    )
+    embed.set_author(
+        name=f"Consultado por {requester_name}"[:256],
+        icon_url=requester_avatar_url,
     )
     embed.add_field(name="📝 Registros", value=str(summary.total_entries), inline=True)
     embed.add_field(name="📎 Adjuntos", value=str(summary.attachment_count), inline=True)

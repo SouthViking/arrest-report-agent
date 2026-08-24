@@ -361,9 +361,15 @@ async def test_finance_modal_never_offers_a_contradictory_movement_subtype() -> 
 
 
 def test_summary_embed_is_compact_and_calculates_financial_balance() -> None:
-    embed = build_summary_embed(_summary())
+    embed = build_summary_embed(
+        _summary(),
+        requester_name="Michael Hayes",
+        requester_avatar_url="https://cdn.discordapp.com/avatars/1/avatar.png",
+    )
 
     assert embed.title == "📋 Resumen de bitácora"
+    assert embed.author.name == "Consultado por Michael Hayes"
+    assert embed.author.icon_url == "https://cdn.discordapp.com/avatars/1/avatar.png"
     assert "01/08/2026 — 24/08/2026" in embed.description
     assert [field.name for field in embed.fields[:3]] == [
         "📝 Registros",
@@ -390,7 +396,11 @@ def test_empty_summary_omits_distribution_and_financial_sections() -> None:
         }
     )
 
-    embed = build_summary_embed(summary)
+    embed = build_summary_embed(
+        summary,
+        requester_name="Michael Hayes",
+        requester_avatar_url="https://cdn.discordapp.com/avatars/1/avatar.png",
+    )
 
     assert [field.name for field in embed.fields] == [
         "📝 Registros",
