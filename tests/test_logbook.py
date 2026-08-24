@@ -410,8 +410,11 @@ async def test_summary_setup_offers_dependent_subtypes_and_all_filters() -> None
     )
 
     assert view.category.options[0].value == "all"
+    assert view.category.options[0].default is True
     assert view.subtype.disabled is True
     view.select_category(LogbookCategory.FINANCE)
+    assert next(option for option in view.category.options if option.default).value == "finance"
+    assert view.category.placeholder == "Finanzas"
     assert view.subtype.disabled is False
     assert view.subtype.options[0].value == "all"
     assert {option.value for option in view.subtype.options} == {
@@ -419,6 +422,8 @@ async def test_summary_setup_offers_dependent_subtypes_and_all_filters() -> None
         *(key for key, _label in CATEGORY_SUBTYPES[LogbookCategory.FINANCE]),
     }
     view.select_category(None)
+    assert next(option for option in view.category.options if option.default).value == "all"
+    assert view.category.placeholder == "Todas las categorías"
     assert view.subtype.disabled is True
     assert [option.value for option in view.subtype.options] == ["all"]
 

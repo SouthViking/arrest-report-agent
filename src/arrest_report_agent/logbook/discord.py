@@ -556,17 +556,26 @@ class LogbookCog(commands.Cog):
 
 
 class LogbookSummaryCategorySelect(discord.ui.Select["LogbookSummarySetupView"]):
-    def __init__(self) -> None:
+    def __init__(self, selected: LogbookCategory | None = None) -> None:
         super().__init__(
             custom_id="logbook_summary:v1:category",
-            placeholder="Todas las categorías",
+            placeholder=(
+                CATEGORY_PRESENTATION[selected].label
+                if selected is not None
+                else "Todas las categorías"
+            ),
             options=[
-                discord.SelectOption(label="Todas las categorías", value="all", default=True),
+                discord.SelectOption(
+                    label="Todas las categorías",
+                    value="all",
+                    default=selected is None,
+                ),
                 *(
                     discord.SelectOption(
                         label=presentation.label,
                         value=category.value,
                         emoji=presentation.emoji,
+                        default=category is selected,
                     )
                     for category, presentation in CATEGORY_PRESENTATION.items()
                 ),
@@ -657,8 +666,11 @@ class LogbookSummarySetupView(discord.ui.View):
     def select_category(self, category: LogbookCategory | None) -> None:
         self.category_filter = category
         self.subtype_filter = None
+        self.remove_item(self.category)
         self.remove_item(self.subtype)
+        self.category = LogbookSummaryCategorySelect(category)
         self.subtype = LogbookSummarySubtypeSelect(category)
+        self.add_item(self.category)
         self.add_item(self.subtype)
 
     async def open_modal(self, interaction: discord.Interaction) -> None:

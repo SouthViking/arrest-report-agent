@@ -1,24 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.17.0",
-  "title": "Resumen consultable de bitácora",
-  "summary": "Command y Executive Staff ahora pueden revisar la actividad registrada en bitácora mediante un resumen compacto y configurable.",
+  "version": "0.17.1",
+  "title": "Selector de bitácora corregido",
+  "summary": "La categoría elegida ahora permanece visible al configurar el resumen.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "Se agregó /resumen-bitacora para consultar registros por períodos rápidos o fechas personalizadas."
-    },
-    {
-      "type": "added",
-      "text": "El resumen permite filtrar por categoría y tipo, incluyendo la opción de abarcar todos los registros."
-    },
-    {
-      "type": "improved",
-      "text": "La vista muestra registros, adjuntos, distribuciones y el balance calculado de ingresos y retiros, con opción pública o privada."
+      "type": "fixed",
+      "text": "El selector de /resumen-bitacora ya no vuelve visualmente a Todas las categorías."
     }
   ],
   "acknowledgements": []
