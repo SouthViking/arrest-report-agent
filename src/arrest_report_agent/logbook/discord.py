@@ -6,19 +6,24 @@ import io
 import logging
 from contextlib import suppress
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal, InvalidOperation
+from enum import StrEnum
 from typing import cast
 
 import discord
 from discord.ext import commands
 
+from arrest_report_agent.application.date_ranges import DateRangePeriod, resolve_date_range
 from arrest_report_agent.config import BotPersona, PersonaLogbookMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
 from .models import (
+    CATEGORY_SUBTYPES,
     LogbookCategory,
     LogbookEntry,
+    LogbookSummary,
     MoneyDirection,
     available_subtypes,
     subtype_label,
@@ -27,6 +32,13 @@ from .service import LogbookFile, LogbookFileLimitError, LogbookService, safe_fi
 
 LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
+SUMMARY_MAX_RANGE_DAYS = 366
+SUMMARY_MAX_SUBTYPES = 10
+
+
+class LogbookSummaryVisibility(StrEnum):
+    PUBLIC = "public"
+    PRIVATE = "private"
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,6 +216,167 @@ class LogbookCog(commands.Cog):
             visibility="public" if publish else "private",
         )
 
+    @discord.slash_command(
+        name="resumen-bitacora",
+        description="Resume los registros de bitácora por período y tipo",
+    )
+    async def summary(self, ctx: discord.ApplicationContext) -> None:
+        if (
+            ctx.guild is None
+            or ctx.channel is None
+            or not isinstance(ctx.author, discord.Member)
+        ):
+            await ctx.respond(
+                embed=_generic_alert("Este comando solo funciona en un servidor."),
+                ephemeral=True,
+            )
+            return
+        try:
+            bundle = await self.provider.cached(ctx.guild.id)
+            logbook_ui = bundle.persona.profile.messages.interface.logbook
+            report_ui = bundle.persona.profile.messages.interface.faction_reports
+            feature = bundle.snapshot.features.get("logbook")
+            if feature is None or not feature.enabled:
+                await ctx.respond(
+                    embed=_alert(logbook_ui.alert_title, logbook_ui.unavailable),
+                    ephemeral=True,
+                )
+                return
+            if not _member_has_any_role(ctx.author, bundle.settings.faction_report_role_ids):
+                await ctx.respond(
+                    embed=_alert(logbook_ui.alert_title, report_ui.unauthorized),
+                    ephemeral=True,
+                )
+                return
+            await ctx.respond(
+                embed=discord.Embed(
+                    title="📋 Resumen de bitácora",
+                    description=(
+                        "Seleccione una categoría y, si corresponde, un tipo específico. "
+                        "Después podrá definir el período y la visibilidad."
+                    ),
+                    color=discord.Color.blurple(),
+                ),
+                view=LogbookSummarySetupView(
+                    cog=self,
+                    requester_id=ctx.author.id,
+                    guild_id=ctx.guild.id,
+                    channel_id=ctx.channel.id,
+                ),
+                ephemeral=True,
+            )
+        except Exception as error:
+            await self._command_failure(ctx, error, operation="summary_open")
+
+    async def publish_summary(
+        self,
+        interaction: discord.Interaction,
+        *,
+        requester_id: int,
+        guild_id: int,
+        channel_id: int,
+        period: DateRangePeriod,
+        raw_date_from: str,
+        raw_date_to: str,
+        category: LogbookCategory | None,
+        subtype: str | None,
+        visibility: LogbookSummaryVisibility,
+    ) -> None:
+        if (
+            interaction.guild is None
+            or interaction.guild.id != guild_id
+            or interaction.channel is None
+            or interaction.channel.id != channel_id
+            or not isinstance(interaction.user, discord.Member)
+            or interaction.user.id != requester_id
+        ):
+            await interaction.response.send_message(
+                embed=_generic_alert("Esta consulta ya no es válida."),
+                ephemeral=True,
+            )
+            return
+        bundle = await self.provider.cached(guild_id)
+        logbook_ui = bundle.persona.profile.messages.interface.logbook
+        report_ui = bundle.persona.profile.messages.interface.faction_reports
+        feature = bundle.snapshot.features.get("logbook")
+        if feature is None or not feature.enabled:
+            await interaction.response.send_message(
+                embed=_alert(logbook_ui.alert_title, logbook_ui.unavailable),
+                ephemeral=True,
+            )
+            return
+        if not _member_has_any_role(
+            interaction.user,
+            bundle.settings.faction_report_role_ids,
+        ):
+            await interaction.response.send_message(
+                embed=_alert(logbook_ui.alert_title, report_ui.unauthorized),
+                ephemeral=True,
+            )
+            return
+        try:
+            date_from, date_to = resolve_date_range(
+                period,
+                raw_date_from,
+                raw_date_to,
+                max_days=SUMMARY_MAX_RANGE_DAYS,
+            )
+        except ValueError:
+            await interaction.response.send_message(
+                embed=_alert(logbook_ui.alert_title, report_ui.invalid_range),
+                ephemeral=True,
+            )
+            return
+        private = visibility is LogbookSummaryVisibility.PRIVATE
+        await interaction.response.defer(ephemeral=private)
+        try:
+            result = await self.service.summarize(
+                guild_id=guild_id,
+                date_from=date_from,
+                date_to=date_to,
+                category=category,
+                subtype=subtype,
+            )
+            await interaction.followup.send(
+                embed=build_summary_embed(result),
+                ephemeral=private,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "logbook_summary_published",
+                guild_id=guild_id,
+                channel_id=channel_id,
+                user_id=requester_id,
+                date_from=date_from.isoformat(),
+                date_to=date_to.isoformat(),
+                category=category.value if category is not None else "all",
+                subtype=subtype or "all",
+                visibility=visibility.value,
+                total_entries=result.total_entries,
+                attachment_count=result.attachment_count,
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "logbook_summary_failed",
+                guild_id=guild_id,
+                channel_id=channel_id,
+                user_id=requester_id,
+                date_from=date_from.isoformat(),
+                date_to=date_to.isoformat(),
+                category=category.value if category is not None else "all",
+                subtype=subtype or "all",
+                exc_info=error,
+                **exception_fields(error),
+            )
+            await interaction.followup.send(
+                embed=_alert(logbook_ui.alert_title, report_ui.operation_failed),
+                ephemeral=private,
+            )
+
     async def publish(
         self,
         interaction: discord.Interaction,
@@ -363,6 +536,11 @@ class LogbookCog(commands.Cog):
         operation: str,
     ) -> None:
         ui = self.default_persona.messages.interface.logbook
+        description = (
+            self.default_persona.messages.interface.faction_reports.operation_failed
+            if operation.startswith("summary")
+            else ui.operation_failed
+        )
         log_event(
             LOGGER,
             "error",
@@ -374,7 +552,216 @@ class LogbookCog(commands.Cog):
             exc_info=error,
             **exception_fields(error),
         )
-        await ctx.respond(embed=_alert(ui.alert_title, ui.operation_failed), ephemeral=True)
+        await ctx.respond(embed=_alert(ui.alert_title, description), ephemeral=True)
+
+
+class LogbookSummaryCategorySelect(discord.ui.Select["LogbookSummarySetupView"]):
+    def __init__(self) -> None:
+        super().__init__(
+            custom_id="logbook_summary:v1:category",
+            placeholder="Todas las categorías",
+            options=[
+                discord.SelectOption(label="Todas las categorías", value="all", default=True),
+                *(
+                    discord.SelectOption(
+                        label=presentation.label,
+                        value=category.value,
+                        emoji=presentation.emoji,
+                    )
+                    for category, presentation in CATEGORY_PRESENTATION.items()
+                ),
+            ],
+            row=0,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view = cast(LogbookSummarySetupView, self.view)
+        selected = next(iter(self.values or ()), "all")
+        view.select_category(None if selected == "all" else LogbookCategory(selected))
+        await interaction.response.edit_message(view=view)
+
+
+class LogbookSummarySubtypeSelect(discord.ui.Select["LogbookSummarySetupView"]):
+    def __init__(self, category: LogbookCategory | None = None) -> None:
+        options = [discord.SelectOption(label="Todos los tipos", value="all", default=True)]
+        if category is not None:
+            options.extend(
+                discord.SelectOption(label=label, value=key)
+                for key, label in CATEGORY_SUBTYPES[category]
+            )
+        super().__init__(
+            custom_id="logbook_summary:v1:subtype",
+            placeholder=(
+                "Todos los tipos"
+                if category is not None
+                else "Seleccione una categoría para filtrar por tipo"
+            ),
+            options=options,
+            disabled=category is None,
+            row=1,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view = cast(LogbookSummarySetupView, self.view)
+        selected = next(iter(self.values or ()), "all")
+        view.subtype_filter = None if selected == "all" else selected
+        await interaction.response.defer(invisible=True)
+
+
+class LogbookSummaryContinueButton(discord.ui.Button["LogbookSummarySetupView"]):
+    def __init__(self) -> None:
+        super().__init__(
+            label="Definir período",
+            emoji="➡️",
+            style=discord.ButtonStyle.primary,
+            custom_id="logbook_summary:v1:continue",
+            row=2,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view = cast(LogbookSummarySetupView, self.view)
+        await view.open_modal(interaction)
+
+
+class LogbookSummarySetupView(discord.ui.View):
+    def __init__(
+        self,
+        *,
+        cog: LogbookCog,
+        requester_id: int,
+        guild_id: int,
+        channel_id: int,
+    ) -> None:
+        super().__init__(timeout=MODAL_TIMEOUT_SECONDS, disable_on_timeout=True)
+        self.cog = cog
+        self.requester_id = requester_id
+        self.guild_id = guild_id
+        self.channel_id = channel_id
+        self.category_filter: LogbookCategory | None = None
+        self.subtype_filter: str | None = None
+        self.category = LogbookSummaryCategorySelect()
+        self.subtype = LogbookSummarySubtypeSelect()
+        self.add_item(self.category)
+        self.add_item(self.subtype)
+        self.add_item(LogbookSummaryContinueButton())
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user is None or interaction.user.id != self.requester_id:
+            await interaction.response.send_message(
+                embed=_generic_alert("Este selector pertenece a otra persona."),
+                ephemeral=True,
+            )
+            return False
+        return True
+
+    def select_category(self, category: LogbookCategory | None) -> None:
+        self.category_filter = category
+        self.subtype_filter = None
+        self.remove_item(self.subtype)
+        self.subtype = LogbookSummarySubtypeSelect(category)
+        self.add_item(self.subtype)
+
+    async def open_modal(self, interaction: discord.Interaction) -> None:
+        if not await _validate_summary_context(
+            interaction,
+            self.cog,
+            self.requester_id,
+            self.guild_id,
+            self.channel_id,
+        ):
+            return
+        await interaction.response.send_modal(
+            LogbookSummaryModal(
+                cog=self.cog,
+                requester_id=self.requester_id,
+                guild_id=self.guild_id,
+                channel_id=self.channel_id,
+                category=self.category_filter,
+                subtype=self.subtype_filter,
+            )
+        )
+        self.stop()
+        with suppress(discord.HTTPException):
+            await interaction.delete_original_response()
+
+
+class LogbookSummaryModal(discord.ui.DesignerModal):
+    def __init__(
+        self,
+        *,
+        cog: LogbookCog,
+        requester_id: int,
+        guild_id: int,
+        channel_id: int,
+        category: LogbookCategory | None,
+        subtype: str | None,
+    ) -> None:
+        self.cog = cog
+        self.requester_id = requester_id
+        self.guild_id = guild_id
+        self.channel_id = channel_id
+        self.category = category
+        self.subtype = subtype
+        self.period = discord.ui.StringSelect(  # type: ignore[type-var]
+            custom_id="logbook_summary:v1:period",
+            options=[
+                discord.SelectOption(label="Último día", value="1"),
+                discord.SelectOption(label="Últimos 2 días", value="2"),
+                discord.SelectOption(label="Últimos 7 días", value="7", default=True),
+                discord.SelectOption(label="Últimos 14 días", value="14"),
+                discord.SelectOption(label="Últimos 30 días", value="30"),
+                discord.SelectOption(label="Últimos 90 días", value="90"),
+                discord.SelectOption(label="Rango personalizado", value="custom"),
+            ],
+            min_values=1,
+            max_values=1,
+        )
+        self.date_from = discord.ui.InputText(
+            custom_id="logbook_summary:v1:date_from",
+            placeholder="AAAA-MM-DD",
+            required=False,
+            min_length=10,
+            max_length=10,
+        )
+        self.date_to = discord.ui.InputText(
+            custom_id="logbook_summary:v1:date_to",
+            placeholder="AAAA-MM-DD",
+            required=False,
+            min_length=10,
+            max_length=10,
+        )
+        self.publish = discord.ui.Checkbox(
+            custom_id="logbook_summary:v1:publish",
+            default=True,
+        )
+        super().__init__(
+            discord.ui.Label("Período", self.period),
+            discord.ui.Label("Desde · solo para rango personalizado", self.date_from),
+            discord.ui.Label("Hasta · solo para rango personalizado", self.date_to),
+            discord.ui.Label("Publicar el resumen en este canal", self.publish),
+            title="Resumir bitácora",
+            custom_id=f"logbook_summary:v1:run:{requester_id}",
+            timeout=MODAL_TIMEOUT_SECONDS,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        period = next(iter(self.period.values or ()), DateRangePeriod.LAST_7_DAYS.value)
+        await self.cog.publish_summary(
+            interaction,
+            requester_id=self.requester_id,
+            guild_id=self.guild_id,
+            channel_id=self.channel_id,
+            period=DateRangePeriod(period),
+            raw_date_from=self.date_from.value or "",
+            raw_date_to=self.date_to.value or "",
+            category=self.category,
+            subtype=self.subtype,
+            visibility=(
+                LogbookSummaryVisibility.PUBLIC
+                if self.publish.value
+                else LogbookSummaryVisibility.PRIVATE
+            ),
+        )
 
 
 class LogbookCategorySelect(discord.ui.Select["LogbookSetupView"]):
@@ -638,6 +1025,48 @@ async def _validate_modal_context(
     return True
 
 
+async def _validate_summary_context(
+    interaction: discord.Interaction,
+    cog: LogbookCog,
+    requester_id: int,
+    guild_id: int,
+    channel_id: int,
+) -> bool:
+    if (
+        not isinstance(interaction.user, discord.Member)
+        or interaction.user.id != requester_id
+        or interaction.guild is None
+        or interaction.guild.id != guild_id
+        or interaction.channel is None
+        or interaction.channel.id != channel_id
+    ):
+        await interaction.response.send_message(
+            embed=_generic_alert("Esta consulta ya no es válida."),
+            ephemeral=True,
+        )
+        return False
+    bundle = await cog.provider.cached(guild_id)
+    logbook_ui = bundle.persona.profile.messages.interface.logbook
+    report_ui = bundle.persona.profile.messages.interface.faction_reports
+    feature = bundle.snapshot.features.get("logbook")
+    if feature is None or not feature.enabled:
+        await interaction.response.send_message(
+            embed=_alert(logbook_ui.alert_title, logbook_ui.unavailable),
+            ephemeral=True,
+        )
+        return False
+    if not _member_has_any_role(
+        interaction.user,
+        bundle.settings.faction_report_role_ids,
+    ):
+        await interaction.response.send_message(
+            embed=_alert(logbook_ui.alert_title, report_ui.unauthorized),
+            ephemeral=True,
+        )
+        return False
+    return True
+
+
 def _availability_denial(bundle: object, channel_id: int, ui: PersonaLogbookMessages) -> discord.Embed | None:
     feature = bundle.snapshot.features.get("logbook")  # type: ignore[attr-defined]
     if feature is None or not feature.enabled:
@@ -671,6 +1100,73 @@ def build_entry_embed(entry: LogbookEntry, *, attachment_count: int = 0) -> disc
         embed.add_field(name="📎 Respaldo", value=f"{attachment_count} adjunto(s)", inline=True)
     embed.add_field(name="Registrado por", value=f"<@{entry.author_user_id}>", inline=True)
     embed.set_footer(text=f"Bitácora · {entry.reference}")
+    return embed
+
+
+def build_summary_embed(summary: LogbookSummary) -> discord.Embed:
+    category_label = (
+        CATEGORY_PRESENTATION[summary.category_filter].label
+        if summary.category_filter is not None
+        else "Todos"
+    )
+    subtype_filter_label = (
+        subtype_label(summary.category_filter, summary.subtype_filter)
+        if summary.category_filter is not None and summary.subtype_filter is not None
+        else "Todos"
+    )
+    embed = discord.Embed(
+        title="📋 Resumen de bitácora",
+        description=(
+            f"`{_format_date(summary.date_from)} — {_format_date(summary.date_to)}` · "
+            f"**{category_label} › {subtype_filter_label}**"
+        ),
+        color=discord.Color.dark_blue(),
+    )
+    embed.add_field(name="📝 Registros", value=str(summary.total_entries), inline=True)
+    embed.add_field(name="📎 Adjuntos", value=str(summary.attachment_count), inline=True)
+    embed.add_field(name="🏷️ Tipos", value=str(len(summary.subtypes)), inline=True)
+    if not summary.total_entries:
+        embed.add_field(
+            name="Resultado",
+            value="No hay registros publicados que coincidan con estos filtros.",
+            inline=False,
+        )
+        return embed
+
+    category_lines = [
+        f"{CATEGORY_PRESENTATION[item.category].emoji} {CATEGORY_PRESENTATION[item.category].label} "
+        f"**{item.count}**"
+        for item in summary.categories
+    ]
+    embed.add_field(
+        name="Distribución",
+        value=" · ".join(category_lines),
+        inline=False,
+    )
+    visible_subtypes = summary.subtypes[:SUMMARY_MAX_SUBTYPES]
+    subtype_lines = [
+        f"{CATEGORY_PRESENTATION[item.category].emoji} "
+        f"{subtype_label(item.category, item.subtype)} **{item.count}**"
+        for item in visible_subtypes
+    ]
+    hidden_subtypes = len(summary.subtypes) - len(visible_subtypes)
+    if hidden_subtypes:
+        subtype_lines.append(f"+{hidden_subtypes} tipos")
+    embed.add_field(
+        name="Tipos principales",
+        value=" · ".join(subtype_lines),
+        inline=False,
+    )
+    if summary.income_total or summary.withdrawal_total:
+        embed.add_field(
+            name="💵 Movimientos financieros",
+            value=(
+                f"📥 {_format_money(summary.income_total)} · "
+                f"📤 {_format_money(summary.withdrawal_total)} · "
+                f"**Balance {_format_signed_money(summary.balance)}**"
+            ),
+            inline=False,
+        )
     return embed
 
 
@@ -741,6 +1237,23 @@ def parse_money_amount(value: str) -> Decimal:
 def _format_money(amount: Decimal) -> str:
     rendered = f"{amount:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
     return f"${rendered}"
+
+
+def _format_signed_money(amount: Decimal) -> str:
+    if amount > 0:
+        return f"+{_format_money(amount)}"
+    if amount < 0:
+        return f"-{_format_money(abs(amount))}"
+    return _format_money(amount)
+
+
+def _format_date(value: date) -> str:
+    return value.strftime("%d/%m/%Y")
+
+
+def _member_has_any_role(member: discord.Member, role_ids: tuple[int, ...]) -> bool:
+    allowed = set(role_ids)
+    return bool(allowed and any(role.id in allowed for role in member.roles))
 
 
 def _discord_files(files: tuple[LogbookFile, ...]) -> tuple[discord.File, ...]:

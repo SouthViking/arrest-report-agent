@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from contextlib import asynccontextmanager
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
+import discord
 import pytest
 
 from arrest_report_agent.config import (
@@ -22,18 +24,26 @@ from arrest_report_agent.logbook import (
     CATEGORY_SUBTYPES,
     LogbookAsset,
     LogbookCategory,
+    LogbookCategoryCount,
     LogbookEntry,
     LogbookFile,
     LogbookFileLimitError,
     LogbookService,
     LogbookStatus,
+    LogbookSubtypeCount,
+    LogbookSummary,
+    LogbookSummaryModal,
+    LogbookSummarySetupView,
+    LogbookSummaryVisibility,
     MoneyDirection,
     available_subtypes,
     build_entry_embed,
     build_guide_embed,
+    build_summary_embed,
     parse_money_amount,
 )
 from arrest_report_agent.logbook.discord import LogbookCog, LogbookEntryModal, LogbookGuideModal
+from arrest_report_agent.logbook.repository import LogbookRepository
 
 
 class FakeRepository:
@@ -53,6 +63,17 @@ class FakeRepository:
             for position, asset in enumerate(assets)
         )
         return self.assets
+
+
+def _member(user_id: int, role_ids: tuple[int, ...]) -> discord.Member:
+    roles = {role_id: SimpleNamespace(id=role_id) for role_id in role_ids}
+    guild = SimpleNamespace(id=123, get_role=roles.get, default_role=None)
+    state = SimpleNamespace(store_user=lambda data: SimpleNamespace(id=int(data["id"])))
+    return discord.Member(
+        data={"user": {"id": str(user_id)}, "roles": [str(role_id) for role_id in role_ids]},
+        guild=guild,
+        state=state,
+    )
 
 
 def _entry(*, number: int = 100_000) -> LogbookEntry:
@@ -76,6 +97,39 @@ def _entry(*, number: int = 100_000) -> LogbookEntry:
         occurred_at=now,
         created_at=now,
         updated_at=now,
+    )
+
+
+def _summary() -> LogbookSummary:
+    return LogbookSummary(
+        guild_id=123,
+        date_from=date(2026, 8, 1),
+        date_to=date(2026, 8, 24),
+        total_entries=10,
+        attachment_count=4,
+        income_total=Decimal("500000.00"),
+        withdrawal_total=Decimal("650000.00"),
+        categories=(
+            LogbookCategoryCount(category=LogbookCategory.FINANCE, count=7),
+            LogbookCategoryCount(category=LogbookCategory.PERSONNEL, count=3),
+        ),
+        subtypes=(
+            LogbookSubtypeCount(
+                category=LogbookCategory.FINANCE,
+                subtype="deposit",
+                count=5,
+            ),
+            LogbookSubtypeCount(
+                category=LogbookCategory.PERSONNEL,
+                subtype="entry",
+                count=3,
+            ),
+            LogbookSubtypeCount(
+                category=LogbookCategory.FINANCE,
+                subtype="withdrawal",
+                count=2,
+            ),
+        ),
     )
 
 
@@ -304,6 +358,250 @@ async def test_finance_modal_never_offers_a_contradictory_movement_subtype() -> 
     assert "withdrawal" not in {option.value for option in income.subtype.options}
     assert "payment" not in {option.value for option in income.subtype.options}
     assert "deposit" not in {option.value for option in withdrawal.subtype.options}
+
+
+def test_summary_embed_is_compact_and_calculates_financial_balance() -> None:
+    embed = build_summary_embed(_summary())
+
+    assert embed.title == "📋 Resumen de bitácora"
+    assert "01/08/2026 — 24/08/2026" in embed.description
+    assert [field.name for field in embed.fields[:3]] == [
+        "📝 Registros",
+        "📎 Adjuntos",
+        "🏷️ Tipos",
+    ]
+    fields = {field.name: field.value for field in embed.fields}
+    assert fields["Distribución"].startswith("💵 Finanzas **7** · 👤 Personal **3**")
+    assert "💵 Depósito **5**" in fields["Tipos principales"]
+    assert "📥 $500.000,00" in fields["💵 Movimientos financieros"]
+    assert "📤 $650.000,00" in fields["💵 Movimientos financieros"]
+    assert "Balance -$150.000,00" in fields["💵 Movimientos financieros"]
+
+
+def test_empty_summary_omits_distribution_and_financial_sections() -> None:
+    summary = _summary().model_copy(
+        update={
+            "total_entries": 0,
+            "attachment_count": 0,
+            "income_total": Decimal(0),
+            "withdrawal_total": Decimal(0),
+            "categories": (),
+            "subtypes": (),
+        }
+    )
+
+    embed = build_summary_embed(summary)
+
+    assert [field.name for field in embed.fields] == [
+        "📝 Registros",
+        "📎 Adjuntos",
+        "🏷️ Tipos",
+        "Resultado",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_summary_setup_offers_dependent_subtypes_and_all_filters() -> None:
+    view = LogbookSummarySetupView(
+        cog=None,  # type: ignore[arg-type]
+        requester_id=1,
+        guild_id=2,
+        channel_id=3,
+    )
+
+    assert view.category.options[0].value == "all"
+    assert view.subtype.disabled is True
+    view.select_category(LogbookCategory.FINANCE)
+    assert view.subtype.disabled is False
+    assert view.subtype.options[0].value == "all"
+    assert {option.value for option in view.subtype.options} == {
+        "all",
+        *(key for key, _label in CATEGORY_SUBTYPES[LogbookCategory.FINANCE]),
+    }
+    view.select_category(None)
+    assert view.subtype.disabled is True
+    assert [option.value for option in view.subtype.options] == ["all"]
+
+
+@pytest.mark.asyncio
+async def test_summary_modal_defaults_to_public_and_maps_both_visibilities() -> None:
+    captured: list[LogbookSummaryVisibility] = []
+
+    async def publish_summary(_interaction: object, **kwargs: object) -> None:
+        captured.append(LogbookSummaryVisibility(str(kwargs["visibility"])))
+
+    modal = LogbookSummaryModal(
+        cog=SimpleNamespace(publish_summary=publish_summary),  # type: ignore[arg-type]
+        requester_id=1,
+        guild_id=2,
+        channel_id=3,
+        category=None,
+        subtype=None,
+    )
+
+    assert modal.publish.default is True
+    assert [option.value for option in modal.period.options] == [
+        "1",
+        "2",
+        "7",
+        "14",
+        "30",
+        "90",
+        "custom",
+    ]
+    modal.publish.refresh_state({"value": True})
+    await modal.callback(SimpleNamespace())  # type: ignore[arg-type]
+    modal.publish.refresh_state({"value": False})
+    await modal.callback(SimpleNamespace())  # type: ignore[arg-type]
+
+    assert captured == [LogbookSummaryVisibility.PUBLIC, LogbookSummaryVisibility.PRIVATE]
+
+
+@pytest.mark.asyncio
+async def test_summary_command_uses_leadership_roles_in_any_channel(persona) -> None:
+    denied_responses: list[dict[str, object]] = []
+    allowed_responses: list[dict[str, object]] = []
+    denied = _member(11, (999,))
+    allowed = _member(12, (200,))
+
+    async def cached(_guild_id: int):
+        return SimpleNamespace(
+            snapshot=SimpleNamespace(features={"logbook": SimpleNamespace(enabled=True)}),
+            settings=SimpleNamespace(
+                faction_report_role_ids=(200,),
+                logbook_channel_ids=(456,),
+            ),
+            persona=SimpleNamespace(profile=persona),
+        )
+
+    async def deny(**kwargs: object) -> None:
+        denied_responses.append(kwargs)
+
+    async def allow(**kwargs: object) -> None:
+        allowed_responses.append(kwargs)
+
+    cog = LogbookCog(SimpleNamespace(cached=cached), None, persona)  # type: ignore[arg-type]
+    await LogbookCog.summary.callback(  # type: ignore[arg-type]
+        cog,
+        SimpleNamespace(
+            guild=denied.guild,
+            channel=SimpleNamespace(id=999),
+            author=denied,
+            respond=deny,
+        ),
+    )
+    await LogbookCog.summary.callback(  # type: ignore[arg-type]
+        cog,
+        SimpleNamespace(
+            guild=allowed.guild,
+            channel=SimpleNamespace(id=999),
+            author=allowed,
+            respond=allow,
+        ),
+    )
+
+    assert denied_responses[0]["ephemeral"] is True
+    assert denied_responses[0]["embed"].description == (
+        persona.messages.interface.faction_reports.unauthorized
+    )
+    assert allowed_responses[0]["ephemeral"] is True
+    assert isinstance(allowed_responses[0]["view"], LogbookSummarySetupView)
+
+
+class _SummaryResult:
+    def __init__(self, *, one: dict[str, object] | None = None, rows=()) -> None:
+        self._one = one
+        self._rows = rows
+
+    def mappings(self):
+        return self
+
+    def one(self):
+        if self._one is None:
+            raise AssertionError("Expected one result")
+        return self._one
+
+    def all(self):
+        return self._rows
+
+
+class _SummaryConnection:
+    def __init__(self) -> None:
+        self.statements: list[object] = []
+
+    async def execute(self, statement):
+        self.statements.append(statement)
+        if len(self.statements) == 1:
+            return _SummaryResult(
+                one={
+                    "total_entries": 10,
+                    "attachment_count": 4,
+                    "income_total": Decimal("500000.00"),
+                    "withdrawal_total": Decimal("650000.00"),
+                }
+            )
+        return _SummaryResult(
+            rows=(
+                {"category_key": "finance", "subtype_key": "deposit", "entry_count": 5},
+                {"category_key": "personnel", "subtype_key": "entry", "entry_count": 3},
+                {
+                    "category_key": "finance",
+                    "subtype_key": "withdrawal",
+                    "entry_count": 2,
+                },
+            )
+        )
+
+
+class _SummaryClient:
+    def __init__(self) -> None:
+        self.connection_value = _SummaryConnection()
+
+    @asynccontextmanager
+    async def connection(self):
+        yield self.connection_value
+
+
+@pytest.mark.asyncio
+async def test_repository_summary_uses_two_aggregates_and_sorts_counts() -> None:
+    client = _SummaryClient()
+    repository = LogbookRepository(client)  # type: ignore[arg-type]
+
+    result = await repository.summarize(
+        guild_id=123,
+        date_from=date(2026, 8, 1),
+        date_to=date(2026, 8, 24),
+    )
+
+    assert len(client.connection_value.statements) == 2
+    assert result.total_entries == 10
+    assert result.balance == Decimal("-150000.00")
+    assert [(item.category, item.count) for item in result.categories] == [
+        (LogbookCategory.FINANCE, 7),
+        (LogbookCategory.PERSONNEL, 3),
+    ]
+    assert [item.count for item in result.subtypes] == [5, 3, 2]
+
+
+@pytest.mark.asyncio
+async def test_repository_rejects_subtype_without_matching_category() -> None:
+    repository = LogbookRepository(_SummaryClient())  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="require a category"):
+        await repository.summarize(
+            guild_id=123,
+            date_from=date(2026, 8, 1),
+            date_to=date(2026, 8, 24),
+            subtype="deposit",
+        )
+    with pytest.raises(ValueError, match="does not belong"):
+        await repository.summarize(
+            guild_id=123,
+            date_from=date(2026, 8, 1),
+            date_to=date(2026, 8, 24),
+            category=LogbookCategory.FLEET,
+            subtype="deposit",
+        )
 
 
 def test_enabled_logbook_requires_an_explicit_channel_policy(settings) -> None:

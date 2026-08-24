@@ -404,6 +404,9 @@ Comandos disponibles:
   solo muestra esta guía cuando se ejecuta dentro de uno de esos canales.
 - `/guia-bitacora`: muestra una referencia compacta e indentada de todas las categorías y
   subtipos vigentes, con opción de verla privadamente o publicarla en el canal.
+- `/resumen-bitacora`: permite a `faction_report_roles` consultar desde cualquier canal los
+  registros publicados por período, categoría y subtipo. Resume cantidades, adjuntos y movimientos
+  financieros; puede publicarse en el canal o mostrarse de forma privada.
 - `/faq`: preguntas frecuentes privadas y navegables, curadas a partir de la guía local.
 - `/verguenza`: abre un modal para elegir mes actual o los últimos 7, 30 o 90 días, y publica por
   cada canal configurado un top 10 de quienes acumulan más expedientes que todavía no alcanzan el

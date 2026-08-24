@@ -88,6 +88,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Selector privado, modal adaptado y entrada pública | PostgreSQL, Railway Bucket y Discord |
 | `/info-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Pública; rechazo efímero fuera de los canales | Persona activa y configuración de PostgreSQL |
 | `/guia-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Modal privado; resultado público o efímero | Catálogo central de categorías y subtipos |
+| `/resumen-bitacora` | `faction_report_roles`; módulo `logbook` activo | Selector y modal privados; resultado público o efímero | Registros estructurados publicados en PostgreSQL |
 | `/faq` | Todos | Efímera | Preguntas curadas exclusivamente desde `report_guide.json` |
 | `/verguenza` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/honor` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
@@ -160,6 +161,7 @@ comandos, dirige a la guía de cada función:
 - `/info-sugerencias`
 - `/info-bitacora`, solo cuando `/ayuda` se abre en un canal de bitácora habilitado
 - `/guia-bitacora`, solo cuando `/ayuda` se abre en un canal de bitácora habilitado
+- `/resumen-bitacora`, solo para los roles configurados en `faction_report_roles`
 
 Mantiene como referencias rápidas `/guia`, `/cargos`, `/faq` y `/pregunta-manual`. Los flujos operacionales, comandos
 privados y herramientas de supervisión se explican en su guía especializada cuando corresponde.
@@ -178,7 +180,7 @@ en conversaciones normales o durante una revisión cuando una bolsa esté identi
 La lógica de consulta y manejo de fallos es compartida con el comando, y no conserva el contenido en
 caché. El acceso limitado del propietario no recibe esta tool para explorar bolsas arbitrarias.
 
-## `/bitacora`, `/info-bitacora` y `/guia-bitacora`
+## `/bitacora`, `/info-bitacora`, `/guia-bitacora` y `/resumen-bitacora`
 
 El módulo `logbook` exige una política restringida `logbook_channels`. No aplica una lista de
 usuarios o roles adicional: si una persona puede ver el canal configurado, puede registrar allí.
@@ -198,6 +200,14 @@ montos, fechas y demás datos operacionales se muestran con redacción neutra.
 canal. El resultado usa un único embed compacto cuyos campos inline enumeran las categorías y
 subtipos del mismo catálogo utilizado por el formulario; Finanzas separa las opciones válidas de
 ingreso y retiro. Por ello, la guía no puede quedar desincronizada del modal.
+
+`/resumen-bitacora` puede ejecutarse en cualquier canal, pero exige pertenecer a
+`faction_report_roles`. Permite elegir períodos rápidos de 1, 2, 7, 14, 30 o 90 días, o un rango
+personalizado de hasta 366 días. Los filtros de categoría y subtipo se derivan del mismo catálogo
+central, y el subtipo solo ofrece valores coherentes con la categoría seleccionada. El resultado
+considera únicamente entradas publicadas, cuenta sus adjuntos y calcula ingresos, retiros y balance
+desde los campos estructurados de PostgreSQL. La publicación es visible por defecto y puede cambiarse
+a una respuesta privada.
 
 ## `/conectados`
 

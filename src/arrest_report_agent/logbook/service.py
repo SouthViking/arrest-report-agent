@@ -6,11 +6,18 @@ import hashlib
 import mimetypes
 import re
 from dataclasses import dataclass
+from datetime import date
 from pathlib import PurePath
 
 from arrest_report_agent.infrastructure.storage import ObjectStorage
 
-from .models import LogbookAsset, LogbookEntry, PendingLogbookAsset
+from .models import (
+    LogbookAsset,
+    LogbookCategory,
+    LogbookEntry,
+    LogbookSummary,
+    PendingLogbookAsset,
+)
 from .repository import LogbookRepository
 
 SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._ -]+")
@@ -73,6 +80,23 @@ class LogbookService:
                 )
             )
         return await self.repository.replace_assets(entry.id, tuple(pending))
+
+    async def summarize(
+        self,
+        *,
+        guild_id: int,
+        date_from: date,
+        date_to: date,
+        category: LogbookCategory | None,
+        subtype: str | None,
+    ) -> LogbookSummary:
+        return await self.repository.summarize(
+            guild_id=guild_id,
+            date_from=date_from,
+            date_to=date_to,
+            category=category,
+            subtype=subtype,
+        )
 
 
 def safe_filename(value: str) -> str:

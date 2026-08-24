@@ -937,6 +937,18 @@ class ReviewCog(commands.Cog):
                             "• `/guia-bitacora`: categorías y tipos disponibles.",
                         )
                     )
+                if (
+                    feature is not None
+                    and feature.enabled
+                    and isinstance(ctx.author, discord.Member)
+                    and any(
+                        role.id in bundle.settings.faction_report_role_ids
+                        for role in ctx.author.roles
+                    )
+                ):
+                    extra_feature_lines.append(
+                        "• `/resumen-bitacora`: resume registros por período, categoría y tipo."
+                    )
                 radio_feature = bundle.snapshot.features.get("radio_audit")
                 if (
                     radio_feature is not None

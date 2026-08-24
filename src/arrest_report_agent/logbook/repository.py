@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 
 import sqlalchemy as sa
@@ -17,10 +17,14 @@ from arrest_report_agent.infrastructure.postgres.schema import (
 )
 
 from .models import (
+    CATEGORY_SUBTYPES,
     LogbookAsset,
     LogbookCategory,
+    LogbookCategoryCount,
     LogbookEntry,
     LogbookStatus,
+    LogbookSubtypeCount,
+    LogbookSummary,
     MoneyDirection,
     PendingLogbookAsset,
     available_subtypes,
@@ -163,6 +167,149 @@ class LogbookRepository:
 
     async def mark_failed(self, entry_id: uuid.UUID) -> LogbookEntry:
         return await self._transition(entry_id, status=LogbookStatus.FAILED)
+
+    async def summarize(
+        self,
+        *,
+        guild_id: int,
+        date_from: date,
+        date_to: date,
+        category: LogbookCategory | None = None,
+        subtype: str | None = None,
+    ) -> LogbookSummary:
+        """Aggregate published entries without loading their narrative content."""
+
+        if guild_id <= 0:
+            raise ValueError("guild_id must be positive")
+        if date_from > date_to:
+            raise ValueError("date_from must not be after date_to")
+        if subtype is not None:
+            if category is None:
+                raise ValueError("subtype filters require a category")
+            if subtype not in dict(CATEGORY_SUBTYPES[category]):
+                raise ValueError("subtype does not belong to the selected category")
+
+        range_start = datetime.combine(date_from, time.min, tzinfo=UTC)
+        range_end = datetime.combine(date_to, time.min, tzinfo=UTC) + timedelta(days=1)
+        filters = [
+            logbook_entries.c.guild_id == guild_id,
+            logbook_entries.c.status == LogbookStatus.PUBLISHED.value,
+            logbook_entries.c.occurred_at >= range_start,
+            logbook_entries.c.occurred_at < range_end,
+        ]
+        if category is not None:
+            filters.append(logbook_entries.c.category_key == category.value)
+        if subtype is not None:
+            filters.append(logbook_entries.c.subtype_key == subtype)
+
+        asset_counts = (
+            sa.select(
+                logbook_assets.c.entry_id,
+                sa.func.count(logbook_assets.c.id).label("asset_count"),
+            )
+            .group_by(logbook_assets.c.entry_id)
+            .subquery()
+        )
+        metrics_statement = (
+            sa.select(
+                sa.func.count(logbook_entries.c.id).label("total_entries"),
+                sa.func.coalesce(sa.func.sum(asset_counts.c.asset_count), 0).label(
+                    "attachment_count"
+                ),
+                sa.func.coalesce(
+                    sa.func.sum(
+                        sa.case(
+                            (
+                                logbook_entries.c.money_direction
+                                == MoneyDirection.INCOME.value,
+                                logbook_entries.c.money_amount,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("income_total"),
+                sa.func.coalesce(
+                    sa.func.sum(
+                        sa.case(
+                            (
+                                logbook_entries.c.money_direction
+                                == MoneyDirection.WITHDRAWAL.value,
+                                logbook_entries.c.money_amount,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("withdrawal_total"),
+            )
+            .select_from(
+                logbook_entries.outerjoin(
+                    asset_counts,
+                    asset_counts.c.entry_id == logbook_entries.c.id,
+                )
+            )
+            .where(*filters)
+        )
+        distribution_statement = (
+            sa.select(
+                logbook_entries.c.category_key,
+                logbook_entries.c.subtype_key,
+                sa.func.count(logbook_entries.c.id).label("entry_count"),
+            )
+            .where(*filters)
+            .group_by(logbook_entries.c.category_key, logbook_entries.c.subtype_key)
+            .order_by(
+                sa.func.count(logbook_entries.c.id).desc(),
+                logbook_entries.c.category_key,
+                logbook_entries.c.subtype_key,
+            )
+        )
+        async with self.client.connection() as connection:
+            metrics_result = await connection.execute(metrics_statement)
+            metrics = metrics_result.mappings().one()
+            distribution_result = await connection.execute(distribution_statement)
+            distribution = distribution_result.mappings().all()
+
+        category_totals: dict[LogbookCategory, int] = {}
+        subtype_totals: list[LogbookSubtypeCount] = []
+        for row in distribution:
+            row_category = LogbookCategory(str(row["category_key"]))
+            count = int(row["entry_count"])
+            category_totals[row_category] = category_totals.get(row_category, 0) + count
+            subtype_totals.append(
+                LogbookSubtypeCount(
+                    category=row_category,
+                    subtype=str(row["subtype_key"]),
+                    count=count,
+                )
+            )
+        categories = tuple(
+            LogbookCategoryCount(category=item, count=count)
+            for item, count in sorted(
+                category_totals.items(),
+                key=lambda pair: (-pair[1], pair[0].value),
+            )
+        )
+        subtypes = tuple(
+            sorted(
+                subtype_totals,
+                key=lambda item: (-item.count, item.category.value, item.subtype),
+            )
+        )
+        return LogbookSummary(
+            guild_id=guild_id,
+            date_from=date_from,
+            date_to=date_to,
+            category_filter=category,
+            subtype_filter=subtype,
+            total_entries=int(metrics["total_entries"] or 0),
+            attachment_count=int(metrics["attachment_count"] or 0),
+            income_total=Decimal(metrics["income_total"] or 0),
+            withdrawal_total=Decimal(metrics["withdrawal_total"] or 0),
+            categories=categories,
+            subtypes=subtypes,
+        )
 
     async def _transition(
         self,

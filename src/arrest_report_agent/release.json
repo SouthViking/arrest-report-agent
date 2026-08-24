@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.16.5",
-  "title": "Contador de servicio corregido",
-  "summary": "El análisis ahora muestra como personal en servicio únicamente a los miembros que también están conectados.",
+  "version": "0.17.0",
+  "title": "Resumen consultable de bitácora",
+  "summary": "Command y Executive Staff ahora pueden revisar la actividad registrada en bitácora mediante un resumen compacto y configurable.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,23 +10,15 @@
   "changes": [
     {
       "type": "added",
-      "text": "Se agregó /actividad-miembros con contadores de miembros, conectados, personal en servicio y niveles de actividad según la última conexión."
+      "text": "Se agregó /resumen-bitacora para consultar registros por períodos rápidos o fechas personalizadas."
+    },
+    {
+      "type": "added",
+      "text": "El resumen permite filtrar por categoría y tipo, incluyendo la opción de abarcar todos los registros."
     },
     {
       "type": "improved",
-      "text": "El análisis resume estaciones, especialidades y alertas relevantes, ordenando cada distribución de mayor a menor para facilitar su lectura."
-    },
-    {
-      "type": "improved",
-      "text": "El resultado puede publicarse en el canal o mostrarse de forma privada; la publicación para todos viene seleccionada por defecto."
-    },
-    {
-      "type": "fixed",
-      "text": "El contador En servicio ahora incluye exclusivamente a miembros conectados con el servicio activo."
-    },
-    {
-      "type": "improved",
-      "text": "Se agregó una observación cuando una proporción alta de los miembros conectados está fuera de servicio, evitando alertas con muestras pequeñas."
+      "text": "La vista muestra registros, adjuntos, distribuciones y el balance calculado de ingresos y retiros, con opción pública o privada."
     }
   ],
   "acknowledgements": []

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
@@ -84,6 +84,47 @@ class PendingLogbookAsset(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
     content_type: str = Field(min_length=1, max_length=100)
     size_bytes: int = Field(gt=0)
+
+
+class LogbookCategoryCount(BaseModel):
+    """Number of published entries for one category within a summary filter."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    category: LogbookCategory
+    count: int = Field(ge=0)
+
+
+class LogbookSubtypeCount(BaseModel):
+    """Number of published entries for one category/subtype pair."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    category: LogbookCategory
+    subtype: str = Field(min_length=1, max_length=40)
+    count: int = Field(ge=0)
+
+
+class LogbookSummary(BaseModel):
+    """Compact deterministic projection of published logbook entries."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    guild_id: int = Field(gt=0)
+    date_from: date
+    date_to: date
+    category_filter: LogbookCategory | None = None
+    subtype_filter: str | None = Field(default=None, min_length=1, max_length=40)
+    total_entries: int = Field(ge=0)
+    attachment_count: int = Field(ge=0)
+    income_total: Decimal = Field(ge=0)
+    withdrawal_total: Decimal = Field(ge=0)
+    categories: tuple[LogbookCategoryCount, ...] = ()
+    subtypes: tuple[LogbookSubtypeCount, ...] = ()
+
+    @property
+    def balance(self) -> Decimal:
+        return self.income_total - self.withdrawal_total
 
 
 CATEGORY_SUBTYPES: dict[LogbookCategory, tuple[tuple[str, str], ...]] = {
