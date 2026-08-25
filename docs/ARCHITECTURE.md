@@ -24,6 +24,7 @@ flowchart LR
     R --> G["Guía local"]
     R --> D["Índice de delitos"]
     R --> AR["Servicio de reportes SARP"]
+    R --> FF["Directorio de frecuencias SARP"]
     AR --> AB["PostgreSQL: vínculo por expediente"]
     AR --> SA["SARP: búsqueda y detalle vigente"]
     R --> P["Tools de publicación"]
@@ -110,6 +111,8 @@ modelo no puede escoger una guild ni un canal de publicación.
 - `report_owner_access`: repositorio transaccional y contratos del cupo permanente por expediente.
 - `arrest_reports`: servicio de aplicación y repositorio de referencias entre un expediente de
   Discord y un arresto SARP; no almacena narrativa ni cargos.
+- `faction_directory`: directorio compartido y con caché para roster, rangos, divisiones y
+  frecuencias configuradas; sus proyecciones eliminan IDs técnicos antes de llegar al agente.
 - `infrastructure/discord`: política previa, reconstrucción de hilos, embeds, reacciones y comandos.
 - `infrastructure/postgres`: cliente async, esquema SQLAlchemy, repositorios y caché dinámica.
 - `infrastructure/storage`: contrato de objetos y adaptador S3 para Railway Bucket.
@@ -164,6 +167,13 @@ upsert la referencia `(guild_id, root_message_id)`. El acceso limitado no recibe
 búsqueda o vinculación: solo puede resolver esa clave exacta y descargar nuevamente el arresto.
 Los límites por ejecución acotan reformulaciones y lecturas sin impedir el fallback a mensajes,
 imágenes o archivos cuando la API no responde.
+
+El agente principal con acceso completo puede consultar el plan de frecuencias de la facción fijada
+por la configuración de la guild. La tool no acepta IDs ni facciones como argumentos y reutiliza el
+caché de metadatos de `FactionDirectoryService` para frecuencias y divisiones. Devuelve únicamente
+frecuencia, nombre y división conocida; el agente limitado al propietario del expediente no recibe
+esta capacidad. Los nombres de SARP se tratan como datos no confiables y una falla al resolver
+divisiones no descarta el catálogo de frecuencias disponible.
 
 El subsistema `faction_status` consume el detalle interno agrupado de la facción configurada. Proyecta
 únicamente nombre, conexión y estado de servicio, aplica `online && factionduty` para la vista en

@@ -1,5 +1,6 @@
 """Shared cached faction roster and rank projections."""
 
+from .frequencies import SarpFactionFrequencyLookup
 from .models import (
     FactionActivityLevel,
     FactionDirectoryMember,
@@ -13,5 +14,6 @@ __all__ = [
     "FactionDirectoryMember",
     "FactionDirectoryService",
     "FactionDirectorySnapshot",
+    "SarpFactionFrequencyLookup",
     "activity_level_for",
 ]

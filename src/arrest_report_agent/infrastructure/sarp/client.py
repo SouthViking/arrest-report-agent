@@ -42,6 +42,7 @@ from .models import (
     SarpFactionBankPage,
     SarpFactionDetail,
     SarpFactionDivision,
+    SarpFactionFrequency,
     SarpFactionRadioLogPage,
     SarpFactionRank,
     SarpFinePage,
@@ -79,6 +80,7 @@ EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpEmergencyCallPage)
 STOLEN_VEHICLE_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpStolenVehiclePage)
 FACTION_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionDetail)
 FACTION_DIVISIONS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionDivision])
+FACTION_FREQUENCIES_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionFrequency])
 FACTION_RANKS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionRank])
 FACTION_RADIO_LOG_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionRadioLogPage)
 GLOBAL_METRICS_PAYLOAD_ADAPTER = TypeAdapter(SarpGlobalMetrics)
@@ -315,6 +317,17 @@ class SarpClient:
             "GET",
             f"/my-faction/divisions/{faction_id}",
             payload_adapter=FACTION_DIVISIONS_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def get_faction_frequencies(self, faction_id: int) -> list[SarpFactionFrequency]:
+        """Fetch configured frequencies from SARP's documented faction ``slots`` route."""
+
+        _require_positive_id(faction_id, "faction_id")
+        response = await self.request(
+            "GET",
+            f"/my-faction/slots/{faction_id}",
+            payload_adapter=FACTION_FREQUENCIES_PAYLOAD_ADAPTER,
         )
         return response.payload
 

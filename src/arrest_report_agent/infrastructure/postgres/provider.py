@@ -33,6 +33,7 @@ from .repository import CONFIG_NOTIFY_CHANNEL, ConfigurationRepository
 
 if TYPE_CHECKING:
     from arrest_report_agent.application.ports import EvidenceBagLookup
+    from arrest_report_agent.faction_directory import FactionDirectoryService
     from arrest_report_agent.infrastructure.sarp import SarpClient
 
 LOGGER = logging.getLogger(__name__)
@@ -60,6 +61,7 @@ class DatabaseConfigProvider:
         model_catalog: ModelCatalog,
         radio_catalog: RadioCodeCatalog | None = None,
         sarp_client: SarpClient | None = None,
+        faction_directory: FactionDirectoryService | None = None,
         evidence_bag_lookup: EvidenceBagLookup | None = None,
     ) -> None:
         self.client = client
@@ -70,6 +72,7 @@ class DatabaseConfigProvider:
         self.radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
         self.model_catalog = model_catalog
         self.sarp_client = sarp_client
+        self.faction_directory = faction_directory
         self.evidence_bag_lookup = evidence_bag_lookup
         # Import lazily so repositories can import the PostgreSQL schema without
         # creating a package-initialization cycle through this provider.
@@ -145,6 +148,7 @@ class DatabaseConfigProvider:
                 snapshot.agent.reasoning_effort,
             )
             arrest_lookup = None
+            faction_frequency_lookup = None
             faction_id = settings.arrest_report_lookup_faction_id
             if self.sarp_client is not None and faction_id is not None:
                 from arrest_report_agent.arrest_reports import SarpArrestReportLookup
@@ -154,6 +158,15 @@ class DatabaseConfigProvider:
                     self.arrest_bindings,
                     faction_id=faction_id,
                 )
+                if self.faction_directory is not None:
+                    from arrest_report_agent.faction_directory import (
+                        SarpFactionFrequencyLookup,
+                    )
+
+                    faction_frequency_lookup = SarpFactionFrequencyLookup(
+                        self.faction_directory,
+                        faction_id=faction_id,
+                    )
             service = ReviewService(
                 settings,  # type: ignore[arg-type]
                 self.catalog_provider,
@@ -163,6 +176,7 @@ class DatabaseConfigProvider:
                 self.radio_catalog,
                 arrest_lookup,
                 evidence_bag_lookup=(self.evidence_bag_lookup if faction_id is not None else None),
+                faction_frequency_lookup=faction_frequency_lookup,
             )
             bundle = GuildRuntimeBundle(
                 snapshot=snapshot,

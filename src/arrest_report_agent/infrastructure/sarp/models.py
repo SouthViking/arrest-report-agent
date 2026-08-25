@@ -635,6 +635,23 @@ class SarpFactionDivision(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 
 
+class SarpFactionFrequency(BaseModel):
+    """One configured faction frequency returned by the API ``slots`` endpoint."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    id: int = Field(gt=0)
+    faction: int = Field(gt=0)
+    frequency: int = Field(gt=0)
+    name: str = Field(min_length=1, max_length=100)
+    division: int = Field(default=0, ge=0)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def normalize_frequency_name(cls, value: object) -> str:
+        return " ".join(str(value).replace("_", " ").split())
+
+
 class SarpFactionBankEntry(BaseModel):
     """One faction-bank movement projected without unrelated PCU fields."""
 

@@ -14,6 +14,7 @@ from arrest_report_agent.infrastructure.sarp import (
     SarpError,
     SarpFactionDetail,
     SarpFactionDivision,
+    SarpFactionFrequency,
     SarpFactionMember,
     SarpFactionRank,
 )
@@ -33,6 +34,8 @@ class FactionDirectoryApiClient(Protocol):
     async def get_faction_ranks(self, faction_id: int) -> list[SarpFactionRank]: ...
 
     async def get_faction_divisions(self, faction_id: int) -> list[SarpFactionDivision]: ...
+
+    async def get_faction_frequencies(self, faction_id: int) -> list[SarpFactionFrequency]: ...
 
 
 class FactionDirectoryService:
@@ -56,6 +59,8 @@ class FactionDirectoryService:
         self._rank_inflight: dict[int, asyncio.Task[list[SarpFactionRank]]] = {}
         self._division_cache: dict[int, tuple[float, tuple[SarpFactionDivision, ...]]] = {}
         self._division_inflight: dict[int, asyncio.Task[list[SarpFactionDivision]]] = {}
+        self._frequency_cache: dict[int, tuple[float, tuple[SarpFactionFrequency, ...]]] = {}
+        self._frequency_inflight: dict[int, asyncio.Task[list[SarpFactionFrequency]]] = {}
         self._lock = asyncio.Lock()
 
     async def roster(self, faction_id: int) -> tuple[SarpFactionMember, ...]:
@@ -112,6 +117,53 @@ class FactionDirectoryService:
                     divisions,
                 )
         return divisions
+
+    async def frequencies(self, faction_id: int) -> tuple[SarpFactionFrequency, ...]:
+        """Return configured frequencies using the shared long-lived metadata cache."""
+
+        if faction_id <= 0:
+            raise ValueError("faction_id must be positive")
+        now = monotonic()
+        stale: tuple[SarpFactionFrequency, ...] = ()
+        async with self._lock:
+            cached = self._frequency_cache.get(faction_id)
+            if cached is not None:
+                stale = cached[1]
+            if cached is not None and cached[0] > now:
+                return cached[1]
+            task = self._frequency_inflight.get(faction_id)
+            if task is None:
+                task = asyncio.create_task(
+                    self.client.get_faction_frequencies(faction_id),
+                    name=f"sarp-faction-frequencies-{faction_id}",
+                )
+                self._frequency_inflight[faction_id] = task
+        try:
+            frequencies = tuple(await asyncio.shield(task))
+        except SarpError as error:
+            log_event(
+                LOGGER,
+                "warning",
+                "faction_frequency_catalog_unavailable",
+                faction_id=faction_id,
+                stale_catalog_available=bool(stale),
+                **exception_fields(error),
+            )
+            if stale:
+                return stale
+            raise
+        finally:
+            if task.done():
+                async with self._lock:
+                    if self._frequency_inflight.get(faction_id) is task:
+                        self._frequency_inflight.pop(faction_id, None)
+        if self.rank_cache_seconds > 0:
+            async with self._lock:
+                self._frequency_cache[faction_id] = (
+                    monotonic() + self.rank_cache_seconds,
+                    frequencies,
+                )
+        return frequencies
 
     async def snapshot(self, faction_id: int) -> FactionDirectorySnapshot:
         if faction_id <= 0:

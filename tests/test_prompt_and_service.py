@@ -172,6 +172,24 @@ def test_arrest_lookup_instructions_are_conditional_and_owner_scoped(persona) ->
     assert "No solicites\n  IDs" in owner
 
 
+def test_faction_frequency_instructions_are_conditional_and_full_access_only(persona) -> None:
+    disabled = build_agent_instructions(persona)
+    full = build_agent_instructions(persona, faction_frequency_lookup_enabled=True)
+    owner = build_agent_instructions(
+        persona,
+        AgentAccessLevel.REPORT_OWNER,
+        faction_frequency_lookup_enabled=True,
+    )
+
+    assert "<sarp_faction_frequencies>" not in disabled
+    assert "<sarp_faction_frequencies>" in full
+    assert "get_faction_frequencies" in full
+    assert "No expongas IDs internos" in full
+    assert "slots de transmisión" in full
+    assert "<sarp_faction_frequencies>" not in owner
+    assert "get_faction_frequencies" not in owner
+
+
 @pytest.mark.asyncio
 async def test_roy_prompt_separates_persona_voice_from_technical_review() -> None:
     persona = (await PackagedPersonaProvider().load("roy_velazco")).profile

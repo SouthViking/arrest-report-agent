@@ -1,16 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.17.5",
-  "title": "Estabilidad de configuración",
-  "summary": "Se corrigió la preparación de políticas durante las migraciones.",
+  "version": "0.17.6",
+  "title": "Frecuencias de facción disponibles para el agente",
+  "summary": "El agente ahora puede consultar el plan vigente de frecuencias configuradas en SARP.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Las políticas faltantes ahora se crean correctamente al actualizar la base de datos."
+      "type": "added",
+      "text": "El agente con acceso completo puede informar las frecuencias de la facción junto con sus nombres y divisiones asignadas."
     }
   ],
   "acknowledgements": []

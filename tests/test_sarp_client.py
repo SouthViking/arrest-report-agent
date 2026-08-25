@@ -19,6 +19,7 @@ from arrest_report_agent.infrastructure.sarp import (
     SarpConflictError,
     SarpFactionDetail,
     SarpFactionDivision,
+    SarpFactionFrequency,
     SarpFactionRank,
     SarpForbiddenError,
     SarpGlobalMetrics,
@@ -694,6 +695,57 @@ async def test_faction_division_endpoint_returns_the_ordered_typed_catalog() -> 
     assert divisions == [
         SarpFactionDivision(id=5, faction=3, name="GNT"),
         SarpFactionDivision(id=6, faction=3, name="DLM"),
+    ]
+
+
+async def test_faction_slots_endpoint_returns_the_typed_frequency_catalog() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/my-faction/slots/3"
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "pcu",
+                "payload": [
+                    {
+                        "id": 7,
+                        "faction": 3,
+                        "frequency": 480,
+                        "name": " LSC_DISP ",
+                        "division": 0,
+                    },
+                    {
+                        "id": 57,
+                        "faction": 3,
+                        "frequency": "488",
+                        "name": "SCC Access",
+                        "division": 5,
+                    },
+                ],
+            }
+        )
+
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
+        frequencies = await client.get_faction_frequencies(3)
+
+    assert frequencies == [
+        SarpFactionFrequency(
+            id=7,
+            faction=3,
+            frequency=480,
+            name="LSC DISP",
+            division=0,
+        ),
+        SarpFactionFrequency(
+            id=57,
+            faction=3,
+            frequency=488,
+            name="SCC Access",
+            division=5,
+        ),
     ]
 
 

@@ -364,6 +364,28 @@ class EvidenceBagLookup(Protocol):
         """Fetch one evidence bag while translating provider failures to safe states."""
 
 
+@dataclass(frozen=True)
+class FactionFrequencyProfile:
+    """One configured frequency projected without SARP technical identifiers."""
+
+    frequency: int
+    name: str
+    division_name: str | None
+
+
+@dataclass(frozen=True)
+class FactionFrequencyLookupResult:
+    frequencies: tuple[FactionFrequencyProfile, ...]
+    division_catalog_complete: bool = True
+    error: str | None = None
+    retry_after_seconds: float | None = None
+
+
+class FactionFrequencyLookup(Protocol):
+    async def list(self) -> FactionFrequencyLookupResult:
+        """List frequencies only for the faction bound by the active guild configuration."""
+
+
 class ReviewPublisher(Protocol):
     async def mark_review_started(self) -> None:
         """Show deterministically that a classified review has started."""

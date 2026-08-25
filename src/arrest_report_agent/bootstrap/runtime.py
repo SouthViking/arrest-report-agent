@@ -210,9 +210,11 @@ async def build_runtime(
     local_catalog = ChargeCatalog.load_default()
     sarp_penal_code_provider: SarpPenalCodeProvider | None = None
     sarp_client: SarpClient | None = None
+    faction_directory: FactionDirectoryService | None = None
     evidence_bag_service: EvidenceBagService | None = None
     if settings.sarp_api_enabled:
         sarp_client = SarpClient(SarpClientConfig.from_settings(settings))
+        faction_directory = FactionDirectoryService(sarp_client)
         evidence_bag_service = EvidenceBagService(sarp_client)
         sarp_penal_code_provider = SarpPenalCodeProvider(
             sarp_client,
@@ -245,6 +247,7 @@ async def build_runtime(
         model_catalog,
         radio_catalog,
         sarp_client=sarp_client,
+        faction_directory=faction_directory,
         evidence_bag_lookup=evidence_bag_service,
     )
     try:
@@ -439,7 +442,8 @@ async def build_runtime(
             raise RuntimeError("Evidence-bag service was not initialized")
         if stolen_vehicle_service is None:
             raise RuntimeError("Stolen-vehicle service was not initialized")
-        faction_directory = FactionDirectoryService(sarp_client)
+        if faction_directory is None:
+            raise RuntimeError("Faction-directory service was not initialized")
         faction_status_service = FactionStatusService(
             sarp_client,
             directory=faction_directory,
