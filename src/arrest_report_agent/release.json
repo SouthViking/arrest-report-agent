@@ -1,20 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.17.4",
-  "title": "Control privado de solicitudes de roles",
-  "summary": "Las solicitudes y sus resoluciones quedan limitadas al personal autorizado.",
+  "version": "0.17.5",
+  "title": "Estabilidad de configuración",
+  "summary": "Se corrigió la preparación de políticas durante las migraciones.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "Las solicitudes privadas de LSSD se envían únicamente a Command Staff."
-    },
-    {
       "type": "fixed",
-      "text": "Solo Command Staff y el solicitante pueden consultar una resolución."
+      "text": "Las políticas faltantes ahora se crean correctamente al actualizar la base de datos."
     }
   ],
   "acknowledgements": []

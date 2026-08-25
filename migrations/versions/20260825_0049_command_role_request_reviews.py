@@ -25,35 +25,72 @@ REVIEWER_ROLES_POLICY = "role_request_reviewer_roles"
 
 
 def upgrade() -> None:
-    _replace_policy_members(REVIEW_CHANNELS_POLICY, (COMMAND_STAFF_CHANNEL_ID,))
-    _replace_policy_members(REVIEWER_ROLES_POLICY, (COMMAND_STAFF_ROLE_ID,))
+    _replace_policy_members(
+        REVIEW_CHANNELS_POLICY,
+        "channel",
+        (COMMAND_STAFF_CHANNEL_ID,),
+    )
+    _replace_policy_members(
+        REVIEWER_ROLES_POLICY,
+        "role",
+        (COMMAND_STAFF_ROLE_ID,),
+    )
 
 
 def downgrade() -> None:
     _replace_policy_members(
         REVIEW_CHANNELS_POLICY,
+        "channel",
         (COMMAND_STAFF_CHANNEL_ID, PREVIOUS_SUPERVISOR_CHANNEL_ID),
     )
-    _replace_policy_members(REVIEWER_ROLES_POLICY, (PREVIOUS_REVIEWER_ROLE_ID,))
+    _replace_policy_members(
+        REVIEWER_ROLES_POLICY,
+        "role",
+        (PREVIOUS_REVIEWER_ROLE_ID,),
+    )
 
 
-def _replace_policy_members(policy_key: str, snowflake_ids: tuple[int, ...]) -> None:
+def _replace_policy_members(
+    policy_key: str,
+    subject_type: str,
+    snowflake_ids: tuple[int, ...],
+) -> None:
     connection = op.get_bind()
-    policies = (
+    revisions = (
         connection.execute(
             sa.text(
-                "SELECT policy.id FROM guild_access_policies policy "
-                "JOIN guild_config_revisions revision "
-                "ON revision.id = policy.config_revision_id "
-                "WHERE revision.guild_id = :guild_id "
+                "SELECT revision.id, revision.guild_id, policy.id AS policy_id "
+                "FROM guild_config_revisions revision "
+                "LEFT JOIN guild_access_policies policy "
+                "ON policy.config_revision_id = revision.id "
                 "AND policy.policy_key = :policy_key"
             ),
-            {"guild_id": LSSD_GUILD_ID, "policy_key": policy_key},
+            {"policy_key": policy_key},
         )
-        .scalars()
+        .mappings()
         .all()
     )
-    for policy_id in policies:
+    for revision in revisions:
+        is_lssd = int(revision["guild_id"]) == LSSD_GUILD_ID
+        policy_id = revision["policy_id"]
+        if policy_id is None:
+            policy_id = uuid.uuid4()
+            connection.execute(
+                sa.text(
+                    "INSERT INTO guild_access_policies "
+                    "(id, config_revision_id, policy_key, subject_type, mode) "
+                    "VALUES (:id, :revision_id, :policy_key, :subject_type, :mode)"
+                ),
+                {
+                    "id": policy_id,
+                    "revision_id": revision["id"],
+                    "policy_key": policy_key,
+                    "subject_type": subject_type,
+                    "mode": "restricted" if is_lssd else "disabled",
+                },
+            )
+        if not is_lssd:
+            continue
         connection.execute(
             sa.text("UPDATE guild_access_policies SET mode = 'restricted' WHERE id = :id"),
             {"id": policy_id},
