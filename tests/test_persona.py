@@ -24,6 +24,7 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
+    assert profile.presence.frequencies == "📻 Listando frecuencias"
     assert "Sargento de guardia" in profile.discord.bio
     role_info = profile.messages.interface.role_requests
     assert len(role_info.info_rules.splitlines()) == 2
@@ -41,6 +42,7 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
+    assert profile.presence.frequencies == "📻 Listando frecuencias"
     assert profile.discord.avatar == "assets/roy-velazco-skin-avatar.png"
     assert "que el juez haga el resto" in profile.discord.bio
     assert any("chilenismos" in instruction for instruction in profile.personality.communication.conversation)

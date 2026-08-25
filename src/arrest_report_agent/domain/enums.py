@@ -78,6 +78,7 @@ class AgentActivity(StrEnum):
 
     CONVERSATION = "conversation"
     KNOWLEDGE = "knowledge"
+    FREQUENCIES = "frequencies"
     PERSONNEL = "personnel"
     RECORDS = "records"
     EVIDENCE = "evidence"

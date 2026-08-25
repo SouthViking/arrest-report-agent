@@ -332,6 +332,7 @@ class ReviewCog(commands.Cog):
             idle_text=persona.presence.idle,
             conversation_text=persona.presence.conversation,
             knowledge_text=persona.presence.knowledge,
+            frequencies_text=persona.presence.frequencies,
             personnel_text=persona.presence.personnel,
             records_text=persona.presence.records,
             evidence_text=persona.presence.evidence,

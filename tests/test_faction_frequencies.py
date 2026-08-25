@@ -260,4 +260,4 @@ async def test_frequency_tool_is_full_access_only_argumentless_and_bounded() -> 
     ]
     assert responses[2] == {"ok": False, "error": "run_frequency_limit_reached"}
     assert lookup.calls == 2
-    assert activity.activities == [AgentActivity.KNOWLEDGE, AgentActivity.KNOWLEDGE]
+    assert activity.activities == [AgentActivity.FREQUENCIES, AgentActivity.FREQUENCIES]

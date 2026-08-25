@@ -34,6 +34,7 @@ async def test_presence_uses_global_priority_across_concurrent_interactions() ->
         idle_text="⭐ De guardia",
         conversation_text="📻 Atendiendo consultas",
         knowledge_text="📚 Consultando manual y códigos",
+        frequencies_text="📻 Listando frecuencias",
         personnel_text="👥 Consultando personal",
         records_text="🗃️ Consultando registros",
         evidence_text="🖼️ Analizando evidencias",
@@ -52,9 +53,11 @@ async def test_presence_uses_global_priority_across_concurrent_interactions() ->
         assert presence.mode is PresenceMode.PERSONNEL
         await first.transition(AgentActivity.KNOWLEDGE)
         assert presence.mode is PresenceMode.KNOWLEDGE
+        await first.transition(AgentActivity.FREQUENCIES)
+        assert presence.mode is PresenceMode.FREQUENCIES
         async with presence.handling() as second:
             assert presence.active_requests == 2
-            assert presence.mode is PresenceMode.KNOWLEDGE
+            assert presence.mode is PresenceMode.FREQUENCIES
             await second.transition(AgentActivity.REVIEW)
             assert presence.mode is PresenceMode.REVIEW
             await first.transition(AgentActivity.RECORDS)
@@ -74,6 +77,7 @@ async def test_presence_uses_global_priority_across_concurrent_interactions() ->
         "📻 Atendiendo consultas",
         "👥 Consultando personal",
         "📚 Consultando manual y códigos",
+        "📻 Listando frecuencias",
         "📂 Revisando expedientes",
         "🖼️ Analizando evidencias",
         "📦 Revisando bolsa",
@@ -92,6 +96,7 @@ async def test_presence_failure_never_blocks_or_leaks_active_review_count() -> N
         idle_text="⭐ De guardia",
         conversation_text="📻 Atendiendo consultas",
         knowledge_text="📚 Consultando manual y códigos",
+        frequencies_text="📻 Listando frecuencias",
         personnel_text="👥 Consultando personal",
         records_text="🗃️ Consultando registros",
         evidence_text="🖼️ Analizando evidencias",

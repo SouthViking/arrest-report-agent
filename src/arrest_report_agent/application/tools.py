@@ -1142,7 +1142,7 @@ def build_agent_tools(
         if run_context.faction_frequency_calls >= MAX_FACTION_FREQUENCY_CALLS_PER_RUN:
             return {"ok": False, "error": "run_frequency_limit_reached"}
         run_context.faction_frequency_calls += 1
-        await _set_activity(run_context, AgentActivity.KNOWLEDGE)
+        await _set_activity(run_context, AgentActivity.FREQUENCIES)
         result = await faction_frequency_lookup.list()
         if result.error is not None:
             payload: dict[str, object] = {"ok": False, "error": result.error}

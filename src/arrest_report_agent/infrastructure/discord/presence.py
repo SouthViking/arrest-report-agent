@@ -20,6 +20,7 @@ class PresenceMode(StrEnum):
     IDLE = "idle"
     CONVERSATION = AgentActivity.CONVERSATION
     KNOWLEDGE = AgentActivity.KNOWLEDGE
+    FREQUENCIES = AgentActivity.FREQUENCIES
     PERSONNEL = AgentActivity.PERSONNEL
     RECORDS = AgentActivity.RECORDS
     EVIDENCE = AgentActivity.EVIDENCE
@@ -33,11 +34,12 @@ PRESENCE_PRIORITY = {
     PresenceMode.CONVERSATION: 1,
     PresenceMode.PERSONNEL: 2,
     PresenceMode.KNOWLEDGE: 3,
-    PresenceMode.RECORDS: 4,
-    PresenceMode.EVIDENCE: 5,
-    PresenceMode.EVIDENCE_BAG: 6,
-    PresenceMode.REVIEW: 7,
-    PresenceMode.RESPONSE: 8,
+    PresenceMode.FREQUENCIES: 4,
+    PresenceMode.RECORDS: 5,
+    PresenceMode.EVIDENCE: 6,
+    PresenceMode.EVIDENCE_BAG: 7,
+    PresenceMode.REVIEW: 8,
+    PresenceMode.RESPONSE: 9,
 }
 
 
@@ -71,6 +73,7 @@ class ReviewPresence:
         idle_text: str,
         conversation_text: str,
         knowledge_text: str,
+        frequencies_text: str,
         personnel_text: str,
         records_text: str,
         evidence_text: str,
@@ -83,6 +86,7 @@ class ReviewPresence:
             PresenceMode.IDLE: idle_text,
             PresenceMode.CONVERSATION: conversation_text,
             PresenceMode.KNOWLEDGE: knowledge_text,
+            PresenceMode.FREQUENCIES: frequencies_text,
             PresenceMode.PERSONNEL: personnel_text,
             PresenceMode.RECORDS: records_text,
             PresenceMode.EVIDENCE: evidence_text,
@@ -119,6 +123,7 @@ class ReviewPresence:
         idle_text: str,
         conversation_text: str,
         knowledge_text: str,
+        frequencies_text: str,
         personnel_text: str,
         records_text: str,
         evidence_text: str,
@@ -131,6 +136,7 @@ class ReviewPresence:
                 PresenceMode.IDLE: idle_text,
                 PresenceMode.CONVERSATION: conversation_text,
                 PresenceMode.KNOWLEDGE: knowledge_text,
+                PresenceMode.FREQUENCIES: frequencies_text,
                 PresenceMode.PERSONNEL: personnel_text,
                 PresenceMode.RECORDS: records_text,
                 PresenceMode.EVIDENCE: evidence_text,

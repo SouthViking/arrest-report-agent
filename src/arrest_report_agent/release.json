@@ -1,16 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.17.6",
-  "title": "Frecuencias de facción disponibles para el agente",
-  "summary": "El agente ahora puede consultar el plan vigente de frecuencias configuradas en SARP.",
+  "version": "0.17.7",
+  "title": "Estado de consulta de frecuencias",
+  "summary": "El estado del bot ahora identifica cuándo está consultando el plan de frecuencias.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "El agente con acceso completo puede informar las frecuencias de la facción junto con sus nombres y divisiones asignadas."
+      "type": "improved",
+      "text": "El bot muestra 📻 Listando frecuencias mientras consulta las radios configuradas de la facción."
     }
   ],
   "acknowledgements": []

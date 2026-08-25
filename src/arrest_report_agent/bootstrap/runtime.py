@@ -327,6 +327,7 @@ async def build_runtime(
             idle_text=presence.idle,
             conversation_text=presence.conversation,
             knowledge_text=presence.knowledge,
+            frequencies_text=presence.frequencies,
             personnel_text=presence.personnel,
             records_text=presence.records,
             evidence_text=presence.evidence,
