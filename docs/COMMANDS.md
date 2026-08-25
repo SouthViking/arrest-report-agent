@@ -94,6 +94,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/honor` | Roles de analítica de reportes | Modal privado; resultado público | Mensajes y reacciones actuales de Discord |
 | `/errores-reportes` | Roles de analítica de reportes | Modal privado; resultado público | Revisiones estructuradas en PostgreSQL |
 | `/ts3` | Roles de personal operativo | Pública | Dirección fija, política `operational_staff_roles` y persona activa |
+| `/manual` | Roles de personal operativo | Pública | Enlace configurado en el módulo `operational_resources` |
 | `/pendientes` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/ranking` | Roles de supervisión | Efímera | Mensajes y reacciones actuales de Discord |
 | `/mis-reportes` | Guild y usuario habilitados | Efímera | Mensajes y reacciones actuales de Discord |
@@ -191,7 +192,9 @@ función.
 modal adaptado con los subtipos válidos, asunto, descripción, monto cuando corresponda y hasta diez
 adjuntos. La publicación usa una referencia mínima de cinco dígitos (`BIT-00001`) que continúa
 creciendo sin un techo de 99.999. PostgreSQL conserva el registro estructurado y la metadata; el
-contenido de los adjuntos se almacena en el Railway Bucket con claves basadas en checksum.
+contenido de los adjuntos se almacena en el Railway Bucket con claves basadas en checksum. Una sola
+imagen se muestra como portada; entre dos y diez imágenes se presentan en una galería nativa de
+Discord y los archivos no visuales permanecen disponibles para descarga.
 
 `/info-bitacora` publica una explicación breve con el tono de la personalidad activa. Las categorías,
 montos, fechas y demás datos operacionales se muestran con redacción neutra.
@@ -360,6 +363,13 @@ Solo los miembros incluidos en `operational_staff_roles` pueden ejecutarlo. Publ
 visible para todo el canal con la dirección `51.81.49.72:11189` del servidor TeamSpeak 3. La dirección
 es determinista y el texto introductorio proviene de la persona activa. Los intentos no autorizados
 reciben una alerta efímera ajustada a esa personalidad.
+
+## `/manual`
+
+Solo los miembros incluidos en `operational_staff_roles` pueden ejecutarlo. Publica un embed breve
+y visible para todo el canal con un enlace al manual oficial de la facción. La URL se reutiliza desde
+el módulo dinámico `operational_resources`; si no está habilitado, el comando responde de forma
+efímera sin exponer una dirección alternativa.
 
 ## `/cargos`
 

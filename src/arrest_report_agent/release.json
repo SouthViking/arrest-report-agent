@@ -1,16 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.17.2",
-  "title": "Consultas de bitácora identificadas",
-  "summary": "Los resúmenes ahora indican claramente quién hizo la consulta.",
+  "version": "0.17.3",
+  "title": "Manual directo y galerías en bitácora",
+  "summary": "Nuevo acceso rápido al manual y mejor presentación de registros con varias imágenes.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
+      "type": "added",
+      "text": "/manual permite compartir rápidamente el manual oficial de la facción."
+    },
+    {
       "type": "improved",
-      "text": "/resumen-bitacora ahora muestra el nombre y avatar de quien realizó la consulta."
+      "text": "/bitacora organiza múltiples imágenes en una galería compacta."
     }
   ],
   "acknowledgements": []

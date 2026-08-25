@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
+import mimetypes
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import date
@@ -476,14 +477,28 @@ class LogbookCog(commands.Cog):
                 max_total_bytes=bundle.settings.max_total_file_bytes,
             )
             output_files = _discord_files(files)
-            embed = build_entry_embed(entry, attachment_count=len(stored_assets))
-            if output_files and files[0].content_type and files[0].content_type.startswith("image/"):
-                embed.set_image(url=f"attachment://{output_files[0].filename}")
-            message = await interaction.channel.send(
-                embed=embed,
-                files=list(output_files),
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            image_indexes = _image_file_indexes(files)
+            if len(image_indexes) >= 2:
+                message = await interaction.channel.send(
+                    view=build_entry_gallery_view(
+                        entry,
+                        files=files,
+                        output_filenames=tuple(cast(str, item.filename) for item in output_files),
+                        attachment_count=len(stored_assets),
+                    ),
+                    files=list(output_files),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            else:
+                embed = build_entry_embed(entry, attachment_count=len(stored_assets))
+                if image_indexes:
+                    image_index = image_indexes[0]
+                    embed.set_image(url=f"attachment://{output_files[image_index].filename}")
+                message = await interaction.channel.send(
+                    embed=embed,
+                    files=list(output_files),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
             await self.service.repository.mark_published(entry.id, message.id)
             with suppress(discord.HTTPException):
                 await interaction.delete_original_response()
@@ -1119,6 +1134,74 @@ def build_entry_embed(entry: LogbookEntry, *, attachment_count: int = 0) -> disc
     return embed
 
 
+def build_entry_gallery_view(
+    entry: LogbookEntry,
+    *,
+    files: tuple[LogbookFile, ...],
+    output_filenames: tuple[str, ...],
+    attachment_count: int,
+) -> discord.ui.DesignerView:
+    """Render two or more images as one native Discord media gallery."""
+
+    if len(files) != len(output_filenames):
+        raise ValueError("Logbook files and Discord filenames must have the same length")
+    image_indexes = _image_file_indexes(files)
+    if len(image_indexes) < 2:
+        raise ValueError("A logbook gallery requires at least two images")
+    presentation = CATEGORY_PRESENTATION[entry.category]
+    details = [
+        f"### {presentation.emoji} {entry.reference} · {subtype_label(entry.category, entry.subtype)}",
+        entry.description,
+        "",
+        f"**Categoría:** {presentation.label}",
+        f"**Asunto:** {entry.subject}",
+    ]
+    if entry.money_direction is not None and entry.money_amount is not None:
+        direction = "Ingreso" if entry.money_direction is MoneyDirection.INCOME else "Retiro"
+        details.extend(
+            (
+                "",
+                "💵 **Movimiento**",
+                f"**{direction}:** {_format_money(entry.money_amount)}",
+                f"**Concepto:** {entry.money_detail or entry.subject}",
+            )
+        )
+    gallery: discord.ui.MediaGallery[discord.ui.DesignerView] = discord.ui.MediaGallery(
+        *(
+            discord.MediaGalleryItem(  # type: ignore[no-untyped-call]
+                f"attachment://{output_filenames[index]}",
+                description=safe_filename(files[index].filename),
+            )
+            for index in image_indexes
+        )
+    )
+    footer: discord.ui.TextDisplay[
+        discord.ui.DesignerView, discord.ui.DesignerModal
+    ] = discord.ui.TextDisplay(
+        f"📎 **Respaldo:** {attachment_count} adjunto(s) · "
+        f"**Registrado por:** <@{entry.author_user_id}>\n"
+        f"-# Bitácora · {entry.reference} · <t:{int(entry.occurred_at.timestamp())}:f>"
+    )
+    container: discord.ui.Container[discord.ui.DesignerView] = discord.ui.Container(
+        discord.ui.TextDisplay("\n".join(details)),
+        gallery,
+        discord.ui.Separator(),
+        footer,
+        color=presentation.color,
+    )
+    downloads: tuple[discord.ui.File[discord.ui.DesignerView], ...] = tuple(
+        discord.ui.File(f"attachment://{filename}")
+        for index, filename in enumerate(output_filenames)
+        if index not in image_indexes
+    )
+    return discord.ui.DesignerView(
+        container,
+        *downloads,
+        timeout=None,
+        store=False,
+    )
+
+
 def build_summary_embed(
     summary: LogbookSummary,
     *,
@@ -1279,6 +1362,18 @@ def _format_date(value: date) -> str:
 def _member_has_any_role(member: discord.Member, role_ids: tuple[int, ...]) -> bool:
     allowed = set(role_ids)
     return bool(allowed and any(role.id in allowed for role in member.roles))
+
+
+def _image_file_indexes(files: tuple[LogbookFile, ...]) -> tuple[int, ...]:
+    indexes: list[int] = []
+    for index, item in enumerate(files):
+        content_type = (
+            (item.content_type or "").strip().casefold()
+            or (mimetypes.guess_type(item.filename)[0] or "").casefold()
+        )
+        if content_type.startswith("image/"):
+            indexes.append(index)
+    return tuple(indexes)
 
 
 def _discord_files(files: tuple[LogbookFile, ...]) -> tuple[discord.File, ...]:

@@ -399,7 +399,8 @@ Comandos disponibles:
 - `/bitacora`: disponible únicamente en los canales configurados en `logbook_channels`. Permite
   seleccionar una categoría y un movimiento de dinero opcional antes de abrir un formulario
   adaptado con subtipo, asunto, descripción y hasta diez adjuntos. Publica una entrada uniforme
-  con referencia `BIT` y conserva los datos en PostgreSQL y los archivos en el Bucket.
+  con referencia `BIT`; cuando hay varias imágenes las presenta en una galería nativa. Conserva
+  los datos en PostgreSQL y los archivos en el Bucket.
 - `/info-bitacora`: explica públicamente el flujo en un canal de bitácora habilitado. `/ayuda`
   solo muestra esta guía cuando se ejecuta dentro de uno de esos canales.
 - `/guia-bitacora`: muestra una referencia compacta e indentada de todas las categorías y
@@ -419,6 +420,8 @@ Comandos disponibles:
   al despliegue de esta versión.
 - `/ts3`: permite al personal de `operational_staff_roles` publicar para todo el canal la dirección
   `51.81.49.72:11189` del servidor TeamSpeak 3; los intentos no autorizados son efímeros.
+- `/manual`: permite al personal de `operational_staff_roles` publicar para todo el canal un acceso
+  directo al manual oficial configurado para la facción.
 - `/pendientes`: consulta de supervisión para expedientes sin estado terminal o en revisión.
 - `/ranking`: ranking de supervisión por volumen, aprobaciones, correcciones o tasa de aprobación.
 - `/mis-reportes`: abre un modal privado para filtrar por periodo, estado y estación; entrega

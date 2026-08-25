@@ -217,6 +217,26 @@ def build_teamspeak_embed(
     )
 
 
+def build_manual_embed(
+    *,
+    organization_name: str,
+    organization_acronym: str,
+    manual_url: str,
+) -> discord.Embed:
+    """Build the public shortcut to the configured faction manual."""
+
+    embed = discord.Embed(
+        title=f"📘 Manual de procedimientos {organization_acronym}",
+        description=(
+            "Consulta aquí el manual oficial de la facción.\n\n"
+            f"🔗 [Abrir manual de {organization_acronym}]({manual_url})"
+        ),
+        color=discord.Color.blurple(),
+    )
+    embed.set_footer(text=organization_name)
+    return embed
+
+
 def build_unauthorized_user_message(
     *,
     messages: PersonaAccessMessages,
@@ -913,6 +933,19 @@ class ReviewCog(commands.Cog):
                     extra_feature_lines.append(
                         "• `/foro`: accesos oficiales y trámites disponibles en el foro."
                     )
+                resources_feature = bundle.snapshot.features.get("operational_resources")
+                if (
+                    resources_feature is not None
+                    and resources_feature.enabled
+                    and isinstance(ctx.author, discord.Member)
+                    and any(
+                        role.id in bundle.settings.operational_staff_role_ids
+                        for role in ctx.author.roles
+                    )
+                ):
+                    extra_feature_lines.append(
+                        "• `/manual`: abre el manual oficial de la facción."
+                    )
                 evidence_feature = bundle.snapshot.features.get("arrest_report_lookup")
                 if (
                     evidence_feature is not None
@@ -1116,6 +1149,73 @@ class ReviewCog(commands.Cog):
             LOGGER,
             "info",
             "teamspeak_address_shared",
+            guild_id=ctx.guild.id,
+            channel_id=ctx.channel.id if ctx.channel else "unknown",
+            user_id=ctx.author.id,
+        )
+
+    @discord.slash_command(
+        name="manual",
+        description="Publica el enlace al manual oficial de la facción",
+    )
+    async def faction_manual(self, ctx: discord.ApplicationContext) -> None:
+        if ctx.guild is None:
+            await ctx.respond(
+                embed=discord.Embed(
+                    title="⚠️ Manual no disponible",
+                    description="Este comando solo funciona dentro de un servidor.",
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return
+        role_ids = set(getattr(self.settings, "operational_staff_role_ids", ()))
+        member_roles = getattr(ctx.author, "roles", ())
+        copy = self.persona.messages.interface.operational_resources
+        if not role_ids or not any(role.id in role_ids for role in member_roles):
+            await ctx.respond(
+                embed=discord.Embed(
+                    title=copy.alert_title,
+                    description=copy.unauthorized,
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "faction_manual_denied",
+                guild_id=ctx.guild.id,
+                channel_id=ctx.channel.id if ctx.channel else "unknown",
+                user_id=ctx.author.id,
+            )
+            return
+        options = getattr(self.settings, "operational_resources_options", None)
+        if options is None:
+            await ctx.respond(
+                embed=discord.Embed(
+                    title=copy.alert_title,
+                    description=copy.unavailable,
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await ctx.respond(
+            embed=build_manual_embed(
+                organization_name=self.persona.identity.organization_name,
+                organization_acronym=self.persona.identity.organization_acronym,
+                manual_url=str(options.manual_url),
+            ),
+            ephemeral=False,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        log_event(
+            LOGGER,
+            "info",
+            "faction_manual_shared",
             guild_id=ctx.guild.id,
             channel_id=ctx.channel.id if ctx.channel else "unknown",
             user_id=ctx.author.id,

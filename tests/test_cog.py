@@ -6,7 +6,11 @@ from types import SimpleNamespace
 import discord
 import pytest
 
-from arrest_report_agent.config import PackagedPersonaProvider, SnowflakeAllowlist
+from arrest_report_agent.config import (
+    OperationalResourcesOptions,
+    PackagedPersonaProvider,
+    SnowflakeAllowlist,
+)
 from arrest_report_agent.infrastructure.discord.cog import (
     ReviewCog,
     build_blocked_user_message,
@@ -124,6 +128,7 @@ def test_operational_commands_are_registered_at_the_root() -> None:
         ReviewCog.open_report_shame,
         ReviewCog.approved_report_honor,
         ReviewCog.teamspeak_server,
+        ReviewCog.faction_manual,
         ReviewCog.personal_reports,
         ReviewCog.personal_summary,
     ]
@@ -139,6 +144,7 @@ def test_operational_commands_are_registered_at_the_root() -> None:
         "verguenza",
         "honor",
         "ts3",
+        "manual",
         "mis-reportes",
         "mi-resumen",
     ]
@@ -270,6 +276,7 @@ async def test_help_and_command_descriptions_use_selected_persona(settings, pers
     assert cog.approved_report_honor.description == (roy.messages.interface.commands.honor_description)
     assert cog.report_errors.description == roy.messages.interface.commands.report_errors_description
     assert cog.teamspeak_server.description == (roy.messages.interface.commands.teamspeak_description)
+    assert cog.faction_manual.description == "Publica el enlace al manual oficial de la facción"
 
     ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
 
@@ -336,6 +343,85 @@ async def test_teamspeak_command_rejects_non_staff_ephemerally(settings, persona
     assert isinstance(embed, discord.Embed)
     assert embed.title == persona.messages.interface.commands.teamspeak_unauthorized_title
     assert embed.description == persona.messages.interface.commands.teamspeak_unauthorized
+
+
+def _operational_resources_options() -> OperationalResourcesOptions:
+    return OperationalResourcesOptions(
+        faction_id=3,
+        game_server_address="play.sarp.es:7777",
+        pcu_url="https://ucp.sarp.es/app/ucp/home",
+        forum_url="https://sheriff.sarp.es/index.php",
+        manual_url="https://docs.google.com/document/d/manual/edit",
+        penal_code_url="https://ucp.sarp.es/app/ucp/penalcode",
+    )
+
+
+@pytest.mark.asyncio
+async def test_manual_command_allows_operational_staff_and_uses_configured_url(
+    settings,
+    persona,
+) -> None:
+    responses: list[dict[str, object]] = []
+
+    async def respond(**kwargs: object) -> None:
+        responses.append(kwargs)
+
+    ctx = SimpleNamespace(
+        respond=respond,
+        guild=SimpleNamespace(id=111),
+        channel=SimpleNamespace(id=222),
+        author=SimpleNamespace(id=333, roles=(SimpleNamespace(id=444),)),
+    )
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+    cog._default_runtime = replace(
+        cog._default_runtime,
+        settings=SimpleNamespace(
+            operational_staff_role_ids=(444,),
+            operational_resources_options=_operational_resources_options(),
+        ),
+    )
+
+    await cog.faction_manual.callback(cog, ctx)
+
+    assert responses[0]["ephemeral"] is False
+    assert responses[0]["allowed_mentions"].everyone is False
+    embed = responses[0]["embed"]
+    assert isinstance(embed, discord.Embed)
+    assert embed.title == "📘 Manual de procedimientos LSSD"
+    assert embed.footer.text == persona.identity.organization_name
+    assert "https://docs.google.com/document/d/manual/edit" in (embed.description or "")
+
+
+@pytest.mark.asyncio
+async def test_manual_command_rejects_non_staff_ephemerally(settings, persona) -> None:
+    responses: list[dict[str, object]] = []
+
+    async def respond(**kwargs: object) -> None:
+        responses.append(kwargs)
+
+    ctx = SimpleNamespace(
+        respond=respond,
+        guild=SimpleNamespace(id=111),
+        channel=SimpleNamespace(id=222),
+        author=SimpleNamespace(id=333, roles=(SimpleNamespace(id=555),)),
+    )
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
+    cog._default_runtime = replace(
+        cog._default_runtime,
+        settings=SimpleNamespace(
+            operational_staff_role_ids=(444,),
+            operational_resources_options=_operational_resources_options(),
+        ),
+    )
+
+    await cog.faction_manual.callback(cog, ctx)
+
+    assert responses[0]["ephemeral"] is True
+    assert responses[0]["embed"].description == (
+        persona.messages.interface.operational_resources.unauthorized
+    )
 
 
 @pytest.mark.asyncio

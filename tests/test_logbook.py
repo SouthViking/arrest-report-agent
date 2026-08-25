@@ -38,6 +38,7 @@ from arrest_report_agent.logbook import (
     MoneyDirection,
     available_subtypes,
     build_entry_embed,
+    build_entry_gallery_view,
     build_guide_embed,
     build_summary_embed,
     parse_money_amount,
@@ -160,6 +161,53 @@ def test_reference_padding_expands_without_a_five_digit_ceiling() -> None:
     assert embed.title == "🚓 BIT-100000 · Compra"
     assert "$150.000,00" in embed.fields[2].value
     assert "<@321>" in embed.fields[-1].value
+
+
+@pytest.mark.asyncio
+async def test_multiple_logbook_images_use_native_gallery_and_keep_documents_downloadable() -> None:
+    view = build_entry_gallery_view(
+        _entry(),
+        files=(
+            LogbookFile("frontal.png", "image/png", b"front"),
+            LogbookFile("informe.pdf", "application/pdf", b"report"),
+            LogbookFile("lateral.jpg", "image/jpeg", b"side"),
+        ),
+        output_filenames=("frontal.png", "informe.pdf", "lateral.jpg"),
+        attachment_count=3,
+    )
+
+    assert view.timeout is None
+    assert len(view.children) == 2
+    container = view.children[0]
+    assert isinstance(container, discord.ui.Container)
+    assert container.colour.value == 0x5865F2
+    gallery = next(item for item in container.items if isinstance(item, discord.ui.MediaGallery))
+    assert [item.url for item in gallery.items] == [
+        "attachment://frontal.png",
+        "attachment://lateral.jpg",
+    ]
+    assert [item.description for item in gallery.items] == ["frontal.png", "lateral.jpg"]
+    header = container.items[0]
+    assert isinstance(header, discord.ui.TextDisplay)
+    assert "BIT-100000" in header.content
+    assert "$150.000,00" in header.content
+    footer = container.items[-1]
+    assert isinstance(footer, discord.ui.TextDisplay)
+    assert "3 adjunto(s)" in footer.content
+    assert "<@321>" in footer.content
+    download = view.children[1]
+    assert isinstance(download, discord.ui.File)
+    assert download.url == "attachment://informe.pdf"
+
+
+def test_logbook_gallery_requires_at_least_two_images() -> None:
+    with pytest.raises(ValueError, match="at least two images"):
+        build_entry_gallery_view(
+            _entry(),
+            files=(LogbookFile("frontal.png", "image/png", b"front"),),
+            output_filenames=("frontal.png",),
+            attachment_count=1,
+        )
 
 
 def test_personnel_supports_a_general_disciplinary_action() -> None:
