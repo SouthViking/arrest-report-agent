@@ -1940,7 +1940,7 @@ class RoleRequestDecisionView(discord.ui.View):
 
 
 class RoleRequestResolutionView(discord.ui.View):
-    """Requester-only fallback when Discord blocks the decision DM."""
+    """Requester and authorized-reviewer fallback for a private decision."""
 
     def __init__(
         self,
@@ -1987,13 +1987,22 @@ class RoleRequestResolutionView(discord.ui.View):
         stored = await repository.get_by_public_message(guild.id, channel.id, message.id)
         if (
             stored is None
-            or stored.requester_id != interaction.user.id
             or not stored.status.terminal
             or stored.reviewer_id is None
             or stored.decided_at is None
         ):
             await interaction.response.send_message(
                 embed=service.build_alert_embed(service.ui.request_unavailable),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        member = interaction.user
+        is_requester = stored.requester_id == member.id
+        is_authorized_reviewer = isinstance(member, discord.Member) and service.is_reviewer(member)
+        if not is_requester and not is_authorized_reviewer:
+            await interaction.response.send_message(
+                embed=service.build_alert_embed(service.ui.reviewer_unauthorized),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )

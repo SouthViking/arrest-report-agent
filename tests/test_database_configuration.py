@@ -498,6 +498,46 @@ async def test_legacy_import_partitions_ids_and_disables_empty_restricted_scopes
     assert second.features[0].enabled is False
 
 
+@pytest.mark.asyncio
+async def test_lssd_legacy_import_forces_command_staff_role_request_review_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    guild_id = 1234674521416663070
+    previous_reviewer_role_id = 1527777009219010760
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        BOT_PERSONA="walter_vigil",
+        DISCORD_GUILD_IDS=str(guild_id),
+        ROLE_REQUEST_REVIEWER_ROLE_IDS=str(previous_reviewer_role_id),
+    )
+
+    async def guilds(_self: object) -> tuple[DiscordGuildInfo, ...]:
+        return (DiscordGuildInfo(guild_id, "LSSD"),)
+
+    async def channel_guild(_self: object, _channel_id: int) -> int:
+        raise AssertionError("No legacy channel lookup was expected")
+
+    async def role_owners(_self: object, _guild_ids: tuple[int, ...]) -> dict[int, int]:
+        return {previous_reviewer_role_id: guild_id}
+
+    monkeypatch.setattr(DiscordBootstrapResolver, "guilds", guilds)
+    monkeypatch.setattr(DiscordBootstrapResolver, "channel_guild", channel_guild)
+    monkeypatch.setattr(DiscordBootstrapResolver, "role_owners", role_owners)
+
+    plan = await plan_environment_import(settings)
+    policies = {policy.key: policy for policy in plan.guilds[0].policies}
+
+    assert policies[AccessPolicyKey.ROLE_REQUEST_REVIEW_CHANNELS].ids == (
+        1261076248541532240,
+    )
+    assert policies[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].ids == (
+        1234678029662294047,
+    )
+    assert plan.guilds[0].features[0].enabled is True
+
+
 def test_database_migrations_and_versioned_configuration_round_trip() -> None:
     database_url = os.getenv("TEST_DATABASE_URL")
     if not database_url:
@@ -956,11 +996,28 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         assert lssd_review[0]["mode"] == "restricted"
         assert [int(row["snowflake_id"]) for row in lssd_review] == [
             1261076248541532240,
-            1234678185124298853,
         ]
         other_review = [row for row in review_rows if int(row["guild_id"]) == 999]
         assert other_review[0]["mode"] == "disabled"
         assert other_review[0]["snowflake_id"] is None
+        reviewer_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, policy.mode, member.snowflake_id "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_access_policies policy "
+                "ON policy.config_revision_id = revision.id "
+                "AND policy.policy_key = 'role_request_reviewer_roles' "
+                "LEFT JOIN guild_access_policy_members member ON member.policy_id = policy.id "
+                "ORDER BY revision.guild_id, member.position"
+            )
+        )
+        lssd_reviewers = [
+            row for row in reviewer_rows if int(row["guild_id"]) == 1234674521416663070
+        ]
+        assert lssd_reviewers[0]["mode"] == "restricted"
+        assert [int(row["snowflake_id"]) for row in lssd_reviewers] == [
+            1234678029662294047,
+        ]
         stolen_rows = await client.fetch_all(
             sa.text(
                 "SELECT revision.guild_id, policy.mode, feature.enabled, feature.payload, "

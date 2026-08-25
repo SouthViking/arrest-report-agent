@@ -250,11 +250,13 @@ un embed saneado y cada canal de `role_request_review_channels` recibe una refer
 transición atómica `pending → processing`, luego se persiste y se replica en todos los mensajes. Las
 solicitudes v1 conservan su codec estricto basado en el mensaje para poder resolverse tras el cambio.
 
-Cada decisión v2 usa un claim en PostgreSQL; v1 conserva un lock por ID. Ambas revalidan supervisor,
+Cada decisión v2 usa un claim en PostgreSQL; v1 conserva un lock por ID. Ambas revalidan al revisor
+autorizado,
 miembro, roles protegidos y jerarquía. La aprobación completa o parcial calcula el conjunto final desde los roles actuales y lo
 aplica mediante una sola edición del miembro, considerando satisfechos los cambios hechos
 manualmente. La resolución terminal edita el estado público y todas las copias privadas, entrega el
-detalle al solicitante por MD y deshabilita todos los componentes.
+detalle al solicitante por MD y deshabilita todos los componentes. El fallback público de resolución
+solo entrega ese detalle al solicitante o a un miembro de la política de revisores activa.
 
 ## Personas
 

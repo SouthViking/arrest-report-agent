@@ -372,6 +372,17 @@ class FakeRoleRequestRepository:
             else None
         )
 
+    async def get_by_public_message(self, guild_id: int, channel_id: int, message_id: int):
+        if self.request is None:
+            return None
+        if (
+            self.request.guild_id != guild_id
+            or self.request.public_channel_id != channel_id
+            or self.request.public_message_id != message_id
+        ):
+            return None
+        return self.request
+
     async def claim_decision(self, request_id):
         if (
             self.request is None
@@ -699,6 +710,60 @@ async def test_v2_request_publishes_public_state_and_two_private_review_mirrors(
         mirror = next(iter(review_channel.messages.values()))
         assert all(child.disabled for child in mirror.components[0].children)
         assert f"<@{REVIEWER_ID}>" in str(mirror.embeds[0].to_dict())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("viewer_kind", ("requester", "reviewer", "outsider"))
+async def test_resolution_is_visible_only_to_requester_or_authorized_reviewer(
+    role_request_env,
+    viewer_kind: str,
+) -> None:
+    repository = FakeRoleRequestRepository()
+    service = role_request_env.service
+    service.repository = repository  # type: ignore[assignment]
+    review_channel = FakeChannel(210)
+    review_channel.guild = role_request_env.guild
+    role_request_env.guild._channels[review_channel.id] = review_channel
+    role_request_env.guild.text_channels.append(review_channel)
+    service.review_channel_ids = (review_channel.id,)
+    role_request_env.requester.dm_blocked = True
+    creation = SimpleNamespace(id=9910, response=FakeResponse(), followup=FakeFollowup())
+    await service.create_request(
+        creation,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+        add_roles=(role_request_env.add_one,),
+        remove_roles=(role_request_env.removable,),
+        reason="Motivo reservado",
+    )
+    private_message = next(iter(review_channel.messages.values()))
+    await service.approve_all(_interaction(role_request_env, private_message))
+    public_message = next(iter(role_request_env.channel.messages.values()))
+    if viewer_kind == "requester":
+        viewer = role_request_env.requester
+    elif viewer_kind == "reviewer":
+        viewer = role_request_env.reviewer
+    else:
+        viewer = FakeMember(
+            999,
+            roles=[role_request_env.everyone],
+            top_role=role_request_env.everyone,
+            display_name="Sin acceso",
+        )
+        viewer.guild = role_request_env.guild
+    interaction = _interaction(role_request_env, public_message, user=viewer)
+    view = RoleRequestResolutionView(service)
+
+    await view.children[0].callback(interaction)
+
+    response = interaction.response.messages[-1]
+    assert response["ephemeral"] is True
+    if viewer_kind == "outsider":
+        assert response["embed"].description == service.ui.reviewer_unauthorized
+    else:
+        assert response["embed"].description != service.ui.reviewer_unauthorized
+        assert response["embed"].title != service.ui.alert_title
+        assert APPROVED_CHANGES_TITLE in {field.name for field in response["embed"].fields}
 
 
 def test_pending_codec_round_trip_supports_retirement(role_request_env) -> None:

@@ -144,6 +144,8 @@ Los botones aparecen solo en los canales de `role_request_review_channels` y sus
 siempre que quien decide posea uno de esos roles. Tanto los IDs de
 revisores como los de canales pueden mezclar distintas guilds; en cada interacción solo se resuelven
 los objetos pertenecientes a la guild actual.
+En LSSD, la configuración publicada limita las copias privadas al canal de Command Staff y reserva
+las decisiones al rol Command Staff.
 
 Las consultas deterministas también reconocen `⏳`, `✅`, `❌` y `⚠️` cuando la reacción pertenece
 al bot o a un miembro autorizado por esta misma política. Las reacciones de otros miembros no
@@ -518,11 +520,12 @@ El embed omite altas, bajas, motivo, comentarios y grupos de cambios cuando no c
 nunca utiliza una raya como valor de relleno. El codec sigue aceptando solicitudes antiguas que sí la
 incluyan.
 
-Un supervisor puede aprobar todo, abrir un segundo modal para seleccionar un subconjunto exacto o
+Un revisor autorizado puede aprobar todo, abrir un segundo modal para seleccionar un subconjunto exacto o
 rechazar con motivo. Aprobaciones parciales y rechazos exigen comentario. La resolución edita el
 estado público y todas las copias privadas, deshabilita los botones y modifica los roles en una sola
 operación cuando corresponde. El solicitante recibe el comentario por MD; si Discord bloquea el MD,
-el mensaje público ofrece **Ver resolución**, visible de forma privada solo para ese solicitante.
+el mensaje público ofrece **Ver resolución**, visible de forma privada solo para ese solicitante o
+un revisor autorizado.
 Los botones no agregan confirmaciones efímeras de éxito: las ediciones de los mensajes son la
 confirmación. Los clics repetidos no vuelven a ejecutar cambios.
 

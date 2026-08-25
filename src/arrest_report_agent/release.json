@@ -1,20 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.17.3",
-  "title": "Manual directo y galerías en bitácora",
-  "summary": "Nuevo acceso rápido al manual y mejor presentación de registros con varias imágenes.",
+  "version": "0.17.4",
+  "title": "Control privado de solicitudes de roles",
+  "summary": "Las solicitudes y sus resoluciones quedan limitadas al personal autorizado.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "/manual permite compartir rápidamente el manual oficial de la facción."
+      "type": "improved",
+      "text": "Las solicitudes privadas de LSSD se envían únicamente a Command Staff."
     },
     {
-      "type": "improved",
-      "text": "/bitacora organiza múltiples imágenes en una galería compacta."
+      "type": "fixed",
+      "text": "Solo Command Staff y el solicitante pueden consultar una resolución."
     }
   ],
   "acknowledgements": []

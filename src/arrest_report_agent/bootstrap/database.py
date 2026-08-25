@@ -21,6 +21,7 @@ from arrest_report_agent.config import (
     GuildFeatureSnapshot,
     PackagedPersonaProvider,
 )
+from arrest_report_agent.config.bootstrap_defaults import role_request_review_defaults
 from arrest_report_agent.infrastructure.postgres import (
     ConfigurationRepository,
     PostgresClient,
@@ -263,7 +264,13 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
     placeholder_persona_revision = UUID(int=0)
     guilds: list[BootstrapGuild] = []
     for guild_id in guild_ids:
-        reviewer_ids = reviewer_roles[guild_id]
+        review_defaults = role_request_review_defaults(guild_id)
+        reviewer_ids = (
+            review_defaults.reviewer_role_ids
+            if review_defaults is not None
+            else reviewer_roles[guild_id]
+        )
+        review_channel_ids = review_defaults.channel_ids if review_defaults is not None else ()
         policies = (
             policy(
                 AccessPolicyKey.REPORT_CHANNELS,
@@ -317,14 +324,10 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 subject_type="channel",
                 mode=(
                     AccessPolicyMode.RESTRICTED
-                    if guild_id == 1234674521416663070
+                    if review_channel_ids
                     else AccessPolicyMode.DISABLED
                 ),
-                ids=(
-                    (1261076248541532240, 1234678185124298853)
-                    if guild_id == 1234674521416663070
-                    else ()
-                ),
+                ids=review_channel_ids,
             ),
             policy(
                 AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES,
