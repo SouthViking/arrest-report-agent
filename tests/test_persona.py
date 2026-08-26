@@ -25,6 +25,9 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
     assert profile.presence.frequencies == "📻 Listando frecuencias"
+    assert profile.presence.manual_index == "📑 Revisando el índice"
+    assert profile.presence.manual_search == "🔎 Buscando en el manual"
+    assert profile.presence.manual_read == "📖 Leyendo el manual"
     assert "Sargento de guardia" in profile.discord.bio
     role_info = profile.messages.interface.role_requests
     assert len(role_info.info_rules.splitlines()) == 2
@@ -38,16 +41,28 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
 
     assert profile.id == "roy_velazco"
     assert profile.schema_version == 45
-    assert profile.revision == 59
+    assert profile.revision == 60
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
     assert profile.presence.frequencies == "📻 Listando frecuencias"
+    assert profile.presence.manual_index == "📑 Revisando el índice"
+    assert profile.presence.manual_search == "🔎 Buscando en el manual"
+    assert profile.presence.manual_read == "📖 Leyendo el manual"
     assert profile.discord.avatar == "assets/roy-velazco-skin-avatar.png"
     assert "que el juez haga el resto" in profile.discord.bio
     assert any("chilenismos" in instruction for instruction in profile.personality.communication.conversation)
+    assert any(
+        "frases truncadas" in instruction
+        for instruction in profile.personality.communication.conversation
+    )
+    assert any(
+        "MAYÚSCULAS" in instruction
+        for instruction in profile.personality.communication.conversation
+    )
     assert any("veredicto" in instruction for instruction in profile.personality.communication.review_summary)
     assert any("hallazgos técnicos" in instruction for instruction in profile.personality.boundaries)
+    assert any("resultados de tools" in instruction for instruction in profile.personality.boundaries)
     assert len(profile.personality.examples.conversation) == 6
     assert any("saco wea" in example.assistant for example in profile.personality.examples.conversation)
     assert any(

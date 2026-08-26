@@ -23,6 +23,7 @@ from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.knowledge import (
     ChargeCatalog,
     ChargeCatalogProvider,
+    ManualCatalog,
     RadioCodeCatalog,
     ReportGuide,
     as_charge_catalog_provider,
@@ -63,6 +64,7 @@ class DatabaseConfigProvider:
         sarp_client: SarpClient | None = None,
         faction_directory: FactionDirectoryService | None = None,
         evidence_bag_lookup: EvidenceBagLookup | None = None,
+        manual_catalog: ManualCatalog | None = None,
     ) -> None:
         self.client = client
         self.repository = repository
@@ -70,6 +72,7 @@ class DatabaseConfigProvider:
         self.catalog_provider = as_charge_catalog_provider(catalog)
         self.guide = guide
         self.radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
+        self.manual_catalog = manual_catalog or ManualCatalog.load_default()
         self.model_catalog = model_catalog
         self.sarp_client = sarp_client
         self.faction_directory = faction_directory
@@ -177,6 +180,7 @@ class DatabaseConfigProvider:
                 arrest_lookup,
                 evidence_bag_lookup=(self.evidence_bag_lookup if faction_id is not None else None),
                 faction_frequency_lookup=faction_frequency_lookup,
+                manual_catalog=self.manual_catalog,
             )
             bundle = GuildRuntimeBundle(
                 snapshot=snapshot,

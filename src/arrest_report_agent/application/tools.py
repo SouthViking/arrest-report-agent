@@ -26,6 +26,9 @@ from arrest_report_agent.knowledge import (
     ChargeCatalogProvider,
     ChargeMatchMode,
     ChargeSearchField,
+    ManualCatalog,
+    ManualMatchMode,
+    ManualReadDirection,
     RadioCodeCatalog,
     RadioCodeCategory,
     RadioMatchMode,
@@ -128,6 +131,9 @@ MAX_ARREST_SEARCH_CALLS_PER_RUN = 3
 MAX_ARREST_DETAIL_CALLS_PER_RUN = 3
 MAX_EVIDENCE_BAG_CALLS_PER_RUN = 3
 MAX_FACTION_FREQUENCY_CALLS_PER_RUN = 2
+MAX_MANUAL_LIST_CALLS_PER_RUN = 3
+MAX_MANUAL_SEARCH_CALLS_PER_RUN = 5
+MAX_MANUAL_READ_CALLS_PER_RUN = 6
 type NativeAttachmentOutput = ToolOutputText | ToolOutputImage | ToolOutputFileContent
 
 
@@ -174,10 +180,12 @@ def build_agent_tools(
     evidence_bag_lookup: EvidenceBagLookup | None = None,
     faction_frequency_lookup: FactionFrequencyLookup | None = None,
     report_channel_ids: frozenset[int] = frozenset(),
+    manual_catalog: ManualCatalog | None = None,
 ) -> list[object]:
     """Create tools bound to immutable knowledge snapshots."""
 
     resolved_radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
+    resolved_manual_catalog = manual_catalog or ManualCatalog.load_default()
     charge_catalog_provider = as_charge_catalog_provider(catalog)
 
     def charge_catalog_for(run_context: ReviewRunContext) -> ChargeCatalog:
@@ -189,7 +197,7 @@ def build_agent_tools(
     async def get_report_guide(
         ctx: RunContextWrapper[ReviewRunContext], sections: list[str] | None = None
     ) -> dict[str, object]:
-        """Read selected manual sections. Omit sections to get the compact overview.
+        """Read the internal report-review guide. Omit sections for its compact overview.
 
         Args:
             sections: Names from available_sections returned by this tool.
@@ -243,6 +251,125 @@ def build_agent_tools(
             term_match=term_match,
             fuzzy=fuzzy,
             limit=limit,
+        )
+
+    @function_tool
+    async def list_manual_sections(
+        ctx: RunContextWrapper[ReviewRunContext],
+        parent_id: Annotated[str | None, Field(min_length=1, max_length=100)] = None,
+        include_descendants: bool = False,
+        query: Annotated[str | None, Field(min_length=1, max_length=100)] = None,
+        level: Annotated[int | None, Field(ge=1, le=6)] = None,
+        offset: Annotated[int, Field(ge=0)] = 0,
+        limit: Annotated[int, Field(ge=1, le=50)] = 25,
+    ) -> dict[str, object]:
+        """Explore the faction manual hierarchy without loading section bodies.
+
+        Use this to discover top-level areas, inspect the children of a known section or find
+        titles by words. Omit `parent_id` and `query` to list the top-level index.
+
+        Args:
+            parent_id: Optional section ID whose direct children should be listed.
+            include_descendants: Include every nested child under parent_id instead of direct ones.
+            query: Optional accent-insensitive words matched against titles and their paths.
+            level: Optional heading level from one to six.
+            offset: Result offset for continuing a previous listing with identical filters.
+            limit: Maximum compact section entries, from one to fifty.
+        """
+
+        run_context = ctx.context
+        if run_context.manual_list_calls >= MAX_MANUAL_LIST_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_manual_list_limit_reached"}
+        run_context.manual_list_calls += 1
+        await _set_activity(run_context, AgentActivity.MANUAL_INDEX)
+        return resolved_manual_catalog.list_sections(
+            parent_id=parent_id,
+            include_descendants=include_descendants,
+            query=query,
+            level=level,
+            offset=offset,
+            limit=limit,
+        )
+
+    @function_tool
+    async def search_manual(
+        ctx: RunContextWrapper[ReviewRunContext],
+        queries: Annotated[
+            list[Annotated[str, Field(min_length=1, max_length=160)]],
+            Field(min_length=1, max_length=5),
+        ],
+        section_ids: Annotated[
+            list[Annotated[str, Field(min_length=1, max_length=100)]] | None,
+            Field(min_length=1, max_length=10),
+        ] = None,
+        include_descendants: bool = True,
+        match_mode: ManualMatchMode = "all",
+        fuzzy: bool = False,
+        offset: Annotated[int, Field(ge=0)] = 0,
+        limit: Annotated[int, Field(ge=1, le=30)] = 10,
+    ) -> dict[str, object]:
+        """Search the complete faction manual with reformulatable, bounded queries.
+
+        Each query is evaluated independently and matching sections are combined. Search is
+        accent- and case-insensitive. Results contain compact excerpts and `match_offset` values
+        that can be passed to `read_manual` to inspect nearby content.
+
+        Args:
+            queries: One to five phrases or groups of terms to search together.
+            section_ids: Optional section scopes discovered with list_manual_sections.
+            include_descendants: Search nested sections beneath each selected section ID.
+            match_mode: Require all words, allow any word, or require the complete phrase.
+            fuzzy: Allow conservative typo matching for terms of four or more characters.
+            offset: Result offset for continuing a previous search with identical filters.
+            limit: Maximum matching sections, from one to thirty.
+        """
+
+        run_context = ctx.context
+        if run_context.manual_search_calls >= MAX_MANUAL_SEARCH_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_manual_search_limit_reached"}
+        run_context.manual_search_calls += 1
+        await _set_activity(run_context, AgentActivity.MANUAL_SEARCH)
+        return resolved_manual_catalog.search(
+            queries,
+            section_ids=section_ids,
+            include_descendants=include_descendants,
+            match_mode=match_mode,
+            fuzzy=fuzzy,
+            offset=offset,
+            limit=limit,
+        )
+
+    @function_tool
+    async def read_manual(
+        ctx: RunContextWrapper[ReviewRunContext],
+        section_id: Annotated[str, Field(min_length=1, max_length=100)],
+        offset: Annotated[int, Field(ge=0)] = 0,
+        max_chars: Annotated[int, Field(ge=500, le=6_000)] = 3_000,
+        direction: ManualReadDirection = "forward",
+    ) -> dict[str, object]:
+        """Read or scroll one faction-manual section from a known character offset.
+
+        Use a section ID from list_manual_sections or search_manual. Continue forward with the
+        returned `next_offset`, move backward with `previous_offset`, and inspect `children` when
+        a parent section delegates its content to nested headings.
+
+        Args:
+            section_id: Stable section ID returned by another manual tool.
+            offset: Character position inside the selected section.
+            max_chars: Maximum text returned, between 500 and 6000 characters.
+            direction: Read forward from offset or backward ending at offset.
+        """
+
+        run_context = ctx.context
+        if run_context.manual_read_calls >= MAX_MANUAL_READ_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_manual_read_limit_reached"}
+        run_context.manual_read_calls += 1
+        await _set_activity(run_context, AgentActivity.MANUAL_READ)
+        return resolved_manual_catalog.read(
+            section_id,
+            offset=offset,
+            max_chars=max_chars,
+            direction=direction,
         )
 
     @function_tool
@@ -1249,8 +1376,14 @@ def build_agent_tools(
         report_tools.insert(0, get_current_arrest_report)
     if access_level is AgentAccessLevel.REPORT_OWNER:
         return [*common_tools, *report_tools]
+    manual_tools = [
+        list_manual_sections,
+        search_manual,
+        read_manual,
+    ]
     full_tools: list[object] = [
         *common_tools,
+        *manual_tools,
         list_guild_roles,
         find_guild_members,
         find_channel_members,

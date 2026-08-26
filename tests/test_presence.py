@@ -34,6 +34,9 @@ async def test_presence_uses_global_priority_across_concurrent_interactions() ->
         idle_text="⭐ De guardia",
         conversation_text="📻 Atendiendo consultas",
         knowledge_text="📚 Consultando manual y códigos",
+        manual_index_text="📑 Revisando el índice",
+        manual_search_text="🔎 Buscando en el manual",
+        manual_read_text="📖 Leyendo el manual",
         frequencies_text="📻 Listando frecuencias",
         personnel_text="👥 Consultando personal",
         records_text="🗃️ Consultando registros",
@@ -53,6 +56,12 @@ async def test_presence_uses_global_priority_across_concurrent_interactions() ->
         assert presence.mode is PresenceMode.PERSONNEL
         await first.transition(AgentActivity.KNOWLEDGE)
         assert presence.mode is PresenceMode.KNOWLEDGE
+        await first.transition(AgentActivity.MANUAL_INDEX)
+        assert presence.mode is PresenceMode.MANUAL_INDEX
+        await first.transition(AgentActivity.MANUAL_SEARCH)
+        assert presence.mode is PresenceMode.MANUAL_SEARCH
+        await first.transition(AgentActivity.MANUAL_READ)
+        assert presence.mode is PresenceMode.MANUAL_READ
         await first.transition(AgentActivity.FREQUENCIES)
         assert presence.mode is PresenceMode.FREQUENCIES
         async with presence.handling() as second:
@@ -77,6 +86,9 @@ async def test_presence_uses_global_priority_across_concurrent_interactions() ->
         "📻 Atendiendo consultas",
         "👥 Consultando personal",
         "📚 Consultando manual y códigos",
+        "📑 Revisando el índice",
+        "🔎 Buscando en el manual",
+        "📖 Leyendo el manual",
         "📻 Listando frecuencias",
         "📂 Revisando expedientes",
         "🖼️ Analizando evidencias",
@@ -96,6 +108,9 @@ async def test_presence_failure_never_blocks_or_leaks_active_review_count() -> N
         idle_text="⭐ De guardia",
         conversation_text="📻 Atendiendo consultas",
         knowledge_text="📚 Consultando manual y códigos",
+        manual_index_text="📑 Revisando el índice",
+        manual_search_text="🔎 Buscando en el manual",
+        manual_read_text="📖 Leyendo el manual",
         frequencies_text="📻 Listando frecuencias",
         personnel_text="👥 Consultando personal",
         records_text="🗃️ Consultando registros",

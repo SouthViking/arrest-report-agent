@@ -118,6 +118,15 @@ class PersonaPresence(FrozenPersonaModel):
     idle: str = Field(min_length=1, max_length=128)
     conversation: str = Field(min_length=1, max_length=128)
     knowledge: str = Field(min_length=1, max_length=128)
+    manual_index: str = Field(
+        default="📑 Revisando el índice", min_length=1, max_length=128
+    )
+    manual_search: str = Field(
+        default="🔎 Buscando en el manual", min_length=1, max_length=128
+    )
+    manual_read: str = Field(
+        default="📖 Leyendo el manual", min_length=1, max_length=128
+    )
     frequencies: str = Field(default="📻 Listando frecuencias", min_length=1, max_length=128)
     personnel: str = Field(min_length=1, max_length=128)
     records: str = Field(min_length=1, max_length=128)

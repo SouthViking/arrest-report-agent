@@ -24,6 +24,7 @@ from arrest_report_agent.domain import AgentAccessLevel, ReviewCase
 from arrest_report_agent.knowledge import (
     ChargeCatalog,
     ChargeCatalogProvider,
+    ManualCatalog,
     RadioCodeCatalog,
     ReportGuide,
     as_charge_catalog_provider,
@@ -55,6 +56,7 @@ class ReviewService:
         arrest_report_lookup: ArrestReportLookup | None = None,
         evidence_bag_lookup: EvidenceBagLookup | None = None,
         faction_frequency_lookup: FactionFrequencyLookup | None = None,
+        manual_catalog: ManualCatalog | None = None,
     ) -> None:
         self.settings = settings
         self.catalog_provider = as_charge_catalog_provider(catalog)
@@ -62,6 +64,7 @@ class ReviewService:
         self.model = model
         self.persona = persona
         self.radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
+        self.manual_catalog = manual_catalog or ManualCatalog.load_default()
         tools = build_agent_tools(
             self.catalog_provider,
             guide,
@@ -77,6 +80,7 @@ class ReviewService:
             evidence_bag_lookup=evidence_bag_lookup,
             faction_frequency_lookup=faction_frequency_lookup,
             report_channel_ids=settings.report_channel_allowlist.ids or frozenset(),
+            manual_catalog=self.manual_catalog,
         )
         owner_tools = build_agent_tools(
             self.catalog_provider,
@@ -93,6 +97,7 @@ class ReviewService:
             evidence_bag_lookup=None,
             faction_frequency_lookup=None,
             report_channel_ids=settings.report_channel_allowlist.ids or frozenset(),
+            manual_catalog=self.manual_catalog,
         )
         scope_guardrail = build_scope_guardrail(settings, model)
         self.hooks = ReviewLifecycleHooks()

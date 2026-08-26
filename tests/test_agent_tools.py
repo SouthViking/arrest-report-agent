@@ -1575,6 +1575,126 @@ async def test_knowledge_tools_promote_the_interaction_activity() -> None:
 
 
 @pytest.mark.asyncio
+async def test_manual_tools_navigate_search_and_read_with_distinct_activities() -> None:
+    activity = ActivityRecorder()
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=2,
+        root_message_id=3,
+        trigger_message_id=3,
+        requester_user_id=4,
+        interaction_mode=InteractionMode.INITIAL_REVIEW,
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=FakePublisher(),
+        attempt=1,
+        activity=activity,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+
+    list_arguments = json.dumps({"parent_id": "053-comunicacion", "limit": 10})
+    listed = await tools["list_manual_sections"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="list_manual_sections",
+            tool_call_id="call-manual-index",
+            tool_arguments=list_arguments,
+        ),
+        list_arguments,
+    )
+    search_arguments = json.dumps(
+        {
+            "queries": ["pérdida de observación"],
+            "section_ids": ["053-comunicacion"],
+            "match_mode": "all",
+        }
+    )
+    searched = await tools["search_manual"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="search_manual",
+            tool_call_id="call-manual-search",
+            tool_arguments=search_arguments,
+        ),
+        search_arguments,
+    )
+    section_id = searched["results"][0]["section_id"]
+    read_arguments = json.dumps({"section_id": section_id, "max_chars": 500})
+    read = await tools["read_manual"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="read_manual",
+            tool_call_id="call-manual-read",
+            tool_arguments=read_arguments,
+        ),
+        read_arguments,
+    )
+
+    assert listed["matched"] == 6
+    assert section_id == "069-perdida-de-obs-en-persecucion"
+    assert read["text"]
+    assert activity.activities == [
+        AgentActivity.MANUAL_INDEX,
+        AgentActivity.MANUAL_SEARCH,
+        AgentActivity.MANUAL_READ,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_manual_tools_are_full_access_only_and_enforce_per_run_limits() -> None:
+    full_tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+    owner_names = {
+        tool.name
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+            access_level=AgentAccessLevel.REPORT_OWNER,
+        )
+    }
+    assert {"list_manual_sections", "search_manual", "read_manual"}.isdisjoint(owner_names)
+
+    run_context = ReviewRunContext(
+        case=ReviewCase(
+            guild_id=1,
+            parent_channel_id=2,
+            channel_id=2,
+            root_message_id=3,
+            trigger_message_id=3,
+            requester_user_id=4,
+            interaction_mode=InteractionMode.INITIAL_REVIEW,
+            messages=[],
+            attachments=[],
+        ),
+        publisher=FakePublisher(),
+        attempt=1,
+    )
+    arguments = json.dumps({})
+    result: dict[str, object] = {}
+    for index in range(4):
+        result = await full_tools["list_manual_sections"].on_invoke_tool(
+            ToolContext(
+                context=run_context,
+                tool_name="list_manual_sections",
+                tool_call_id=f"manual-list-{index}",
+                tool_arguments=arguments,
+            ),
+            arguments,
+        )
+
+    assert result == {"ok": False, "error": "run_manual_list_limit_reached"}
+
+
+@pytest.mark.asyncio
 async def test_charge_tools_keep_the_catalog_snapshot_pinned_to_the_agent_run() -> None:
     first = ChargeCatalogSnapshot(_catalog(901, "Catálogo inicial"), ChargeCatalogSource.SARP)
     second = ChargeCatalogSnapshot(_catalog(902, "Catálogo nuevo"), ChargeCatalogSource.SARP)

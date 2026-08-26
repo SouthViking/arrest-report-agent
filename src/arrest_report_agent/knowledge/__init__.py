@@ -9,6 +9,13 @@ from .catalog_provider import (
     as_charge_catalog_provider,
 )
 from .guide import ReportGuide
+from .manual import (
+    ManualCatalog,
+    ManualMatchMode,
+    ManualPayload,
+    ManualReadDirection,
+    ManualSection,
+)
 from .radio import (
     RadioCodeCatalog,
     RadioCodeCategory,
@@ -24,6 +31,11 @@ __all__ = [
     "ChargeCatalogSource",
     "ChargeMatchMode",
     "ChargeSearchField",
+    "ManualCatalog",
+    "ManualMatchMode",
+    "ManualPayload",
+    "ManualReadDirection",
+    "ManualSection",
     "RadioCodeCatalog",
     "RadioCodeCategory",
     "RadioMatchMode",

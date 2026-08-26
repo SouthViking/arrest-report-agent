@@ -1,0 +1,1496 @@
+
+LOS SANTOS COUNTY SHERIFF’S DEPARTMENT
+
+MANUAL DE POLÍTICAS Y PROCEDIMIENTOS
+
+
+
+I.- SOBRE EL ROL EN LA FACCIÓN
+CUENTAS SECUNDARIAS
+INACTIVIDAD O AUSENCIA
+PERSONAJES
+LABORATORIO O USO DE COMANDOS
+DEPUTY GANGS
+CONSEJOS
+II.- POLÍTICA DEL DEPARTAMENTO
+POLÍTICA DEL USO DE LA FUERZA
+FUERZA NO RAZONABLE Y PROHIBICIONES
+USO DE ARMAS MENOS LETALES
+RESPETO A LOS PRINCIPIOS CONSTITUCIONALES
+III.- PROCEDIMIENTOS
+RESPECTO A TODA SITUACIÓN
+PERSECUCIONES
+USO DE BANDA DE PINCHOS
+TÁCTICAS OFENSIVAS
+MUTUAL AID
+INCIDENTES CON DISPAROS O TIROTEOS
+PERSONAS HERIDAS
+IFAK
+USO DEL MEGÁFONO (P.A. SYSTEM).
+PARADA DE TRÁFICO
+PARADA DE TRÁFICO FORZOSA
+ACTIVIDAD DE PANDILLAS
+CITACIONES (MULTAS)
+NEGACIÓN A FIRMAR CITACIÓN
+ATRINCHERAMIENTOS
+PELEAS, DISTURBIOS
+SOSPECHOSOS QUE SE PONEN EN RIESGO
+ARRESTOS
+EVIDENCIAS
+ÓRDENES DE ARRESTO Y ALLANAMIENTO
+REVISIÓN DE TELÉFONO CELULAR
+SOSPECHOSOS INDOCUMENTADOS
+EMBARGO DE VEHÍCULOS
+TRASLADO DE ESTACIÓN
+ACCIDENTES DE TRÁFICO
+USO DE GRÚAS
+TRASLADO EN AMBULANCIA
+PEDIDO DE UNIDAD K9
+ACCIONES DISCIPLINARIAS
+CAMBIOS DE NOMBRE Y CHARACTER KILLS
+SOLICITUD DE SEB PARA SITUACIONES DE ALTO RIESGO
+PROTOCOLOS DE LIBERTAD CONDICIONAL
+ARMAMENTO Y SU USO
+ALERTAS TÁCTICAS
+DESPLIEGUE DE UNIDADES AÉREAS
+DESPLIEGUE DE UNIDADES MOTORIZADAS
+DENUNCIAS DE LS CRIME STOPPERS
+CUENTAS SECUNDARIAS E IDENTIDADES PARA LA FACCIÓN
+REGLAS DEL TEAMSPEAK
+IV.- COMUNICACIÓN
+CÓDIGOS RADIALES E INDICATIVOS
+CALLSIGNS
+JERGAS RADIALES Y MODISMOS UTILIZADOS COMÚNMENTE
+CALLSIGNS DE DIVISIONES
+CÓDIGOS RADIALES
+USOS RADIALES
+PALABRAS PROHIBIDAS
+CONCEPTOS Y  USO DE PARCHE
+RESPONDIENDO/RESPUESTAS AL LLEGAR A LA ESCENA (TAMBIÉN PUEDE INCLUIR TIEMPO ESTIMADO DE RESPUESTA)
+911
+LIBRE DESPUÉS DE ASIGNACIÓN
+PARADA DE TRÁFICO
+PARADA FORZOSA (FELONY STOP/FRANK STOP)
+SOSPECHOSO EN CUSTODIA (NO TRASLADO)
+PERSECUCIÓN
+PÉRDIDA DE OBS. EN PERSECUCIÓN
+APOYO (NO EMERGENCIA)
+ASISTENCIA (EMERGENCIA)
+DISTURBIOS
+SITUACIÓN CONTROLADA, NO SE PRECISA MÁS APOYO
+DISPAROS DE DEPUTIES (998)
+DISPAROS DE UN TERCERO
+EMISIÓN DE CRIMEN
+PIES Y MILLAS
+TRASLADO DE DETENIDOS
+CONTACTAR VÍA TELEFÓNICA
+SOLICITUD DE UNIDAD K9
+SOLICITUD DE AMBULANCIA
+SOLICITUD DE GRÚA
+SOLICITUD DE GRÚA AL DEPÓSITO
+V.- ORGANIZACIÓN
+JERARQUÍA
+VI.- GUÍAS
+GUÍA PARA NUEVOS MIEMBROS
+FIELD TRAINING PROGRAM
+GUÍA/IP DE TEAMSPEAK
+GUÍA PARA ESCRIBIR REPORTES
+
+I.- SOBRE EL ROL EN LA FACCIÓN
+CUENTAS SECUNDARIAS
+
+Las cuentas secundarias están permitidas, sin embargo, los Detectives de la facción no podrán tener  cuentas secundarias ilegales, y también estará prohibido tener una cuenta secundaria en otra facción gubernamental del mismo tipo (por ejemplo, LSPD y LSSD).
+
+
+INACTIVIDAD O AUSENCIA
+
+Dentro de la facción, mantenemos una política respecto a la inactividad o ausencia. Los miembros tienen el derecho de presentar una ausencia de máximo 7 días (14 en caso de que lo haya hablado con algún líder) cada mes y medio. La inactividad injustificada, que tomará lugar luego de no conectar por 14 días sin avisar anteriormente, será castigada con la expulsión sin derecho al rol de retired (que da pie al reintegro). En caso de que la ausencia deba ser de más de 14 días, el miembro deberá pedir el retired y volver cuando le sea posible.
+
+Ingresar para resetear el contador de días y burlar el límite de días sin conectividad será sancionado con expulsión directa.
+
+
+PERSONAJES
+
+Los miembros de la facción deberán esforzarse en poder entregar un personaje lo más humano posible, junto a esto, lo más parecido a un Deputy Sheriff como en la realidad, para eso es este apartado.
+
+Un Deputy Sheriff que está asignado a patrullaje dista mucho en su experiencia de un oficial de policía de LAPD, por ejemplo. Cada Deputy realiza un tiempo en la unidad de custodia antes de realizar el curso básico de patrullaje. Por esto, suelen tener más tacto con los delincuentes y tener más cultura callejera.
+
+Cada personaje de la facción deberá respetar su interpretación efectuada en una de las instituciones de custodia del condado y el proceso posterior a esto (Patrol School y Field Training Program), lo que llevaría alrededor de 1 o 2 años.
+
+Algunas de las instituciones de custodia son:
+Men’s Central Jail
+Twin Towers Correctional Facility
+Century Regional Detention Facility
+LAC/USC Medical Center Jail Wards
+Mira Loma Detention Facility
+North County Correctional Facility
+Pitchess Detention Center - North Facility.
+
+Se valorará enormemente que los personajes tengan defectos y virtudes, que no sean hermosos ni con muchas capacidades físicas al nivel de un operador táctico de élite, por no decir rambo.
+
+Hablen humanamente desde sus personajes, piensen antes de actuar y valoren sus vidas e integridad física, a fin de cuenta, estamos en un servidor de rol y lo que queremos es tener un grato momento junto a los demás personajes, recuerden que son oficiales que aplican la ley y no jueces, ustedes jamás deberán tratar como culpables a cada persona con quien están tratando (esto no exime la personalidad que tengan sus personajes IC), tómense el tiempo para desarrollar a sus personajes, roleen con calma y dejenle ver a la comunidad que son USTEDES quienes quieren rolear con ellos, que no quieren estar todo el día dando vueltas en una patrulla, busquen y exploten cada oportunidad de rol.
+
+
+LABORATORIO O USO DE COMANDOS
+
+El servidor nos ofrece múltiples herramientas para poder indagar en ciertos crímenes y desarrollar investigaciones en base a evidencias o pruebas. Pero, a pesar de contar con esos sistemas, alentamos a usarlos de forma responsable y evitar usarlos para ganar todas las situaciones donde no hay un panorama claro de qué ocurrió. No es lo mismo usar el sistema para buscar las huellas de un arma homicida y dar con el asesino a usar el sistema para encontrar a la persona que tiró un porro en la calle a través de las huellas del mismo.
+
+En resumidas cuentas, usen los sistemas con responsabilidad.
+
+
+DEPUTY GANGS
+
+Dos de los recientes undersheriffs en el departamento fueron identificados por tener tatuajes respectivos a las Deputy Gangs: Paul Tanaka (2011-2013) y Tim Murakami, deputy commissioner bajo Alex Villanueva en el 2022.
+
+Todas estas acusaciones han llevado a que el departamento esté en el ojo del huracán enfrentando distintas acusaciones sobre estos temas, llegando incluso a que el FBI esté investigando el departamento y que el antiguo sheriff, Alex Villanueva, tenga que testificar sobre las deputy gangs.
+
+Robert Luna, su actual sheriff, presentó en su campaña la idea de mitigar y contrarrestar las casi 24 Deputy Gangs que existen en el departamento, lo que lo llevó a crear "The Office of Constitutional Policing" liderada por Eileen Decker. Decker sirvió en el Attorney General de California desde 2015 hasta 2017, fue Deputy Mayor de Homeland Security and Public Safety for the City of Los Angeles por casi seis años. Se le asignó este importante rol a Decker para poder cumplir su palabra o las promesas de su campaña. El trabajo para lograr esto no ha sido muy efectivo hasta ahora, sin embargo, se encuentran trabajando para que la comunidad vuelva a tener una buena imagen sobre ellos.
+
+Desde 2016 se conoce una pandilla de ayudantes denominada Executioners, quienes operan en la estación de la cual nos inspiramos para interpretar en la facción, Compton Station. Los miembros llevan tatuado un esqueleto con un casco nazi. Se tiene el rumor de que los tatuajes se entregan cuando uno de los ayudantes mata a un civil y se hacen en fiestas. Es una clica bastante limitada, esto se debe a que no permiten personas de tez morena y las mujeres no pueden ser miembros. Executioners le ha costado al condado de Los Ángeles alrededor de 7 millones de dólares y la cifra de asesinatos está en aumento todavía.
+
+Estos escándalos tienen en el ojo del huracán al departamento y a la estación inclusive sumándole el desprestigio que han generado por parte de la comunidad. Será algo que se verá reflejado en el desarrollo de la facción InGame.
+
+Links de interés:
+https://www.latimes.com/california/story/2023-12-10/after-a-year-in-office-l-a-county-sheriff-talks-deputy-gangs-jail-deaths-overdoses
+https://lasd.org/tag/deputy-gangs/
+https://www.forbes.com/sites/zacharyfolk/2023/12/26/what-to-know-about-the-la-sheriffs-departments-police-gangs-as-ex-sheriff-prepares-to-testify/?sh=61afe5ef13c8
+https://knock-la.com/the-compton-executioners-andres-guardado/
+
+
+CONSEJOS
+
+Recuerden que están en la facción para dar el mejor rol posible al servidor. Por este motivo, eviten las conductas de “jugar para ganar” y aquellas que apunten a acelerar las situaciones de rol para poder ir a otra persecución, ya que estas actitudes serán sancionadas de forma grave.
+Eviten utilizar /me que los sobre-expongan, o que inciten al metagaming. Es decir, utilícenlo únicamente para representar acciones. Un ejemplo erróneo sería “/me lo mira mal porque odia a los negros” o “/me sabe que no le gusta”. Un ejemplo bueno podría ser “/me frunce el ceño” tras X comentario u opinión. Esto incluye también el comportamiento de sus personajes con los otros, no se sobre-expongan, sus personajes tienen familias que los esperan a que salgan con vida y en buena salud  de cada patrullaje, si no es tu esposa, la novia o los hermanos, serán los padres, los abuelos, etc.
+En relación al punto anterior, no sacrifiquen realismo en ninguna situación, no hagan cosas irreales sólo para atrapar a un delincuente, roleen el salario y las propiedades de sus personajes de forma realista y establezcan eventos o situaciones que han ocurrido a sus personajes en el ámbito laboral cuando sea posible y tenga sentido.
+No se desesperen por escribir rápido, escriban bien y usen la puntuación bien, estamos en un servidor de rol totalmente enfocado en el texto. Sacrifiquen la chance de sobrevivir a un tiroteo y escriban correctamente las cosas, nuevamente, no jueguen para ganar.
+Todos los actos tienen consecuencia, antes de hacer cualquier cosa piensen lo siguiente: ¿Mi personaje arriesgaría su vida, salario, profesión o libertades a la hora de cometer un acto? doten a sus personajes de una historia, un contexto y de lazos sociales para encontrar la respuesta a esto.
+La palabra 'negro' únicamente se usa como traducción directa de "black" y no de "nigger", solo se usa para describir a un sospechoso a través del radio, o a un compañero. Se prohíbe utilizarlo para referirse a prójimos en señal de un racismo a menudo banal e incoherente.
+
+
+II.- POLÍTICA DEL DEPARTAMENTO
+
+La función de este Departamento implica la responsabilidad de proteger la vida y la propiedad y hacer cumplir la ley. Con este fin, todos los empleados tienen la obligación para con el público al que servimos de desarrollar y mantener los más altos estándares éticos tanto en la conducta personal como en la oficial. La honestidad y la integridad están en la vanguardia de las normas éticas del Departamento. Estas elevadas normas para todos los miembros del Departamento, tanto los jurados como los profesionales, están en consonancia con nuestro deber afirmativo de proteger y defender la Constitución de los Estados Unidos y la constitución del estado de California.
+
+Todos los miembros del Departamento serán responsables de cualquier conducta en servicio o fuera de servicio que tenga una tendencia a afectar negativamente, disminuir o destruir el respeto y la confianza del público en el Departamento, o sus miembros. La conducta impropia también incluye cualquier conducta que desacredite al departamento o a cualquiera de sus miembros. Los miembros del Departamento también serán responsables de sus declaraciones, escritos, conducta y representaciones visuales, incluidas las comunicaciones electrónicas y en la web, cuando entren en conflicto con nuestros Valores Fundamentales, nuestra Misión o nuestro Credo y el personal pueda ser identificado razonablemente como miembros del Departamento.
+
+Se considerará que el personal que cause una vergüenza o un daño indebido a la reputación del Departamento y/o que afecte la confianza del público en el mismo ha violado esta política y estará sujeto a medidas disciplinarias que pueden incluir el despido.
+
+POLÍTICA DEL USO DE LA FUERZA
+
+Los miembros del Departamento están autorizados a usar sólo la cantidad de fuerza que sea consistente con la política del departamento y objetivamente razonable para llevar a cabo sus deberes. “Objetivamente Razonable” viene a significar que los miembros del departamento deben evaluar cada situación que requiera el uso de la fuerza a la luz de las circunstancias conocidas, incluyendo, pero no limitado a: la gravedad del delito en cuestión, si el sospechoso representa una amenaza inmediata a la seguridad del miembro del departamento o de otros, y si el sospechoso se está resistiendo activamente, para determinar la necesidad y el nivel apropiado de la fuerza.
+
+Los miembros del departamento están autorizados a hacer uso de la fuerza letal en defensa propia o de terceros, sólo cuando crean razonablemente que la muerte o las lesiones físicas graves están a punto de ser infringidas a ellos mismos o a otros.
+Los miembros del departamento pueden utilizar la fuerza letal para efectuar el arresto o impedir la evitar la fuga de un delincuente que huye sólo cuando tengan una causa probable para creer que el sospechoso representa una amenaza significativa de muerte o de lesiones físicas graves para el deputy o a otra(s) persona(s). Si es posible, los deputies se identificarán y deberán declarar su intención de disparar antes de hacerlo, a un delincuente que huye.
+FUERZA NO RAZONABLE Y PROHIBICIONES
+
+Los siguientes usos de la fuerza están prohibidos a menos que las circunstancias justifiquen el uso de la fuerza letal:
+
+Golpear de forma deliberada o imprudente la cabeza de una persona contra un objeto duro y fijo, por ejemplo: calzada, suelo de hormigón, paredes, barrotes de la cárcel, etc.)
+Desde una posición erguida, darle una patada en la cabeza a un individuo con el pie cuando la persona yace acostada en el suelo.
+Dar un rodillazo en la cabeza a una persona, provocando deliberada o imprudentemente que su cabeza golpee el suelo u otro objeto duro y fijo.
+
+
+USO DE ARMAS MENOS LETALES
+
+El uso de armas menos letales como el taser o la beanbag será limitado a sospechosos que están resistiéndose activamente al arresto y presenten una amenaza para el Deputy o para terceros. Para tener en cuenta:
+El taser puede ser utilizado para aturdir a un sospechoso una mayor cantidad de tiempo, pero solo a distancias cortas. No debe ser utilizado simplemente para quien no siga órdenes, sino que también, es importante que sea una amenaza.
+
+La beanbag puede ser utilizada bajo las mismas circunstancias que el taser, pero la diferencia es que tiene un mayor alcance (cuatro veces más) pero a cambio, no aturde al sospechoso, sino que lo inmoviliza. Ante un sospechoso armado con un arma blanca, es preferible utilizar el beanbag antes que el taser.
+
+
+RESPETO A LOS PRINCIPIOS CONSTITUCIONALES
+
+Los miembros del Departamento deberán restringir la esfera de su actuación hasta los límites establecidos por las leyes estatales, federales y principalmente por las normas constitucionales de los Estados Unidos. Ya que estas proporcionan importantes protecciones para los ciudadanos.
+
+Los miembros del Departamento deberán tener en especial consideración las siguientes tres enmiendas a la Constitución en el cumplimiento del servicio.
+
+Primera enmienda: Dispone que el Congreso no promulgará ninguna ley respecto a la adopción de una ley no prohíba su libre ejercicio. Protege la libertad de expresión, de prensa, de reunión y el derecho a solicitar al gobierno la reparación de daños.
+Esta enmienda permite a los ciudadanos tener la libertad de acción frente a los miembros del Departamento, de aquí nace la posibilidad de que civiles puedan documentar u opinar sobre un procedimiento policial mientras no intervengan en él. Por lo demás, es deber de los miembros del Departamento velar porque estos Derechos no sean vulnerados y los ciudadanos puedan gozar de ellos.
+
+Cuarta Enmienda: Protege a los ciudadanos de registros e incautaciones arbitrarias o poco razonables. El gobierno no puede llevar a cabo registros sin una orden y estas órdenes deben ser decretadas por un juez bajo la fundamentación de una causa probable.
+
+Esta enmienda es la que más relevancia debe tener en el día a día de un miembro del Departamento, ya que impone una limitación clara a las facultades policiales.
+
+Existe causa probable cuando un agente de los Estados Unidos tiene la creencia razonable, de tal nivel que podría JURAR que una persona ha cometido un delito (para los arrestos) o que se ha cometido un delito y en lugar de ser poco probable, es muy probable que las pruebas de tal delito se encuentren en el lugar que se va a registrar (para los registros). La causa probable únicamente es definida como existente por un Juez.
+
+Para que exista la causa probable se requiere tener información razonablemente confiable que sea suficiente para que alguien con suficiente prudencia crea que se ha cometido un delito. El Fiscal no autorizará un registro extenso por una mera creencia o rumor sin fundamento.
+
+No debe confundirse causa probable con sospecha razonable, ya que esta significa un estándar de creencia más bajo que la causa probable, pero más alto que la mera intuición o especulación. Bajo la sospecha razonable se entiende que un agente de los Estados Unidos tiene motivos fundamentados para creer que una persona realizó, está realizando o realizará una actividad delictiva y podrá realizar detenciones breves a personas y vehículos, junto con realizar registros menores basados en el delito que se sospecha.
+
+En resumen:
+
+Sospecha razonable: Indicio con más probabilidades de que se cometió un crimen que de no haberse realizado. Por ejemplo, una puerta abierta en un barrio donde se alertó de un homicidio.
+Causa probable: Posible evidencia del crimen, Un hombre con un cuchillo ensangrentado o un cadáver detrás de él.
+
+Quinta Enmienda: Prohíbe la persecución y castigo penal a los ciudadanos sin que medie un debido proceso. No permite que un ciudadano sea llevado a juicio dos veces por los mismos hechos y le protege de la autoincriminación, bajo el derecho a permanecer en silencio. Regula también la expropiación y protección de la propiedad privada.
+
+Esta enmienda protege a los ciudadanos de confesar delitos, les permite negarse a responder preguntas, negarse a hacer declaraciones potencialmente incriminatorias o negarse a testificar en un juicio en cualquier caso penal. Además, pueden negarse a producir o entregar documentos que sean auto incriminatorios aunque sean citados para hacerlo.
+
+Cabe destacar que esta enmienda sólo se refiere a las pruebas testimoniales, por lo que no se incluyen acá las pruebas físicas como análisis de sangre, muestra de escritura o huellas dactilares.
+
+
+III.- PROCEDIMIENTOS
+
+RESPECTO A TODA SITUACIÓN
+
+La primera unidad que responda o inicie una asignación, será la encargada y tendrá el “manejo”. En el caso de ya no necesitar más apoyo, podrá informar un código 4. (únicamente podrá hacerlo quien tenga el manejo, el Incident Commander). Cuando la situación finalice, las unidades deberán notificar su 10-98 a SCC.
+
+Se debe priorizar siempre el rol natural, lento y la finalización de cada situación jamás se deberá finalizar rápido una situación para acudir a otro lugar a menos que se trate de una urgencia (ej: disparos contra deputies).
+
+El uso del helicóptero lo podrá hacer cualquier miembro de la facción, ya sea para un incidente que lo requiera o para patrullaje general.
+
+Siempre que se tenga a un individuo a punta de pistola, se deberá mantener la distancia y esperar el apoyo, hay que priorizar el actuar de forma REALISTA y no arriesgar la vida de sus personajes rusheando.
+
+En el momento en que se reduzca a un sospechoso con una descarga eléctrica o con un tacleo, deberán tirarse sobre él, no quedarse a la distancia ni quedarse apuntando por encima al resto de deputies, esto puede significar una puesta de peligro a los demás en la zona.
+
+Siempre deberá existir una preocupación por la contención del perímetro, basta con poner unas cintas para cortar la calle y desvíar el tráfico para que los civiles no entorpezcan el área donde se está actuando. Se deberán preocupar de realizar este perímetro los deputies que queden sin responsabilidades en el equipo de contacto y arresto o aquellos que lleguen últimos y no tengan alguna orden del Incident Commander.
+
+
+PERSECUCIONES
+
+El desarrollo de una persecución deberá realizarse manteniendo en todo momento la preocupación por preservar la integridad de los deputies y los civiles que pudieran verse afectados, por esto, la conducción es conservadora y precautoria. (No deben manejar sobre aceras, cortar curvas, ir por fuera del camino, etc, si no son la primera unidad), no se adelanten sin previa autorización.
+
+Se deberá mantener una fila en todo momento, el máximo de carros en cola es de 5, sin contar al supervisor ( 5 + 1 supervisor). Los demás carros siempre deberán ir a través de calles aledañas, procurando mantener una conducción “apegada a la ley”. Si pasados los 10 minutos un supervisor autoriza el uso de pinchos, estas unidades serán las que tengan prioridad para esa función.
+
+Sólo habla la unidad primaria o un supervisor. Pueden hablar otras unidades únicamente si deben informar un peligro inminente.
+
+Quedará a discreción del IC o el supervisor dar por terminada la persecución si se evalúa que los riesgos no equivalen a los crímenes por los cuales se persigue. La persecución también puede cancelarse en caso de que el sospechoso realice maniobras que puedan ser consideradas PowerGaming (saltos, rampas, escaleras, etc).
+
+USO DE BANDA DE PINCHOS
+
+Las bandas de pinchos (stopsticks) sólo pueden ser usadas durante persecuciones vehiculares con la autorización de un supervisor. Los miembros de la facción solo podrán colocar una banda de pinchos a la vez, está prohibido usar varias bandas de pinchos para cubrir una carretera/avenida o cualquier lugar que sea muy amplio.
+
+Al usar bandas de pinchos, los deputies deberán informar por la radio (TS o radio In Character) que están siendo usadas y en qué lugar serán desplegadas. Idealmente, los pinchos deben utilizarse con suficiente antelación para no entorpecer ni dañar a las otras patrullas.
+
+Por interpretación, las patrullas marcadas (blanco y negro) traerán, como máximo, una sola banda de pinchos. Las patrullas no marcadas no traerán bandas de pinchos.
+
+TÁCTICAS OFENSIVAS
+
+NO se intentará detener el vehículo sospechoso encajonando, desviando, embistiendo o conduciendo al lado del vehículo perseguido mientras está en movimiento. Tampoco se deberá considerar en ningun momento dispararle a las ruedas (está prohibido tanto administrativamente como IRL por los problemas que puede causar un vehículo inestable a altas velocidades). Las persecuciones serán principalmente acciones de seguimiento y jamás deberá posicionarse a propósito la patrulla en la misma ruta por la cual va el vehículo, por más lejos que se esté de él. Si por casualidad la unidad queda se adelanta al destino  del fugitivo, se intentará cortar una calle por la cual NO vaya a pasar el coche, con el fin de cortar el tráfico para evitar accidentes con los civiles, retomando luego la cola.
+
+El encajonamiento a los vehículos está absolutamente prohibido, los PIT solo pueden hacerse en carreteras, a velocidades bajas y con autorización de un supervisor. La única excepción para el encajonamiento es la actuación de los operadores del SEB, según las regulaciones que se dicten.
+
+Pasado un largo rato en la persecución, si no se llega a un fin, se puede decidir terminar dejando a una unidad aérea siguiendo al sospechoso. En caso de que la persecución derive en el mar, se tendrá que solicitar un bote y que el helicóptero sea quien lo siga.
+
+Al finalizar la persecución, se iniciará el protocolo de parada forzosa.
+Si se pierde un vehículo, se levanta un crime broadcast.
+Solo se puede disparar en persecución cuando se trata de “responder al fuego”
+
+Las persecuciones a pie se tratan igual que las de vehículos, con cuidado y sin usar escopeta de goma a menos que haya autorización, se debe priorizar el uso del tackle.
+
+Está prohibido saltar al agua mientras corren si el sospechoso lo hace.
+
+MUTUAL AID
+
+La utilización de los medios disponibles para el contacto con LSPD y SAHP deberá, por regla general, realizarse bajo previa autorización de un supervisor. Las hipótesis en las que podría omitirse la solicitud de autorización incluyen, pero no se limitan a:
+
+Evidente falta de unidades en servicio (se podrá solicitar MUTUAL AID si hay 2 o menos unidades ordinarias en servicio).
+Persecución que se realice a las afueras de Los Santos (incluyendo SF y LV). En estos casos se deberá pedir mutual aid con SAHP.
+Situaciones de alto riesgo durante periodos de ausencia de las unidades especializadas (en caso de que el SEB esté deshabilitado, deberá solicitarse al D Platoon/SWAT).
+En el caso de que se acuda a una llamada de servicio y en la situación ya se encuentre una unidad de LSPD o SAHP encargándose, se podrá seguir a través de comunicación IC (a menos que se inicie una persecución, tiroteo o situación que requiera el uso del TS3).
+En toda ocasión en que una persecución acabe por desfragmentarse en dos distintas y la cantidad de deputies no sea suficiente para tener mínimo tres unidades en cada persecución (como en el caso en que dos ocupantes de un mismo coche deciden separarse y huir en dos distintos).
+
+En la generalidad de los casos, si el supervisor presente en la situación lo ve necesario será él mismo quien dictamine la autorización del Mutual Aid y gestione la colaboración con otra LEA. Esta determinación siempre corresponderá al supervisor o alguien de un rango superior.
+
+De manera provisional, será obligatorio establecer mutual aid con SAHP cuando una persecución se realice en una autopista o se dirija a la parte norte de LS (Red County; SF, LV), pero siempre se deberá tener cuidado de no ser demasiadas patrullas en cola, respetando los parámetros ya establecidos en la sección de persecuciones.
+
+Siempre deberá brindarse asistencia en caso de que otra agencia solicite colaboración de nuestro departamento, no se deberá tomar el control del incidente salvo previa petición de la agencia solicitante.
+
+
+INCIDENTES CON DISPAROS O TIROTEOS
+
+Siempre se deberá priorizar la cobertura, se deberá realizar siempre un avance en grupo en caso de ser necesario. Al finalizar el tiroteo se deberán contabilizar a los deputies, esposar a los sospechosos y revisarlos, para finalmente solicitar servicios médicos en la escena. Sugerimos que los tiroteos se interpreten de forma paulatina y adecuada, sin precipitaciones.
+
+Cuando la situación escale demasiado en intensidad, duración y peligrosidad, deberá solicitarse un equipo de armas del SEB en la escena.
+
+PERSONAS HERIDAS
+
+En caso de acudir al llamado de un herido, o de encontrarse con uno. Se deberá primero, despejar la zona del herido, evitar que la gente se avecine y prestar los primeros auxilios que sean posibles. Se deberá solicitar una unidad médica en escena y tomar declaraciones a los cercanos una vez que esté la situación y el herido controlado.
+
+Siempre se priorizará el roleplay, si el cadáver permite iniciar un  rol investigativo, podrán llamar a las unidades que se considere necesarias.
+
+En caso de ser un sospechoso, se deberá tener en consideración la decisión de usar o no esposas debe sopesarse cuidadosamente entre el bienestar del sospechoso bajo custodia y la seguridad del agente, así como la capacidad de asegurar al sospechoso de forma segura. La seguridad del agente es primordial.
+
+El uso de esposas puede ser necesario o no para los sospechosos cuando:
+
+El sospechoso está claramente fallecido (ausencia de respiración y pulso);
+Las esposas interfieren con la atención médica; y
+La seguridad de un sospechoso herido puede lograrse por medios alternativos (personal adicional suficiente para asegurar la escena, sujeciones blandas, etc.).
+
+IFAK
+
+Un botiquín IFAK puede ayudarle a estar preparado para emergencias como catástrofes naturales, accidentes o lesiones en la naturaleza. Tener a mano los suministros médicos necesarios puede suponer una gran diferencia en el resultado de una emergencia médica. Se puede usar como plataforma para muslos, cinturón de servicio o chaleco táctico/portaplacas.
+
+Torniquete SOFTT-W
+Vendaje modular OLAES, paquete plano
+Sello torácico Fox
+Tijeras de 5,5
+Cinta de 2
+Narcan
+Un par de guantes médicos (latex/nitrilo en color celeste, negro o blanco)
+
+
+USO DEL MEGÁFONO (P.A. SYSTEM).
+
+Deben acoplar este término a su mentalidad para incluirlo en las conversaciones IC.
+El megáfono debe ser usado, en mayor proporción, con comandos cortos y simples.
+Ejemplos: “Muévete, muévete”, “Conductor, estaciona a un costado (Pull over)”, “Continúa”, “Estaciona”, “Detente”.
+
+Aunque es posible hablar a libertad a través del P.A System, se sugiere que se haga únicamente cuando sea estrictamente necesario evitando las estupideces de “Sepárense, simios” o “Ríndete” en plena persecución y otras trolleadas.
+
+PARADA DE TRÁFICO
+
+Se define como parada de tráfico a la detención temporal del conductor de un vehículo para investigar un posible delito o una infracción de tráfico.
+
+El modo de proceder será el siguiente:
+
+Dar aviso al conductor mediante señales lumínicas y acústicas. En caso de falta de visión del entorno o del vehículo, se podrá utilizar el foco de la unidad para solventar esta situación.
+Una vez que el vehículo se detenga a la derecha, deberá informarse por radio y comenzar a comprobar la matrícula del vehículo infractor para conocer al dueño registrado, junto con buscar su información en la MDC.
+Ya estando al lado del vehículo, se analizará visualmente el interior del vehículo en búsqueda de ilícitos. El conductor tendrá que entregar su permiso de conducir, seguro y registro del vehículo.
+Las manos del conductor deben ser siempre visibles. En caso de tener vidrios polarizados, se deberá pedir que baje la ventanilla. En caso de negarse, se le puede pedir que baje del vehículo.
+Al momento de realizar el primer contacto con el conductor, el deputy deberá introducirse y se deberá notificar cuál es la causa de la detención de tráfico (está prohibido preguntarle cosas como “¿sabe por qué lo detuve?”).
+Se le pedirá al conductor licencia de conducir (/licencia), registro del vehículo (/mostrarpapeles) y prueba de seguro (interpretativo).
+Si el conductor no coincide con el dueño, se deberá corroborar el estado de búsqueda del conductor y que el vehículo no tenga algún reporte de robo.
+Según el deputy, se podrá dar una advertencia verbal o sancionar al infractor con una citación por las infracciones cometidas.
+
+En todos los casos, el deputy tiene el derecho de ordenarle al conductor y cualquier pasajero que baje del vehículo, ya que las cortes reconocen los riesgos asociados con las detenciones de tráfico y han reconocido la necesidad de las fuerzas del orden de controlar el movimiento de todos los ocupantes del vehículo.
+
+Respecto al copiloto y pasajeros del vehículo, el deputy puede pedirles la identificación, pero ellos no están obligados a entregarla a menos que se cuente con una sospecha razonable de que el pasajero en cuestión está involucrado en una actividad delictiva.
+
+Los deputies pueden registrar un vehículo bajo las siguientes circunstancias:
+
+El conductor o el dueño registrado consiente el registro del vehículo.
+El oficial tiene una causa probable para creer que dentro del vehículo puede haber evidencia de un delito.
+Se está arrestando al ocupante del vehículo.
+El deputy tiene una orden de registro válida.
+El vehículo está siendo remolcado por haber sido elemento de un delito (por ejemplo, el sospechoso estaba conduciendo un vehículo y fue arrestado luego de una parada de tráfico al comprobarse que conducía sin licencia). Esto NO significa que se pueda remolcar y revisar el vehículo de cualquier persona porque cometió un delito con el mero objetivo de buscar evidencias para acusarla de otros crímenes, ya que el vehículo debe haber sido elemento del delito (por ejemplo, no se debe remolcar y revisar el vehículo de alguien que es detenido en una parada de tráfico por tener una orden de arresto por prostitución)
+
+
+PARADA DE TRÁFICO FORZOSA
+
+Se realizará una parada de tráfico forzosa siempre que los sospechosos puedan ser peligrosos, (estén armados), sean sospechosos, o al finalizar una persecución. Para proceder, la primera unidad que inició la parada de tráfico, se encargará de dar las órdenes verbales sin abandonar el vehículo. El resto de las unidades deberá formar a los lados de la primera unidad hasta rellenar el carril, bajándose para apuntar al sospechoso.
+
+En los casos de paradas de "alto" o "máximo riesgo", se considerará la posibilidad de solicitar una SEB, si es posible (por ejemplo, armas automáticas conocidas, antecedentes de agresiones armadas a la policía o amenazas de las mismas, rehenes, etc.).
+
+Siempre tendrá que existir una distancia prudente entre cada deputy para evitar fuego cruzado. Los deputies que están como apoyo tienen que posicionarse en los lados del coche de sus compañeros, para dividirse en dos equipos; el que arrestará y el que revisará el vehículo. Leer abajo. Al momento de hacer bajar a los sospechosos, se hará en el sentido de las agujas del reloj, siendo primero el piloto, luego el copiloto, el asiento atrás de la derecha y por último el asiento de atrás a la izquierda, todo de uno por uno. Se les pedirá que caminen de espaldas hasta los deputies para que un equipo de arresto los espose, nuevamente, uno por uno. Después de que están bajo custodia, un equipo de deputies, apenas el otro equipo arrestó con éxito a los sospechosos, avanzan en dirección al vehículo para revisarlo por fuera, y volver a las patrullas.
+
+
+ACTIVIDAD DE PANDILLAS
+
+En caso de que se detecte actividad de pandillas regular, como vandalismo o el tener a un detenido con sospechas de pertenecer a pandillas, se deberá solicitar un carro George. En caso de que haya un crimen grave asociado a pandillas, se deberá solicitar un carro George (OSSB), esta solicitud deberá ser realizada por un supervisor o el incident commander. Recuerden ser humanos en su interacción si se cruzan con ellos.
+
+
+CITACIONES (MULTAS)
+
+Al momento de realizar una citación de tráfico (multas, como lo conocemos todo), el procedimiento es sencillo y rápido. Actualmente, el método más utilizado es la e-citation (o citación electrónica), la cual funciona de la siguiente manera:
+El ayudante rolea redactar la multa en el MDC.
+Luego, el ayudante le alcanza una tableta electrónica al conductor, el cual debe de firmar con un lápiz digital.
+Una vez hecho esto, el ayudante debe volver a su carro patrulla y rolear usar una impresora térmica para imprimir el comprobante físico de la multa.
+Se le entrega el comprobante físico de la multa al conductor junto con los documentos que le cedió anteriormente al ayudante (recién aquí se utiliza el comando /multar).
+
+En caso de optar por un talonario (se usa cuando falla el sistema o no tiene impresora a mano), el proceso es el siguiente:
+El ayudante rolea sacar un bloque de formularios autocopiantes (generalmente con hojas de varios colores: blanco, amarillo, rosa) y rellena con los datos del conductor, vehículo y la infracción. Como nota adicional, solo basta con escribir en una porque al presionar la pluma, lo que escribes se calca en todas las hojas que están debajo
+Se le entrega el talonario al conductor y un bolígrafo para que firme en la línea correspondiente. Al presionar con la pluma, la firma del conductor se calca en todas las hojas de abajo.
+El ayudante desprende la copia amarilla y se la entrega al conductor (recién aquí se utiliza el comando /multar). El ayudante se debe quedar con la blanca (original) y la rosa (para archivo personal o de la estación).
+
+
+NEGACIÓN A FIRMAR CITACIÓN
+
+Firmar una citación es simplemente su promesa de comparecer ante el tribunal por una infracción. Su firma no es una admisión de culpabilidad. Sólo un juez puede imponer sanciones. Cuando una persona se niega a firmar una citación, se requiere que un deputy le explique que la citación no implica una admisión de culpabilidad, sino únicamente la promesa de comparecer ante el tribunal (se puede interpretar señalar una declaración que aparece sobre donde iría la firma: «Sin admitir mi culpabilidad, prometo comparecer en la fecha y hora indicadas a continuación».).
+
+Si el sospechoso sigue negándose a firmar la citación y parece que un arresto físico sea necesario, se deberá solicitar a un supervisor para que llegue a la escena e intente mediar la situación. Si el conductor sigue negándose, se deberá tener registro (screenshot) del conductor declarando que se niega a firmar la orden. Una vez se tenga el registro, se debe proceder a arrestar al sospechoso bajo el cargo CV–40302.  Arrestos por Violaciones de Tráfico (se niegan a dar una promesa por escrito de comparecer ante el tribunal), incluyendo la infracción inicial por la que se le detuvo al momento de procesarlo, y trasladarlo a la corte de justicia (en caso de que sea mañana, mediodía o tarde In-Game). Dentro del interior de la corte (/prop 908), se interpreta que un juez pacta fecha y hora para la citación, por la cual deberá de firmar sí o sí dicha citación y debe ser dejado en libertad.
+
+Ahora, si no son horas hábiles donde trabaja la corte, ya sea de noche o a la madrugada, se debe interpretar una “fianza” (/multar Nombre_Apellido Fianza; dicha multa debe ser pagada de forma inmediata en prop 908), la cual tendrá el coste del monto del cargo con la multa más alta multiplicado por dos. Si accede a la fianza, deberá también firmar la citación y debe ser dejado en libertad. Si no paga la fianza, se lo traslada a la estación y se le realiza el arresto de forma ordinaria bajo el cargo de CV–40307. Procedimiento en Arrestos.
+
+
+ATRINCHERAMIENTOS
+
+Se define como atrincheramiento a la situación en que una persona o un grupo de personas se refugian o esconden en un lugar, negándose a salir. Usualmente en búsqueda de resistirse a un arresto. Estas situaciones pueden suponer la presencia de rehenes y armamento, o no.
+
+Un rehén es cualquier persona tomada o secuestrada por otra, bajo amenaza de su vida o la puesta en peligro de su integridad física.
+
+Se considerará situación de bajo riesgo a aquella en cual uno o más deputies están a una distancia muy corta de un sospechoso que se da a la fuga y no estando armado, ingresa a una infraestructura. En este caso el ingreso al recinto podrá hacerse con deputies normales.
+
+Por otro lado, se considerará situación de alto riesgo si el sospechoso que ingresa en una infraestructura estaba lejos, armado y faltan deputies para contención. En esta categoría se suman también los casos de secuestros y toma de rehenes, junto a los sospechosos peligrosos que se atrincheran en un vehículo, o aquellos que tras una larga persecución se resisten a bajar del vehículo y se prevé que estén armados. En estas situaciones, los deputies deberán formar un perímetro rodeando la infraestructura o vehículo en la que se haya ocultado el sospechoso, evitando el acceso de más civiles y se solicitará presencia de un equipo de armas del SEB o, en su ausencia, al pelotón D de LSPD.
+
+Los conceptos comúnmente denominados las seis "C" - COMANDO, CONTENCIÓN, CONTROL, COMUNICACIÓN, COORDINACIÓN y CONTINGENCIA - servirán como guía para todo el personal involucrado. No obstante, una última “C” - CRÍTICA, es igual de importante que las anteriores, consiste en una breve evaluación del incidente  que deberá ser realizada al concluir cada situación, con el fin de revisar las actuaciones de los deputies involucrados y remarcar en el mismo lugar los puntos a mejorar para situaciones futuras.
+
+
+PELEAS, DISTURBIOS
+
+En situaciones de disturbios o peleas grupales, los deputies involucrados deberán ceñirse a la principal misión del Departamento: proteger la vida y la propiedad. Por lo que las medidas a tomar deberán realizarse de manera rápida, firme, justa e imparcial.
+
+Se requiere de total organización, que en gran medida debe ser lograda de manera IC. Esto implica que deben pedir asistencia, tomar distancia, enfocarse en un solo sospechoso y no en todos, no separarse innecesariamente y no rushear ni comportarse como rambos.
+Está prohibido usar la escopeta de goma o el taser para detenerlos.
+Para disturbios del tipo “manifestación o reunión” es necesario tomar distancia e informar y proceder con indicaciones de algún supervisor.
+En caso de tratarse de una pelea entre dos individuos, deberá procurarse la utilización de tácticas de reducción, como el tacleo, que no perjudiquen aún más la integridad física de los involucrados.
+
+
+SOSPECHOSOS QUE SE PONEN EN RIESGO
+
+En el caso de que un sospechoso aumente por sí mismo o por factores externos la puesta en peligro de su integridad física en alguna situación, ya sea lanzándose al mar o trasladándose a zonas montañosas/rocosas donde finalmente termine en una situación riesgosa para su vida o accidentado. Los deputies deberán limitarse a establecer un perímetro dentro de las posibilidades del lugar o dejar que una unidad aérea mantenga el seguimiento del sospechoso y solicitar la presencia del Special Enforcement Bureau, de ellos dependerá el despliegue de recursos necesarios.
+
+En caso de que el sospechoso no esté armado, o se trate de un civil solicitando ayuda, se deberá notificar al departamento de bomberos para que se encargue del rescate, o al SEB en su ausencia.
+
+
+ARRESTOS
+
+Antes de cualquier cosa, será necesario realizar una exhaustiva revisión al sospechoso en cuestión, utilizando guantes de nitrilo/látex con el fin de no ensuciar alguna posible evidencia ni contagiarse en caso de existir algún peligro biológico en el sospechoso.
+
+A la hora de decidirse en arrestar a alguien (deben tener la causa probable), el ayudante debe comunicarle al detenido las siguientes cosas:
+ Intención: la intención de que se le va a arrestar.
+ Causa: por qué delito se le está arrestando.
+ Autoridad: la autoridad que se tiene para arrestarlo.
+Ejemplo: Soy el ayudante Ramirez del Departamento del Alguacil. Queda usted bajo arresto por conducir sin licencia de conducir.
+
+Nota. En caso de que el sospechoso/s sea encontrado cometiendo un crimen en el acto, no es necesario comunicarles el porqué de su arresto (a menos que ellos lo soliciten luego de ser esposados). También es una excepción si el sospechoso se echa a correr y es tacleado/reducido. No es necesario darle explicaciones mientras estás en el suelo colocándole las esposas.
+
+Si el sospechoso pregunta el porqué está siendo arrestado, siempre se le debe responder cuando el ayudante se encuentre en una situación calmada o fuera de riesgo (por ejemplo, con el sospechoso esposado en la patrulla o junto a otros ayudantes).
+
+En caso de que sea un sospechoso de delitos graves o de alto riesgo, no se le debe permitir estar de pie durante el transcurso de un encuentro antes de ser esposados ​​de forma segura.
+
+Una vez que se ha trasladado al sospechoso a la estación y se encuentra en las holding cells deberán:
+En caso de haber un oficial de correccional conectado, el sospechoso deberá ser trasladado a la cárcel del SADCR (hasta ahora, Twin Towers, ubicada en la zona de Alhambra) y realizar el siguiente procedimiento al interior de la cárcel:
+Buscar la información completa sobre la identidad del sospechoso en caso de no haberla conseguido de manera previa.
+Verificar que el sospechoso tenga órdenes de arresto pendientes o no. Si el sospechoso posee una orden vigente (ya sea de LSSD o LSPD), se deberá de contactar al agente responsable de esa orden.
+Sustraerlo de todas sus pertenencias. (Cualquier tipo de soga, cinturón o similar con el cual podría atentar contra su vida, la de los deputies u otros detenidos.).
+Al llegar a los holding cell, se debe tomar el mugshot de frente y perfil (sacan la fotografía del cuerpo completo y debe salir el nombre del personaje) con el objeto de la cámara que se encuentra en el /equipar (recuerden ir a opciones/options->configuración de pantalla/display setup->guardar fotos en la galería/store gallery photos ON). Luego, dichas fotos deberán ser adjuntadas al reporte de arresto que se subirá en gnt/dlm-arrestos.
+Tomar una muestra de saliva usando /prueebaadn, escanear huellas dáctilares, . (Por /DO, ej: ‘’Los deps. de la holding cell te toman una muestra de saliva y escanean tus huellas dactilares.’’)
+Después se deberá de revisar si el sospechoso posee tatuajes, o prendas o cualquier tipo de simbología asociada a una pandilla y/o alguna organización criminal, como un MC. (Ejemplo: ’Durante el arresto los deputies revisaron si poseías tatuajes, prendas o cualquier simbología asociada a una pandilla u organización criminal, ¿qué encontraron?’)
+Si el sospechoso poseía simbología asociada a organizaciones criminales, se deberá de incluir una nota en el reporte de arresto de forma obligatoria. Cualquier aclaración se puede hacer con un investigador de OSS o MCB durante, o posterior al arresto.
+Etiquetar la evidencia asociada al arresto con /etiqueta Nombre Apellido - DD/MM/AAAA, guardarla en el locker de evidencias (/evidencias guardar), ya que será obligatorio incluir los números de las bolsas de evidencia en el reporte de arresto.
+Tirarle por /do “Luego de ser procesado en la estación del Sheriff, fuiste trasladado a la instalación de Twin Towers a espera de tu juicio.” Luego, deberán pedirle por /mp que se vuelva a subir a la patrulla (o llamar a los miembros que estén roleando de Custody Division para el traslado en Burrito o Bus si son muchos) y deberán meterse al interior de Twin Towers. Una vez allí, deberán escribirle por /mp que se quede quieto mientras escriben el reporte de arresto.
+Sin rolear nada más, al llegar al interior de Twin Towers, deberán escribir el reporte de arresto en primera persona resumiendo todo lo sucedido y reflejando los delitos por los cuales acusamos al detenido. Referirse a la guía de escritura de reportes para más información: 
+Procesar al sospechoso.
+Una vez el sospechoso ya se encuentre preso, se deberá tomar foto de los cargos y el reporte de incidente, y deberá ser subido al canal de arrestos de Discord de su estación(gnt/dlm) en conjunto con los mugshots tomados con la cámara (se encuentran en Documents\GTA San Andreas User Files\Gallery).
+
+En caso de tener 2 o más sospechosos, de manera opcional, se podrá contactar a SADCR para que el transporte de los sospechosos sea realizados por ellos, pero el /arrestar debe ser aplicado sí o sí por el deputy que haya tenido el manejo de la situación.
+
+Deberán seguir en orden los siguientes pasos:
+
+Luego de hacerle las pruebas correspondientes, el sospechoso será llevado a la celda donde se le desesposará antes de dejarlo encerrado ahí .
+Al terminar de redactar el /arrestar (al apretar F6, podrás escribir sin cerrar la pestaña de arresto), se le escribe por /do: “Luego de ser trasladado a una corte, se te acusaría de los siguientes cargos: cargo 1, cargo 2, …, y cargo X (los cargos deben estar escritos tal y como dice el código penal (no hace falta agregar el número del cargo)). ¿Cómo te declaras? ¿Culpable, inocente o no contesta?
+Si el sospechoso se declara culpable, el ayudante lo condena con '/arrestar'.
+Si el sospechoso se declara inocente, el ayudante debe explicar por /MP al sospechoso que debe abrir un ticket en el Discord del DOJ (https://discord.gg/nkpTZF54hC) y presentar su caso. Ahí podrá hablar con el fiscal y buscar abogado.
+Si decide no contestar, tiene 5 días hábiles para cambiar cómo se declara.
+
+EVIDENCIAS
+
+Cualquier tipo de evidencia encontrada puede servir para la acusación de un delito frente a fiscalía, la evidencia debe ser tomada con guantes (/equipar - Guantes Desechables / Guantes LawPro Kevlar) para evitar su contaminación y después empaquetada en una bolsa de evidencias con el comando /empaquetar.
+La bolsa en la que se empaqueta la evidencia deberá ser rotulada con el comando /etiqueta, el formato con el que la rotularán es: NOMBRE APELLIDO - FECHA.
+La evidencia debe ser llevada al almacén de alguna estación de LSSD y almacenada con el comando /evidencias guardar una vez ya rotulada.
+Para casos donde no hayan sospechosos, como escenas del crimen (homicidios, tiroteos, asaltos, etc) y hayan objetos en el suelo (como casquillos, muestras de sangre, cuchillos, armas), dichos objetos deberán ser colocados en una bolsa de evidencias, ponerle una /etiqueta con el formato HECHO, LUGAR - FECHA (ejemplo: Homicidio Winona - 10/01/25) y ser almacenados en el /evidencias, para posteriormente contactar a la unidad de detectives que esté relacionada con el hecho en cuestión.
+Todas las evidencias deben ser o guardadas en el /evidencias guardar. Almacenar evidencias en el inventario personal, /ct, /alm o en el maletero de los vehículos será considerado una falta grave y una transgresión a la norma del servidor 2.12 sobre Agentes de la ley.
+
+
+ÓRDENES DE ARRESTO Y ALLANAMIENTO
+
+El procedimiento de la solicitud de órdenes de arresto es sencillo. Se debe tener en cuenta varias cosas a la hora de tener en mente solicitar una orden de arresto; como por ejemplo:
+Pruebas gráficas (video o screenshot).
+Registro de radio.
+
+Siempre se debe contar con alguna prueba a la hora de querer solicitar una orden de arresto o allanamiento. No bastará con los registros del archivo chatlog que se encuentra en la carpeta SAMP, ya que son fácilmente modificables y no son tomados en consideración por la administración.
+
+Para identificar al sospechoso, se puede tomar alguna de las siguientes dos rutas:
+Se tiene alguna prueba de que el sospechoso entregó alguna documentación verdadera (licencia de conducir) antes de escapar, o se verificó que el vehículo usado en el escape era efectivamente de él al comprobarlo con una fotografía del conductor y compararlo con su licencia de conducir (registro DMV).
+En caso de tener una fotografía del rostro del sospechoso, se debe verificar si el sospechoso cuenta con arrestos previos o una licencia de conducir. En caso de contar con alguno de estos dos ítems, se puede interpretar que fue identificado por reconocimiento facial.
+
+Cuando se tengan estas pruebas, el ayudante que quiera realizar la orden de arresto o allanamiento deberá ingresar al foro de LSSD, rellenar el reporte de incidente y notificarle a algún líder de facción para que revise y firme las órdenes creadas (se debe tener en cuenta que se interpreta que un juez firma dicha orden debido a la falta de JSA en el servidor). Luego de haber creado el reporte de incidente, se deberá ingresar al juego y con el comando /ordenarresto Nombre_Apellido, seleccionar los crímenes de los que se le acusa y seguir el siguiente formato:
+
+LOS SANTOS COUNTY SHERIFF'S DEPARTMENT, por medio de [Nombre Apellido del miembro que solicita la orden], debidamente juramentado como [Rango del miembro que solicita la orden] del Condado de Los Santos, por la presente somete a su consideración la solicitud de una orden de [arresto/allanamiento/registro] en contra de [Nombre Apellido de la persona a la que se le redacta la orden], de conformidad con el Código Penal de San Andreas, por causa probable en violación de: [CARGO].
+
+[Narrativa en 3era persona].
+
+Las órdenes de allanamiento (/ordenallanamiento Nombre_Apellido) deberán ser hechas en caso de que el crimen esté relacionado a las armas de fuego, intento u homicidio, narcóticos o con el objetivo de obtener evidencia. Para ser solicitada, deberán responder al reporte de incidente ya creado con el formato de solicitud de orden de allanamiento.
+
+Para órdenes de arresto de criminales de alto perfil u órdenes de allanamiento en general, se deberá solicitar y coordinar con el SEB para llevar a cabo la ejecución de las mismas.
+
+Como nota final, los allanamientos deberán seguir la normativa del servidor, la cual es:
+
+X. Allanamientos
+
+Todo allanamiento debe realizarse únicamente con una orden de allanamiento firmada por un líder faccionario.
+
+(a) El propietario o residente del inmueble debe estar directamente vinculado a un delito para que se justifique la violación de su propiedad privada. No basta con que un sospechoso haya ingresado al lugar o haya utilizado su vehículo. Especialmente si no hay denuncias de robo.
+Tampoco estará permitido allanar una propiedad por denuncias anónimas o telefónicas de terceros. En la mayoría de estos casos, se trata de MG o de disputas OOC.
+
+(b) El allanamiento de una propiedad no podrá fundamentarse únicamente en la pertenencia del sujeto a una pandilla u organización criminal. No obstante, se permitirá cuando:
+Exista el tráfico de armas o de drogas, de un homicidio (CK) con la presencia de un posible cuerpo, respaldada por una investigación en los foros internos (police.sarp.es, sheriff.sarp.es), con pruebas tomadas dentro del personaje (IC).
+
+(c) El allanamiento de una propiedad no podrá fundamentarse únicamente en el hallazgo de huellas en armas o drogas.
+Esto no es suficiente para causa probable, se debe acompañar de una investigación, interrogatorios, declaraciones, pruebas cruzadas (cámaras, audios, mensajes), étc.
+
+(d) No se permitirá allanar una propiedad mediante métodos policiales ilegales (cualquier tipo de corrupción), dado que, al tratarse de un entorno de juego, este tipo de prácticas no pueden ser gestionadas ni equilibradas correctamente.
+
+La normativa prohíbe cualquier intento de justificar mediante corrupción el allanamiento forzado de una propiedad o vehículo, ya que esto perjudica la experiencia de juego.
+
+
+REVISIÓN DE TELÉFONO CELULAR
+
+Cuando se crea que un sospechoso haya realizado un crimen y haya hecho uso de su teléfono celular, se podrá preguntar por el consentimiento para realizar una revisión del mismo. Ante una hipotética negativa por parte del sospechoso, se deberá realizar un reporte de incidente con una aclaración al final solicitando una orden de registro. Al publicar dicho reporte de incidente, se le deberá notificar a algún líder faccionario la creación del mismo y deberán esperar que responda al reporte con un “orden de registro firmada” (se debe tener en cuenta que se interpreta que un juez firma dicha orden debido a la falta de JSA en el servidor).
+
+
+SOSPECHOSOS INDOCUMENTADOS
+
+Cuando un sospechoso (arrestado por algún crimen grave) al momento de ser procesado alegue ser indocumentado, se deberá sacar una captura de pantalla del sospechoso admitiendo su estatus irregular de residencia para posteriormente arrestarlo y pedirle a algún miembro de la administración un CK por deportación.
+
+Durante una parada de tráfico, no se debe preguntar por el estatus migratorio. En su lugar, la totalidad de la parada de tráfico se debe centrar en la infracción cometida.
+
+
+EMBARGO DE VEHÍCULOS
+
+Los embargos de vehículos se hacen desde cualquier propiedad de facción (por ejemplo, un garaje). Las razones para embargar un vehículo incluyen, pero no se limitan a:
+
+Vehículo involucrado en una persecución policial.
+Vehículo siendo operado por un conductor sin licencia.
+Vehículo estacionado en una zona no regulada u obstruyendo el tráfico.
+Vehículo utilizado para cometer cualquier tipo de crimen.
+
+Si un vehículo no pertenece al o a los sospechosos se deberá de embargar sin multa.
+
+Al embargar un vehículo se deberá de crear un post en el subforo de Embargos con el formato correspondiente. Se debe de tomar una SS del embargo y dejarla en el formato incluido en la sección de embargos.
+
+
+TRASLADO DE ESTACIÓN
+
+Los deputies que deseen trasladarse de una estación a otra necesitarán aprobación del Unit Commander (Capitán) de la estación de origen. Si no hay Unit Commander, deberán de obtener autorización del Operations Lieutenant. Si no hay Operations Lieutenant, deberán de obtener autorización del Operations Sergeant. Si no hay ningún punto de contacto en Operaciones, se tendrá que hablar con Executive Staff o un líder de facción. Además, requerirán aprobación del Unit Commander, Ops. Lieutenant u Ops. Sergeant de la estación destino.
+
+
+ACCIDENTES DE TRÁFICO
+
+Cuando ocurra un accidente de tráfico se deberá de solicitar a una unidad Tom (ya sea de la estación o de otra área) para la investigación posterior al accidente. Esto aplicará tanto para accidentes entre civiles como para accidentes que involucren a un deputy.
+
+Los vehículos que participaron en el accidente serán considerados como parte de la escena del crimen y no podrán ser movidos de donde están hasta que un investigador de tráfico o un supervisor lo ordene.
+
+Además, se deberá de solicitar a un supervisor cuando suceda un accidente que involucre a un deputy, ya sea entre civiles y deputies, o solo entre deputies.
+
+USO DE GRÚAS
+
+El uso de grúas del departamento (ya sea para Parking Enforcement, embargo de vehículos, etc) estará restringido a deputies debidamente capacitados (véase deputies de tráfico). Si no hay deputies de tráfico, se podrá desplegar una grúa SOLO cuando sea estrictamente necesario (embargo de vehículos sospechosos, por ejemplo). Los deputies que no sean de tráfico no podrán realizar Parking Enforcement a menos que sean autorizados por un supervisor.
+
+TRASLADO EN AMBULANCIA
+
+Un sospechoso debe ser trasladado a un centro médico para ser examinado/tratado por personal médico calificado siempre que la persona:
+Sufre una herida de bala.
+Es alcanzado por un proyectil de arma especializada (como una bala Arwen, un dardo Taser, una bolsa paralizante, un proyectil de pimienta, etc.).
+Es sometido a una descarga de Taser en modo de descarga directa.
+Presenta lesiones que aparentemente requieren atención médica.
+Alega cualquier lesión y solicita atención médica, independientemente de si presenta o no lesiones aparentes.
+Alega que se utilizó fuerza considerable contra él o ella, independientemente de si presenta o no lesiones aparentes o solicita atención médica.
+Se golpea la cabeza contra un objeto duro o recibe un golpe en la cabeza/cara como resultado de la aplicación de fuerza por parte de un miembro, independientemente de la gravedad aparente de la lesión. El miembro que transporta al sospechoso deberá informar al médico que el sospechoso recibió un golpe en la cabeza o se golpeó la cabeza.
+Es inmovilizado con una sujeción carotídea o cualquier tipo de sujeción del cuello/garganta, independientemente de si pierde el conocimiento o no. El miembro que transporta al sospechoso deberá informar al personal médico de que el sospechoso fue inmovilizado con una sujeción carotídea y si perdió el conocimiento o no.
+
+Cualquier duda sobre la necesidad de tratamiento médico se resolverá trasladando al sospechoso a un centro médico adecuado.
+
+Si el sospechoso se niega a recibir tratamiento médico en cualquiera de los casos descritos anteriormente, deberá ser trasladado a un centro médico y deberá informar personalmente al personal médico de su negativa a recibirlo.
+
+Si el personal médico indica que el sospechoso debe recibir tratamiento a pesar de su negativa, será trasladado al centro médico correspondiente de la División de Custodia (Twin Towers) para recibir tratamiento o una evaluación médica.
+
+Nota final: Los agentes que utilicen la fuerza con un detenido nunca deben, en la medida de lo posible, trasladar a dicho sospechoso.
+
+PEDIDO DE UNIDAD K9
+
+Los miembros del Departamento podrán solicitar apoyo de la Canine Services Detail cuando exista una necesidad operativa razonable.
+
+Investigación de narcóticos.
+Podrán solicitar una unidad K-9 cuando existan indicios razonables de que:
+Un vehículo contiene sustancias controladas.
+Una propiedad está siendo utilizada para almacenar narcóticos.
+Existen elementos asociados al tráfico de drogas.
+
+Detención de sospechosos.
+Localizar sospechosos prófugos.
+Buscar individuos ocultos.
+Perímetros de contención.
+Operaciones de alto riesgo.
+
+Búsqueda de evidencias.
+Armas de fuego.
+Casquillos.
+Objetos abandonados.
+Evidencia relacionada con delitos graves.
+
+Búsqueda de Personas.
+Personas desaparecidas.
+Sujetos desorientados.
+Víctimas de delitos.
+Operaciones de rescate.
+
+Limitaciones de Rol
+Los manejadores deberán evitar el uso de información OOC para dirigir búsquedas.
+El K-9 no garantiza resultados positivos.
+NO usar el K-9 como excusa para ganar el rol.
+Encontrar automáticamente a cualquier sospechoso.
+Ignorar limitaciones del entorno.
+
+ACCIONES DISCIPLINARIAS
+
+Los miembros de la facción que incumplan el Manual de Políticas y Procedimientos (ya sea de forma IC u OOC) podrán recibir una acción disciplinaria (sanción). Las sanciones podrán ir desde advertencias y suspensiones hasta expulsión de la facción.
+
+Los miembros autorizados a aplicar sanciones son aquellos que posean un rango de supervisión, es decir, de Sargento hacia arriba, y ellos podrán usar su propia discreción para aplicar una sanción y/o escoger la severidad de ella.
+
+Los supervisores tendrán la potestad para realizar investigaciones (preferiblemente de forma IC) contra casos que de incumplimiento del manual, mala conducta o cualquier situación que lo amerite. Los miembros de la facción podrán ser suspendidos de forma indefinida mientras se realiza una investigación que pueda terminar en acción disciplinaria.
+
+Si un miembro cree que una sanción fue puesta erróneamente (ya sea IC u OOC), podrá ponerse en contacto con los líderes de la facción para apelar.
+
+
+CAMBIOS DE NOMBRE Y CHARACTER KILLS
+
+Los miembros de la facción no podrán hacer un cambio de nombre ni un CK voluntario sin antes solicitar autorización. Para cambios de nombre, bastará con pedir autorización a un miembro de Command Staff o superior. Para Character Kills voluntarios y no forzados, se deberá de pedir autorización a un miembro de Executive Staff (o líder de facción).
+
+Cada miembro sólo podrá cambiarse el nombre o pedir autorización para CK voluntario cada dos meses, a menos que un miembro de Executive Staff o líder de facción permita hacerlo antes de ese límite de tiempo.
+
+Los miembros de la facción deberán respetar cualquier normativa del servidor de juego respecto a los CKs voluntarios.
+
+SOLICITUD DE SEB PARA SITUACIONES DE ALTO RIESGO
+
+Hay ciertos incidentes de alto riesgo que requieren, de forma obligatoria, llamar al SEB (ya sea a través de la radio ingame y/o usando el pager de la facción). Los tipos de incidentes que requieren de una llamada al SEB son los siguientes:
+
+Persecuciones a 2 o más sospechosos armados.
+Incidentes de 2 o más tiradores activos.
+Toma de rehenes.
+Atrincheramientos en interiores en los que se crea o se esté seguro de que el sospechoso porta o posee un arma mortal, o que ponga en riesgo la integridad física de los ayudantes, y, además, donde el o los sospechosos posean una ventaja sobre los deputies (por ejemplo, cuando el sospechoso entró a una propiedad y tuvo suficiente tiempo como para que tome una ventaja sobre los deputies)
+Atrincheramientos en autos en los que se crea o se esté seguro de que el sospechoso porta o posee un arma mortal, o que ponga en riesgo la integridad física de los ayudantes.
+Órdenes de registro (allanamientos) de alta peligrosidad.
+Órdenes de arresto de alta peligrosidad.
+Detección de explosivos.
+Desastres naturales o provocados por el hombre.
+Servicios caninos para ayudar al personal de campo con la búsqueda de sospechosos de alto riesgo en edificios y áreas.
+Servicios caninos para ayudar al personal de campo con la búsqueda de evidencias relacionadas en determinadas situaciones.
+Realizar búsquedas, rescates y MEDEVAC (cualquier persona herida) en zonas remotas, incluyendo marítimas.
+
+Si no llega ningún deputy del SEB a la situación, el Incident Commander o quien posea el manejo de la situación tendrá que tomar la decisión de como proceder. El deputy del SEB que posea el rango más alto dentro del SEB tomará el “mando táctico” de una situación. El mando táctico corresponde se refiere al manejo de la parte táctica del incidente (por ejemplo, en un allanamiento, correspondería a la entrada y ejecución del allanamiento en sí)
+
+PROTOCOLOS DE LIBERTAD CONDICIONAL
+
+El servidor ofrece un sistema de libertad condicional que se aplica de forma automática al cumplir ciertas condenas. Todos los miembros de la facción tendrán la potestad para visitar a individuos que estén en libertad condicional (se pueden ver con /parolees si es que están online)
+
+Las normativas de parole que aplicarán serán las que estén estipuladas en /reglasparole.
+
+Cualquier miembro de la facción podrá realizar una visita a un parolee que esté conectado, sin embargo, se deben tener las siguientes consideraciones:
+
+Se requieren al menos dos deputies para realizar la visita. Esta regla no aplicará para investigadores de MCB u OSS. Los trainees solo podrán ir acompañados por al menos un deputy que ya haya completado el Field Training Program.
+Las visitas se podrán realizar bajo cualquier callsign y/o patrulla.
+Las visitas deberán de hacerse con CHALECO EXTERNO (plate carrier) y UNIFORME CLASE B (placa cocida, pantalones cargos)
+Solo se podrá visitar a un parolee una vez cada 48 horas. Revisar el subforo de Parole Management Program para saber cuándo fue la última visita.
+
+Durante el transcurso de la visita, los deputies podrán hacer una revisión completa del parolee y de su domicilio. Si alguna de las reglas de parole está siendo incumplida, se deberá de poner al parolee bajo arresto.
+
+Si arrestan a una persona por incumplir su libertad condicional, deberán de realizar un arresto usando los mismos cargos que fueron aplicados en el arresto que llevó a su libertad condicional, es decir, el último reporte de arresto de ese personaje en particular.
+
+Una vez que la visita haya sido hecha, los deputies deberán de crear, o actualizar, la ficha del parolee en el subforo de Parole Management Program.
+
+Si todavía no hay ficha creada, deberán de crear un post que contenga el nombre del parolee en el título y en el post en sí, y después ir al segundo paso (responder el post con el mensaje de visita realizada).
+Si ya hay una ficha creada, deberán de responder el post con un mensaje que diga “Visita realizada por el deputy/los deputies Nombre Apellido, Nombre Apellido”.
+Si el parolee fue arrestado por incumplir su libertad condicional, deberán de responder la ficha con un mensaje que diga: “El parolee fue arrestado por incumplir las reglas de la libertad condicional. Normas incumplidas:- Norma 1- Norma 2…”
+
+ARMAMENTO Y SU USO
+
+Además del armamento base que puede tener un deputy (arma de servicio, táser, porra, y spray) existen otros tipos de arma que los miembros de la facción pueden poseer.
+
+Los miembros que hayan completado su etapa en el FTP deberán solicitar una Remington 870 y una escopeta de goma, las cuales deberán ser guardadas en el /ct, pero serán interpretadas como que son transportadas en el gun-rack de la patrulla en cada servicio.
+
+En cuanto al 40mm LTL Launcher, el mismo será entregado exclusivamente a discreción del liderazgo, por lo que sólo pocos miembros, como supervisores, podrán tenerlo.
+
+Otras armas como los fusiles de asalto (cualquier tipo de rifle urbano) requieren una certificación. La certificación podrá ser revocada en cualquier momento por cualquier Supervisor si el miembro es sancionado.
+
+El despliegue de las armas anteriormente mencionadas debe hacerse en base a los protocolos de este manual y también al REGLAMENTO DE FACCIONES POLICIALES DE SA-RP.
+
+Las armas que sean exclusivas de ciertas asignaciones (como la HK MP5, Benelli M4, Remington 700P, etc.) como el armamento especifico del Special Enforcement Bureau no podrán ser utilizadas durante patrullaje normal, y deberán de limitarse a ser utilizadas durante actividades relacionadas con la asignación que entregó esas armas.
+
+Normalmente,el cinturón táctico de un ayudante promedio estará compuesto por:
+Smith & Wesson M&P9
+Táser
+Porra
+Gas pimienta
+Linterna
+Cargador 9x19
+Cargador 9x19
+IFAK LSSD
+Torniquete
+Torniquete
+Guantes desechables
+
+Cabe aclarar que la escopeta (Remington 870) solo debe ser desplegada cuando el ayudante se encuentre en inferioridad numérica o los sospechosos posean armas automáticas (UZI, TEC) o largas.
+
+ALERTAS TÁCTICAS
+
+Una alerta táctica es el paso preliminar para la movilización de personal. Incluye una distribución controlada del personal de servicio. Una alerta táctica debe ser iniciada en estaciones/unidades seleccionadas, todas las estaciones o todos los recintos del departamento.
+
+Los comandantes de unidad (capitanes de estación) deben estar preparados, todo el tiempo, para re-desplegar aproximadamente el 50% de su fuerza de campo. Estas unidades son predesignadas con un ratio de un Sargento por cada 4 patrullas.
+
+Las alertas tácticas deben ser iniciadas por la dirección de un comandante de unidad o de estación o cualquier otro personal del departamento con rango superior. Deben iniciarla a través de teléfono, MDC, radio o mensaje a través de carta, y deberán seguir las guías que se determinarán abajo.
+
+Las siguientes unidades siempre pasarán a alerta, independiente de la estación que convoque la alerta táctica:
+Special Enforcement Bureau
+Aero Bureau
+
+Dentro de las principales medidas de una alerta táctica estarán:
+La obligación de patrullar de a 2 personas en áreas seleccionadas.
+El permiso para portar casco y chaleco táctico, a discreción.
+El permiso para desplegar rifles urbanos de patrulla.
+El despliegue de una o más unidades aéreas.
+Autorización de realización de código 9 sobre posibles vehículos sospechosos.
+Autorización de despliegue de unidades SEB.
+
+Las causas para poder emitir una alerta táctica deben ser, a lo menos, una de las siguientes:
+Muerte de un oficial de policía o ayudante del sheriff (CK)
+Seguidilla de tiroteos en una zona en específico.
+Posible conflicto entre dos o más organizaciones criminales.
+Secuestro de alguna autoridad pública.
+Resguardo de alguna autoridad pública federal.
+Entre otras a considerar: intentos de homicidio, intentos de secuestro, etc.
+
+DESPLIEGUE DE UNIDADES AÉREAS
+
+El uso de helicópteros en la facción es libre. Cada miembro (incluyendo aquellos que estén en el Field Training Program) podrán desplegar un helicóptero para patrullaje, vigilancia aérea, incidentes, etc.
+
+Las callsigns válidas para desplegar un helicóptero se encuentran en TeamSpeak (Air 7, Air 8, Air 21, Air 22, y Air 23). Están divididas por turnos (no es obligatorio respetar los turnos, pero recomendable).
+
+El Dodo de la facción (Beechcraft B200) solo podrá ser desplegado por supervisores y miembros de la Special Operations Division (SEB, por ejemplo). Un supervisor podrá autorizar a un miembro que no tenga permiso a utilizar esta aeronave.
+
+El Dodo será utilizado solo para operaciones de vigilancia aérea y búsqueda y rescate. No podrá ser desplegado para ningún otro tipo de actividad. Se deberá de usar una callsign de Surveillance al operar el Dodo (visibles en TeamSpeak).
+
+DESPLIEGUE DE UNIDADES MOTORIZADAS
+
+El uso de motocicletas (HPV1000) en la facción es libre, pero restringido. Cada miembro (exceptuando aquellos que estén en el Field Training Program) podrán desplegar una motocicleta para patrullaje, incidentes relacionados con motocicletas y persecuciones solo y cuando cuenten con autorización del supervisor de turno. En caso de que haya varios supervisores, se priorizará que se le pida autorización a algún supervisor de la misma estación que la del solicitante.
+
+No es obligatorio contar con un compañero a la hora de pedir patrullar en Mary.
+
+Los callsigns varían dependiendo de la estación. Para Ganton, serán 280 Mary 1, 2, 3; mientras que para Dillimore, serán 60 Mary 1, 2, 3.
+
+DENUNCIAS DE LS CRIME STOPPERS
+
+Las denuncias de Crime Stoppers serán procesadas por investigadores y supervisores de la facción. Si un miembro desea encargarse de una denuncia, deberá de citar el formulario dentro del subforo de Crime Stoppers para hacer seguimiento - sin embargo, no será necesario postear actualizaciones de forma regular.
+
+Si una denuncia de Crime Stoppers termina en un arresto, se deberá de notificar a un supervisor de forma inmediata para coordinar el pago de la recompensa. La fórmula de pago solo será conocida por miembros de Command Staff hacia arriba.
+
+Solo miembros de Command Staff hacia arriba podrán otorgar recompensas de Crime Stoppers, los miembros de la facción que investigaron la denuncia deberán de mostrar pruebas de que se efectuó un arresto relacionado a la denuncia.
+
+CUENTAS SECUNDARIAS E IDENTIDADES PARA LA FACCIÓN
+
+Los miembros de la facción no podrán poseer cuentas secundarias o identidades dentro de la facción salvo en circunstancias excepcionales (véase infiltraciones en organizaciones criminales, algún rol especial dentro de la facción que requiera un segundo personaje, etc.).
+
+Las cuentas secundarias e identidades deberán de ser solicitadas a Command Staff y superior, donde deberán de ser votadas y aprobadas por la mayoría de miembros que posean esos rangos. Se deberá de detallar los motivos por los cuales se solicita una cuenta secundaria o una identidad.
+
+Los supervisores de rango Teniente y superior tendrán prioridad para solicitar una cuenta secundaria o identidad para uso dentro de la facción. Para solicitar una, deberán de realizar el mismo proceso detallado más arriba.
+
+REGLAS DEL TEAMSPEAK
+
+Los miembros que estén de servicio deberán de estar en el canal de patrulla que le corresponda a su callsign (si no hay un canal que corresponda a la callsign, se podrá buscar uno que sea similar) y podrán ser sancionados si no se encuentran en el canal de TS3 correspondiente.
+
+También se podrá sancionar a cualquier miembro que sea sorprendido evadiendo esta regla a través de cualquier otro servicio de comunicación (Discord, por ejemplo).
+
+Además, hablar por el TS3 estará prohibido (todos los canales de patrulla estarán muteados) y los miembros de la facción solo podrán hablar por TS3 cuando se encuentren en uno de los canales A-TAC para algún incidente.
+
+Para mandar whispers, los miembros de la facción deberán de moverse primero a un canal A-TAC (que no está muteado) y enviar el whisper desde allí.
+
+SOBRE USO DE MOTOCICLETAS Y OTROS VEHÍCULOS ESPECIALES
+
+En persecuciones a motocicletas tipo Sanchez, se autorizará el despliegue de una Sanchez desde el LSSD, la cual deberá ser utilizada, obligatoriamente, por algún deputy que tenga al menos una asignación Bonus.
+
+Un capitán o comandante de unidad podrá autorizar a un patrullaje en motocicleta Sanchez sólo en áreas rurales como Whetstone o la parte norte de Los Santos (Blueberry, Dillimore, Blueberry y Palomino). La autorización sólo será por el lapso del día.
+
+El uso del vehículo especial Sultan quedará habilitado sólo ante la autorización de alguien del Command o Executive Staff para las siguientes situaciones:	- Investigaciones de alto perfil, a solicitud de detectives (especialmente en seguimientos y órdenes de arresto de alta peligrosidad)	- Persecución a vehículos deportivos similares (Sultan, Elegy, ZR350, entre otros de gamas superiores)	- Respuesta táctica a incidentes que envuelvan vehículos deportivos
+El uso del Lenco Bearcat (FBI Truck) queda limitado sólo para persecuciones donde exista confirmación visual de 2 o más sospechosos armados (y la posibilidad de que realicen Drive-by). Su despliegue debe ser autorizado por un miembro del Supervisory Staff.
+
+IV.- COMUNICACIÓN
+
+CÓDIGOS RADIALES E INDICATIVOS
+
+Formato: número de sector de patrullaje, callsign.
+Ejemplos: 280 George 1, código 3.
+112 Adam, envíame 2 apoyos a mi ubicación.
+
+El nombre de la estación solo será obligatorio cuando se pida el parche, puede ser por una emergencia o por una emisión del crímen.
+
+CALLSIGNS
+Sin letra - Patrulla ordinaria
+Adam - Patrulla ordinaria
+Boy - Patrulla ordinaria
+David - Patrulla ordinaria
+Edward - Patrulla ordinaria
+King - Unidad de soporte (Deputies en fase 3 FTP)
+Robert - Unidad de reserva
+George - Supresión de pandillas
+Victor - Patrulla de voluntarios
+William - SEB, asignación especial a una estación.
+Tom  - Unidad de tráfico
+Sam - Sargento de turno
+Lincoln - Teniente de turno
+Charles - Capitán de estación
+Air 7 / Air 22 - Helicóptero en turno EM / PM
+Air 5 - Rescue 5.
+
+JERGAS RADIALES Y MODISMOS UTILIZADOS COMÚNMENTE
+
+Apoyo: Apoyo rutinario, sin sirenas ni luces. No es una emergencia.
+Asistencia: Apoyo de emergencia, sirenas y luces (código 3).
+Obs. : Visión sobre algo.
+Re. : Con respecto a, en relación con.
+Uncoop. : No coopera.
+Deps. : Abreviatura de “deputies”.
+Charlie Ocean: “Call Out” o una operación a la que el SEB (Special Enforcement Bureau) está movilizándose para llevar a cabo.
+TC: Accidente de tráfico.
+Tubo: Escopeta.
+Gancho: Un arresto del deputy que lo dice.
+Sam Browne: Cinturón con hebilla
+Boot: Deputy Sheriff Trainee, alguien sin experiencia.
+Trajeados, trajes: Personal de IAB.
+DIS: Disparos en los que hubo participación de un deputy.
+IFAK: Botiquín de primeros auxilios.
+GSW: Heridas de bala (gunshot wounds)
+
+
+CALLSIGNS DE DIVISIONES
+
+MAJOR CRIMES BUREAU (MCB)
+Utiliza el prefijo Majors David 4.
+
+OPERATION SAFE STREETS (OSS)
+Utiliza el prefijo OSS antes del callsign, como por ejemplo: OSS 280 George 1, OSS 280 George Sam, etc.
+
+SPECIAL ENFORCEMENT BUREAU (SEB)
+Las unidades dedicadas al SEB (véase todas las unidades 240, o unidades William) usarán el prefijo SEB (SEB 110 Wiliam 1 o SEB 280 William 1, por ejemplo), sin embargo, si el deputy del SEB está haciendo patrullaje normal deberá de usar los prefijos de estación que le corresponden.
+
+240K9             Canine Unit
+240K9             Transporte de prisionero
+240R               Rescue (ESD)
+240-9              Unidades SEB no asignadas a una estación
+110W/280W    Unidades SEB asignadas a una estación (con los dos últimos dígitos indicando la estación)
+240S               Sargento
+240BT             Botes
+H5                   Crisis Negotiation Team
+
+CÓDIGOS RADIALES
+
+Código 3 - Emergencia, sirenas y luces.
+Código 4 - No se precisa de más asistencia. (No se puede pedir más)
+Código 5 - Todas las unidades permanecerán alejadas de un área concreta.
+Código 6 - Investigación de campo.
+Código 9 - Coordinación previa a parada.
+Código 14 - Reanudar labores (Solo se usa cuando no puedes decirle a cada carro que es libre, en un incidente grande. Si se usa, no es necesario que los carros liberados usen el 10-98)
+
+Códigos Diez
+
+10-4: Copiado (No abusen de este código).
+10-9: Repita la información.
+10-15: Sospechoso en custodia (SOLO se informa cuando se esposa al sospechoso).
+10-19: Volviendo a ubicación.
+10-20: Ubicación actual.
+10-21: Contactar vía telefónica.
+10-22: Cancelar última información.
+10-28: Verificar registro de vehículo/Órdenes de sujeto.
+10-31: Enviar unidades a la frecuencia específica
+10-33: Mensaje urgente, debe acompañarse de “dame el parche”.
+10-34: Despejar la frecuencia, mensaje no urgente, transmisión.
+10-97: Llegar a la escena (se informa la calle o propiedad). (ejemplo: 61 Adam, 97 en Artesia Avenue/gasolinera de Winona)
+10-98: Asignación finalizada.
+
+187: Homicidio
+207: Secuestro.
+211: Robo (sustracción con violencia).
+211S - Alarma silenciosa.
+215: Robo de un vehículo a vista y presencia del dueño.
+242 - Agresión.
+245: Asalto con un arma mortal (ADW).
+415: Disturbios.
+415G - Disturbio de pandillas.
+417: Persona armada.
+417A: Persona con cuchillo.
+417B - Persona atrincherada.
+451: Incendio provocado.
+459: Hurto.
+503: Robo de vehículo sin el dueño presente.
+510: Carrera callejera.
+511: Street Takeover (grupos significativos de personas se coordinan para cerrar calles para carreras clandestinas y demostraciones de piruetas con autos).
+594: Vandalismo.
+602: Invasión de propiedad.
+902R: Solicitud de ambulancia (JAMÁS debe utilizarse por radio interdepartamental).
+904: Incendio.
+923: Disparos ilegales/Tiroteos ilegales (Illegal Shooting).
+998: Ayudante envuelto en disparos.
+999: Ayudante necesita ayuda urgente, TODAS las unidades respondan (código usado solo por SCC).
+
+USOS RADIALES
+
+A                 Adam
+H                 Henry
+O                Ocean
+V                 Victor
+B                    Boy
+I                     Ida
+P                    Paul
+W              William
+C                 Charles
+J                   John
+Q                Queen
+X                 X-Ray
+D                 David
+K                   King
+R                Robert
+Y                 Young
+E               Edward
+L                Lincoln
+S                    Sam
+Z                 Zebra
+F                  Frank
+M                  Mary
+T                    Tom
+
+G               George
+N                  Nora
+U                  Union
+
+
+(Alfabeto radiofónico APCO)
+
+
+PALABRAS PROHIBIDAS
+
+PROHIBIDO
+SUGERIDO
+PROHIBIDO
+SUGERIDO
+TRIPULANTE, UNITRIPULADO.
+PASAJERO, OCUPANTE, UN OCUPANTE.
+DESPEJAR.
+RETIRARSE, CONTINUAR, PROSEGUIR, LEVANTAR.
+BITRIPULADO.
+DOS PASAJEROS, DOS OCUPANTES.
+RÓTAME, GESTIÓNAME, DESPÁCHAME.
+RUÉDAME, ENVÍAME, CONSÍGUEME, DAME.
+DESVIA.
+TOMAMOS, CRUZAMOS, PASAMOS POR.
+AGENTE, POLÍCIA LOCAL
+OFICIAL, LSPD
+CARRO ADICIONAL,  CARROS ADICIONALES.
+UNIDAD ADICIONAL, UNIDADES ADICIONALES
+DESPACHO.
+SCC.
+
+APÓSTROFO (‘) EJ: ‘’98
+10-98.
+98.
+DETENCIÓN DE TRÁNSITO, PARADA DE TRÁNSITO.
+PARADA DE TRÁFICO
+“LOC.”
+LOCALIZACIÓN, UBICACIÓN
+“SOSP”.
+SOSPECHOSO, INDIVIDUO, SUJETO
+BOTA
+BOOT, ESTUDIANTE, TRAINEE, ALUMNO
+DELITOS MAYORES (MCB)
+CRÍMENES MAYORES, MAJOR CRIMES
+UNIDAD “CORONARIA”
+FORENSE, COUNTY CORONER, VAN FRÍA, CORONER
+HOMBRE HERIDO POR GSW
+HOMBRE CON GSW
+CAPITANA
+CAPITÁN (INDISTINTO SI ES HOMBRE O MUJER)
+COMISARÍA, CENTRAL
+ESTACIÓN
+PATRULLA, PATRULLERO
+BLANCO Y NEGRO, HOOP, RADIO CAR, CARRO PATRULLA
+MASCULINO, FEMENINO
+HOMBRE, MUJER
+
+
+ES IMPORTANTE QUE NO SE INVENTEN FORMAS/MODOS EN LA PARTE DE COMUNICACIÓN RADIAL, ESTÁ TODO EXPLICADO EN LOS EJEMPLOS DEL MANUAL Y EN LA FACCIÓN RESPETAMOS ESA SINTAXIS CASI AL PIE DE LA LETRA.
+
+
+CONCEPTOS Y  USO DE PARCHE
+
+¿Qué es el parche?
+
+El funcionamiento normal de la radio se denomina "simplex". Esto significa que cuando un ayudante en el campo transmite en un canal, su mensaje es escuchado solo por el SCC (sin embargo, la radio dentro de la estación de ese canal también recibirá su tráfico. Esto se hace para que la mesa pueda estar al tanto de todo el tráfico a medida que se produce). Todos los demás ayudantes de campo, sean de la misma estación o no, oirán un tono de ocupado. Cuando se activa el "parche dúplex", se "parchean" los canales y se cambia la frecuencia de símplex a dúplex. Esto significa que ahora los ayudantes pueden transmitir directamente entre sí. Por ejemplo, si el despachador tiene Ganton, Industry y East Los Santos cuando se activa el parche, esas tres estaciones tienen comunicación directa entre sí. Si alguien de Ganton transmite, los ayudantes/estaciones de Ganton, Industry y East Los Santos oirán todo el tráfico. Se reitera que el nombre de la estación solo se menciona cuando se pide o se está en el parche.
+
+
+Es importante que aprendan a usar el parche. ¿Cuando pedimos el parche? Pedimos el parche en situaciones de emergencia, tienen que asociarlo con ''ASISTENCIA''.
+
+Pedido de apoyo (no es emergencia)
+Pedido de asistencia (es emergencia)
+
+RESPONDIENDO/RESPUESTAS AL LLEGAR A LA ESCENA (TAMBIÉN PUEDE INCLUIR TIEMPO ESTIMADO DE RESPUESTA)
+
+(Callsign), respondiendo/código 3/10-97. Podrá complementarse con el tiempo estimado de llegada. Ejemplos:
+
+283 Boy, código 3, dos minutos. (Llamada de asistencia, responde con sirenas y luces, llega en dos minutos)
+113, respondiendo en código. (Llamada de asistencia, responde con sirenas y luces)
+282 Edward, rodando en código. (Llamada de asistencia, responde en código)
+112 Tom 1, respondiendo en uno. (al no decir código, se entiende que es APOYO, en un minuto)
+283 Adam, en uno. (Llamada de apoyo, llega en un minuto)
+114 Boy, probablemente en uno o en dos. (Llamada de apoyo, llega en uno o dos minutos)
+283 Boy, 10-97 en la avenida Artesia. (solo procede cuando previamente se informó que se estaba respondiendo. En caso de que no se haya informado de la respuesta, se deberá usar el código 6)
+283 Boy, código 6 en Artesia.
+281 David, va a ser un código 6 re. 211 sobre Winona.
+
+
+911
+
+281 Adam, respondiendo a la última llamada de servicio. (Responde a un 911 rutinario, no va en código)
+281 Boy, respondiendo en 2. (Llega en 2 minutos, no va en código)
+283 Adam, respondiendo en código. (Se usa cualquiera de las variantes para responder en código tres cuando la llamada de servicio es de urgencia y la integridad de alguien corre riesgo)
+284 David, 10-98 (si se llegó a informar el 10-97).
+281 Boy (en caso de que la llamada o situación se encuentre cerca de donde se encuentra el ayudante, directamente podrán escribir solo con el callsign y con eso se entiende que están respondiendo).
+282 Edward, 10-22 (si no se llegó a informar el 10-97, no hay rastros de que haya ocurrido algún incidente o es una falsa alarma).
+284 Eddie, 10-22. No pude dar con el PR (Se usa cuando NO hay rastros de la persona reportante (PR)).
+
+LIBRE DESPUÉS DE ASIGNACIÓN
+
+283 Boy, 10-98.
+284 Adam, 98.
+281 Adam, es un 98.
+284 Eddie, será 98.
+287 Adam, va a ser 98.
+
+PARADA DE TRÁFICO
+
+(Callsign), código 6 con una parada de tráfico, (vehículo), (si es más de 1 ocupante, lo incluyen en el mensaje), (matrícula), (lugar), (apoyo). Ejemplos:
+
+281, código 6, parada de tráfico, Sultan rojo, matrícula 2, Edward, Frank, Adam, 5, 3, 7. Sobre Winona. (No se especifica que no se necesita apoyo.)
+281 Adam, es código 6, una parada de tráfico, un sedán negro, ocupado tres veces, en Artesia. Las placas son 5, George, Frank, Young, 2, 2, 1.
+281 Adam, estaré en código 6 en una parada de tráfico a un Primo, ocupado por 3. Las son 7, Henry, Zebra, William, 5, 6, 5.  Dirección oeste de Glen Park. Que sea un apoyo. (Aquí se hace la solicitud de solamente una unidad como apoyo.)
+
+PARADA FORZOSA (FELONY STOP/FRANK STOP)
+
+En caso de iniciar la parada forzosa a un vehículo:
+10-33, dame el parche. Dillimore 63 Boy, voy a estar código 9 detrás de un Admiral gris con dos ocupantes re. 923. Placas del estado 2, Boy, Boy, Charles, 437. Vamos al este por la avenida Winona. Envíame asistencia y verifica con aero.63 Boy, el vehículo se detuvo en Ganton Boulevard, encarando al este. Los estamos deteniendo a punta de pistola.
+
+En caso de iniciar la parada forzosa a un peatón::
+10-33, dame el parche. Dillimore 63 Boy, estoy deteniendo a un 459 sospechoso a punta de pistola sobre Winona, encarando al este. Es un hombre, negro, camiseta gris y pantalones jeans azules. Envíame asistencia y verifica con aero.
+
+SOSPECHOSO EN CUSTODIA (NO TRASLADO)
+
+Como nota, se aclara que en caso de que el sospechoso haya cometido un crimen grave (felony), no se debe informar el 10-15 a menos que el sospechoso esté esposado y en el asiento trasero de una unidad o el riesgo de fuga o lucha es mínimo (por ejemplo, el sospechoso fue abatido en un intercambio de disparos).
+
+281 Boy, 10-15 con 1.
+283 Adam, un 10-15, es la avenida Carson.
+
+PERSECUCIÓN
+
+Al momento de iniciar una persecución, se tendrá la opción de informar por la radio o por whisper en TS3, deberá usarse lo se le haga más práctico al deputy, se aconseja informar por radio cuando se está de acompañante y reiterar el llamado por whisper en caso de no recibir asistencia.
+
+POR RADIO: Se requerirá indicar con claridad la siguiente información:
+Identificación de la unidad,
+Ubicación,
+Velocidad y dirección,
+Razón específica de la persecución (incluir el número del delito tipificado en caso de saberlo),
+El número de ocupantes,
+Las condiciones actuales del tráfico y,
+Cualquier información referente al uso de armas o algún dato que los deputies acudiendo deban considerar por motivos de seguridad.
+
+“10-33, dame el parche. Ganton 282 King 1, vamos a estar en persecución del 417 sospechoso. Va a estar sobre la calle Princeton en dirección sur conduciendo un Sultan negro. Vamos a 30 millas por hora, tráfico ligero.”
+“10-33, abre el parche. Ganton 282 King 1, estaré siguiendo a un sedán gris, por 211. Salimos al norte de la avenida Crenshaw, ocupado por 1. Aumentó la velocidad a unas 50 millas por hora, sin tráfico. Envía unidades en código.”
+
+PÉRDIDA DE OBS. EN PERSECUCIÓN
+
+Cuando estamos en una persecución se da por hecho que tenemos el parche y que nuestro personaje ha estado relatando el seguimiento del incidente por su radio (aunque nosotros lo hayamos estado haciendo por ts3 y no hayamos mandado ninguna emisión por el /r), esto quiere decir que al perder a un sospechoso después de una persecución no es necesario pedir el parche (10-34) para un crime broadcast, si no que emitiremos la última información, además de los datos clave para poder buscar al vehículo sospechoso.
+
+Ganton 280 Sam, SCC, he perdido observación del vehículo. Es un Premier negro, con dos ocupantes, placas de San Andreas 2 William Nora David 283. Última vez visto sobre la avenida Felton, con dirección hacia el norte. Se le busca por evasión. Puedes tirar el parche.
+
+POR WHISPER (únicamente a manera de ejemplo, puede variar):
+Ganton 283 Edward, estamos en persecución a un Sultan Negro, vamos sobre la calle Market, TAC 1.
+
+APOYO (NO EMERGENCIA)
+
+285 Adam, envía un apoyo a Artesia por un hombre hispano que está uncoop/no coopera.
+284 Adam, necesitamos dos unidades como apoyo en Main.
+281 David, haz rodar, al menos, tres unidades de apoyo al norte de la avenida Winona.
+
+
+
+ASISTENCIA (EMERGENCIA)
+Nota. Recuerden que el parche no expira, a no ser que se concluya la situación (código 4) y el ayudante lo haga saber a SCC.
+
+Ejemplo 1:
+
+10-33, dame el parche. Ganton 281 Adam, solicitando asistencia en Winona, al menos 3 unidades, es para un 417A hombre. Está amenazando a los ayudantes.
+El sospechoso está sangrando, prepara una 902R. Se muestra cooperante a las órdenes verbales.
+Señora, un equipo de arresto/empuje avanzará hacia el sospechoso.
+Código 4 en Winona, 10-15 con 1.
+
+Ejemplo 2:
+
+10-33, pon el parche.
+Ganton 283 Adam, será código 9 a un sospechoso por 211, que está sosteniendo un 417 en su mano en Ganton Boulevard.
+Es calvo y está vestido con, uh, una gorra negra, sudadera azul, vaqueros negros.
+Dame unidades en código.
+998, 998, disparos, disparos.
+El sospechoso está herido de bala, déjame tener una ambulancia.
+Se avisa de un código 4 re. al 417 en Ganton Boulevard, 10-15 con 1.
+
+Ejemplo 3:
+
+10-33, dame el parche.
+Ganton 281 Adam, tengo a un sospechoso 245 a punta de pistola al norte de Ganton Boulevard.
+¿Puedo tener una unidad Sam? 998, 998. Un sospechoso herido de bala. Déjame tener un 902R en la escena.
+Haz que la asistencia llegue desde el sur, envíame a un supervisor.
+Un equipo de empuje está con el sospechoso, ahm. Código 4 en Ganton Boulevard, 10-15.
+
+DISTURBIOS
+
+281 Boy, estoy en código 6 sobre Santa Rosa Ave. ¿Puedo tener unidades como apoyo respondiendo a mi ubicación por un 415?
+281 Edward, SCC, rueda un par de unidades como apoyo re. 415 de Vinewood Boulevard. La descripción del primer sospechoso es… Hombre blanco, en sus 20 años, 6 pies y aproximadamente 200 libras. Lleva una camiseta marrón con flores, vaqueros azules, zapatos negros.
+
+SITUACIÓN CONTROLADA, NO SE PRECISA MÁS APOYO
+
+281 Adam, se avisa de un código 4 re. 245 en la 107th.
+282 David, código 4 y código 14 en el 675 de la calle Grove, 10-15 con 1.
+(se aclara que tienes a un sospechoso en custodia de inmediato cuando lo esposas (no Felony).)
+287 Boy, código 4 en el 417 de la calle Princeton.
+
+DISPAROS DE DEPUTIES (998)
+
+La forma de informar puede variar y ser muy breve a excepción del IC o quien tome el mando del parche en ese momento, él tendrá que dar la información completa (pedir asistencia, supervisor, ambulancia, dar referencias de la ubicación, e.t.c.).
+
+¡10-33, necesito el parche! ¡Ganton 283 Adam, 998, 998. Calle Princeton! ¡Envíame unidades en código y una unidad Sam! ¡Todos los deps. están contabilizados! (Al decir que todos los deps están contabilizados se refiere a que no hay ningún deputy herido, si hay uno herido, pueden decir ‘’todos los deps. están contabilizados menos 1, y así)
+Ganton 281 Edward, ¡998, 998, calle Grove! ¡Envíame asistencia y una unidad Sam!
+¡10-33, dame el parche!
+¡998, 998, es sobre 107th, 417 hombre hispano, 281 Boy!
+¡998! ¡Grove y 107th St! ¡Envíame asistencia!
+
+DISPAROS DE UN TERCERO
+
+10-33, dame el parche. Ganton 281 Boy, 923 en los vecindarios entre Princeton y Grove, fueron 3 disparos, envíame asistencia.
+¡10-33, dame el parche! ¡Dillimore 61 Boy, 923, Crystal Gardens! ¡El sospechoso es un 417, corre hacia el norte de la calle, envíame asistencia!
+¡10-33, dame el parche! ¡Ganton 280 Sam, disparos en Santa Rosa, escucho disparos de 2 o más semiautomáticas, envíame asistencia.
+
+EMISIÓN DE CRIMEN
+
+Es común que los informes sobre personas o vehículos que escapan de una escena se realicen de forma más natural. Así se informará cuando una persona haya escapado, esto es lo que se conoce como Hot Shots: Informes rápidos de alta prioridad que deberían ser transmitidos sin dilaciones.
+Para informar correctamente sobre la descripción de un sospechoso es necesario seguir la cadena de atributos, con una coma entre cada uno. Si no se tiene un dato, basta con seguir con el siguiente.
+
+Sexo (Hombre/Mujer)
+Etnia (Blanco, negro, hispano, asiático) (Nunca afroamericano, ni caucásico)
+Edad (estimado)
+Altura
+Peso
+Contextura
+Vestimenta
+Accesorios.
+
+Hombre, negro, 20-25 años, cerca de 6 pies, 260 libras, obeso, lleva camiseta blanca y blue jeans, zapatos negros, lleva una maleta.
+
+Mujer, blanca, 50-60 años, contextura delgada, lleva una blusa morada y falda blanca, tacones rojos, está llevando un bolso.
+
+“(Callsign con estación), 10-34 para una emisión de (código de radio del incidente en caso de existir).
+(Callsign sin estación), avisando de (código del crimen), (minutos desde entonces), (localización exacta).
+(descripción física del sospechoso, edad, altura en pies, peso en libras).
+(descripción física del sospechoso, estilo de ropa y color).
+(dirección donde fue visto por última vez el sospechoso, arma en caso de existir).
+Puedes tirar el parche.”
+
+Cada una de estas líneas deberán ir por separado, el 10-34 se enviará primero para que las demás unidades no escriban y presten atención.
+
+Una vez se haya mandado la emisión de crimen por /r, es recomendable también hacerlo por el canal #crime-broadcasts a través del comando /emisioncrimen, que te abrirá una pestaña con datos a rellenar una vez uses el comando.
+
+(ES RECOMENDABLE QUE SE ESCRIBA ENTRE LÍNEAS SEPARADAS, PARA GARANTIZAR ASÍ UNA LECTURA CÓMODA.)
+
+Ganton 283 George 1, 10-34 para la emisión de un 211
+283 George 1, avisando de un 211 ocurrido hace 10 en el 4291 de la calle Princeton, en el cruce con Winona.
+El sospechoso es descrito como un hombre blanco, de aproximadamente 27 años, 6 pies, 140 libras.
+Fue visto por última vez vistiendo una camiseta negra, jeans azules y botas de trabajo negras.
+Estaba corriendo hacia el este desde el lugar hacia Ganton Boulevard, y perdiéndose de vista. El arma que usó fue una pistola 9mm negra. Puedes tirar el parche
+
+Documentación LASD:
+*
+
+PIES Y MILLAS
+
+Tabla de conversión de millas a kilómetros.*
+Tabla de conversión de pies a centímetros. Las alturas más comunes para hombres varían desde 5’6” hasta 6’3”, mientras que para mujeres sería de 5’2” hasta 5’10”.*
+
+TRASLADO DE DETENIDOS
+
+281 Boy, 10-19 a la estación de Ganton.
+112 Tom 1, 10-19 a la estación de Dillimore.
+
+CONTACTAR VÍA TELEFÓNICA
+
+Cuando haya una distancia considerable entre la unidad el emisor y un receptor, provocando que una frecuencia SIMPLEX sea imposible, lo ideal sería que se contacten vía telefónica (10-21). Para eso, se informará de la siguiente manera:
+
+281 Boy, ¿puedes decirle a 281 Adam para un 10-21 a mi teléfono?.
+
+Se interpreta que la SCC le entrega el número del ayudante de 281 Boy a 281 Adam. Aquí, el conductor de 281 Adam deberá buscar por el MDC el número de teléfono del ayudante que pidió el 10-21 y deberá llamarlo.
+
+SOLICITUD DE UNIDAD K9
+
+(Callsign), haz llegar un equipo K9 a (calle) para (tarea).
+284 David, SCC, haz llegar un equipo K9 a la avenida Gilmore para una investigación de campo.
+60 Sam, ten un equipo K9 para rastrillar en Winona. Estamos buscando al último sospechoso re 998.
+280 Sam, ¿puedo tener una unidad K9 en Main, a la altura del Ammu-Nation? Tengo un vehículo con un olor sospechoso, posiblemente marihuana.
+281 Adam, SCC, envía un equipo K9 a mi 10-20. Necesitamos rastrillar la zona en busca de un arma de fuego que el sospechoso descartó.
+
+
+SOLICITUD DE AMBULANCIA
+
+(Callsign), 902R sobre (calle), (descripción del herido) (descripción de las heridas, pulso, etc).
+284 David, 902R sobre Princeton, hombre blanco de unos treinta años con heridas de bala.
+114, 902R sobre la calle Grove, hombre negro de unos veinte años, sin pulso, hay que pronunciar.
+280 Sam, ¿puedo tener una 902R en Winona a la altura de la gasolinera? Es un hombre en sus 30 con GSW. Está consciente.
+
+El siguiente mensaje deberá transmitirse por /dep a FIRE, roleando que lo deriva SCC
+
+SCC para MFC: Se requiere una RA en (lugar) para un/a (descripción del herido).
+
+SCC para MFC: Se requiere una RA en Princeton para una persona herida de bala, con pulso y respirando.
+
+SOLICITUD DE GRÚA
+
+(Callsign), SCC, envíame una grúa sobre (calle) para un (descripción del vehículo).
+284 David, SCC, envíame una grúa sobre Princeton para un Elegy azul relacionado a la última persecución..
+114, SCC, déjame tener una grúa sobre la calle Grove, Premier azul.
+Nota. Actualmente, LSSD tiene un contrato con Los Santos Auto Impound (empresa de remolques). Para contactarse con ellos, se debe utilizar el /dep y comunicarse con ellos (luego de haber realizado el pedido de grúa por el /r).
+SCC, TCC. Ayudantes requieren una grúa sobre (calle) para un (descripción del vehículo).
+
+SOLICITUD DE GRÚA AL DEPÓSITO
+
+Actualmente, LSSD tiene un contrato con Los Santos Auto Impound (empresa de remolques). Para contactar con ellos, se debe utilizar una radio UHF (que se encuentran en el /equipar) y comunicarse con ellos luego del pedido de grúa por el /r a través del comando /cb.
+SCC, LSAI. Ayudantes requieren una grúa sobre (calle) para un (descripción del vehículo).
+SCC, LSAI. Ayudantes requieren una grúa sobre Winona para una Huntley negra.
+SCC, Depósito. Ayudantes requieren una grúa sobre la calle Grove para un Premier marrón.
+Nota. En caso de que no contesten el /cb, pueden optar por pedirle a algún compañero que vaya a buscar la grúa para trasladar el vehículo o solicitarle por /reportar a un administrador que utilice el /aembargar luego de haber pedido la grúa por /r y roleado por /do el correspondiente traslado.
+Luego de varios minutos, una grúa llegaría a la escena y remolcaría el (vehículo) al depósito.
+
+
+V.- ORGANIZACIÓN
+JERARQUÍA
+
+Título
+Insignia
+Sheriff
+*
+Undersheriff
+*
+Assistant Sheriff
+*
+Division Chief
+*
+Commander
+*
+Captain
+*
+Lieutenant
+*
+Sergeant
+*
+Deputy Sheriff (Master FTO)
+*
+Bonus Deputy (I/II)
+*
+Deputy Sheriff
+
+Deputy Sheriff Trainee (Non-sworn)
+
+
+
+Lo expuesto arriba es el órden jerárquico que tienen los rangos, los “Bonus I y II” recaen dentro del Deputy Sheriff, por lo cual un Bonus II no está sobre un Bonus I. La única excepción a esto tiene lugar en divisiones y circunstancias especiales donde la experiencia lo amerite.
+
+Para acceder a un “Bonus”, se deberán cumplir funciones específicas en el departamento. Por ejemplo, los FTOs o detectives. En la realidad no son muchos aquellos que portan los cheurones, se tratará de imitar esto en el juego.
+
+Por lo demás, existen diversas funciones a cumplir dentro del departamento:
+
+Unit Commander: Capitán o Teniente a cargo de una estación.
+Watch Commander: Comandante en un turno específico, puede tratarse de un Teniente o un Sargento si la estación o unidad es muy pequeña y está capacitado.
+Watch Sergeant: Sargento destinado a supervisar en un turno específico, está en la sala de comunicaciones con el Watch Commander y el Watch Deputy.
+Watch Deputy: Deputy encargado de asistir al resto del personal a comandar, comparte con los demás dentro de la sala de comunicaciones.
+Operations Lieutenant: Teniente al mando de una unidad operativa.
+Operations Sergeant: Sargentos de alguna unidad que tienen una posición administrativa junto al Operations Lieutenant.
+Field Sergeant: Sargento supervisor de campo, se dedica a velar por el debido cumplimiento de los procedimientos y el respeto a las políticas del departamento.
+Field Deputy: Deputies que están en el terreno, encargados de prevenir el crimen, proteger la vida y la propiedad de los ciudadanos, etc.
+
+Los niveles de organización así establecidos deberán describirse mediante los siguientes términos en el orden indicado:
+
+Department.
+Bureau.
+Group.
+Division.
+Section.
+Unit.
+
+BURÓ. "Bureau (castellanizado como 'Burô) deberá ser utilizado para describir una segregación mayor, ya sea funcional o geográfica, de frases afines a las actividades e intereses del Departamento.
+
+GRUPO. "Grupo" deberá ser utilizado para describir una segregación funcional de actividades y/o una asamblea de dos o más divisiones o secciones, dentro de una oficina
+(Bureau).
+
+DIVISIÓN. "División" será usado para describir una subdivisión funcional de actividades dentro de la Oficina del Jefe de Policía, una oficina (Bureau), grupo o área.
+
+SECCIÓN. "Sección" será utilizado para describir una actividad mayor dentro de la Oficina del Jefe de Policía, una oficina (Bureau), grupo, área o división.
+UNIDAD. "Unidad" se utilizará para describir una actividad específica dentro de un área, división o sección.
+
+CADENA DE MANDO EN SITUACIONES
+
+En todas las situaciones que ocurran dentro del juego, se deberá respetar el siguiente orden lógico de jerarquía (en caso de ausencia de uno de arriba, le sigue el de abajo):
+Supervisory Staff
+Master Field Training Officers
+Field Training Officers
+Deputy Sheriff (Bonus II)
+Deputy Sheriff (Bonus I)
+Deputy Sheriff
+Civilian Volunteer
+
+El IC (Incident Commander) tendrá el manejo de la situación en el sentido de que se hará cargo de lo que ocurra con los sospechosos, pero se deberá respetar esta jerarquía en caso de la necesidad de dictar órdenes. Por ejemplo, si un IC es Deputy Sheriff, y hay un FTO en la situación, será el FTO quien esté encargado de supervisar (autorizar pinchos, maniobras PIT, entre otros) ante la ausencia de un Supervisory Staff.
+
+JERARQUÍA Y FUNCIONES DEL EXECUTIVE STAFF Y COMMAND STAFF
+
+Executive Staff
+Es el liderazgo de la facción, tiene como principal función su administración en el plano IC y OOC. Es la que decide ascensos y gestiona los ingresos al BSSS (supervisores), así como también se encarga de la administración del Internal Affairs Bureau (IAB). Tiene como una de sus funciones asegurar la correcta interpretación de la facción, pudiendo decidir diferentes medidas en favor de este motivo. Pueden gestionar expulsiones de última ratio (es decir, de manera urgente) sin la necesidad de aprobación del Command Staff.
+
+Sheriff: Es el líder principal, gestiona directamente el BSSS y el FTP y es la cara visible de la facción hacia los usuarios y la administración.
+Undersheriff: Es el segundo al mando en el liderazgo, está encargado del IAB y su correcta interpretación en labores investigativas.
+Assistant Sheriff: Es el tercero al mando, y puede estar a cargo de una sección de operaciones definida (Custody, Patrol o Countywide), sobre la cual tendrá supervisión directa.
+Chief: Es el cuarto al mando, y puede estar dando apoyo o ser el encargado en una sección de operaciones definida o estar encargado de una división en particular (patrullaje, detectives, etc).
+
+Command Staff
+El Command Staff es, en términos sencillos, el sub-liderazgo de la facción. Su principal función es la administración IC y OOC de ciertas unidades o divisiones en específico. En conjunto con el Executive Staff, puede decidir la apertura o cierre de unidades o divisiones, descensos de rango, ingresos excepcionales a la facción, reincorporaciones, transferencias laterales, proyectos de rol, asignación de recursos (/fondos) y cambios en el manual.
+
+Commander: Puede ser asistente de un Chief o estar encargado de una división en específico, incluyendo sus respectivas unidades/subdivisiones.
+Captain: Está encargado de una unidad/bureau, tiene la gestión respecto a los miembros de tal unidad. En casos de transferencia, debe ponerse de acuerdo entre encargados de unidad.
+Unit Commander: Excepcionalmente se puede abrir esta posición para alguien que no ocupe el puesto de capitán, y tendrá derecho a voz pero no a voto en las decisiones del Command Staff, pudiendo gestionar de manera interina una unidad.
+
+
+VI.- GUÍAS
+
+GUÍA PARA NUEVOS MIEMBROS
+
+INTRODUCCIÓN
+
+En esta guía contendrá todos los aspectos básicos que deberán tener en cuenta para establecer un personaje en línea con nuestro concepto de facción. Además, servirá para mejorar la interpretación y hacerla más fiel a la realidad, sin perjudicar demasiado la libertad para crear personajes de distintos tipos.
+
+CONTEXTO
+
+Nuestra facción trata de representar de forma real al departamento del sheriff de Los Ángeles. El condado de Los Ángeles, donde opera el departamento, es el condado más grande del país, por lo tanto, el tamaño de la agencia es bastante grande. El departamento que se trata de replicar ha pasado por varios escándalos de gran perfil durante los años, específicamente, por brutalidad policial, por la presencia de 'pandillas de deputies' en ciertas estaciones e instalaciones de custodia e incluso por obstrucción a investigaciones federales por parte de un ex-sheriff y ex undersheriff.
+
+Por ende, el departamento al que tratamos de representar en el juego, tiene una imagen dañada y una cultura de la cual no se despega - las estaciones, por ejemplo, suelen tener sus propias culturas internas que se han mantenido a lo largo de los años.
+
+Los deputies que se gradúan de la Academia son enviados a trabajar a una cárcel como Custodia, y suelen mantenerse ahí al menos 9 meses o más, pero en algunos casos ese tiempo se extiende a 1 o más años, dependiendo de la persona. Por ello, los deputies que llegan a hacer su certificación de patrullaje ya tienen experiencia previa tratando con criminales, y, a diferencia de LAPD, están más curtidos y son más resistentes al estrés a la hora de pisar la calle.
+
+PROGRESIÓN DEL PERSONAJE
+
+Los personajes nuevos, como se mencionó más arriba, habrían completado 22 semanas de Academia, y, al graduarse y hacer el juramento, serían enviados en el 90% de los casos a una cárcel. Los deputies generalmente pasan entre 9 meses hasta tiempos de incluso 2-3 años trabajando en cárcel - el ambiente en custodia es sumamente estresante, ya que implica estar permanentemente trabajando con criminales de cerca, y bajo condiciones laborales que no pueden ser las mejores.Es importante que los personajes nuevos roleen provenir de una cárcel del departamento.
+
+Algunas instalaciones de las cuales se puede rolear provenir son las siguientes:
+
+- Men's Central Jail: La más sobrepoblada con presos, y la que ofrece las peores condiciones de trabajo.
+- Twin Towers Correctional Facility: Posee a presos con problemas mentales. Condiciones de trabajo deplorables.
+- Pitchess Detention Center
+- North County Correctional Facility
+- Olympic Regional Detention Facility
+
+Al transferirse a patrullaje, los nuevos deputies tendrían que completar un currículo de estudio en la Patrol School y después elegir una estación a la cual trasladarse. Posteriormente, toda la instrucción de patrullaje que se hace con FTOs está en el Field Training Program - programa encargado de justamente eso. Allí los deputies estarían 6 meses, y, al completar todas las fases, recibirían su pin de estación y ya estarían certificados para patrullaje.
+
+CULTURA, ESTÁNDARES Y OTROS DETALLES DEL PERSONAJE
+
+La cultura del departamento del sheriff suele ser militar y bastante reservada. Es muy común ver que la gran mayoría de deputies están rapados, o poseen pelo muy corto. La Academia suele preparar a los deputies de igual manera que el Entrenamiento Básico del ejército o los marines.
+
+Además de aquello, cada estación de patrullaje suele tener su propia cultura interna. Algunas estaciones quizá obligan a los 'boots' a permanecer de pie durante los briefings - o de vestirse en el garaje en vez de las taquillas. Nosotros queremos generar una cultura parecida pero que sea propia de nuestra estación, y que sea creada por los mismos personajes en el servidor. Por ello, no estableceremos ninguna pauta para aquello.
+
+LINGO DE LOS DEPUTIES - PALABRAS COMÚNMENTE USADAS
+
+A continuación se presentará una lista breve con términos (traducidos o no traducidos) que se suelen usar en el departamento del sheriff. Es importante que se tenga conocimiento de éstos para mejorar la interpretación, sin necesariamente tener que usarlos de forma permanente.
+
+Hoop/Radio car/Blanco y negro: Carro patrulla - "súbeme al tipo a mi hoop, boot."
+Boot: Manera de llamarle a los deputies que están en el Field Training Program.
+Hook/gancho: Se refiere a una persona arrestada - "hey, ese es mi hook. Súbelo a mi patrulla."
+Handle/manejo: Se refiere a poseer el control de una situación o incidente - "Yo tengo el manejo. Déjame pensar qué podemos hacer."
+Frank: Una persona con crímenes graves o felonies. O un crimen grave en sí - "Lo estoy arrestando por dos franks."
+Frank stop: Parada forzada
+Cero: Persona que está muerta - "El conductor es un cero."
+Boomstick o tube/tubo - Escopeta.
+Agg Bat: Agresión agravada
+ADW: Asalto con arma mortal
+DICV: Cámara de tablero/Dashcam.
+BWC: Cámara corporal.
+LTL: Menos letal (taser, beanbag, 40mm).
+40/Cuarenta: 40mm.
+RO: Dueño registrado
+RP: Persona que reporta
+DP: Persona que perturba
+L-RAW: Orden de arresto de bajo riesgo
+H-RAW: Orden de arresto de alto riesgo
+SW: Orden de registro
+
+FIELD TRAINING PROGRAM
+
+https://sheriff.sa-rp.es/viewtopic.php?t=37
+
+GUÍA/IP DE TEAMSPEAK
+
+¿CÓMO CONFIGURO EL TEAMSPEAK?
+
+Para empezar, se deberá de ingresar a nuestro servidor de TeamSpeak (51.81.49.72:11189). Una vez allí, ya se podrá comenzar a configurar el TeamSpeak.
+
+MACROS/TECLAS DE ACCESO RÁPIDO PARA CAMBIAR CANAL
+
+Es altamente recomendable tener teclas de acceso rápido para cambiar de canal. Para ello, se deberá de ir a Herramientas, después Opciones y finalmente Teclas de Acceso Rápido. Una vez en esa sección, se deberá de presionar en el botón Agregar para abrir un nuevo diálogo. Allí, se deberá seleccionar en Mostrar acciones avanzadas y después buscar la opción de Cambiar a canal, con la opción seleccionada, se deberá de elegir un canal (en este caso, se deberán de elegir los canales de A-TAC).
+
+Al expandir un canal, saldrán una serie de opciones adicionales, es recomendable seleccionar la opción de en el servidor actual. Al hacerlo, se te pedirá presionar la combinación de teclas que usarás para esa acción. Finalmente, se deberá de hacer click en Aceptar para guardar los cambios.
+
+WHISPERS
+
+La facción hace uso del sistema de Comandante de canal para los whispers. Para configurarlos, se deberá de ir a Herramientas, después Opciones y finalmente Susurrar. Después, se deberá de hacer click en Listas de susurros y después en Nueva. Al configurar una tecla para los whispers, deberás de cambiar la opción de Susurrar a: a la opción de Grupos. Finalmente, en Tipo de susurro de grupo debes seleccionar la opción de Comandante de canal y guardar los cambios.
+
+Recuerda que para recibir los whispers de otros miembros de la facción tendrás que tener el Comandante de canal activado. Para hacerlo, haz click derecho en tu nombre y selecciona “Comandante de canal”.
+
+GUÍA PARA ESCRIBIR REPORTES
+
+Los reportes deben escribirse en primera persona y en pasado, pues tienen valor de declaración jurada. Deben contener lenguaje fácil de entender y directo. El ayudante debe hacer un análisis global de la situación y explicarlo de la manera más clara posible. No debe contener palabras señaladas, ya sea con negrita o con itálica, ni tampoco tener palabras en mayúscula (a menos que así fuese el nombre propio de un lugar u objeto a señalar).
+
+ESTRUCTURA DE LA NARRATIVA:
+
+Introducción
+Lo ocurrido mientras se acercaban a escena.
+La localización.
+La llegada.
+Declaraciones de testigos (ya sean otros ayudantes, tú mismo, transeúntes, víctimas o sospechosos).
+Descripciones de testigos y sospechosos.
+Evidencia.
+Recursos e información adicional.
+La conclusión.
+El final.
+
+
+EL REPORTE DEBE CONTENER LO SIGUIENTE:
+
+¿Cuándo? - ¿Cuándo se involucró en la situación? ¿Qué hora y qué día?
+¿Quién? - ¿Qué ayudantes estuvieron involucrados?
+¿Qué tipo? - Aclarar si fue iniciado por una llamada al 911, por el ayudante o por otro ayudante.
+¿Dónde? - Localización y nombre del lugar.
+¿Por qué? - ¿Cuál fue la naturaleza del incidente? ¿Por qué se procedió (o no) a un arresto, si hubiese un sospechoso?
+Número de llamada - Número de la llamada al 911 (Últimos dígitos del número, pues no tenemos sistema en el servidor. Puede omitirse)).
+Unidades que asistieron - Ayudantes que llegaron posteriormente, ya sea durante el acaecimiento del hecho o luego. También quién tuvo el manejo de la situación desde el principio o quién lo tomó posteriormente.
+Números de bolsa de evidencia asociados al arresto.
+Cualquier información respecto a simbología asociada a organizaciones criminales (tatuajes, prendas de ropa, etc.)
+
+
+Un ejemplo básico de estructura sería el siguiente:
+
+Yo, rango Nombre Apellido, bajo la callsign [callsign abreviada sin prefijo, ej. 281A, 110S, 283D, etc], estábamos realizando un patrullaje de rutina en el área de [zona] cuando nuestra atención se dirigió a [incluir información, por ej. "el sujeto hispano blandiendo un cuchillo a punto de pelear con otra persona"] (...) (se continúa con la narrativa).
+
+Al final de la narrativa se debe incluir, por rol, un rol de entorno aclarando la evidencia que existiría para ese arresto (grabaciones, por ejemplo).
+
+Un ejemplo real de estructura sería el siguiente:
+
+“Yo, ayudante Eusebio Cruz, me encontraba patrullando bajo la asignación 281B con mi pareja el ayudante Nicholas Cowell durante la noche de del 26 de junio de 2024 (06/26/2024), a las 22:00 aproximadamente.
+
+En el marco de una operación de supresión de crimen en las inmediaciones del SoFi Stadium, nuestra pareja y yo paramos en la estación de servicio de Idlewood porque nos percatamos de un gran grupo de personas bebiendo alcohol al aire libre. Inmediatamente pedí apoyo por radio para que me ayudaran a controlar a esa multitud y me quedé en la estación, que está ubicada en Winona y MLK, esperando que llegaran mis compañeros.
+
+ [04:25:30] **[CH: DISPATCH 9, S: 1] Eusebio Cruz: 281 Boy. Necesito apoyo y una unidad Sam en Winona. Tengo un grupo grande de jóvenes negros bebiendo alcohol al aire libre.
+
+Aproximadamente medio minuto después, vi una Huntley negra frenar frente al grupo de afroamericanos. Todos los ocupantes se bajaron y empezaron a disparar. Balas perdidas cayeron en mi patrulla, por lo que pedí una emergencia a todo el departamento.
+
+[04:25:50] **[CH: DISPATCH 9, S: 1] Eusebio Cruz: ¡281 Boy! ¡998, 998 en Winona! ¡Dame el parche!
+
+Al llamado responden inicialmente los sargentos John Velazco y Joseph Natareno; los detectives Terence Mesa, Eric Swanson y Steve Grifasi y el ayudante Ruben Arellanos. Intenté perseguir a la Huntley negra pero continuaron disparando contra mi coche con munición calibre 5.56x45, lo que me hace frenar para preservar mi vida y la de mi compañero. Ante eso doy aviso de crimen a todo el departamento sobre la SUV escapada, que se dirigió hacia al norte, en dirección a East Los Santos.
+Una vez en escena identificamos a los fallecidos: LeMaun Tate ((CK)), Malik Dupree, Donjae Reeves, Mahlik Greer, Ferando Greene, Terrance Jennings y por último Vesper Rozhkov, uno de los homicidas que se bajaron de la SUV. Rozhkov murió con una escopeta calibre 12 Mossberg Mav88.
+
+Le tomamos declaración a Julius Colt, un vecino de la zona, que dice saber que los perpretadores son unos rusos que han tenido encontronazos con los vecinos del barrio. Vesper Rozhkov confirma esto, ya que es un rusoamericano. Otros vecinos afines a Tate y Colt no quisieron prestar declaración, pero afirman conocer a los rusos.
+
+Posteriormente llegan en escena los detectives Nicholas Canales y Xavier Winslow. Canales asegura haber visto una pelea entre los afroamericanos y los rusos en el T.G. Stages minutos antes de la masacre.
+
+Se recogieron los rastros de sangre y los casquillos de la escena del crimen. Los casquillos provienen de armas sin registrar y son calibre 12 (el arma de V. Rohzkov), 5.56x45 correspondientes a una Colt AR-15 y .45 correspondiente a una HK USP. Las pruebas de sangre ya fueron enviadas al laboratorio y pronto tendremos sus resultados.”
+
+** LOS NÚMEROS DE BOLSA DE EVIDENCIA SON #394212 (CASQUILLOS Y MUESTRAS DE SANGRE) Y #394502 (ARMA DEL SOSPECHOSO ROZHKOV) **
+
+** SE INCLUYEN GRABACIONES DE LAS DICV Y BWC DE LOS DEPUTIES INVOLUCRADOS EN EL INCIDENTE, QUE MUESTRAN CÓMO TRANSCURRE LA BALACERA.**NOTA: Si quieres pausar la escritura del reporte para escribir algo en el chat IC, puedes utilizar la tecla F6 para desplegar el chat mientras estás en el menú de arresto, y una vez mandes el mensaje, el menú se desplegará justo donde estaba.

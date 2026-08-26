@@ -78,6 +78,9 @@ class AgentActivity(StrEnum):
 
     CONVERSATION = "conversation"
     KNOWLEDGE = "knowledge"
+    MANUAL_INDEX = "manual_index"
+    MANUAL_SEARCH = "manual_search"
+    MANUAL_READ = "manual_read"
     FREQUENCIES = "frequencies"
     PERSONNEL = "personnel"
     RECORDS = "records"

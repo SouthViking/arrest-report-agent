@@ -59,6 +59,7 @@ from arrest_report_agent.infrastructure.sarp import (
 from arrest_report_agent.knowledge import (
     ChargeCatalog,
     ChargeCatalogProvider,
+    ManualCatalog,
     RadioCodeCatalog,
     ReportGuide,
     StaticChargeCatalogProvider,
@@ -234,6 +235,7 @@ async def build_runtime(
         source_hash=catalog_snapshot.catalog.source_hash,
     )
     guide = ReportGuide.load_default()
+    manual_catalog = ManualCatalog.load_default()
     radio_catalog = RadioCodeCatalog.load_default()
     model_catalog = ModelCatalog.load_default()
     object_storage = build_bucket_storage(settings)
@@ -249,6 +251,7 @@ async def build_runtime(
         sarp_client=sarp_client,
         faction_directory=faction_directory,
         evidence_bag_lookup=evidence_bag_service,
+        manual_catalog=manual_catalog,
     )
     try:
         if sarp_penal_code_provider is not None:
@@ -327,6 +330,9 @@ async def build_runtime(
             idle_text=presence.idle,
             conversation_text=presence.conversation,
             knowledge_text=presence.knowledge,
+            manual_index_text=presence.manual_index,
+            manual_search_text=presence.manual_search,
+            manual_read_text=presence.manual_read,
             frequencies_text=presence.frequencies,
             personnel_text=presence.personnel,
             records_text=presence.records,

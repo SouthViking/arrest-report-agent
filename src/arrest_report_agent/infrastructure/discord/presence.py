@@ -20,6 +20,9 @@ class PresenceMode(StrEnum):
     IDLE = "idle"
     CONVERSATION = AgentActivity.CONVERSATION
     KNOWLEDGE = AgentActivity.KNOWLEDGE
+    MANUAL_INDEX = AgentActivity.MANUAL_INDEX
+    MANUAL_SEARCH = AgentActivity.MANUAL_SEARCH
+    MANUAL_READ = AgentActivity.MANUAL_READ
     FREQUENCIES = AgentActivity.FREQUENCIES
     PERSONNEL = AgentActivity.PERSONNEL
     RECORDS = AgentActivity.RECORDS
@@ -34,12 +37,15 @@ PRESENCE_PRIORITY = {
     PresenceMode.CONVERSATION: 1,
     PresenceMode.PERSONNEL: 2,
     PresenceMode.KNOWLEDGE: 3,
-    PresenceMode.FREQUENCIES: 4,
-    PresenceMode.RECORDS: 5,
-    PresenceMode.EVIDENCE: 6,
-    PresenceMode.EVIDENCE_BAG: 7,
-    PresenceMode.REVIEW: 8,
-    PresenceMode.RESPONSE: 9,
+    PresenceMode.MANUAL_INDEX: 4,
+    PresenceMode.MANUAL_SEARCH: 5,
+    PresenceMode.MANUAL_READ: 6,
+    PresenceMode.FREQUENCIES: 7,
+    PresenceMode.RECORDS: 8,
+    PresenceMode.EVIDENCE: 9,
+    PresenceMode.EVIDENCE_BAG: 10,
+    PresenceMode.REVIEW: 11,
+    PresenceMode.RESPONSE: 12,
 }
 
 
@@ -73,6 +79,9 @@ class ReviewPresence:
         idle_text: str,
         conversation_text: str,
         knowledge_text: str,
+        manual_index_text: str,
+        manual_search_text: str,
+        manual_read_text: str,
         frequencies_text: str,
         personnel_text: str,
         records_text: str,
@@ -86,6 +95,9 @@ class ReviewPresence:
             PresenceMode.IDLE: idle_text,
             PresenceMode.CONVERSATION: conversation_text,
             PresenceMode.KNOWLEDGE: knowledge_text,
+            PresenceMode.MANUAL_INDEX: manual_index_text,
+            PresenceMode.MANUAL_SEARCH: manual_search_text,
+            PresenceMode.MANUAL_READ: manual_read_text,
             PresenceMode.FREQUENCIES: frequencies_text,
             PresenceMode.PERSONNEL: personnel_text,
             PresenceMode.RECORDS: records_text,
@@ -123,6 +135,9 @@ class ReviewPresence:
         idle_text: str,
         conversation_text: str,
         knowledge_text: str,
+        manual_index_text: str,
+        manual_search_text: str,
+        manual_read_text: str,
         frequencies_text: str,
         personnel_text: str,
         records_text: str,
@@ -136,6 +151,9 @@ class ReviewPresence:
                 PresenceMode.IDLE: idle_text,
                 PresenceMode.CONVERSATION: conversation_text,
                 PresenceMode.KNOWLEDGE: knowledge_text,
+                PresenceMode.MANUAL_INDEX: manual_index_text,
+                PresenceMode.MANUAL_SEARCH: manual_search_text,
+                PresenceMode.MANUAL_READ: manual_read_text,
                 PresenceMode.FREQUENCIES: frequencies_text,
                 PresenceMode.PERSONNEL: personnel_text,
                 PresenceMode.RECORDS: records_text,

@@ -53,6 +53,10 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "Sgt. Vigil" not in prompt
     assert "Departamento de Pruebas (DDP)" in prompt
     assert 'nombre visible o "agente"' in prompt
+    assert "Asistente operativo de DDP" in prompt
+    assert "Asistir al personal de DDP con consultas" in prompt
+    assert "Revisar reportes de arresto cuando el usuario lo solicite explícitamente" in prompt
+    assert "No lo utilices para convertir\nconsultas generales" in prompt
 
 
     assert "Adapta la formalidad y el nivel de detalle" in prompt
@@ -154,6 +158,15 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "`charges` y `manual_review_reason`" in prompt
 
 
+def test_report_owner_keeps_a_specialized_mission(persona) -> None:
+    prompt = build_agent_instructions(persona, AgentAccessLevel.REPORT_OWNER)
+
+    assert "Asistente limitado al expediente de arresto activo" in prompt
+    assert "Ayudar al propietario exclusivamente con su expediente" in prompt
+    assert "relacionadas exclusivamente con ese expediente" in prompt
+    assert "Notificar grupos concretos" not in prompt
+
+
 def test_arrest_lookup_instructions_are_conditional_and_owner_scoped(persona) -> None:
     disabled = build_agent_instructions(persona)
     full = build_agent_instructions(persona, arrest_lookup_enabled=True)
@@ -190,13 +203,32 @@ def test_faction_frequency_instructions_are_conditional_and_full_access_only(per
     assert "get_faction_frequencies" not in owner
 
 
+def test_complete_manual_instructions_are_general_and_full_access_only(persona) -> None:
+    full = build_agent_instructions(persona)
+    owner = build_agent_instructions(persona, AgentAccessLevel.REPORT_OWNER)
+
+    assert "<complete_faction_manual>" in full
+    assert "list_manual_sections" in full
+    assert "search_manual" in full
+    assert "read_manual" in full
+    assert "reformular términos" in full
+    assert "Una búsqueda vacía no demuestra" in full
+    assert "get_report_guide" in full
+    assert "fuentes distintas" in full
+    assert "<complete_faction_manual>" not in owner
+    assert "list_manual_sections" not in owner
+
+
 @pytest.mark.asyncio
 async def test_roy_prompt_separates_persona_voice_from_technical_review() -> None:
     persona = (await PackagedPersonaProvider().load("roy_velazco")).profile
     prompt = build_agent_instructions(persona)
 
-    assert "Usa ocasionalmente chilenismos" in prompt
+    assert "Usa chilenismos, modismos informales" in prompt
     assert "insultos leves no discriminatorios" in prompt
+    assert "frases truncadas, autocorrecciones inútiles" in prompt
+    assert "exclamación breve en MAYÚSCULAS" in prompt
+    assert "sin alterar la respuesta útil" in prompt
     assert "Abre el resultado con una o dos frases reconocibles" in prompt
     assert "q pasa ahora" in prompt
     assert "saco wea" in prompt
@@ -205,6 +237,7 @@ async def test_roy_prompt_separates_persona_voice_from_technical_review() -> Non
     assert "título, detalle y referencia de cada `finding`" in prompt
     assert "imperativos de **tú**" in prompt
     assert "con el mismo estándar técnico y\n  neutral" in prompt
+    assert "Nunca altera por estilo los nombres, menciones, cifras" in prompt
 
 
 def test_review_tool_schema_exposes_context_specific_writing_rules() -> None:
@@ -263,6 +296,9 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
         "search_radio_codes",
         "list_charge_index",
         "get_charge_details",
+        "list_manual_sections",
+        "search_manual",
+        "read_manual",
         "list_guild_roles",
         "find_guild_members",
         "find_channel_members",
@@ -301,6 +337,9 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert "find_guild_members" not in owner_prompt
     assert "set_message_reaction" not in owner_prompt
     assert "mention_roles" not in owner_tool_names
+    assert "list_manual_sections" not in owner_tool_names
+    assert "search_manual" not in owner_tool_names
+    assert "read_manual" not in owner_tool_names
     assert "Puedes mencionar usuarios" not in owner_prompt
     assert "exactamente el\n  reporte raíz" in owner_prompt
     charge_search = next(tool for tool in service.agent.tools if tool.name == "list_charge_index")
@@ -334,6 +373,14 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert radio_properties["term_match"]["default"] == "all"
     assert radio_properties["fuzzy"]["default"] is False
     assert radio_properties["limit"]["default"] == 20
+    manual_search = next(tool for tool in service.agent.tools if tool.name == "search_manual")
+    manual_search_properties = manual_search.params_json_schema["properties"]
+    assert manual_search_properties["queries"]["minItems"] == 1
+    assert manual_search_properties["queries"]["maxItems"] == 5
+    assert manual_search_properties["match_mode"]["default"] == "all"
+    assert manual_search_properties["match_mode"]["enum"] == ["all", "any", "phrase"]
+    assert manual_search_properties["fuzzy"]["default"] is False
+    assert manual_search_properties["limit"]["default"] == 10
     assert metadata["root_message_id"] == "3"
     assert metadata["trigger_message_id"] == "4"
     assert metadata["user_id"] == "5"
