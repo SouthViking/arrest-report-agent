@@ -67,6 +67,7 @@ from arrest_report_agent.knowledge import (
 from arrest_report_agent.logbook import LogbookCog, LogbookRepository, LogbookService
 from arrest_report_agent.manual_quiz import (
     ManualQuizCog,
+    ManualQuizDiscordPublisher,
     ManualQuizRepository,
     ManualQuizSessionRegistry,
 )
@@ -284,6 +285,9 @@ async def build_runtime(
     )
     report_review_repository = ReportReviewRepository(postgres)
     report_owner_run_repository = ReportOwnerRunRepository(postgres)
+    manual_quiz_repository = ManualQuizRepository(postgres)
+    manual_quiz_sessions = ManualQuizSessionRegistry(manual_quiz_repository)
+    manual_quiz_publisher = ManualQuizDiscordPublisher(manual_quiz_sessions)
     review_cog = ReviewCog(
         bot,
         initial_bundle.settings,  # type: ignore[arg-type]
@@ -293,6 +297,7 @@ async def build_runtime(
         config_provider=config_provider,
         report_review_repository=report_review_repository,
         report_owner_run_repository=report_owner_run_repository,
+        manual_quiz_publisher=manual_quiz_publisher,
     )
     bot.add_cog(review_cog)
     cost_monitoring = build_cost_monitoring_service(settings)
@@ -440,9 +445,14 @@ async def build_runtime(
     bot.add_view(PagerControlsView())
     bot.add_cog(PagerCog(pager_registry, persona.profile))
     bot.add_cog(CallsignCog(config_provider, member_profile_repository, persona.profile))
-    manual_quiz_repository = ManualQuizRepository(postgres)
-    manual_quiz_sessions = ManualQuizSessionRegistry(manual_quiz_repository)
-    bot.add_cog(ManualQuizCog(config_provider, manual_quiz_sessions, persona.profile))
+    bot.add_cog(
+        ManualQuizCog(
+            config_provider,
+            manual_quiz_sessions,
+            persona.profile,
+            manual_quiz_publisher,
+        )
+    )
     bot.add_cog(ForumShortcutsCog(config_provider))
     if sarp_client is not None:
         if evidence_bag_service is None:

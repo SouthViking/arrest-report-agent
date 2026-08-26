@@ -124,7 +124,11 @@ class ReviewService:
             tools=tools,  # type: ignore[arg-type]
             input_guardrails=[scope_guardrail],
             tool_use_behavior=StopAtTools(
-                stop_at_tool_names=["mention_roles", "finish_interaction", "publish_review"]
+                stop_at_tool_names=[
+                    "mention_roles",
+                    "finish_interaction",
+                    "publish_review",
+                ]
             ),
             reset_tool_choice=False,
         )

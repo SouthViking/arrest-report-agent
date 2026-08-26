@@ -211,12 +211,16 @@ def test_complete_manual_instructions_are_general_and_full_access_only(persona) 
     assert "list_manual_sections" in full
     assert "search_manual" in full
     assert "read_manual" in full
+    assert "publish_manual_question" in full
+    assert "primera respuesta válida" in full
+    assert "temporal. Esta tool no termina la ejecución" in full
     assert "reformular términos" in full
     assert "Una búsqueda vacía no demuestra" in full
     assert "get_report_guide" in full
     assert "fuentes distintas" in full
     assert "<complete_faction_manual>" not in owner
     assert "list_manual_sections" not in owner
+    assert "publish_manual_question" not in owner
 
 
 @pytest.mark.asyncio
@@ -299,6 +303,7 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
         "list_manual_sections",
         "search_manual",
         "read_manual",
+        "publish_manual_question",
         "list_guild_roles",
         "find_guild_members",
         "find_channel_members",
@@ -314,7 +319,11 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert service.agent.model_settings.tool_choice == "required"
     assert service.agent.reset_tool_choice is False
     assert service.agent.tool_use_behavior == {
-        "stop_at_tool_names": ["mention_roles", "finish_interaction", "publish_review"]
+        "stop_at_tool_names": [
+            "mention_roles",
+            "finish_interaction",
+            "publish_review",
+        ]
     }
     assert service.agent.input_guardrails[0].run_in_parallel is False
     owner_tool_names = [tool.name for tool in service.report_owner_agent.tools]
@@ -381,6 +390,13 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert manual_search_properties["match_mode"]["enum"] == ["all", "any", "phrase"]
     assert manual_search_properties["fuzzy"]["default"] is False
     assert manual_search_properties["limit"]["default"] == 10
+    quiz_tool = next(tool for tool in service.agent.tools if tool.name == "publish_manual_question")
+    quiz_properties = quiz_tool.params_json_schema["properties"]["question"]["properties"]
+    assert quiz_properties["answer_mode"]["enum"] == ["single_choice", "true_false"]
+    assert quiz_properties["answer_mode"]["default"] == "single_choice"
+    assert quiz_properties["category"]["default"] == "general"
+    assert quiz_properties["difficulty"]["default"] == "intermediate"
+    assert quiz_properties["duration_seconds"]["default"] == 30
     assert metadata["root_message_id"] == "3"
     assert metadata["trigger_message_id"] == "4"
     assert metadata["user_id"] == "5"

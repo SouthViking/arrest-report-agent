@@ -32,6 +32,12 @@ from arrest_report_agent.domain import (
     ConversationResponseRoute,
     DiscordAttachment,
     InteractionMode,
+    ManualQuizDelivery,
+    ManualQuizPublication,
+    QuizAnswerMode,
+    QuizCategory,
+    QuizDifficulty,
+    QuizDurationSeconds,
     ReviewCase,
     ReviewVerdict,
 )
@@ -82,6 +88,12 @@ class FakePublisher:
         self.routes: list[ConversationResponseRoute] = []
         self.reactions: list[tuple[int, str]] = []
         self.role_mentions: list[tuple[tuple[int, ...], str | None]] = []
+        self.manual_quizzes: list[ManualQuizPublication] = []
+        self.manual_quiz_delivery = ManualQuizDelivery(
+            ok=True,
+            status="published",
+            question_id="dynamic-question-id",
+        )
 
     async def mark_review_started(self) -> None:
         self.markers += 1
@@ -111,6 +123,13 @@ class FakePublisher:
     async def set_message_reaction(self, message_id: int, emoji: str) -> str:
         self.reactions.append((message_id, emoji))
         return "replaced"
+
+    async def publish_manual_quiz(
+        self,
+        publication: ManualQuizPublication,
+    ) -> ManualQuizDelivery:
+        self.manual_quizzes.append(publication)
+        return self.manual_quiz_delivery
 
     async def publish_failure(self, public_message) -> None:
         raise AssertionError("not expected")
@@ -1661,7 +1680,12 @@ async def test_manual_tools_are_full_access_only_and_enforce_per_run_limits() ->
             access_level=AgentAccessLevel.REPORT_OWNER,
         )
     }
-    assert {"list_manual_sections", "search_manual", "read_manual"}.isdisjoint(owner_names)
+    assert {
+        "list_manual_sections",
+        "search_manual",
+        "read_manual",
+        "publish_manual_question",
+    }.isdisjoint(owner_names)
 
     run_context = ReviewRunContext(
         case=ReviewCase(
@@ -1692,6 +1716,87 @@ async def test_manual_tools_are_full_access_only_and_enforce_per_run_limits() ->
         )
 
     assert result == {"ok": False, "error": "run_manual_list_limit_reached"}
+
+
+@pytest.mark.asyncio
+async def test_dynamic_manual_question_uses_defaults_without_finishing_interaction() -> None:
+    publisher = FakePublisher()
+    activity = ActivityRecorder()
+    run_context = ReviewRunContext(
+        case=ReviewCase(
+            guild_id=1,
+            parent_channel_id=2,
+            channel_id=2,
+            root_message_id=3,
+            trigger_message_id=3,
+            requester_user_id=4,
+            interaction_mode=InteractionMode.INITIAL_REVIEW,
+            messages=[],
+            attachments=[],
+        ),
+        publisher=publisher,
+        attempt=1,
+        activity=activity,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+    arguments = json.dumps(
+        {
+            "question": {
+                "prompt": "¿Qué debe priorizar un deputy al perder la visual en una persecución?",
+                "options": [
+                    "Comunicar la pérdida y la última ubicación conocida",
+                    "Mantener silencio hasta recuperar contacto visual",
+                    "Cambiar de frecuencia antes de informar",
+                ],
+                "correct_option_number": 1,
+                "explanation": "Central necesita conocer la pérdida y la última ubicación.",
+            }
+        }
+    )
+
+    result = await tools["publish_manual_question"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="publish_manual_question",
+            tool_call_id="call-dynamic-manual-question",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    publication = publisher.manual_quizzes[0]
+    assert publication.answer_mode is QuizAnswerMode.SINGLE_CHOICE
+    assert publication.category is QuizCategory.GENERAL
+    assert publication.difficulty is QuizDifficulty.INTERMEDIATE
+    assert publication.duration_seconds is QuizDurationSeconds.THIRTY
+    assert publication.source_reference == "Manual faccionario"
+    assert result == {
+        "ok": True,
+        "status": "published",
+        "question_id": "dynamic-question-id",
+        "retry_after_seconds": None,
+        "delivery": "discord_manual_quiz",
+        "interaction_complete": False,
+    }
+    assert not run_context.interaction_completed
+    assert run_context.messages_sent_count == 1
+
+    follow_up_arguments = json.dumps({})
+    follow_up = await tools["list_manual_sections"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="list_manual_sections",
+            tool_call_id="call-after-dynamic-question",
+            tool_arguments=follow_up_arguments,
+        ),
+        follow_up_arguments,
+    )
+
+    assert follow_up["ok"] is True
+    assert activity.activities == [AgentActivity.RESPONSE, AgentActivity.MANUAL_INDEX]
 
 
 @pytest.mark.asyncio

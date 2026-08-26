@@ -9,6 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from arrest_report_agent.domain import QuizAnswerMode, QuizDifficulty
 from arrest_report_agent.infrastructure.postgres import PostgresClient
 from arrest_report_agent.infrastructure.postgres.schema import (
     manual_quiz_options,
@@ -19,8 +20,6 @@ from arrest_report_agent.infrastructure.postgres.schema import (
 
 from .models import (
     MVP_ANSWER_MODES,
-    QuizAnswerMode,
-    QuizDifficulty,
     QuizOption,
     QuizQuestion,
     QuizQuestionReservation,

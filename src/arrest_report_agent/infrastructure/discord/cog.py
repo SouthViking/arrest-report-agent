@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, replace
 from time import monotonic
+from typing import TYPE_CHECKING
 
 import discord
 from discord.ext import commands
@@ -67,6 +68,9 @@ from .supervision import (
     build_supervisor_unauthorized_message,
 )
 from .trigger import DiscordAccessPolicy, TriggerDecision
+
+if TYPE_CHECKING:
+    from arrest_report_agent.manual_quiz import ManualQuizDiscordPublisher
 
 LOGGER = logging.getLogger(__name__)
 
@@ -300,11 +304,13 @@ class ReviewCog(commands.Cog):
         config_provider: object | None = None,
         report_review_repository: ReportReviewRepository | None = None,
         report_owner_run_repository: ReportOwnerRunRepository | None = None,
+        manual_quiz_publisher: ManualQuizDiscordPublisher | None = None,
     ) -> None:
         self.bot = bot
         self._config_provider = config_provider
         self.report_review_repository = report_review_repository
         self.report_owner_run_repository = report_owner_run_repository
+        self.manual_quiz_publisher = manual_quiz_publisher
         self._runtime_context: contextvars.ContextVar[ReviewCogRuntime | None] = contextvars.ContextVar(
             "review_cog_runtime", default=None
         )
@@ -579,6 +585,7 @@ class ReviewCog(commands.Cog):
                     target,
                     self.persona,
                     allow_outgoing_mentions=access_level is AgentAccessLevel.FULL,
+                    manual_quiz_publisher=self.manual_quiz_publisher,
                 )
                 try:
                     case = (

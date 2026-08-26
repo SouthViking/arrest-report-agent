@@ -1,54 +1,22 @@
-"""Validated contracts for the deterministic manual quiz catalogue."""
+"""Validated snapshots shared by catalogue and agent-authored manual quizzes."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
-from enum import IntEnum, StrEnum
-from uuid import UUID
+from datetime import UTC, datetime
+from enum import StrEnum
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
-class QuizAnswerMode(StrEnum):
-    """Evaluation strategies supported by the persisted catalogue."""
-
-    SINGLE_CHOICE = "single_choice"
-    TRUE_FALSE = "true_false"
-    MULTIPLE_SELECT = "multiple_select"
-    SHORT_ANSWER = "short_answer"
-    ORDERING = "ordering"
-    MATCHING = "matching"
-
+from arrest_report_agent.domain import (
+    ManualQuizPublication,
+    QuizAnswerMode,
+    QuizCategory,
+    QuizDifficulty,
+)
 
 MVP_ANSWER_MODES = (QuizAnswerMode.SINGLE_CHOICE, QuizAnswerMode.TRUE_FALSE)
-
-
-class QuizCategory(StrEnum):
-    GENERAL = "general"
-    RADIO_CODE = "radio_code"
-    PROCEDURE = "procedure"
-    SCENARIO = "scenario"
-    IDENTIFY_ERROR = "identify_error"
-    LEGAL = "legal"
-    REPORTS = "reports"
-
-
-class QuizDifficulty(StrEnum):
-    BASIC = "basic"
-    INTERMEDIATE = "intermediate"
-    ADVANCED = "advanced"
-
-
-class QuizDurationSeconds(IntEnum):
-    """Bounded public-answer windows offered by the configuration modal."""
-
-    TEN = 10
-    FIFTEEN = 15
-    THIRTY = 30
-    ONE_MINUTE = 60
-    THREE_MINUTES = 180
-    FIVE_MINUTES = 300
 
 
 class QuizQuestionStatus(StrEnum):
@@ -113,6 +81,45 @@ class QuizQuestion(BaseModel):
 
     def option(self, option_id: UUID) -> QuizOption | None:
         return next((option for option in self.options if option.id == option_id), None)
+
+
+def build_dynamic_question(
+    publication: ManualQuizPublication,
+    *,
+    guild_id: int,
+    created_by: int,
+    now: datetime | None = None,
+) -> QuizQuestion:
+    """Convert an agent-authored draft into the same immutable snapshot used by the catalogue."""
+
+    question_id = uuid4()
+    created_at = now or datetime.now(UTC)
+    correct_position = publication.correct_option_number - 1
+    return QuizQuestion(
+        id=question_id,
+        guild_id=guild_id,
+        slug=f"dynamic_{question_id.hex}",
+        answer_mode=publication.answer_mode,
+        category=publication.category,
+        difficulty=publication.difficulty,
+        prompt=publication.prompt,
+        explanation=publication.explanation,
+        source_reference=publication.source_reference,
+        status=QuizQuestionStatus.ACTIVE,
+        revision=1,
+        created_by=created_by,
+        options=tuple(
+            QuizOption(
+                id=uuid4(),
+                position=position,
+                text=text,
+                is_correct=position == correct_position,
+            )
+            for position, text in enumerate(publication.options)
+        ),
+        created_at=created_at,
+        updated_at=created_at,
+    )
 
 
 @dataclass(frozen=True, slots=True)

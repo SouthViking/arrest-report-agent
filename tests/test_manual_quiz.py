@@ -17,6 +17,7 @@ from alembic import command
 from alembic.config import Config
 from pydantic import ValidationError
 
+from arrest_report_agent.domain import ManualQuizPublication
 from arrest_report_agent.infrastructure.postgres import PostgresClient, PostgresClientConfig
 from arrest_report_agent.infrastructure.postgres.schema import (
     discord_guilds,
@@ -29,6 +30,7 @@ from arrest_report_agent.manual_quiz import (
     ActiveQuizSessionError,
     ManualQuizCog,
     ManualQuizConfigurationModal,
+    ManualQuizDiscordPublisher,
     ManualQuizRepository,
     ManualQuizSessionRegistry,
     ManualQuizView,
@@ -41,6 +43,7 @@ from arrest_report_agent.manual_quiz import (
     QuizQuestion,
     QuizQuestionReservation,
     QuizQuestionStatus,
+    build_dynamic_question,
 )
 from arrest_report_agent.manual_quiz.discord import (
     build_question_embed,
@@ -136,6 +139,74 @@ def test_manual_quiz_question_validates_single_choice_and_true_false_contracts()
         QuizQuestion.model_validate(invalid)
 
 
+def test_dynamic_manual_quiz_contract_has_safe_defaults_and_validates_options() -> None:
+    publication = ManualQuizPublication(
+        prompt="¿Cuál es la actuación correcta?",
+        options=("Actuación sustentada", "Distractor plausible"),
+        correct_option_number=1,
+        explanation="La primera alternativa se desprende del manual.",
+    )
+
+    assert publication.answer_mode is QuizAnswerMode.SINGLE_CHOICE
+    assert publication.category is QuizCategory.GENERAL
+    assert publication.difficulty is QuizDifficulty.INTERMEDIATE
+    assert publication.duration_seconds is QuizDurationSeconds.THIRTY
+    assert publication.source_reference == "Manual faccionario"
+
+    with pytest.raises(ValidationError, match="must be unique"):
+        ManualQuizPublication(
+            prompt="¿Cuál?",
+            options=("La misma", "la misma"),
+            correct_option_number=1,
+            explanation="Explicación.",
+        )
+    with pytest.raises(ValidationError, match="available option"):
+        ManualQuizPublication(
+            prompt="¿Cuál?",
+            options=("A", "B"),
+            correct_option_number=3,
+            explanation="Explicación.",
+        )
+    with pytest.raises(ValidationError, match="Verdadero and Falso"):
+        ManualQuizPublication(
+            prompt="¿Es correcto?",
+            options=("Sí", "No"),
+            correct_option_number=1,
+            explanation="Explicación.",
+            answer_mode=QuizAnswerMode.TRUE_FALSE,
+        )
+
+
+def test_dynamic_manual_quiz_builds_the_same_immutable_question_snapshot() -> None:
+    now = datetime(2026, 8, 25, 12, 30, tzinfo=UTC)
+    publication = ManualQuizPublication(
+        prompt="¿Qué alternativa corresponde?",
+        options=("Primera", "Segunda", "Tercera"),
+        correct_option_number=2,
+        explanation="La segunda está sustentada.",
+        source_reference="Manual LSSD · Comunicaciones",
+        category=QuizCategory.RADIO_CODE,
+        difficulty=QuizDifficulty.ADVANCED,
+        duration_seconds=QuizDurationSeconds.FIFTEEN,
+    )
+
+    question = build_dynamic_question(
+        publication,
+        guild_id=123,
+        created_by=456,
+        now=now,
+    )
+
+    assert question.guild_id == 123
+    assert question.created_by == 456
+    assert question.slug.startswith("dynamic_")
+    assert question.status is QuizQuestionStatus.ACTIVE
+    assert question.category is QuizCategory.RADIO_CODE
+    assert question.difficulty is QuizDifficulty.ADVANCED
+    assert question.correct_options == (question.options[1],)
+    assert question.created_at == now
+
+
 def test_manual_quiz_seed_contains_a_varied_validated_question_bank() -> None:
     payload = _seed_payload()
     now = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
@@ -207,6 +278,7 @@ class _QuestionPool:
         self.questions = questions
         self.seen: dict[tuple[int, str, str], set[UUID]] = {}
         self.cycles: dict[tuple[int, str, str], int] = {}
+        self.cancelled: list[QuizQuestionReservation] = []
 
     async def reserve_random_active(
         self,
@@ -254,6 +326,7 @@ class _QuestionPool:
         guild_id: int,
         reservation: QuizQuestionReservation,
     ) -> None:
+        self.cancelled.append(reservation)
         scope = (
             guild_id,
             reservation.answer_mode_filter,
@@ -341,6 +414,75 @@ async def test_manual_quiz_sessions_enforce_cooldown_and_cancel_failed_publicati
     await sessions.cancel(1, 11, reserved.id)
     assert not await sessions.is_active(1, 11)
     assert await sessions.reserve(1, 11) == question
+
+
+@pytest.mark.asyncio
+async def test_dynamic_manual_quiz_shares_active_session_without_touching_rotation() -> None:
+    repository = _QuestionPool((_question(),))
+    sessions = ManualQuizSessionRegistry(repository, cooldown_seconds=0)  # type: ignore[arg-type]
+    dynamic = build_dynamic_question(
+        ManualQuizPublication(
+            prompt="¿Cuál es correcta?",
+            options=("A", "B"),
+            correct_option_number=1,
+            explanation="A es correcta.",
+        ),
+        guild_id=1,
+        created_by=11,
+    )
+
+    assert await sessions.reserve_dynamic(1, 11, dynamic) == dynamic
+    with pytest.raises(ActiveQuizSessionError):
+        await sessions.reserve(1, 11)
+    await sessions.cancel(1, 11, dynamic.id)
+
+    assert repository.seen == {}
+    assert repository.cancelled == []
+    assert not await sessions.is_active(1, 11)
+
+
+@pytest.mark.asyncio
+async def test_shared_manual_quiz_publisher_renders_dynamic_question_without_persistence(
+    persona,
+) -> None:
+    repository = _QuestionPool((_question(),))
+    sessions = ManualQuizSessionRegistry(repository, cooldown_seconds=0)  # type: ignore[arg-type]
+    publisher = ManualQuizDiscordPublisher(sessions)
+    publication = ManualQuizPublication(
+        prompt="¿Qué comunica primero?",
+        options=("La pérdida de visual", "El cambio de unidad"),
+        correct_option_number=1,
+        explanation="Se comunica la pérdida de visual.",
+        source_reference="Manual LSSD · Comunicaciones",
+        duration_seconds=QuizDurationSeconds.FIFTEEN,
+    )
+    sent: list[tuple[discord.Embed, ManualQuizView]] = []
+    message = SimpleNamespace()
+
+    async def sender(embed: discord.Embed, view: ManualQuizView):
+        sent.append((embed, view))
+        return message
+
+    question = await publisher.publish_dynamic(
+        guild_id=1,
+        channel_id=22,
+        publisher_id=11,
+        publisher_name="Alice Deputy",
+        publisher_avatar_url="https://cdn.example/avatar.png",
+        publication=publication,
+        ui=persona.messages.interface.manual_quiz,
+        sender=sender,  # type: ignore[arg-type]
+    )
+
+    embed, view = sent[0]
+    assert embed.title.startswith("📚 Pregunta del manual")
+    assert embed.author.name == "Publicada por Alice Deputy"
+    assert isinstance(view, ManualQuizView)
+    assert view.question == question
+    assert view.message is message
+    assert view.duration_seconds is QuizDurationSeconds.FIFTEEN
+    assert await sessions.is_active(1, 11)
+    assert repository.seen == {}
 
 
 @pytest.mark.asyncio

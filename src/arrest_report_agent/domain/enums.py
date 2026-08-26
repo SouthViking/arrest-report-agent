@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 
 
 class ReviewVerdict(StrEnum):
@@ -88,6 +88,44 @@ class AgentActivity(StrEnum):
     EVIDENCE_BAG = "evidence_bag"
     REVIEW = "review"
     RESPONSE = "response"
+
+
+class QuizAnswerMode(StrEnum):
+    """Answer interactions supported by the shared manual-quiz renderer."""
+
+    SINGLE_CHOICE = "single_choice"
+    TRUE_FALSE = "true_false"
+    MULTIPLE_SELECT = "multiple_select"
+    SHORT_ANSWER = "short_answer"
+    ORDERING = "ordering"
+    MATCHING = "matching"
+
+
+class QuizCategory(StrEnum):
+    GENERAL = "general"
+    RADIO_CODE = "radio_code"
+    PROCEDURE = "procedure"
+    SCENARIO = "scenario"
+    IDENTIFY_ERROR = "identify_error"
+    LEGAL = "legal"
+    REPORTS = "reports"
+
+
+class QuizDifficulty(StrEnum):
+    BASIC = "basic"
+    INTERMEDIATE = "intermediate"
+    ADVANCED = "advanced"
+
+
+class QuizDurationSeconds(IntEnum):
+    """Bounded public-answer windows shared by commands and agent tools."""
+
+    TEN = 10
+    FIFTEEN = 15
+    THIRTY = 30
+    ONE_MINUTE = 60
+    THREE_MINUTES = 180
+    FIVE_MINUTES = 300
 
 
 class ErrorKind(StrEnum):

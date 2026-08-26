@@ -19,6 +19,7 @@ from arrest_report_agent.domain import (
     AgentAccessLevel,
     AgentActivity,
     ConversationResponseRoute,
+    ManualQuizPublication,
     ReviewPublication,
 )
 from arrest_report_agent.knowledge import (
@@ -371,6 +372,52 @@ def build_agent_tools(
             max_chars=max_chars,
             direction=direction,
         )
+
+    @function_tool
+    async def publish_manual_question(
+        ctx: RunContextWrapper[ReviewRunContext],
+        question: ManualQuizPublication,
+    ) -> dict[str, object]:
+        """Publish one validated interactive question using the shared manual-quiz experience.
+
+        Search and read the relevant manual section before authoring the question. The question is
+        transient: it uses the same public embed, answer controls, timeout, result and active-session
+        rules as `/pregunta-manual`, but it is not added to the durable catalogue or its rotations.
+
+        Args:
+            question: Complete grounded question. Defaults select single choice, general category,
+                intermediate difficulty, 30 seconds and the generic manual reference. Options are
+                ordered and correct_option_number is one-based. For true_false use exactly
+                `["Verdadero", "Falso"]`.
+        """
+
+        run_context = ctx.context
+        if run_context.interaction_completed:
+            return {"ok": True, "already_completed": "publish_manual_question"}
+        await _set_activity(run_context, AgentActivity.RESPONSE)
+        delivery = await run_context.publisher.publish_manual_quiz(question)
+        if not delivery.ok:
+            if delivery.status == "active_question":
+                message = "Ya tienes una pregunta activa. Espera a que termine antes de publicar otra."
+            elif delivery.status == "cooldown":
+                message = (
+                    "La pregunta anterior acaba de cerrarse. "
+                    f"Espera {delivery.retry_after_seconds or 1} segundos antes de publicar otra."
+                )
+            else:
+                message = "No pude publicar la pregunta interactiva en este momento."
+            await _send_conversation_message(
+                run_context,
+                message,
+                ConversationResponseRoute.REPLY,
+            )
+        run_context.message_sent = True
+        run_context.messages_sent_count += 1
+        return {
+            **delivery.model_dump(mode="json"),
+            "delivery": "discord_manual_quiz" if delivery.ok else "discord_message",
+            "interaction_complete": False,
+        }
 
     @function_tool
     async def list_charge_index(
@@ -1380,6 +1427,7 @@ def build_agent_tools(
         list_manual_sections,
         search_manual,
         read_manual,
+        publish_manual_question,
     ]
     full_tools: list[object] = [
         *common_tools,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import re
+from typing import TYPE_CHECKING
 
 import discord
 
@@ -13,6 +14,8 @@ from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import (
     ConversationResponseRoute,
     FindingSeverity,
+    ManualQuizDelivery,
+    ManualQuizPublication,
     ReviewPublication,
     ReviewScope,
     ReviewVerdict,
@@ -20,6 +23,9 @@ from arrest_report_agent.domain import (
 from arrest_report_agent.domain.errors import PublicationError
 
 from .context import DiscordResponseRoute, ReviewTarget
+
+if TYPE_CHECKING:
+    from arrest_report_agent.manual_quiz import ManualQuizDiscordPublisher, ManualQuizView
 
 STATUS_EMOJIS = ("⏳", "✅", "❌", "⚠️")
 MAX_ROLE_MENTIONS_PER_MESSAGE = 3
@@ -36,6 +42,7 @@ class DiscordReviewPublisher:
         persona: BotPersona,
         *,
         allow_outgoing_mentions: bool = True,
+        manual_quiz_publisher: ManualQuizDiscordPublisher | None = None,
     ) -> None:
         self.bot = bot
         self.settings = settings
@@ -44,6 +51,7 @@ class DiscordReviewPublisher:
         self._thread = target.thread
         self._escalation_roles_pinged = False
         self._allow_outgoing_mentions = allow_outgoing_mentions
+        self._manual_quiz_publisher = manual_quiz_publisher
 
     async def mark_review_started(self) -> None:
         try:
@@ -264,6 +272,63 @@ class DiscordReviewPublisher:
             outcome=outcome,
         )
         return outcome
+
+    async def publish_manual_quiz(
+        self,
+        publication: ManualQuizPublication,
+    ) -> ManualQuizDelivery:
+        """Publish an agent-authored question through the shared manual-quiz renderer."""
+
+        quiz_publisher = self._manual_quiz_publisher
+        if quiz_publisher is None:
+            return ManualQuizDelivery(ok=False, status="unavailable")
+
+        from arrest_report_agent.manual_quiz import (
+            ActiveQuizSessionError,
+            QuizCooldownError,
+        )
+
+        trigger = self.target.trigger
+        author = trigger.author
+
+        async def send_question(
+            embed: discord.Embed,
+            view: ManualQuizView,
+        ) -> discord.Message:
+            try:
+                return await trigger.reply(
+                    embed=embed,
+                    view=view,
+                    mention_author=False,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            except (discord.Forbidden, discord.HTTPException) as error:
+                raise PublicationError("Unable to publish a manual quiz") from error
+
+        try:
+            question = await quiz_publisher.publish_dynamic(
+                guild_id=trigger.guild.id,
+                channel_id=trigger.channel.id,
+                publisher_id=author.id,
+                publisher_name=getattr(author, "display_name", author.name),
+                publisher_avatar_url=str(author.display_avatar.url),
+                publication=publication,
+                ui=self.persona.messages.interface.manual_quiz,
+                sender=send_question,
+            )
+        except ActiveQuizSessionError:
+            return ManualQuizDelivery(ok=False, status="active_question")
+        except QuizCooldownError as error:
+            return ManualQuizDelivery(
+                ok=False,
+                status="cooldown",
+                retry_after_seconds=error.remaining_seconds,
+            )
+        return ManualQuizDelivery(
+            ok=True,
+            status="published",
+            question_id=str(question.id),
+        )
 
     async def _resolve_reaction_message(self, message_id: int) -> discord.Message:
         if message_id == self.target.root.id:

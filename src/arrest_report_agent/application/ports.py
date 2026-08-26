@@ -9,6 +9,8 @@ from typing import Literal, Protocol
 from arrest_report_agent.domain import (
     AgentActivity,
     ConversationResponseRoute,
+    ManualQuizDelivery,
+    ManualQuizPublication,
     ReviewPublication,
 )
 
@@ -414,6 +416,12 @@ class ReviewPublisher(Protocol):
         emoji: str,
     ) -> Literal["added", "unchanged", "replaced"]:
         """Set one bot reaction on a message in the active Discord conversation."""
+
+    async def publish_manual_quiz(
+        self,
+        publication: ManualQuizPublication,
+    ) -> ManualQuizDelivery:
+        """Publish a transient interactive quiz through the current Discord conversation."""
 
     async def publish_failure(
         self,

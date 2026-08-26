@@ -8,7 +8,13 @@ from typing import Literal
 from arrest_report_agent.application.ports import ReviewPublisher
 from arrest_report_agent.application.prompt import PROMPT_VERSION
 from arrest_report_agent.config.logging import exception_fields, log_event
-from arrest_report_agent.domain import ConversationResponseRoute, ReviewCase, ReviewPublication
+from arrest_report_agent.domain import (
+    ConversationResponseRoute,
+    ManualQuizDelivery,
+    ManualQuizPublication,
+    ReviewCase,
+    ReviewPublication,
+)
 
 from .repository import ReportReviewRepository
 
@@ -133,6 +139,12 @@ class RecordingReviewPublisher:
         emoji: str,
     ) -> Literal["added", "unchanged", "replaced"]:
         return await self.delegate.set_message_reaction(message_id, emoji)
+
+    async def publish_manual_quiz(
+        self,
+        publication: ManualQuizPublication,
+    ) -> ManualQuizDelivery:
+        return await self.delegate.publish_manual_quiz(publication)
 
     async def publish_failure(self, public_message: str) -> None:
         await self.delegate.publish_failure(public_message)

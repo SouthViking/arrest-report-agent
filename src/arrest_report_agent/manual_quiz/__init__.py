@@ -1,19 +1,28 @@
-"""Deterministic manual-learning quiz subsystem."""
+"""Shared manual-learning quiz subsystem for catalogue and agent-authored questions."""
 
-from .discord import ManualQuizCog, ManualQuizConfigurationModal, ManualQuizView
+from arrest_report_agent.domain import (
+    QuizAnswerMode,
+    QuizCategory,
+    QuizDifficulty,
+    QuizDurationSeconds,
+)
+
+from .discord import (
+    ManualQuizCog,
+    ManualQuizConfigurationModal,
+    ManualQuizDiscordPublisher,
+    ManualQuizView,
+)
 from .models import (
     MVP_ANSWER_MODES,
     ActiveQuizSessionError,
     NoQuizQuestionsError,
-    QuizAnswerMode,
-    QuizCategory,
     QuizCooldownError,
-    QuizDifficulty,
-    QuizDurationSeconds,
     QuizOption,
     QuizQuestion,
     QuizQuestionReservation,
     QuizQuestionStatus,
+    build_dynamic_question,
 )
 from .repository import ManualQuizRepository
 from .sessions import ManualQuizSessionRegistry
@@ -23,6 +32,7 @@ __all__ = [
     "ActiveQuizSessionError",
     "ManualQuizCog",
     "ManualQuizConfigurationModal",
+    "ManualQuizDiscordPublisher",
     "ManualQuizRepository",
     "ManualQuizSessionRegistry",
     "ManualQuizView",
@@ -36,4 +46,5 @@ __all__ = [
     "QuizQuestion",
     "QuizQuestionReservation",
     "QuizQuestionStatus",
+    "build_dynamic_question",
 ]

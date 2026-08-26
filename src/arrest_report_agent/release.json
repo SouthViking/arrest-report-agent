@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.18.0",
-  "title": "Manual faccionario para el agente",
-  "summary": "El agente ahora puede navegar y consultar el manual completo de la facción.",
+  "version": "0.18.1",
+  "title": "Preguntas dinámicas del manual",
+  "summary": "El agente ahora puede crear y publicar ejercicios interactivos sustentados en el manual.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,15 +10,11 @@
   "changes": [
     {
       "type": "added",
-      "text": "Se incorporaron herramientas acotadas para explorar, buscar y leer el manual faccionario completo."
+      "text": "Se incorporó una herramienta para construir preguntas dinámicas con opciones, dificultad y duración configurables."
     },
     {
       "type": "improved",
-      "text": "El agente adopta un alcance operativo general y una personalidad más expresiva sin alterar datos técnicos."
-    },
-    {
-      "type": "improved",
-      "text": "El estado del bot distingue cuándo revisa el índice, busca o lee el manual."
+      "text": "Las preguntas dinámicas reutilizan la interacción de /pregunta-manual sin agregarse al catálogo persistente."
     }
   ],
   "acknowledgements": []

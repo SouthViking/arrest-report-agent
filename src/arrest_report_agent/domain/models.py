@@ -11,12 +11,81 @@ from .enums import (
     ContextState,
     FindingSeverity,
     InteractionMode,
+    QuizAnswerMode,
+    QuizCategory,
+    QuizDifficulty,
+    QuizDurationSeconds,
     ReviewIssueType,
     ReviewScope,
     ReviewVerdict,
 )
 
 DiscordRoleName = Annotated[str, Field(min_length=1, max_length=80)]
+
+
+class ManualQuizPublication(BaseModel):
+    """Validated one-off question requested by the general-purpose agent."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    prompt: str = Field(
+        min_length=1,
+        max_length=1500,
+        description="Question shown publicly, grounded in the faction manual.",
+    )
+    options: tuple[Annotated[str, Field(min_length=1, max_length=300)], ...] = Field(
+        min_length=2,
+        max_length=10,
+        description="Ordered answer options without numeric prefixes.",
+    )
+    correct_option_number: int = Field(
+        ge=1,
+        le=10,
+        description="One-based position of the only correct option.",
+    )
+    explanation: str = Field(
+        min_length=1,
+        max_length=1500,
+        description="Learning-oriented explanation revealed only after the question closes.",
+    )
+    source_reference: str = Field(
+        default="Manual faccionario",
+        min_length=1,
+        max_length=300,
+        description="Manual section or source supporting the correct answer.",
+    )
+    answer_mode: Literal[
+        QuizAnswerMode.SINGLE_CHOICE,
+        QuizAnswerMode.TRUE_FALSE,
+    ] = QuizAnswerMode.SINGLE_CHOICE
+    category: QuizCategory = QuizCategory.GENERAL
+    difficulty: QuizDifficulty = QuizDifficulty.INTERMEDIATE
+    duration_seconds: QuizDurationSeconds = QuizDurationSeconds.THIRTY
+
+    @model_validator(mode="after")
+    def validate_question_contract(self) -> ManualQuizPublication:
+        normalized_options = tuple(option.casefold() for option in self.options)
+        if len(normalized_options) != len(set(normalized_options)):
+            raise ValueError("dynamic question options must be unique")
+        if self.correct_option_number > len(self.options):
+            raise ValueError("correct_option_number must reference an available option")
+        if self.answer_mode is QuizAnswerMode.TRUE_FALSE and normalized_options != (
+            "verdadero",
+            "falso",
+        ):
+            raise ValueError("true_false questions must use Verdadero and Falso in that order")
+        return self
+
+
+class ManualQuizDelivery(BaseModel):
+    """Structured outcome returned to the agent after attempting publication."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ok: bool
+    status: Literal["published", "active_question", "cooldown", "unavailable"]
+    question_id: str | None = None
+    retry_after_seconds: int | None = Field(default=None, ge=1)
 
 
 class DiscordAttachment(BaseModel):

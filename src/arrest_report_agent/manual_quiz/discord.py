@@ -1,11 +1,11 @@
-"""Public Discord exercises backed by the deterministic manual quiz catalogue."""
+"""Shared Discord presentation and interaction lifecycle for manual quizzes."""
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import logging
-from contextlib import suppress
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from time import monotonic
 from typing import cast
@@ -16,18 +16,22 @@ from discord.ext import commands
 
 from arrest_report_agent.config import BotPersona, PersonaManualQuizMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.domain import (
+    ManualQuizPublication,
+    QuizAnswerMode,
+    QuizCategory,
+    QuizDifficulty,
+    QuizDurationSeconds,
+)
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
 from .models import (
     ActiveQuizSessionError,
     NoQuizQuestionsError,
-    QuizAnswerMode,
-    QuizCategory,
     QuizCooldownError,
-    QuizDifficulty,
-    QuizDurationSeconds,
     QuizOption,
     QuizQuestion,
+    build_dynamic_question,
 )
 from .sessions import ManualQuizSessionRegistry
 
@@ -71,6 +75,134 @@ DURATION_LABELS = {
     QuizDurationSeconds.FIVE_MINUTES: "5 minutos",
 }
 
+type ManualQuizSender = Callable[
+    [discord.Embed, "ManualQuizView"],
+    Awaitable[discord.Message | None],
+]
+
+
+class ManualQuizDiscordPublisher:
+    """Render and publish every quiz source through one Discord interaction lifecycle."""
+
+    def __init__(self, sessions: ManualQuizSessionRegistry) -> None:
+        self.sessions = sessions
+
+    async def publish_reserved(
+        self,
+        *,
+        guild_id: int,
+        channel_id: int,
+        publisher_id: int,
+        publisher_name: str,
+        publisher_avatar_url: str | None,
+        question: QuizQuestion,
+        ui: PersonaManualQuizMessages,
+        duration: QuizDurationSeconds,
+        sender: ManualQuizSender,
+    ) -> discord.Message | None:
+        """Publish a question already reserved from the durable catalogue."""
+
+        return await self._publish(
+            guild_id=guild_id,
+            channel_id=channel_id,
+            publisher_id=publisher_id,
+            publisher_name=publisher_name,
+            publisher_avatar_url=publisher_avatar_url,
+            question=question,
+            ui=ui,
+            duration=duration,
+            sender=sender,
+            source="catalogue",
+        )
+
+    async def publish_dynamic(
+        self,
+        *,
+        guild_id: int,
+        channel_id: int,
+        publisher_id: int,
+        publisher_name: str,
+        publisher_avatar_url: str | None,
+        publication: ManualQuizPublication,
+        ui: PersonaManualQuizMessages,
+        sender: ManualQuizSender,
+    ) -> QuizQuestion:
+        """Activate and publish a transient question authored by the agent."""
+
+        question = build_dynamic_question(
+            publication,
+            guild_id=guild_id,
+            created_by=publisher_id,
+        )
+        await self.sessions.reserve_dynamic(guild_id, publisher_id, question)
+        try:
+            await self._publish(
+                guild_id=guild_id,
+                channel_id=channel_id,
+                publisher_id=publisher_id,
+                publisher_name=publisher_name,
+                publisher_avatar_url=publisher_avatar_url,
+                question=question,
+                ui=ui,
+                duration=publication.duration_seconds,
+                sender=sender,
+                source="agent",
+            )
+        except Exception:
+            await self.sessions.cancel(guild_id, publisher_id, question.id)
+            raise
+        return question
+
+    async def _publish(
+        self,
+        *,
+        guild_id: int,
+        channel_id: int,
+        publisher_id: int,
+        publisher_name: str,
+        publisher_avatar_url: str | None,
+        question: QuizQuestion,
+        ui: PersonaManualQuizMessages,
+        duration: QuizDurationSeconds,
+        sender: ManualQuizSender,
+        source: str,
+    ) -> discord.Message | None:
+        view = ManualQuizView(
+            publisher_id=publisher_id,
+            guild_id=guild_id,
+            question=question,
+            ui=ui,
+            sessions=self.sessions,
+            duration_seconds=duration,
+        )
+        message = await sender(
+            build_question_embed(
+                question,
+                ui,
+                publisher_name=publisher_name,
+                publisher_avatar_url=publisher_avatar_url,
+                duration_seconds=duration,
+            ),
+            view,
+        )
+        if message is not None:
+            view.message = message
+        log_event(
+            LOGGER,
+            "info",
+            "manual_quiz_question_published",
+            guild_id=guild_id,
+            channel_id=channel_id,
+            user_id=publisher_id,
+            question_id=str(question.id),
+            question_source=source,
+            answer_mode=question.answer_mode.value,
+            category=question.category.value,
+            difficulty=question.difficulty.value,
+            duration_seconds=int(duration),
+        )
+        return message
+
 
 class ManualQuizCog(commands.Cog):
     """Publish one deterministic manual question for an operational member."""
@@ -80,9 +212,11 @@ class ManualQuizCog(commands.Cog):
         provider: DatabaseConfigProvider,
         sessions: ManualQuizSessionRegistry,
         persona: BotPersona,
+        publisher: ManualQuizDiscordPublisher | None = None,
     ) -> None:
         self.provider = provider
         self.sessions = sessions
+        self.publisher = publisher or ManualQuizDiscordPublisher(sessions)
         self.default_persona = persona
         self.manual_question.description = persona.messages.interface.commands.manual_question_description
 
@@ -195,40 +329,31 @@ class ManualQuizCog(commands.Cog):
                 )
                 return
 
-            view = ManualQuizView(
-                publisher_id=user_id,
+            async def send_question(
+                embed: discord.Embed,
+                view: ManualQuizView,
+            ) -> discord.Message | None:
+                await interaction.response.send_message(
+                    embed=embed,
+                    view=view,
+                    ephemeral=False,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+                try:
+                    return await interaction.original_response()
+                except discord.HTTPException:
+                    return None
+
+            await self.publisher.publish_reserved(
                 guild_id=guild_id,
+                channel_id=interaction.channel.id if interaction.channel else 0,
+                publisher_id=user_id,
+                publisher_name=member.display_name,
+                publisher_avatar_url=str(member.display_avatar.url),
                 question=question,
                 ui=ui,
-                sessions=self.sessions,
-                duration_seconds=duration,
-            )
-            await interaction.response.send_message(
-                embed=build_question_embed(
-                    question,
-                    ui,
-                    publisher_name=member.display_name,
-                    publisher_avatar_url=str(member.display_avatar.url),
-                    duration_seconds=duration,
-                ),
-                view=view,
-                ephemeral=False,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
-            with suppress(discord.HTTPException):
-                view.message = await interaction.original_response()
-            log_event(
-                LOGGER,
-                "info",
-                "manual_quiz_question_published",
-                guild_id=guild_id,
-                channel_id=interaction.channel.id if interaction.channel else "unknown",
-                user_id=user_id,
-                question_id=str(question.id),
-                answer_mode=question.answer_mode.value,
-                category=question.category.value,
-                difficulty=question.difficulty.value,
-                duration_seconds=int(duration),
+                duration=duration,
+                sender=send_question,
             )
         except Exception as error:
             if question is not None:
