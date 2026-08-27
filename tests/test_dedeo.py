@@ -88,7 +88,7 @@ def test_target_selection_avoids_the_author_when_another_member_exists(monkeypat
     assert select_dedeo_target((), author_id=author.id) is None
 
 
-def test_embed_uses_large_avatar_and_local_persona_copy(monkeypatch) -> None:
+def test_embed_uses_compact_avatar_thumbnail_and_local_persona_copy(monkeypatch) -> None:
     monkeypatch.setattr("arrest_report_agent.dedeo.discord.secrets.choice", lambda values: values[0])
 
     embed = build_dedeo_embed(
@@ -99,6 +99,7 @@ def test_embed_uses_large_avatar_and_local_persona_copy(monkeypatch) -> None:
 
     assert embed.title == "☝️ Dedeado"
     assert "Persona \\*Sospechosa\\*" in embed.description
-    assert embed.image.url == "https://cdn.discordapp.com/avatars/1/avatar.png"
+    assert embed.thumbnail.url == "https://cdn.discordapp.com/avatars/1/avatar.png"
+    assert embed.image is None
     assert embed.footer is None
     assert embed.timestamp is None

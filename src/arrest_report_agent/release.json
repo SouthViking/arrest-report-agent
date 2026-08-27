@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.20.1",
-  "title": "Dedeo más limpio",
-  "summary": "Simplificamos la presentación de /dedear para que el resultado sea más directo y visual.",
+  "version": "0.20.2",
+  "title": "Avatar más compacto",
+  "summary": "Ajustamos la presentación de /dedear para que el avatar ocupe menos espacio en el canal.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,7 +10,7 @@
   "changes": [
     {
       "type": "improved",
-      "text": "/dedear ahora muestra solamente el título, el resultado y el avatar del miembro seleccionado."
+      "text": "/dedear ahora presenta el avatar del miembro seleccionado como una miniatura compacta."
     }
   ],
   "acknowledgements": []

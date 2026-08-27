@@ -284,7 +284,7 @@ def build_dedeo_embed(
         description=secrets.choice(copy.messages).format(target=safe_target),
         color=discord.Color(secrets.choice(copy.colors)),
     )
-    embed.set_image(url=target_avatar_url)
+    embed.set_thumbnail(url=target_avatar_url)
     return embed
 
 
