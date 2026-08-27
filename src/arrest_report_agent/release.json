@@ -1,14 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.21.1",
-  "title": "Support visible para todos",
-  "summary": "/support ahora publica su mensaje en el canal para que todos puedan verlo.",
+  "version": "0.21.2",
+  "title": "Donaciones más claras",
+  "summary": "/support ahora identifica claramente el aporte como una donación voluntaria.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [],
   "changes": [
     {
       "type": "fixed",
-      "text": "/support ahora muestra públicamente el acceso para comprarme un café."
+      "text": "Se aclaró el acceso de /support con un enlace directo para realizar una donación."
     }
   ],
   "acknowledgements": []

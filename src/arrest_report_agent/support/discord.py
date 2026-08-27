@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands
 
 SUPPORT_URL = "https://buymeacoffee.com/southviking"
-SUPPORT_INLINE_NOTE = f"☕ ¿Te sirve el bot? [Cómprame un café]({SUPPORT_URL})"
+SUPPORT_INLINE_NOTE = f"💵 ¿Te sirve el bot? [Haz una donación]({SUPPORT_URL})"
 
 
 class SupportCog(commands.Cog):
@@ -31,9 +31,8 @@ def build_support_embed() -> discord.Embed:
         title="☕ Apoya el desarrollo",
         description=(
             "Si el bot te resulta útil y quieres apoyar voluntariamente su desarrollo y "
-            "mantenimiento, puedes invitarme un café.\n\n"
-            f"[☕ Cómprame un café]({SUPPORT_URL})\n\n"
-            "Los aportes no entregan beneficios, ventajas ni trato preferente dentro del servidor."
+            "mantenimiento, puedes realizar una donación.\n\n"
+            f"[💵 Hacer una donación]({SUPPORT_URL})"
         ),
         color=discord.Color.gold(),
     )

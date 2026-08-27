@@ -22,10 +22,9 @@ def test_support_embed_is_concise_linked_and_explicitly_voluntary() -> None:
     embed = build_support_embed()
 
     assert embed.title == "☕ Apoya el desarrollo"
-    assert f"[☕ Cómprame un café]({SUPPORT_URL})" in embed.description
-    assert "puedes invitarme un café" in embed.description
+    assert f"[💵 Hacer una donación]({SUPPORT_URL})" in embed.description
+    assert "puedes realizar una donación" in embed.description
     assert "voluntariamente" in embed.description
-    assert "no entregan beneficios" in embed.description
     assert embed.author is None
     assert embed.footer is None
     assert embed.thumbnail is None
