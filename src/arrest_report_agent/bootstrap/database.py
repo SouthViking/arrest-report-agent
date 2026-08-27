@@ -21,7 +21,7 @@ from arrest_report_agent.config import (
     GuildFeatureSnapshot,
     PackagedPersonaProvider,
 )
-from arrest_report_agent.config.bootstrap_defaults import role_request_review_defaults
+from arrest_report_agent.config.bootstrap_defaults import ftp_defaults, role_request_review_defaults
 from arrest_report_agent.infrastructure.postgres import (
     ConfigurationRepository,
     PostgresClient,
@@ -265,6 +265,8 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
     guilds: list[BootstrapGuild] = []
     for guild_id in guild_ids:
         review_defaults = role_request_review_defaults(guild_id)
+        configured_ftp = ftp_defaults(guild_id)
+        ftp_enabled = configured_ftp is not None and bool(supervisor_roles[guild_id])
         reviewer_ids = (
             review_defaults.reviewer_role_ids
             if review_defaults is not None
@@ -480,6 +482,40 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         enabled=False,
                         schema_version=1,
                         payload={},
+                    ),
+                    GuildFeatureSnapshot(
+                        key="ftp_status",
+                        enabled=ftp_enabled,
+                        schema_version=1,
+                        payload=(
+                            {
+                                "faction_id": configured_ftp.faction_id,
+                                "supervisory_role_ids": list(
+                                    configured_ftp.supervisory_role_ids
+                                ),
+                                "mfto_role_ids": list(configured_ftp.mfto_role_ids),
+                                "fto_role_ids": list(configured_ftp.fto_role_ids),
+                                "ftt_role_ids": list(configured_ftp.ftt_role_ids),
+                            }
+                            if ftp_enabled and configured_ftp is not None
+                            else {}
+                        ),
+                    ),
+                    GuildFeatureSnapshot(
+                        key="ftp_requests",
+                        enabled=ftp_enabled,
+                        schema_version=1,
+                        payload=(
+                            {
+                                "channel_id": configured_ftp.request_channel_id,
+                                "command_role_ids": list(configured_ftp.command_role_ids),
+                                "executive_role_ids": list(
+                                    configured_ftp.executive_role_ids
+                                ),
+                            }
+                            if ftp_enabled and configured_ftp is not None
+                            else {}
+                        ),
                     ),
                     GuildFeatureSnapshot(
                         key="faction_member_analysis",

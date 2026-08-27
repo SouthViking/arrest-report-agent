@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 45
+PERSONA_SCHEMA_VERSION = 46
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -857,6 +857,22 @@ class PersonaFactionStatusMessages(FrozenPersonaModel):
     no_connected: str = Field(min_length=1, max_length=400)
 
 
+class PersonaFtpRequestMessages(FrozenPersonaModel):
+    """Personality-aware feedback around neutral FTP request state."""
+
+    alert_title: str = Field(min_length=1, max_length=256)
+    unavailable: str = Field(min_length=1, max_length=400)
+    unauthorized_requester: str = Field(min_length=1, max_length=400)
+    invalid_reason: str = Field(min_length=1, max_length=400)
+    active_request: str = Field(min_length=1, max_length=400)
+    published: str = Field(min_length=1, max_length=400)
+    unauthorized_acceptor: str = Field(min_length=1, max_length=400)
+    requester_cannot_accept: str = Field(min_length=1, max_length=400)
+    unauthorized_canceller: str = Field(min_length=1, max_length=400)
+    stale: str = Field(min_length=1, max_length=400)
+    operation_failed: str = Field(min_length=1, max_length=400)
+
+
 class PersonaFactionMemberAnalysisMessages(FrozenPersonaModel):
     """Personality-aware copy around deterministic faction-member analysis."""
 
@@ -1051,6 +1067,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     mdc_description: str = Field(min_length=1, max_length=100)
     info_mdc_description: str = Field(min_length=1, max_length=100)
     connected_members_description: str = Field(min_length=1, max_length=100)
+    ftp_request_description: str = Field(min_length=1, max_length=100)
     faction_member_analysis_description: str = Field(min_length=1, max_length=100)
     stolen_vehicles_description: str = Field(min_length=1, max_length=100)
     pending_arrest_reports_description: str = Field(min_length=1, max_length=100)
@@ -1084,6 +1101,7 @@ class PersonaInterfaceMessages(FrozenPersonaModel):
     manual_quiz: PersonaManualQuizMessages
     mdc: PersonaMdcMessages
     faction_status: PersonaFactionStatusMessages
+    ftp_requests: PersonaFtpRequestMessages
     faction_member_analysis: PersonaFactionMemberAnalysisMessages
     operational_resources: PersonaOperationalResourcesMessages
     logbook: PersonaLogbookMessages

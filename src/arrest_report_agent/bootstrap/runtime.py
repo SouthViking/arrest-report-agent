@@ -40,11 +40,21 @@ from arrest_report_agent.faction_member_analysis import (
 from arrest_report_agent.faction_reports import FactionReportCog, FactionReportService
 from arrest_report_agent.faction_status import FactionStatusCog, FactionStatusService
 from arrest_report_agent.forum_shortcuts import ForumShortcutsCog
+from arrest_report_agent.ftp_requests import (
+    FtpRequestCog,
+    FtpRequestControlsView,
+    FtpRequestRepository,
+    FtpRequestServiceRegistry,
+)
+from arrest_report_agent.ftp_status import FtpStatusCog, FtpStatusService
 from arrest_report_agent.infrastructure.discord import (
     ConfigurationAdminCog,
     DiscordProfileSynchronizer,
     ReviewCog,
     create_bot,
+)
+from arrest_report_agent.infrastructure.discord.member_directory import (
+    DiscordGuildMemberDirectory,
 )
 from arrest_report_agent.infrastructure.postgres import (
     ConfigurationRepository,
@@ -444,6 +454,25 @@ async def build_runtime(
     bot.pager_registry = pager_registry  # type: ignore[attr-defined]
     bot.add_view(PagerControlsView())
     bot.add_cog(PagerCog(pager_registry, persona.profile))
+    ftp_request_bundles = [
+        bundle
+        for bundle in all_bundles
+        if (feature := bundle.snapshot.features.get("ftp_requests")) is not None and feature.enabled
+    ]
+    ftp_request_registry = FtpRequestServiceRegistry(
+        bot,
+        config_provider,
+        FtpRequestRepository(postgres),
+    )
+    bot.ftp_request_registry = ftp_request_registry  # type: ignore[attr-defined]
+    bot.add_view(FtpRequestControlsView())
+    bot.add_cog(FtpRequestCog(ftp_request_registry, persona.profile))
+    log_event(
+        LOGGER,
+        "info",
+        "ftp_request_subsystem_registered",
+        configured_guilds=len(ftp_request_bundles),
+    )
     bot.add_cog(CallsignCog(config_provider, member_profile_repository, persona.profile))
     bot.add_cog(
         ManualQuizCog(
@@ -477,6 +506,16 @@ async def build_runtime(
             FactionStatusCog(
                 config_provider,
                 faction_status_service,
+                persona.profile,
+            )
+        )
+        bot.add_cog(
+            FtpStatusCog(
+                config_provider,
+                FtpStatusService(
+                    faction_directory,
+                    DiscordGuildMemberDirectory(bot),
+                ),
                 persona.profile,
             )
         )

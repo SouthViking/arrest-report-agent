@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.18.1",
-  "title": "Preguntas dinámicas del manual",
-  "summary": "El agente ahora puede crear y publicar ejercicios interactivos sustentados en el manual.",
+  "version": "0.19.0",
+  "title": "Herramientas para el FTP",
+  "summary": "El bot facilita encontrar personal conectado y solicitar asistencia dentro del Field Training Program.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,11 @@
   "changes": [
     {
       "type": "added",
-      "text": "Se incorporó una herramienta para construir preguntas dinámicas con opciones, dificultad y duración configurables."
+      "text": "Se agregó /ftp-conectados para consultar integrantes del FTP conectados, separados por función y estado de servicio."
     },
     {
-      "type": "improved",
-      "text": "Las preguntas dinámicas reutilizan la interacción de /pregunta-manual sin agregarse al catálogo persistente."
+      "type": "added",
+      "text": "Se agregó /solicitar-fto para pedir un instructor mediante solicitudes persistentes que pueden tomarse o cancelarse."
     }
   ],
   "acknowledgements": []

@@ -14,6 +14,10 @@ from datetime import UTC, datetime
 
 import discord
 
+from arrest_report_agent.application.member_names import (
+    normalize_person_name,
+    person_name_aliases,
+)
 from arrest_report_agent.application.ports import (
     ChannelMemberSearchQuery,
     GuildMemberLookupResult,
@@ -389,7 +393,7 @@ def _select_name_matches(
     members: list[discord.Member],
     query: str | None,
 ) -> tuple[list[discord.Member], GuildMemberNameMatchStrategy | None]:
-    normalized_query = _normalize(query or "")
+    normalized_query = normalize_person_name(query or "")
     if not normalized_query:
         return members, None
 
@@ -442,10 +446,7 @@ def _matches_surname(member: discord.Member, expected_surname: str) -> bool:
 
 
 def _member_name_aliases(member: discord.Member) -> tuple[str, ...]:
-    aliases: list[str] = []
-    for source in (member.display_name, member.name):
-        aliases.extend(_normalize(value) for value in re.split(r"[/|]", source) if value.strip())
-    return tuple(dict.fromkeys(alias for alias in aliases if alias))
+    return person_name_aliases(member.display_name, member.name)
 
 
 def _name_tokens(value: str) -> tuple[str, ...]:

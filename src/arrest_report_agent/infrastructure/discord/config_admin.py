@@ -18,6 +18,8 @@ from arrest_report_agent.config import (
     BotPersona,
     FactionMemberAnalysisOptions,
     ForumShortcutsOptions,
+    FtpRequestOptions,
+    FtpStatusOptions,
     GuildAgentConfig,
     GuildFeatureSnapshot,
     OperationalResourcesOptions,
@@ -74,6 +76,8 @@ FEATURE_LABELS = {
     "service_calls": "Llamadas de servicio",
     "stolen_vehicles": "Vehículos robados",
     "faction_status": "Estado de facción",
+    "ftp_status": "FTP conectado",
+    "ftp_requests": "Solicitudes FTP",
     "faction_member_analysis": "Análisis de miembros",
     "operational_resources": "Recursos operativos",
     "forum_shortcuts": "Accesos al foro",
@@ -957,6 +961,14 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     value="faction_status",
                 ),
                 discord.SelectOption(
+                    label="FTP conectado",
+                    value="ftp_status",
+                ),
+                discord.SelectOption(
+                    label="Solicitudes FTP",
+                    value="ftp_requests",
+                ),
+                discord.SelectOption(
                     label="Análisis de miembros",
                     value="faction_member_analysis",
                 ),
@@ -1039,6 +1051,22 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 and "faction_id" not in payload
             ):
                 raise ValueError("Estado de facción requiere `faction_id`.")
+            if key == "ftp_status" and self.enabled.values[0] == "true":
+                try:
+                    FtpStatusOptions.model_validate(payload)
+                except ValueError as error:
+                    raise ValueError(
+                        "FTP conectado requiere `faction_id` y los IDs de roles de "
+                        "Supervisory Staff, MFTO, FTO y FTT."
+                    ) from error
+            if key == "ftp_requests" and self.enabled.values[0] == "true":
+                try:
+                    FtpRequestOptions.model_validate(payload)
+                except ValueError as error:
+                    raise ValueError(
+                        "Solicitudes FTP requiere `channel_id` y los IDs de roles de "
+                        "Command y Executive Staff."
+                    ) from error
             if key == "faction_member_analysis" and self.enabled.values[0] == "true":
                 try:
                     FactionMemberAnalysisOptions.model_validate(payload)

@@ -36,6 +36,13 @@ menos un destino explícito; retirar el último canal detiene el polling sin des
 El módulo **Estado de facción** recibe `{"faction_id": 3}` y habilita `/conectados` para esa facción.
 El ID queda por guild en PostgreSQL y no se fija en el comando ni en el cliente SARP.
 
+El módulo **FTP conectado** configura la facción y los IDs de los roles de Supervisory Staff, MFTO,
+FTO y FTT. Habilita `/ftp-conectados` sin fijar esos valores dentro del comando.
+
+El módulo **Solicitudes FTP** recibe `channel_id`, `command_role_ids` y `executive_role_ids`. Reutiliza
+los roles del módulo **FTP conectado** y habilita `/solicitar-fto` en cualquier canal de invocación,
+aunque la publicación siempre se dirige al canal configurado.
+
 El módulo **Consulta de reportes de arresto** recibe `{"faction_id": 3}`. Habilita
 `/ver-evidencia` y permite al agente completo buscar y vincular arrestos de esa facción, además de
 consultar bolsas de evidencias cuando el usuario entrega una referencia explícita. En un expediente ya
@@ -77,6 +84,8 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/mdc` | `operational_staff_roles`; solo si SARP está activo | Modal privado; resultado público o efímero | API SARP en vivo |
 | `/info-mdc` | `operational_staff_roles`; solo si SARP está activo | Pública; rechazo efímero | Persona activa |
 | `/conectados` | `operational_staff_roles`; módulo `faction_status` activo | Pública; rechazo efímero | Nómina de la facción en SARP |
+| `/ftp-conectados` | `operational_staff_roles`; módulo `ftp_status` activo | Pública; rechazo efímero | Nómina cacheada de SARP y roles de Discord |
+| `/solicitar-fto` | FTT, FTO, MFTO, Supervisory, Command o Executive; módulo `ftp_requests` activo | Modal y confirmación efímeros; solicitud pública en canal configurado | PostgreSQL y roles de Discord |
 | `/ver-evidencia` | `operational_staff_roles`; módulo `arrest_report_lookup` activo | Pública; rechazo efímero | Bolsa de evidencias en SARP |
 | `/vehiculos-robados` | `operational_staff_roles`; módulo `stolen_vehicles` activo | Modal privado; resultado público o efímero | Denuncias recientes de vehículos en SARP |
 | `/recursos` | `operational_staff_roles`; módulo `operational_resources` activo | Pública; rechazo efímero | Configuración de PostgreSQL y API SARP |
@@ -225,6 +234,22 @@ servicio. Se muestran como máximo diez nombres por grupo y cada sección indica
 
 La consulta recupera la nómina completa mediante una sola solicitud agrupada. Un caché compartido de
 quince segundos evita multiplicar consumo cuando varias personas ejecutan el comando al mismo tiempo.
+
+## `/ftp-conectados`
+
+Publica solamente integrantes conectados relacionados con el Field Training Program. Separa
+Supervisory Staff, Master FTO, FTO y FTT en campos no inline, muestra el estado de servicio y limita
+cada sección a diez nombres. El cruce normaliza tildes y `_`, admite varios personajes separados por
+`/` y el formato abreviado `N. Apellido`. Solo acepta una coincidencia única y nunca infiere una
+identidad ambigua. Comparte la consulta y el caché corto de la nómina usado por `/conectados`.
+
+## `/solicitar-fto`
+
+Abre un formulario breve para explicar el apoyo o entrenamiento requerido y publica una solicitud en
+el canal FTP configurado, mencionando a Supervisory Staff, MFTO y FTO. Solo FTO, MFTO y jefaturas
+autorizadas pueden tomarla, y el solicitante no puede asignársela a sí mismo. El autor, Command Staff
+y Executive Staff pueden cancelarla. Al tomar o cancelar se edita el mismo mensaje y se desactivan
+los botones; el bot limita a una solicitud pendiente por autor.
 
 ## `/radios-faccion` y `/auditar-radio`
 

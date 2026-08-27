@@ -33,6 +33,8 @@ también sin ejecutar el agente.
   búsqueda de cargos permite seleccionar campos, combinar términos y tolerar typos cuando proceda.
 - Consulta en una sola petición la nómina de una facción y permite al personal operativo publicar
   quién está conectado o quién además figura en servicio mediante `/conectados`.
+- Cruza ese mismo roster cacheado con los roles de Discord para que `/ftp-conectados` resuma
+  Supervisory Staff, MFTO, FTO y FTT que están conectados, sin duplicar usuarios ni adivinar nombres.
 - Resuelve bajo demanda códigos de respuesta, códigos 10, códigos de situación y el alfabeto
   radiofónico APCO desde una referencia oficial acotada, sin inyectar el manual completo al prompt.
 - Mantiene el indicador nativo de escritura mientras procesa una solicitud.
@@ -375,6 +377,10 @@ Comandos disponibles:
 - `/info-mdc`: publica una guía breve para consultar nombres exactos, elegir la visibilidad y
   entender qué información puede devolver la ficha.
 - `/conectados`: publica para `operational_staff_roles` el personal conectado y en servicio.
+- `/ftp-conectados`: publica para `operational_staff_roles` únicamente Supervisory Staff, MFTO,
+  FTO y FTT conectados, indicando cuáles figuran en servicio.
+- `/solicitar-fto`: abre un formulario para que integrantes del FTP y jefaturas soliciten un
+  instructor en el canal configurado; la solicitud puede tomarse o cancelarse desde sus botones.
 - `/ver-evidencia`: permite al personal de `operational_staff_roles` consultar públicamente una
   bolsa por su número y ver el contenido analizado junto con su cadena de custodia. El agente con
   acceso completo reutiliza la misma consulta cuando necesita contrastar una bolsa durante una
@@ -571,7 +577,7 @@ el contenido exacto del FAQ.
 | `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA` | `false` | Excluye mensajes, imágenes, archivos y tool payloads del trace. |
 
 Con `SARP_API_ENABLED=true`, el runtime obtiene `GET /police/penal-code` al arrancar, lo refresca
-en segundo plano y registra `/mdc`, `/conectados`, `/recursos`, `/vehiculos-robados` y
+en segundo plano y registra `/mdc`, `/conectados`, `/ftp-conectados`, `/recursos`, `/vehiculos-robados` y
 `/reportes-pendientes`. `/cargos` y las tools del agente comparten el mismo snapshot: una caída temporal
 conserva el último catálogo remoto válido y, si todavía no existe uno, usa `delitos.json`. Cada
 revisión fija su snapshot al comenzar, por lo que una actualización no mezcla fuentes a mitad de
@@ -590,6 +596,16 @@ de cada guild. Obtiene el roster completo con `GET /my-faction/faction/:factionI
 sola vista los totales de conectados, personal en servicio y porcentaje de cobertura, junto con la
 lista alfabética de conectados. La API se consulta una sola vez y el resultado se comparte durante
 quince segundos para proteger el límite del proveedor.
+
+`/ftp-conectados` usa el módulo dinámico `ftp_status`. Reutiliza el mismo roster y caché de
+`/conectados`, y cruza los personajes conectados con los roles configurados de Supervisory Staff,
+MFTO, FTO y FTT en Discord. Los nombres toleran guiones bajos, tildes y alias separados por `/`,
+incluido el formato `N. Apellido`; las coincidencias ambiguas se omiten en lugar de elegirse al azar.
+
+`/solicitar-fto` usa el módulo dinámico `ftp_requests` y persiste solo el motivo, estado y referencias
+de Discord necesarias. FTT, FTO, MFTO y jefaturas autorizadas pueden solicitar; FTO en adelante puede
+tomar una solicitud, mientras que solo su autor, Command Staff o Executive Staff puede cancelarla.
+El canal, Command Staff y Executive Staff se resuelven desde PostgreSQL, sin nuevos environment vars.
 
 `/recursos` usa el módulo dinámico `operational_resources` y la misma política
 `operational_staff_roles`. Reúne en un panel público los enlaces oficiales, las direcciones de juego

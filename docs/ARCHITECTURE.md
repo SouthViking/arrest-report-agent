@@ -142,6 +142,10 @@ modelo no puede escoger una guild ni un canal de publicación.
   el comando y el worker, guarda solo el último ID publicado por guild/canal y no usa OpenAI.
 - `faction_status`: consulta agrupada y con caché corto del roster SARP configurado por guild; no
   persiste estados de conexión ni usa OpenAI.
+- `ftp_status`: cruza el roster cacheado con roles FTP configurados y aliases de Discord; omite
+  coincidencias ambiguas, no persiste presencia y no usa OpenAI.
+- `ftp_requests`: publica solicitudes de instrucción en un destino configurable y conserva en
+  PostgreSQL el estado mínimo necesario para que sus botones sobrevivan reinicios; no usa SARP ni IA.
 
 Los comandos personales `/mis-reportes` y `/mi-resumen` siguen una ruta determinista separada
 del runner. Leen de forma acotada los canales de revisión visibles, atribuyen publicaciones raíz al
@@ -179,6 +183,16 @@ El subsistema `faction_status` consume el detalle interno agrupado de la facció
 únicamente nombre, conexión y estado de servicio, aplica `online && factionduty` para la vista en
 servicio y comparte un caché corto por facción. El comando no conoce IDs de servidores ni facciones;
 la relación vive en el snapshot dinámico de PostgreSQL.
+
+El subsistema `ftp_status` comparte la misma instancia de `FactionDirectoryService`. Filtra primero
+personajes conectados y miembros con alguno de los roles FTP configurados, normaliza ambos nombres y
+solo vincula coincidencias únicas. La prioridad Supervisory Staff → MFTO → FTO → FTT evita que una
+persona con varios roles aparezca más de una vez.
+
+El subsistema `ftp_requests` comparte el catálogo de roles de `ftp_status`, pero no depende de la API
+SARP. Una transición atómica impide que dos instructores tomen la misma solicitud y un índice parcial
+limita a una solicitud pendiente por autor. Si Discord no puede reflejar una resolución, el repositorio
+restaura el estado pendiente para mantener consistencia entre el mensaje y PostgreSQL.
 
 `/verguenza` comparte el finder determinista: abre un modal privado para elegir mes actual o los
 últimos 7, 30 o 90 días y después publica un top 10 visible para el canal. Filtra primero todo reporte

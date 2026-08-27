@@ -145,6 +145,57 @@ class FactionStatusOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
 
 
+class FtpStatusOptions(FrozenConfigModel):
+    faction_id: int = Field(gt=0)
+    supervisory_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
+    mfto_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
+    fto_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
+    ftt_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
+
+    @model_validator(mode="after")
+    def validate_role_catalog(self) -> FtpStatusOptions:
+        groups = (
+            self.supervisory_role_ids,
+            self.mfto_role_ids,
+            self.fto_role_ids,
+            self.ftt_role_ids,
+        )
+        if any(any(role_id <= 0 for role_id in group) for group in groups):
+            raise ValueError("FTP role IDs must be positive")
+        flattened = tuple(role_id for group in groups for role_id in group)
+        if len(flattened) != len(set(flattened)):
+            raise ValueError("FTP role groups must contain unique role IDs")
+        return self
+
+    @property
+    def all_role_ids(self) -> tuple[int, ...]:
+        return (
+            *self.supervisory_role_ids,
+            *self.mfto_role_ids,
+            *self.fto_role_ids,
+            *self.ftt_role_ids,
+        )
+
+
+class FtpRequestOptions(FrozenConfigModel):
+    channel_id: int = Field(gt=0)
+    command_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
+    executive_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
+
+    @model_validator(mode="after")
+    def validate_management_roles(self) -> FtpRequestOptions:
+        role_ids = (*self.command_role_ids, *self.executive_role_ids)
+        if any(role_id <= 0 for role_id in role_ids):
+            raise ValueError("FTP management role IDs must be positive")
+        if len(role_ids) != len(set(role_ids)):
+            raise ValueError("FTP management role IDs must be unique")
+        return self
+
+    @property
+    def management_role_ids(self) -> tuple[int, ...]:
+        return (*self.command_role_ids, *self.executive_role_ids)
+
+
 class FactionMemberAnalysisOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
     base_divisions: tuple[str, ...] = Field(min_length=1, max_length=10)
@@ -377,6 +428,23 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if faction_status_feature.schema_version != 1:
                 raise ValueError("faction_status requires feature schema version 1")
             FactionStatusOptions.model_validate(faction_status_feature.payload)
+        ftp_status_feature = self.features.get("ftp_status")
+        if ftp_status_feature is not None and ftp_status_feature.enabled:
+            if ftp_status_feature.schema_version != 1:
+                raise ValueError("ftp_status requires feature schema version 1")
+            FtpStatusOptions.model_validate(ftp_status_feature.payload)
+            roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
+            if roles.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError(
+                    "enabled ftp_status requires restricted operational staff roles"
+                )
+        ftp_requests_feature = self.features.get("ftp_requests")
+        if ftp_requests_feature is not None and ftp_requests_feature.enabled:
+            if ftp_requests_feature.schema_version != 1:
+                raise ValueError("ftp_requests requires feature schema version 1")
+            FtpRequestOptions.model_validate(ftp_requests_feature.payload)
+            if ftp_status_feature is None or not ftp_status_feature.enabled:
+                raise ValueError("enabled ftp_requests requires enabled ftp_status")
         member_analysis_feature = self.features.get("faction_member_analysis")
         if member_analysis_feature is not None and member_analysis_feature.enabled:
             if member_analysis_feature.schema_version != 1:
@@ -595,6 +663,20 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return FactionStatusOptions.model_validate(feature.payload).faction_id
+
+    @property
+    def ftp_status_options(self) -> FtpStatusOptions | None:
+        feature = self.snapshot.features.get("ftp_status")
+        if feature is None or not feature.enabled:
+            return None
+        return FtpStatusOptions.model_validate(feature.payload)
+
+    @property
+    def ftp_request_options(self) -> FtpRequestOptions | None:
+        feature = self.snapshot.features.get("ftp_requests")
+        if feature is None or not feature.enabled:
+            return None
+        return FtpRequestOptions.model_validate(feature.payload)
 
     @property
     def faction_member_analysis_options(self) -> FactionMemberAnalysisOptions | None:

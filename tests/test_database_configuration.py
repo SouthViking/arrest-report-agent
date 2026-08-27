@@ -597,7 +597,7 @@ def test_global_persona_repair_migration_updates_an_already_applied_revision() -
 
         command.upgrade(alembic, "head")
 
-        asyncio.run(_assert_global_persona_revision(database_url, "walter_vigil", 52, 45))
+        asyncio.run(_assert_global_persona_revision(database_url, "walter_vigil", 53, 46))
     finally:
         command.downgrade(alembic, "base")
         if previous is None:
@@ -792,6 +792,27 @@ async def _seed_service_call_configuration_targets(database_url: str) -> None:
                                 "position": position,
                             },
                         )
+                    operational_policy_id = uuid.uuid4()
+                    await tx.execute(
+                        sa.text(
+                            "INSERT INTO guild_access_policies "
+                            "(id, config_revision_id, policy_key, subject_type, mode) "
+                            "VALUES (:id, :revision_id, 'operational_staff_roles', "
+                            "'role', 'restricted')"
+                        ),
+                        {
+                            "id": operational_policy_id,
+                            "revision_id": revision_id,
+                        },
+                    )
+                    await tx.execute(
+                        sa.text(
+                            "INSERT INTO guild_access_policy_members "
+                            "(id, policy_id, snowflake_id, position) "
+                            "VALUES (:id, :policy_id, 201, 0)"
+                        ),
+                        {"id": uuid.uuid4(), "policy_id": operational_policy_id},
+                    )
     finally:
         await client.close()
 
@@ -911,6 +932,30 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         }
         assert pending[999]["enabled"] is False
         assert pending[999]["payload"] == {}
+        ftp_request_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.enabled, feature.payload "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'ftp_requests' "
+                "ORDER BY revision.guild_id"
+            )
+        )
+        ftp_requests = {int(row["guild_id"]): row for row in ftp_request_rows}
+        assert ftp_requests[1234674521416663070]["enabled"] is True
+        assert ftp_requests[1234674521416663070]["payload"] == {
+            "channel_id": 1234749125820420139,
+            "command_role_ids": [1234678029662294047],
+            "executive_role_ids": [1234678238182244414],
+        }
+        assert ftp_requests[999]["enabled"] is False
+        assert ftp_requests[999]["payload"] == {}
+        ftp_request_table = await client.fetch_one(
+            sa.text("SELECT to_regclass('public.ftp_training_requests') AS name")
+        )
+        assert ftp_request_table is not None
+        assert ftp_request_table["name"] == "ftp_training_requests"
         report_rows = await client.fetch_all(
             sa.text(
                 "SELECT revision.guild_id, feature.enabled, feature.payload, policy.mode, "
@@ -1334,8 +1379,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 52
-        assert persona["schema_version"] == 45
+        assert persona["revision"] == 53
+        assert persona["schema_version"] == 46
         global_persona = await client.fetch_one(
             sa.text(
                 "SELECT persona.slug, revision.revision, revision.schema_version "
@@ -1347,8 +1392,8 @@ async def _assert_callsign_migration(
         )
         assert global_persona is not None
         assert global_persona["slug"] == "walter_vigil"
-        assert global_persona["revision"] == 52
-        assert global_persona["schema_version"] == 45
+        assert global_persona["revision"] == 53
+        assert global_persona["schema_version"] == 46
         assert set(persona["payload"]["presence"]) == {
             "idle",
             "conversation",
@@ -1450,6 +1495,15 @@ async def _assert_callsign_migration(
         assert persona["payload"]["messages"]["interface"]["commands"][
             "faction_member_analysis_description"
         ]
+        assert persona["payload"]["messages"]["interface"]["ftp_requests"][
+            "published"
+        ]
+        assert persona["payload"]["messages"]["interface"]["commands"][
+            "ftp_request_description"
+        ]
+        assert "/solicitar-fto" in persona["payload"]["messages"]["help"][
+            "quick_references"
+        ]
         analysis_feature = await client.fetch_one(
             sa.text(
                 "SELECT enabled, payload FROM guild_feature_settings "
@@ -1525,7 +1579,7 @@ async def _assert_global_persona_revision(
         assert row["slug"] == slug
         assert row["revision"] == revision
         assert row["schema_version"] == schema_version
-        if schema_version == 45:
+        if schema_version >= 45:
             assert row["payload"]["messages"]["interface"]["faction_member_analysis"]
     finally:
         await client.close()

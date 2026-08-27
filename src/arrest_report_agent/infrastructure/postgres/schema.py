@@ -331,6 +331,55 @@ pager_responders = sa.Table(
     sa.Index("ix_pager_responder_user", "user_id", "updated_at"),
 )
 
+ftp_training_requests = sa.Table(
+    "ftp_training_requests",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("channel_id", sa.BigInteger, nullable=False),
+    sa.Column("message_id", sa.BigInteger),
+    sa.Column("requester_user_id", sa.BigInteger, nullable=False),
+    sa.Column("reason", sa.String(500), nullable=False),
+    sa.Column("status", sa.String(20), nullable=False),
+    sa.Column("claimed_by_user_id", sa.BigInteger),
+    sa.Column("resolved_by_user_id", sa.BigInteger),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("resolved_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(
+        "status IN ('publishing','pending','claimed','cancelled','failed')",
+        name="ck_ftp_training_request_status",
+    ),
+    sa.CheckConstraint(
+        "char_length(reason) BETWEEN 10 AND 500",
+        name="ck_ftp_training_request_reason_length",
+    ),
+    sa.UniqueConstraint(
+        "guild_id",
+        "channel_id",
+        "message_id",
+        name="uq_ftp_training_request_message",
+    ),
+    sa.Index(
+        "ix_ftp_training_request_guild_status",
+        "guild_id",
+        "status",
+        "created_at",
+    ),
+    sa.Index(
+        "uq_ftp_training_request_live_member",
+        "guild_id",
+        "requester_user_id",
+        unique=True,
+        postgresql_where=sa.text("status IN ('publishing','pending')"),
+    ),
+)
+
 deployment_events = sa.Table(
     "deployment_events",
     metadata,

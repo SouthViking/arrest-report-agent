@@ -1,7 +1,7 @@
 {
-  "schema_version": 45,
+  "schema_version": 46,
   "id": "walter_vigil",
-  "revision": 52,
+  "revision": 53,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -157,7 +157,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo solicitar y continuar la revisión de tu reporte.\n• `/info-roles`: cómo pedir altas o bajas de roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo registrar y consultar callsigns.\n• `/info-mdc`: cómo consultar registros operativos y elegir su visibilidad.\n• `/info-sugerencias`: cómo enviar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/recursos`: reúne accesos y estado operativo.\n• `/vehiculos-robados`: consulta las denuncias recientes de robo de vehículos.\n• `/reportes-pendientes`: detecta reportes de arresto que parecen incompletos.\n• `/informe-faccion`: genera el informe restringido de banco y miembros activos.",
+      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/ftp-conectados`: muestra el personal del FTP conectado.\n• `/solicitar-fto`: solicita asistencia de un instructor del FTP.\n• `/recursos`: reúne accesos y estado operativo.\n• `/vehiculos-robados`: consulta las denuncias recientes de robo de vehículos.\n• `/reportes-pendientes`: detecta reportes de arresto que parecen incompletos.\n• `/informe-faccion`: genera el informe restringido de banco y miembros activos.",
       "footer": "Elige la guía correspondiente y sigue sus indicaciones, {form_of_address}."
     },
     "interface": {
@@ -439,6 +439,19 @@
         "connected_intro": "Estado actual del personal conectado y en servicio.",
         "no_connected": "No aparece ningún miembro de la facción conectado en este momento."
       },
+      "ftp_requests": {
+        "alert_title": "⚠️ Solicitud FTP no disponible",
+        "unavailable": "Las solicitudes de instrucción FTP no están habilitadas para este servidor.",
+        "unauthorized_requester": "Este comando está reservado a integrantes del FTP y al personal de supervisión, mando o dirección autorizado.",
+        "invalid_reason": "Explique claramente por qué necesita un instructor antes de enviar la solicitud.",
+        "active_request": "Ya tiene una solicitud pendiente. Espere a que sea atendida o cancélela antes de crear otra.",
+        "published": "La solicitud fue publicada y el personal del FTP ya fue notificado.",
+        "unauthorized_acceptor": "Solo un FTO o personal superior autorizado puede tomar esta solicitud.",
+        "requester_cannot_accept": "No puede tomar su propia solicitud; debe ser atendida por otra persona autorizada.",
+        "unauthorized_canceller": "Solo el autor, Command Staff o Executive Staff puede cancelar esta solicitud.",
+        "stale": "La solicitud ya cambió de estado o dejó de estar disponible.",
+        "operation_failed": "No pude procesar la solicitud FTP en este momento. Inténtelo nuevamente más tarde."
+      },
       "faction_member_analysis": {
         "alert_title": "⚠️ Análisis de miembros no disponible",
         "unauthorized": "Esta consulta está reservada al personal de supervisión, mando y dirección autorizado.",
@@ -564,6 +577,7 @@
         "mdc_description": "Consulta registros operativos de un personaje",
         "info_mdc_description": "Explica cómo consultar el MDC y elegir su visibilidad",
         "connected_members_description": "Resume el personal conectado y en servicio",
+        "ftp_request_description": "Solicita la asistencia de un instructor del FTP",
         "faction_member_analysis_description": "Analiza actividad y distribución de los miembros",
         "stolen_vehicles_description": "Muestra las denuncias recientes de vehículos robados",
         "pending_arrest_reports_description": "Detecta reportes de arresto que parecen incompletos",
