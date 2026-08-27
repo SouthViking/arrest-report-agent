@@ -140,7 +140,10 @@ def build_evidence_bag_embed(
         color=discord.Color.dark_teal(),
     )
     item_lines = [f"• {item.result}" for item in detail.items]
-    custody_lines = [f"• {_discord_time(entry.created_at)} · {entry.action}" for entry in detail.custody]
+    custody_lines = [
+        f"• {_discord_time(entry.created_at)} · {entry.officer_name} · {entry.action}"
+        for entry in detail.custody
+    ]
     embed.add_field(
         name=f"🔬 Contenido registrado · {len(detail.items)}",
         value=_bounded_lines(item_lines, empty="No hay resultados registrados para esta bolsa."),

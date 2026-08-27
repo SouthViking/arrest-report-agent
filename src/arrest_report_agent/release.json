@@ -1,20 +1,17 @@
 {
   "schema_version": 3,
-  "version": "0.19.0",
-  "title": "Herramientas para el FTP",
-  "summary": "El bot facilita encontrar personal conectado y solicitar asistencia dentro del Field Training Program.",
+  "version": "0.19.1",
+  "title": "Más detalle en bolsas de evidencia",
+  "summary": "Las consultas de bolsas ahora permiten identificar quién realizó cada movimiento de custodia.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
+    1234675609536430152,
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "Se agregó /ftp-conectados para consultar integrantes del FTP conectados, separados por función y estado de servicio."
-    },
-    {
-      "type": "added",
-      "text": "Se agregó /solicitar-fto para pedir un instructor mediante solicitudes persistentes que pueden tomarse o cancelarse."
+      "type": "improved",
+      "text": "/ver-evidencia ahora muestra el nombre del agente junto a cada acción de la cadena de custodia."
     }
   ],
   "acknowledgements": []

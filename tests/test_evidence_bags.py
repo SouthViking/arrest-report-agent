@@ -342,6 +342,7 @@ def test_public_embed_preserves_results_and_custody_without_internal_ids() -> No
 
     assert embed.title == "📦 Bolsa de evidencias #4385409"
     assert "Lata de ECola" in embed.fields[0].value
+    assert "Deputy Sheriff Lemus Fagan" in embed.fields[1].value
     assert "almacén 917" in embed.fields[1].value
     assert "23535" not in str(embed.to_dict())
     assert embed.footer.text == "Consulta realizada por Charles Harrington"
