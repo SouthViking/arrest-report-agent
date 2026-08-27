@@ -61,6 +61,7 @@ class DedeoCopy:
     colors: tuple[int, ...]
     unavailable: str
     empty: str
+    bot_target: str
     cooldown: str
 
 
@@ -120,6 +121,7 @@ ROY_DEDEO_COPY = DedeoCopy(
     colors=(0xED4245, 0xF47FFF, 0xFEE75C, 0x9B59B6, 0xE67E22, 0x5865F2),
     unavailable="el dedo no funciona por MD po. usa el comando dentro del server.",
     empty="no encontré a nadie pa dedear. impresionante, hasta pa esta wea quedé solo.",
+    bot_target="a los bots no se les dedea, genio. elige a una persona de carne y píxeles.",
     cooldown="ya tiraste el dedo, animal. espera **{seconds} s** antes de webear de nuevo.",
 )
 
@@ -148,6 +150,7 @@ WALTER_DEDEO_COPY = DedeoCopy(
     colors=(0xED4245, 0xFEE75C, 0x5865F2, 0x9B59B6),
     unavailable="El comando solo puede utilizarse dentro de un servidor.",
     empty="No encontré miembros disponibles para realizar el sorteo en este canal.",
+    bot_target="Los bots no participan en el dedeo. Selecciona a un miembro humano.",
     cooldown="El dedo necesita descanso. Espera **{seconds} s** antes de volver a usarlo.",
 )
 
@@ -162,9 +165,19 @@ class DedeoCog(commands.Cog):
 
     @discord.slash_command(
         name="dedear",
-        description="Dedéa aleatoriamente a alguien del canal",
+        description="Dedea a alguien o deja que el azar decida",
     )
-    async def dede(self, ctx: discord.ApplicationContext) -> None:
+    @discord.option(  # type: ignore[no-untyped-call,untyped-decorator]
+        "usuario",
+        discord.Member,
+        description="Miembro a dedear; déjalo vacío para elegir al azar",
+        required=False,
+    )
+    async def dede(
+        self,
+        ctx: discord.ApplicationContext,
+        usuario: discord.Member | None = None,
+    ) -> None:
         if (
             ctx.guild is None
             or not isinstance(ctx.author, discord.Member)
@@ -181,8 +194,23 @@ class DedeoCog(commands.Cog):
         channel_id = ctx.channel.id
         requester_id = ctx.author.id
         try:
-            candidates = eligible_channel_members(ctx.guild.members, ctx.channel)
-            target = select_dedeo_target(candidates, author_id=requester_id)
+            if usuario is not None and usuario.bot:
+                await ctx.respond(
+                    embed=_alert(self.copy.bot_target),
+                    ephemeral=True,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+                return
+
+            if usuario is not None:
+                target = select_dedeo_target(
+                    (),
+                    author_id=requester_id,
+                    requested_target=usuario,
+                )
+            else:
+                candidates = eligible_channel_members(ctx.guild.members, ctx.channel)
+                target = select_dedeo_target(candidates, author_id=requester_id)
             if target is None:
                 await ctx.respond(
                     embed=_alert(self.copy.empty),
@@ -262,8 +290,12 @@ def select_dedeo_target(
     candidates: Sequence[discord.Member],
     *,
     author_id: int,
+    requested_target: discord.Member | None = None,
 ) -> discord.Member | None:
-    """Prefer another member, falling back to the author when they are alone."""
+    """Use an explicit target or randomly prefer someone other than the author."""
+
+    if requested_target is not None:
+        return requested_target
 
     others = tuple(member for member in candidates if member.id != author_id)
     selectable = others or tuple(candidates)

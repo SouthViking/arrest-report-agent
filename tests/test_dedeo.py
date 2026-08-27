@@ -6,6 +6,7 @@ import discord
 
 from arrest_report_agent.dedeo.discord import (
     ROY_DEDEO_COPY,
+    DedeoCog,
     DedeoCooldown,
     build_dedeo_embed,
     eligible_channel_members,
@@ -43,6 +44,13 @@ def test_roy_pool_is_varied_and_every_message_accepts_the_target() -> None:
     assert len(ROY_DEDEO_COPY.messages) >= 20
     assert all(message.count("{target}") == 1 for message in ROY_DEDEO_COPY.messages)
     assert "{seconds}" in ROY_DEDEO_COPY.cooldown
+
+
+def test_command_exposes_an_optional_guild_member_target() -> None:
+    option = next(option for option in DedeoCog.dede.options if option.name == "usuario")
+
+    assert option.required is False
+    assert option.input_type is discord.SlashCommandOptionType.user
 
 
 def test_cooldown_is_per_user_and_guild_and_rounds_up_remaining_time() -> None:
@@ -86,6 +94,12 @@ def test_target_selection_avoids_the_author_when_another_member_exists(monkeypat
     assert select_dedeo_target((author, other), author_id=author.id) is other
     assert select_dedeo_target((author,), author_id=author.id) is author
     assert select_dedeo_target((), author_id=author.id) is None
+
+
+def test_explicit_target_does_not_need_to_be_in_the_random_channel_pool() -> None:
+    selected = _member(99)
+
+    assert select_dedeo_target((), author_id=1, requested_target=selected) is selected
 
 
 def test_embed_uses_compact_avatar_thumbnail_and_local_persona_copy(monkeypatch) -> None:

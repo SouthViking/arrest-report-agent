@@ -1,16 +1,17 @@
 {
   "schema_version": 3,
-  "version": "0.20.2",
-  "title": "Avatar más compacto",
-  "summary": "Ajustamos la presentación de /dedear para que el avatar ocupe menos espacio en el canal.",
+  "version": "0.20.3",
+  "title": "Dedea a quien quieras",
+  "summary": "/dedear ahora permite escoger a un miembro concreto o mantener la selección aleatoria de siempre.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
+    1234675609536430152,
     1241206587079524442
   ],
   "changes": [
     {
       "type": "improved",
-      "text": "/dedear ahora presenta el avatar del miembro seleccionado como una miniatura compacta."
+      "text": "Puedes indicar un usuario en /dedear o dejar la opción vacía para que el bot elija al azar."
     }
   ],
   "acknowledgements": []
