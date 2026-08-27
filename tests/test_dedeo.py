@@ -41,7 +41,6 @@ def _member(user_id: int, *, bot: bool = False, pending: bool = False) -> discor
 def test_roy_pool_is_varied_and_every_message_accepts_the_target() -> None:
     assert len(ROY_DEDEO_COPY.titles) >= 20
     assert len(ROY_DEDEO_COPY.messages) >= 20
-    assert len(ROY_DEDEO_COPY.footers) >= 8
     assert all(message.count("{target}") == 1 for message in ROY_DEDEO_COPY.messages)
     assert "{seconds}" in ROY_DEDEO_COPY.cooldown
 
@@ -96,10 +95,10 @@ def test_embed_uses_large_avatar_and_local_persona_copy(monkeypatch) -> None:
         ROY_DEDEO_COPY,
         target_name="Persona *Sospechosa*",
         target_avatar_url="https://cdn.discordapp.com/avatars/1/avatar.png",
-        requested_by="Persona Solicitante",
     )
 
     assert embed.title == "☝️ Dedeado"
     assert "Persona \\*Sospechosa\\*" in embed.description
     assert embed.image.url == "https://cdn.discordapp.com/avatars/1/avatar.png"
-    assert "Dedeo solicitado por Persona Solicitante" in embed.footer.text
+    assert embed.footer is None
+    assert embed.timestamp is None

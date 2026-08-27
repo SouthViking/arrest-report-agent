@@ -8,7 +8,6 @@ import secrets
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Protocol
 
 import discord
@@ -59,7 +58,6 @@ class DedeoCopy:
 
     titles: tuple[str, ...]
     messages: tuple[str, ...]
-    footers: tuple[str, ...]
     colors: tuple[int, ...]
     unavailable: str
     empty: str
@@ -119,18 +117,6 @@ ROY_DEDEO_COPY = DedeoCopy(
         "nadie preguntó, pero igual dedeamos a **{target}**.",
         "**{target}**, no es personal. bueno sí, un poco.",
     ),
-    footers=(
-        "La apelación fue rechazada antes de existir.",
-        "Fuente: mis dos neuronas.",
-        "Resultado 100% científico y 0% arreglado.",
-        "No incluye derecho a pataleo.",
-        "El dedo ha hablado. dejen de webear.",
-        "Cualquier reclamo será cuidadosamente ignorado.",
-        "Proceso certificado por absolutamente nadie.",
-        "Si salió mal, fue culpa del algoritmo.",
-        "Decisión final, salvo q me dé la gana cambiarla.",
-        "La transparencia consiste en admitir q fue al azar.",
-    ),
     colors=(0xED4245, 0xF47FFF, 0xFEE75C, 0x9B59B6, 0xE67E22, 0x5865F2),
     unavailable="el dedo no funciona por MD po. usa el comando dentro del server.",
     empty="no encontré a nadie pa dedear. impresionante, hasta pa esta wea quedé solo.",
@@ -158,12 +144,6 @@ WALTER_DEDEO_COPY = DedeoCopy(
         "La suerte fue consultada y decidió abandonar a **{target}**.",
         "**{target}** ha sido elegido democráticamente por un sistema que no admite votos.",
         "Se revisaron los antecedentes inexistentes de **{target}** y el resultado fue dedeo.",
-    ),
-    footers=(
-        "Procedimiento ficticio; humillación sorprendentemente real.",
-        "La resolución no admite recursos ni preguntas incómodas.",
-        "Selección aleatoria y absolutamente innecesaria.",
-        "El dedo ha emitido su veredicto.",
     ),
     colors=(0xED4245, 0xFEE75C, 0x5865F2, 0x9B59B6),
     unavailable="El comando solo puede utilizarse dentro de un servidor.",
@@ -229,7 +209,6 @@ class DedeoCog(commands.Cog):
                     self.copy,
                     target_name=target.display_name,
                     target_avatar_url=str(target.display_avatar.url),
-                    requested_by=ctx.author.display_name,
                 ),
                 ephemeral=False,
                 allowed_mentions=discord.AllowedMentions(
@@ -296,20 +275,16 @@ def build_dedeo_embed(
     *,
     target_name: str,
     target_avatar_url: str,
-    requested_by: str,
 ) -> discord.Embed:
     """Render one colorful result using only local, prevalidated copy."""
 
     safe_target = _safe_name(target_name)
-    safe_requester = _safe_name(requested_by)
     embed = discord.Embed(
         title=secrets.choice(copy.titles),
         description=secrets.choice(copy.messages).format(target=safe_target),
         color=discord.Color(secrets.choice(copy.colors)),
-        timestamp=datetime.now(UTC),
     )
     embed.set_image(url=target_avatar_url)
-    embed.set_footer(text=f"{secrets.choice(copy.footers)} · Dedeo solicitado por {safe_requester}")
     return embed
 
 
