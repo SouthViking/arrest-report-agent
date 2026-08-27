@@ -15,6 +15,7 @@ from arrest_report_agent.config import (
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
+from arrest_report_agent.support import append_support_note
 
 from .models import OperationalResourcesSnapshot
 from .service import OperationalResourcesService
@@ -183,7 +184,7 @@ def build_operational_resources_embed(
     )
     if thumbnail_url is not None:
         embed.set_thumbnail(url=thumbnail_url)
-    return embed
+    return append_support_note(embed)
 
 
 def _format_bytes(size: int) -> str:

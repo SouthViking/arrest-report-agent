@@ -38,6 +38,7 @@ from arrest_report_agent.report_owner_access import (
 )
 from arrest_report_agent.review_analytics import RecordingReviewPublisher, ReportReviewRepository
 from arrest_report_agent.review_analytics.discord import ReportErrorsModal
+from arrest_report_agent.support import append_support_note
 
 from .context import (
     REPORT_OWNER_MINIMUM_IMAGE_COUNT,
@@ -153,7 +154,7 @@ def build_help_embed(
     embed.set_footer(text=copy.footer.format(form_of_address=identity.default_form_of_address))
     if avatar_url:
         embed.set_thumbnail(url=avatar_url)
-    return embed
+    return append_support_note(embed)
 
 
 def build_report_info_embed(
@@ -935,7 +936,9 @@ class ReviewCog(commands.Cog):
     @discord.slash_command(name="ayuda", description="Muestra las guías disponibles")
     async def review_help(self, ctx: discord.ApplicationContext) -> None:
         bot_user = self.bot.user
-        extra_feature_lines: list[str] = []
+        extra_feature_lines: list[str] = [
+            "• `/support`: apoyo voluntario al desarrollo y mantenimiento del bot."
+        ]
         if self._config_provider is not None and ctx.guild is not None and ctx.channel is not None:
             with suppress(Exception):
                 bundle = await self._config_provider.cached(ctx.guild.id)  # type: ignore[attr-defined]

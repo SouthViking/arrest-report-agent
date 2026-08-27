@@ -1,16 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.20.4",
-  "title": "Protección del creador",
-  "summary": "/dedear ahora protege a su creador y devuelve cualquier intento directo contra quien ejecutó el comando.",
+  "version": "0.21.0",
+  "title": "Apoyo voluntario",
+  "summary": "El nuevo /support ofrece un acceso privado para quienes quieran apoyar voluntariamente el desarrollo y mantenimiento del bot.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": [],
   "changes": [
     {
-      "type": "improved",
-      "text": "En /dedear, el creador queda fuera del sorteo y los intentos directos se reflejan con respuestas especiales."
+      "type": "added",
+      "text": "Se agregó /support y un enlace discreto en /ayuda y /recursos para comprarme un café."
     }
   ],
   "acknowledgements": []

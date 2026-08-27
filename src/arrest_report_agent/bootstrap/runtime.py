@@ -122,6 +122,7 @@ from arrest_report_agent.stolen_vehicles import (
     StolenVehicleService,
 )
 from arrest_report_agent.suggestions import SuggestionCog, SuggestionRepository
+from arrest_report_agent.support import SupportCog
 
 from .database import build_bucket_storage, build_postgres_client
 
@@ -485,6 +486,7 @@ async def build_runtime(
     )
     bot.add_cog(ForumShortcutsCog(config_provider))
     bot.add_cog(DedeoCog(persona.profile))
+    bot.add_cog(SupportCog())
     if sarp_client is not None:
         if evidence_bag_service is None:
             raise RuntimeError("Evidence-bag service was not initialized")

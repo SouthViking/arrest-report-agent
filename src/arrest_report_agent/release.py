@@ -68,8 +68,8 @@ class ReleaseManifest(FrozenReleaseModel):
     ) -> Literal["all"] | tuple[int, ...]:
         if value == "all":
             return "all"
-        if not isinstance(value, (list, tuple)) or not value:
-            raise ValueError("changelog_targets must be 'all' or a non-empty list of channel IDs")
+        if not isinstance(value, (list, tuple)):
+            raise ValueError("changelog_targets must be 'all' or a list of channel IDs")
         if any(isinstance(item, bool) or not isinstance(item, int) or item <= 0 for item in value):
             raise ValueError("changelog_targets must contain positive Discord channel IDs")
         targets = tuple(value)

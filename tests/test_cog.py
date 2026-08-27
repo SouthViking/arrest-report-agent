@@ -28,6 +28,7 @@ from arrest_report_agent.infrastructure.discord.supervision import (
     SupervisorRolePolicy,
 )
 from arrest_report_agent.infrastructure.discord.trigger import DiscordAccessPolicy
+from arrest_report_agent.support import SUPPORT_URL
 
 
 class FakeTypingContext:
@@ -161,6 +162,7 @@ def test_help_embed_is_a_compact_feature_directory(persona) -> None:
 
     assert embed.title == f"⭐ {persona.identity.display_name} · {persona.identity.role_title}"
     assert persona.identity.display_name in embed.description
+    assert SUPPORT_URL in embed.description
     assert [field.name for field in embed.fields] == [
         "🧭 Guías por función",
         "📚 Referencias rápidas",

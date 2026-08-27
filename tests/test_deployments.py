@@ -61,13 +61,13 @@ def test_railway_payload_normalizes_supported_events_and_identity() -> None:
 def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     manifest = ReleaseManifest.load_packaged()
 
-    assert manifest.version == "0.20.4"
+    assert manifest.version == "0.21.0"
     assert manifest.repository_url == "https://github.com/SouthViking/arrest-report-agent"
-    assert manifest.changelog_targets == (1241206587079524442,)
+    assert manifest.changelog_targets == ()
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "/dedear" in rendered_changes
-    assert "creador" in rendered_changes
+    assert "/support" in rendered_changes
+    assert "café" in rendered_changes
     assert manifest.acknowledgements == ()
 
 
@@ -97,7 +97,7 @@ def test_release_manifest_rejects_invalid_acknowledgements(
         ReleaseManifest.model_validate(payload)
 
 
-@pytest.mark.parametrize("targets", [[], [123, 123], [0], [True], "123"])
+@pytest.mark.parametrize("targets", [[123, 123], [0], [True], "123"])
 def test_release_manifest_rejects_invalid_changelog_targets(targets: object) -> None:
     payload = ReleaseManifest.load_packaged().model_dump(mode="json")
     payload["changelog_targets"] = targets
@@ -125,7 +125,7 @@ def test_deployment_embeds_keep_operational_data_and_persona_framing(persona) ->
 
     embed = build_deployment_embed(event, manifest, persona)
 
-    assert embed.title == "🚀 Protección del creador · v0.20.4"
+    assert embed.title == "🚀 Apoyo voluntario · v0.21.0"
     assert persona.messages.interface.deployments.release_intro in (embed.description or "")
     assert any(field.name == "Cambios" for field in embed.fields)
     assert all(field.name != "Agradecimientos" for field in embed.fields)
@@ -244,7 +244,7 @@ async def test_success_event_waits_for_the_matching_runtime_and_then_targets_cha
 
     assert repository.processed == [event.id]
     assert [target.channel_id for target in repository.targets] == [456, 789]
-    assert all(target.notification_key.endswith(":0.20.4") for target in repository.targets)
+    assert all(target.notification_key.endswith(":0.21.0") for target in repository.targets)
 
 
 @pytest.mark.asyncio
@@ -289,6 +289,49 @@ async def test_success_changelog_targets_only_selected_configured_channels() -> 
     await worker._prepare_event(event)  # noqa: SLF001
 
     assert [target.channel_id for target in repository.targets] == [789]
+
+
+@pytest.mark.asyncio
+async def test_empty_changelog_targets_suppress_success_announcement() -> None:
+    event = DeploymentEventRecord(
+        id=UUID("00000000-0000-0000-0000-000000000009"),
+        event_type=DeploymentEventType.DEPLOYED,
+        deployment_id="deployment-silent",
+        project_id="project",
+        environment_id="production",
+        service_id="bot",
+        source="GitHub",
+        branch="main",
+        commit_hash="b" * 40,
+        commit_message=None,
+        severity="INFO",
+        timestamp=datetime.now(UTC),
+    )
+    repository = FakeDeploymentRepository()
+    policy = SimpleNamespace(mode=AccessPolicyMode.RESTRICTED, ids=(456, 789))
+    bundle = SimpleNamespace(
+        snapshot=SimpleNamespace(
+            features={"deployment_notifications": SimpleNamespace(enabled=True)},
+            policies={AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: policy},
+        )
+    )
+    provider = SimpleNamespace(
+        guild_ids=lambda: _async_value((123,)),
+        cached=lambda _guild_id: _async_value(bundle),
+    )
+    worker = DeploymentNotificationWorker(
+        SimpleNamespace(),  # type: ignore[arg-type]
+        provider,  # type: ignore[arg-type]
+        repository,  # type: ignore[arg-type]
+        ReleaseManifest.load_packaged(),
+        current_commit_sha="b" * 40,
+    )
+
+    await worker._prepare_event(event)  # noqa: SLF001
+
+    assert repository.targets == []
+    assert repository.processed == []
+    assert repository.ignored == [(event.id, "no_configured_targets")]
 
 
 @pytest.mark.asyncio

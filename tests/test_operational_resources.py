@@ -14,6 +14,7 @@ from arrest_report_agent.operational_resources import (
     OperationalResourcesSnapshot,
     build_operational_resources_embed,
 )
+from arrest_report_agent.support import SUPPORT_URL
 
 
 def _options() -> OperationalResourcesOptions:
@@ -134,6 +135,7 @@ def test_resources_embed_is_nested_bounded_and_uses_dynamic_cache(persona) -> No
     assert "**Tamaño:** 784 MiB" in embed.fields[3].value
     assert "/conectados" in embed.fields[4].value
     assert embed.thumbnail.url == "https://cdn.discordapp.com/icons/1/icon.png"
+    assert SUPPORT_URL in embed.description
 
 
 def test_resources_embed_omits_cache_section_when_api_is_unavailable(persona) -> None:
