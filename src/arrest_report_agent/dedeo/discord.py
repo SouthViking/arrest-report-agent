@@ -18,6 +18,7 @@ from arrest_report_agent.config.logging import exception_fields, log_event
 
 LOGGER = logging.getLogger(__name__)
 DEDEO_COOLDOWN_SECONDS = 30
+DEDEO_CREATOR_USER_ID = 449044161954447360
 
 
 class MonotonicClock(Protocol):
@@ -58,11 +59,23 @@ class DedeoCopy:
 
     titles: tuple[str, ...]
     messages: tuple[str, ...]
+    creator_defense_titles: tuple[str, ...]
+    creator_defense_messages: tuple[str, ...]
     colors: tuple[int, ...]
     unavailable: str
     empty: str
     bot_target: str
+    creator_self_target: str
     cooldown: str
+
+
+@dataclass(frozen=True, slots=True)
+class DedeoSelection:
+    """Resolved target and any special creator-protection outcome."""
+
+    target: discord.Member | None
+    creator_defense: bool = False
+    creator_self_target: bool = False
 
 
 ROY_DEDEO_COPY = DedeoCopy(
@@ -118,10 +131,31 @@ ROY_DEDEO_COPY = DedeoCopy(
         "nadie preguntó, pero igual dedeamos a **{target}**.",
         "**{target}**, no es personal. bueno sí, un poco.",
     ),
+    creator_defense_titles=(
+        "🛡️ El creador no se toca",
+        "🔁 Dedeo reflejado",
+        "👑 Intento rechazado",
+        "🪞 Mira quién terminó dedeado",
+        "⚡ Trampa activada",
+        "🚫 Acceso denegado, payaso",
+        "☝️ El dedo apuntó de vuelta",
+        "🤡 Jugada brillante",
+    ),
+    creator_defense_messages=(
+        "**{target}** intentó dedear al creador. JAJA. el dedo rebotó, dedeate tú nomás.",
+        "bonito intento **{target}**, pero al creador no se toca. cagaste tú.",
+        "**{target}** quiso hacerse el vivo con el creador y terminó dedeándose solo. aweonao.",
+        "el sistema protegió al creador y sacrificó a **{target}**. gracias por participar.",
+        "**{target}**, apuntaste el dedo pa arriba y te cayó en la frente. impresionante.",
+        "protección divina activada. el creador sigue intacto y **{target}** queda dedeado.",
+        "había todo un servidor para elegir y **{target}** fue por el creador. selección natural.",
+        "el creador tiene plot armor, **{target}**. ahora entrega tu ficha por gil.",
+    ),
     colors=(0xED4245, 0xF47FFF, 0xFEE75C, 0x9B59B6, 0xE67E22, 0x5865F2),
     unavailable="el dedo no funciona por MD po. usa el comando dentro del server.",
     empty="no encontré a nadie pa dedear. impresionante, hasta pa esta wea quedé solo.",
     bot_target="a los bots no se les dedea, genio. elige a una persona de carne y píxeles.",
+    creator_self_target="ni tú puedes dedear al creador, aunque seas tú mismo. elige a otro, wn.",
     cooldown="ya tiraste el dedo, animal. espera **{seconds} s** antes de webear de nuevo.",
 )
 
@@ -147,10 +181,23 @@ WALTER_DEDEO_COPY = DedeoCopy(
         "**{target}** ha sido elegido democráticamente por un sistema que no admite votos.",
         "Se revisaron los antecedentes inexistentes de **{target}** y el resultado fue dedeo.",
     ),
+    creator_defense_titles=(
+        "🛡️ Protección del creador",
+        "🔁 Dedeo reflejado",
+        "🚫 Objetivo protegido",
+        "🪞 Selección devuelta",
+    ),
+    creator_defense_messages=(
+        "**{target}** intentó seleccionar al creador. La protección devolvió el dedeo al remitente.",
+        "El creador está protegido; por tanto, **{target}** ocupa ahora su lugar en el resultado.",
+        "La selección de **{target}** apuntó al creador y fue reflejada automáticamente.",
+        "El sistema rechazó el objetivo protegido y dedeó a **{target}** en su lugar.",
+    ),
     colors=(0xED4245, 0xFEE75C, 0x5865F2, 0x9B59B6),
     unavailable="El comando solo puede utilizarse dentro de un servidor.",
     empty="No encontré miembros disponibles para realizar el sorteo en este canal.",
     bot_target="Los bots no participan en el dedeo. Selecciona a un miembro humano.",
+    creator_self_target="El creador también está protegido de sus propias selecciones.",
     cooldown="El dedo necesita descanso. Espera **{seconds} s** antes de volver a usarlo.",
 )
 
@@ -202,15 +249,25 @@ class DedeoCog(commands.Cog):
                 )
                 return
 
-            if usuario is not None:
-                target = select_dedeo_target(
-                    (),
-                    author_id=requester_id,
-                    requested_target=usuario,
+            candidates = (
+                ()
+                if usuario is not None
+                else eligible_channel_members(ctx.guild.members, ctx.channel)
+            )
+            selection = select_dedeo_target(
+                candidates,
+                author=ctx.author,
+                requested_target=usuario,
+            )
+            if selection.creator_self_target:
+                await ctx.respond(
+                    embed=_alert(self.copy.creator_self_target),
+                    ephemeral=True,
+                    allowed_mentions=discord.AllowedMentions.none(),
                 )
-            else:
-                candidates = eligible_channel_members(ctx.guild.members, ctx.channel)
-                target = select_dedeo_target(candidates, author_id=requester_id)
+                return
+
+            target = selection.target
             if target is None:
                 await ctx.respond(
                     embed=_alert(self.copy.empty),
@@ -237,6 +294,7 @@ class DedeoCog(commands.Cog):
                     self.copy,
                     target_name=target.display_name,
                     target_avatar_url=str(target.display_avatar.url),
+                    creator_defense=selection.creator_defense,
                 ),
                 ephemeral=False,
                 allowed_mentions=discord.AllowedMentions(
@@ -254,6 +312,7 @@ class DedeoCog(commands.Cog):
                 channel_id=channel_id,
                 requester_user_id=requester_id,
                 target_user_id=target.id,
+                creator_defense=selection.creator_defense,
             )
         except Exception as error:
             log_event(
@@ -289,17 +348,23 @@ def eligible_channel_members(
 def select_dedeo_target(
     candidates: Sequence[discord.Member],
     *,
-    author_id: int,
+    author: discord.Member,
     requested_target: discord.Member | None = None,
-) -> discord.Member | None:
-    """Use an explicit target or randomly prefer someone other than the author."""
+) -> DedeoSelection:
+    """Resolve explicit, reflected, or random selection without targeting the creator."""
 
     if requested_target is not None:
-        return requested_target
+        if requested_target.id == DEDEO_CREATOR_USER_ID:
+            if author.id == DEDEO_CREATOR_USER_ID:
+                return DedeoSelection(target=None, creator_self_target=True)
+            return DedeoSelection(target=author, creator_defense=True)
+        return DedeoSelection(target=requested_target)
 
-    others = tuple(member for member in candidates if member.id != author_id)
-    selectable = others or tuple(candidates)
-    return secrets.choice(selectable) if selectable else None
+    unprotected = tuple(member for member in candidates if member.id != DEDEO_CREATOR_USER_ID)
+    others = tuple(member for member in unprotected if member.id != author.id)
+    selectable = others or unprotected
+    target = secrets.choice(selectable) if selectable else None
+    return DedeoSelection(target=target)
 
 
 def build_dedeo_embed(
@@ -307,13 +372,16 @@ def build_dedeo_embed(
     *,
     target_name: str,
     target_avatar_url: str,
+    creator_defense: bool = False,
 ) -> discord.Embed:
     """Render one colorful result using only local, prevalidated copy."""
 
     safe_target = _safe_name(target_name)
+    titles = copy.creator_defense_titles if creator_defense else copy.titles
+    messages = copy.creator_defense_messages if creator_defense else copy.messages
     embed = discord.Embed(
-        title=secrets.choice(copy.titles),
-        description=secrets.choice(copy.messages).format(target=safe_target),
+        title=secrets.choice(titles),
+        description=secrets.choice(messages).format(target=safe_target),
         color=discord.Color(secrets.choice(copy.colors)),
     )
     embed.set_thumbnail(url=target_avatar_url)

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import discord
 
 from arrest_report_agent.dedeo.discord import (
+    DEDEO_CREATOR_USER_ID,
     ROY_DEDEO_COPY,
     DedeoCog,
     DedeoCooldown,
@@ -43,6 +44,11 @@ def test_roy_pool_is_varied_and_every_message_accepts_the_target() -> None:
     assert len(ROY_DEDEO_COPY.titles) >= 20
     assert len(ROY_DEDEO_COPY.messages) >= 20
     assert all(message.count("{target}") == 1 for message in ROY_DEDEO_COPY.messages)
+    assert len(ROY_DEDEO_COPY.creator_defense_titles) >= 8
+    assert all(
+        message.count("{target}") == 1
+        for message in ROY_DEDEO_COPY.creator_defense_messages
+    )
     assert "{seconds}" in ROY_DEDEO_COPY.cooldown
 
 
@@ -91,15 +97,50 @@ def test_target_selection_avoids_the_author_when_another_member_exists(monkeypat
     other = _member(2)
     monkeypatch.setattr("arrest_report_agent.dedeo.discord.secrets.choice", lambda values: values[0])
 
-    assert select_dedeo_target((author, other), author_id=author.id) is other
-    assert select_dedeo_target((author,), author_id=author.id) is author
-    assert select_dedeo_target((), author_id=author.id) is None
+    assert select_dedeo_target((author, other), author=author).target is other
+    assert select_dedeo_target((author,), author=author).target is author
+    assert select_dedeo_target((), author=author).target is None
 
 
 def test_explicit_target_does_not_need_to_be_in_the_random_channel_pool() -> None:
+    author = _member(1)
     selected = _member(99)
 
-    assert select_dedeo_target((), author_id=1, requested_target=selected) is selected
+    selection = select_dedeo_target((), author=author, requested_target=selected)
+
+    assert selection.target is selected
+    assert selection.creator_defense is False
+
+
+def test_creator_is_excluded_from_random_selection(monkeypatch) -> None:
+    author = _member(1)
+    creator = _member(DEDEO_CREATOR_USER_ID)
+    monkeypatch.setattr("arrest_report_agent.dedeo.discord.secrets.choice", lambda values: values[0])
+
+    selection = select_dedeo_target((creator, author), author=author)
+
+    assert selection.target is author
+    assert selection.creator_defense is False
+
+
+def test_explicit_creator_target_is_reflected_to_requester() -> None:
+    author = _member(1)
+    creator = _member(DEDEO_CREATOR_USER_ID)
+
+    selection = select_dedeo_target((), author=author, requested_target=creator)
+
+    assert selection.target is author
+    assert selection.creator_defense is True
+    assert selection.creator_self_target is False
+
+
+def test_creator_cannot_target_themselves() -> None:
+    creator = _member(DEDEO_CREATOR_USER_ID)
+
+    selection = select_dedeo_target((), author=creator, requested_target=creator)
+
+    assert selection.target is None
+    assert selection.creator_self_target is True
 
 
 def test_embed_uses_compact_avatar_thumbnail_and_local_persona_copy(monkeypatch) -> None:
@@ -117,3 +158,18 @@ def test_embed_uses_compact_avatar_thumbnail_and_local_persona_copy(monkeypatch)
     assert embed.image is None
     assert embed.footer is None
     assert embed.timestamp is None
+
+
+def test_creator_defense_embed_uses_its_own_copy(monkeypatch) -> None:
+    monkeypatch.setattr("arrest_report_agent.dedeo.discord.secrets.choice", lambda values: values[0])
+
+    embed = build_dedeo_embed(
+        ROY_DEDEO_COPY,
+        target_name="Persona Atrevida",
+        target_avatar_url="https://cdn.discordapp.com/avatars/1/avatar.png",
+        creator_defense=True,
+    )
+
+    assert embed.title == "🛡️ El creador no se toca"
+    assert "Persona Atrevida" in embed.description
+    assert "creador" in embed.description
