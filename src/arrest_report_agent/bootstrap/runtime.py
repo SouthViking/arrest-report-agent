@@ -26,6 +26,7 @@ from arrest_report_agent.cost_monitoring import (
     CostMonitoringService,
     build_cost_monitoring_service,
 )
+from arrest_report_agent.dedeo import DedeoCog
 from arrest_report_agent.deployments import (
     DeploymentNotificationWorker,
     DeploymentRepository,
@@ -483,6 +484,7 @@ async def build_runtime(
         )
     )
     bot.add_cog(ForumShortcutsCog(config_provider))
+    bot.add_cog(DedeoCog(persona.profile))
     if sarp_client is not None:
         if evidence_bag_service is None:
             raise RuntimeError("Evidence-bag service was not initialized")

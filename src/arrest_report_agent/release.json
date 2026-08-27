@@ -1,17 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.19.1",
-  "title": "Más detalle en bolsas de evidencia",
-  "summary": "Las consultas de bolsas ahora permiten identificar quién realizó cada movimiento de custodia.",
+  "version": "0.20.0",
+  "title": "Llegó el dedeo",
+  "summary": "El nuevo /dedear elige al azar a alguien del canal y publica el veredicto con mención, avatar y frases diferentes.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
-    1234675609536430152,
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "/ver-evidencia ahora muestra el nombre del agente junto a cada acción de la cadena de custodia."
+      "type": "added",
+      "text": "Se agregó /dedear, con resultados aleatorios, visuales y un descanso breve por usuario para evitar spam."
     }
   ],
   "acknowledgements": []
