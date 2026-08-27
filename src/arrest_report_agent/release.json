@@ -1,14 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.21.0",
-  "title": "Apoyo voluntario",
-  "summary": "El nuevo /support ofrece un acceso privado para quienes quieran apoyar voluntariamente el desarrollo y mantenimiento del bot.",
+  "version": "0.21.1",
+  "title": "Support visible para todos",
+  "summary": "/support ahora publica su mensaje en el canal para que todos puedan verlo.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [],
   "changes": [
     {
-      "type": "added",
-      "text": "Se agregó /support y un enlace discreto en /ayuda y /recursos para comprarme un café."
+      "type": "fixed",
+      "text": "/support ahora muestra públicamente el acceso para comprarme un café."
     }
   ],
   "acknowledgements": []

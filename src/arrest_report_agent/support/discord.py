@@ -19,7 +19,7 @@ class SupportCog(commands.Cog):
     async def support(self, ctx: discord.ApplicationContext) -> None:
         await ctx.respond(
             embed=build_support_embed(),
-            ephemeral=True,
+            ephemeral=False,
             allowed_mentions=discord.AllowedMentions.none(),
         )
 

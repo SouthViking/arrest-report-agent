@@ -42,7 +42,7 @@ def test_support_note_is_compact_and_idempotent() -> None:
     assert embed.description.count(SUPPORT_URL) == 1
 
 
-async def test_support_command_replies_privately_without_mentions() -> None:
+async def test_support_command_replies_publicly_without_mentions() -> None:
     responses: list[dict[str, object]] = []
 
     async def respond(**kwargs: object) -> None:
@@ -52,6 +52,6 @@ async def test_support_command_replies_privately_without_mentions() -> None:
 
     await SupportCog.support.callback(SupportCog(), context)  # type: ignore[arg-type]
 
-    assert responses[0]["ephemeral"] is True
+    assert responses[0]["ephemeral"] is False
     assert responses[0]["embed"].title == "☕ Apoya el desarrollo"
     assert responses[0]["allowed_mentions"].everyone is False
