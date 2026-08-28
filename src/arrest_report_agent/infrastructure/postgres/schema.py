@@ -1152,3 +1152,27 @@ role_request_review_messages = sa.Table(
     sa.UniqueConstraint("channel_id", "message_id", name="uq_role_request_review_message"),
     sa.Index("ix_role_request_review_request", "request_id"),
 )
+
+agent_polls = sa.Table(
+    "agent_polls",
+    metadata,
+    sa.Column("message_id", sa.BigInteger, primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("channel_id", sa.BigInteger, nullable=False),
+    sa.Column("creator_user_id", sa.BigInteger, nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("ended_at", sa.DateTime(timezone=True)),
+    sa.Column("deleted_at", sa.DateTime(timezone=True)),
+    sa.Column("last_synced_at", sa.DateTime(timezone=True)),
+    sa.Column("last_activity_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint("expires_at > created_at", name="ck_agent_poll_expiry_after_creation"),
+    sa.Index("ix_agent_poll_guild_created", "guild_id", "created_at"),
+    sa.Index("ix_agent_poll_creator_created", "guild_id", "creator_user_id", "created_at"),
+    sa.Index("ix_agent_poll_channel_created", "guild_id", "channel_id", "created_at"),
+)

@@ -71,6 +71,7 @@ from .supervision import (
 from .trigger import DiscordAccessPolicy, TriggerDecision
 
 if TYPE_CHECKING:
+    from arrest_report_agent.application.ports import PollManager
     from arrest_report_agent.manual_quiz import ManualQuizDiscordPublisher
 
 LOGGER = logging.getLogger(__name__)
@@ -306,12 +307,14 @@ class ReviewCog(commands.Cog):
         report_review_repository: ReportReviewRepository | None = None,
         report_owner_run_repository: ReportOwnerRunRepository | None = None,
         manual_quiz_publisher: ManualQuizDiscordPublisher | None = None,
+        poll_manager: PollManager | None = None,
     ) -> None:
         self.bot = bot
         self._config_provider = config_provider
         self.report_review_repository = report_review_repository
         self.report_owner_run_repository = report_owner_run_repository
         self.manual_quiz_publisher = manual_quiz_publisher
+        self.poll_manager = poll_manager
         self._runtime_context: contextvars.ContextVar[ReviewCogRuntime | None] = contextvars.ContextVar(
             "review_cog_runtime", default=None
         )
@@ -711,6 +714,7 @@ class ReviewCog(commands.Cog):
                     activity=activity,
                     member_directory=self.member_directory,
                     message_directory=self.message_directory,
+                    poll_manager=self.poll_manager,
                 )
                 try:
                     await self.service.review(run_context, agent_input)

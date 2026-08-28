@@ -388,6 +388,89 @@ class FactionFrequencyLookup(Protocol):
         """List frequencies only for the faction bound by the active guild configuration."""
 
 
+@dataclass(frozen=True)
+class PollAnswerDraft:
+    """One validated native Discord poll answer."""
+
+    text: str
+    emoji: str | None = None
+
+
+@dataclass(frozen=True)
+class PollCreateRequest:
+    """Flexible native-poll configuration selected by the agent."""
+
+    question: str
+    answers: tuple[PollAnswerDraft, ...]
+    duration_hours: int
+    allow_multiselect: bool
+    silent: bool
+    intro: str | None = None
+
+
+@dataclass(frozen=True)
+class PollListQuery:
+    """Metadata-only filters for polls previously created by the bot."""
+
+    status: Literal["any", "open", "ended", "deleted"]
+    creator_user_ids: tuple[int, ...]
+    only_created_by_requester: bool
+    channel_ids: tuple[int, ...]
+    created_after: datetime | None
+    created_before: datetime | None
+    expires_after: datetime | None
+    expires_before: datetime | None
+    sort_direction: Literal["asc", "desc"]
+    page: int
+    limit: int
+
+
+class PollManager(Protocol):
+    """Create and inspect native Discord polls within one deterministic guild."""
+
+    async def create(
+        self,
+        *,
+        guild_id: int,
+        current_channel_id: int,
+        requester_user_id: int,
+        target_channel_id: int | None,
+        request: PollCreateRequest,
+    ) -> dict[str, object]:
+        """Publish one native poll and persist only its lookup metadata."""
+
+    async def list(
+        self,
+        *,
+        guild_id: int,
+        requester_user_id: int,
+        query: PollListQuery,
+    ) -> dict[str, object]:
+        """List compact metadata for bot-created polls visible to the requester."""
+
+    async def get(
+        self,
+        *,
+        guild_id: int,
+        requester_user_id: int,
+        message_id: int,
+        include_voters: bool,
+        answer_ids: tuple[int, ...],
+        voter_limit_per_answer: int,
+        after_user_id: int | None,
+    ) -> dict[str, object]:
+        """Fetch current poll content and optional voter pages directly from Discord."""
+
+    async def end(
+        self,
+        *,
+        guild_id: int,
+        requester_user_id: int,
+        message_id: int,
+    ) -> dict[str, object]:
+        """End one poll created and indexed by this bot."""
+
+
 class ReviewPublisher(Protocol):
     async def mark_review_started(self) -> None:
         """Show deterministically that a classified review has started."""

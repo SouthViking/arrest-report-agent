@@ -1,14 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.21.2",
-  "title": "Donaciones más claras",
-  "summary": "/support ahora identifica claramente el aporte como una donación voluntaria.",
+  "version": "0.22.0",
+  "title": "Encuestas nativas para el agente",
+  "summary": "El agente ahora puede crear y consultar encuestas nativas de Discord cuando se le solicite.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [],
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Se aclaró el acceso de /support con un enlace directo para realizar una donación."
+      "type": "added",
+      "text": "El agente puede publicar encuestas configurables con opciones, emojis, duración y selección múltiple."
+    },
+    {
+      "type": "added",
+      "text": "También puede consultar resultados y participantes actuales, o cerrar una encuesta creada por el usuario."
     }
   ],
   "acknowledgements": []

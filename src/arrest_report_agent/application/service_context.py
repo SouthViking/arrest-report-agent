@@ -19,6 +19,7 @@ from .ports import (
     ActivityTracker,
     GuildMemberDirectory,
     GuildMessageDirectory,
+    PollManager,
     ReviewPublisher,
 )
 
@@ -36,6 +37,7 @@ class ReviewRunContext:
     activity: ActivityTracker | None = None
     member_directory: GuildMemberDirectory | None = None
     message_directory: GuildMessageDirectory | None = None
+    poll_manager: PollManager | None = None
     request_intent: RequestIntent | None = None
     has_revisable_material: bool = False
     agent_started: bool = False
@@ -60,6 +62,10 @@ class ReviewRunContext:
     manual_list_calls: int = 0
     manual_search_calls: int = 0
     manual_read_calls: int = 0
+    poll_create_calls: int = 0
+    poll_list_calls: int = 0
+    poll_detail_calls: int = 0
+    poll_end_calls: int = 0
 
     def __post_init__(self) -> None:
         """Seed multimodal budgets with attachments already present in the runner input."""

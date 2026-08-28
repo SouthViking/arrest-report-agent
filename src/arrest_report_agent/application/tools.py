@@ -54,6 +54,9 @@ from .ports import (
     GuildRoleSearchQuery,
     MessageAttachmentProfile,
     MessageLookupQuery,
+    PollAnswerDraft,
+    PollCreateRequest,
+    PollListQuery,
 )
 from .service_context import ReviewRunContext
 
@@ -135,6 +138,10 @@ MAX_FACTION_FREQUENCY_CALLS_PER_RUN = 2
 MAX_MANUAL_LIST_CALLS_PER_RUN = 3
 MAX_MANUAL_SEARCH_CALLS_PER_RUN = 5
 MAX_MANUAL_READ_CALLS_PER_RUN = 6
+MAX_POLL_CREATE_CALLS_PER_RUN = 3
+MAX_POLL_LIST_CALLS_PER_RUN = 3
+MAX_POLL_DETAIL_CALLS_PER_RUN = 5
+MAX_POLL_END_CALLS_PER_RUN = 2
 type NativeAttachmentOutput = ToolOutputText | ToolOutputImage | ToolOutputFileContent
 
 
@@ -163,6 +170,15 @@ class GuildMemberFilters(BaseModel):
     is_bot: bool | None = None
     joined_after: datetime | None = None
     joined_before: datetime | None = None
+
+
+class PollAnswerOption(BaseModel):
+    """One native Discord poll option configured by the agent."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    text: Annotated[str, Field(min_length=1, max_length=55)]
+    emoji: Annotated[str | None, Field(min_length=1, max_length=100)] = None
 
 
 def build_agent_tools(
@@ -418,6 +434,180 @@ def build_agent_tools(
             "delivery": "discord_manual_quiz" if delivery.ok else "discord_message",
             "interaction_complete": False,
         }
+
+    @function_tool
+    async def create_poll(
+        ctx: RunContextWrapper[ReviewRunContext],
+        question: Annotated[str, Field(min_length=1, max_length=300)],
+        answers: Annotated[list[PollAnswerOption], Field(min_length=2, max_length=10)],
+        duration_hours: Annotated[int, Field(ge=1, le=768)] = 24,
+        allow_multiselect: bool = False,
+        silent: bool = False,
+        intro: Annotated[str | None, Field(min_length=1, max_length=1800)] = None,
+        channel_id: DiscordChannelId | None = None,
+    ) -> dict[str, object]:
+        """Create one native Discord poll and continue the current agent run.
+
+        The current guild is fixed. By default the poll is sent to the active channel; selecting a
+        different channel requires both the requester and bot to see it and send native polls there.
+        Answers may use Unicode or custom Discord emoji syntax. Polls are never anonymous.
+
+        Args:
+            question: Native poll question.
+            answers: Two to ten unique answer texts, each with an optional emoji.
+            duration_hours: Duration from one hour to Discord's maximum of 768 hours.
+            allow_multiselect: Allow each participant to select more than one answer.
+            silent: Publish without triggering a push notification.
+            intro: Optional plain text displayed above the native poll, without mass mentions.
+            channel_id: Optional target channel or thread ID; defaults to the current channel.
+        """
+
+        run_context = ctx.context
+        if run_context.poll_manager is None:
+            return {"ok": False, "error": "polls_unavailable"}
+        if run_context.poll_create_calls >= MAX_POLL_CREATE_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_poll_create_limit_reached"}
+        normalized_question = question.strip()
+        if not normalized_question:
+            return {"ok": False, "error": "invalid_question"}
+        normalized_intro = intro.strip() if intro is not None else None
+        if intro is not None and not normalized_intro:
+            return {"ok": False, "error": "invalid_intro"}
+        normalized = [answer.text.casefold() for answer in answers]
+        if len(normalized) != len(set(normalized)):
+            return {"ok": False, "error": "duplicate_answers"}
+        run_context.poll_create_calls += 1
+        await _set_activity(run_context, AgentActivity.RESPONSE)
+        return await run_context.poll_manager.create(
+            guild_id=run_context.case.guild_id,
+            current_channel_id=run_context.case.channel_id,
+            requester_user_id=run_context.case.requester_user_id,
+            target_channel_id=int(channel_id) if channel_id is not None else None,
+            request=PollCreateRequest(
+                question=normalized_question,
+                answers=tuple(
+                    PollAnswerDraft(text=answer.text, emoji=answer.emoji) for answer in answers
+                ),
+                duration_hours=duration_hours,
+                allow_multiselect=allow_multiselect,
+                silent=silent,
+                intro=normalized_intro,
+            ),
+        )
+
+    @function_tool
+    async def list_polls(
+        ctx: RunContextWrapper[ReviewRunContext],
+        status: Literal["any", "open", "ended", "deleted"] = "any",
+        creator_user_ids: Annotated[
+            list[DiscordUserId] | None,
+            Field(min_length=1, max_length=25),
+        ] = None,
+        only_created_by_requester: bool = False,
+        channel_ids: Annotated[
+            list[DiscordChannelId] | None,
+            Field(min_length=1, max_length=25),
+        ] = None,
+        created_after: datetime | None = None,
+        created_before: datetime | None = None,
+        expires_after: datetime | None = None,
+        expires_before: datetime | None = None,
+        sort_direction: SortDirection = "desc",
+        page: Annotated[int, Field(ge=1)] = 1,
+        limit: Annotated[int, Field(ge=1, le=25)] = 10,
+    ) -> dict[str, object]:
+        """List compact handles for polls created by this bot without fetching every poll.
+
+        Combine status, creator, channel and independent creation/expiry windows as needed. This
+        metadata lookup intentionally omits question, answers and votes; pass a returned message_id
+        to get_poll for current Discord data.
+        """
+
+        run_context = ctx.context
+        if run_context.poll_manager is None:
+            return {"ok": False, "error": "polls_unavailable"}
+        if run_context.poll_list_calls >= MAX_POLL_LIST_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_poll_list_limit_reached"}
+        run_context.poll_list_calls += 1
+        await _set_activity(run_context, AgentActivity.KNOWLEDGE)
+        return await run_context.poll_manager.list(
+            guild_id=run_context.case.guild_id,
+            requester_user_id=run_context.case.requester_user_id,
+            query=PollListQuery(
+                status=status,
+                creator_user_ids=_snowflake_tuple(creator_user_ids),
+                only_created_by_requester=only_created_by_requester,
+                channel_ids=_snowflake_tuple(channel_ids),
+                created_after=_as_utc(created_after),
+                created_before=_as_utc(created_before),
+                expires_after=_as_utc(expires_after),
+                expires_before=_as_utc(expires_before),
+                sort_direction=sort_direction,
+                page=page,
+                limit=limit,
+            ),
+        )
+
+    @function_tool
+    async def get_poll(
+        ctx: RunContextWrapper[ReviewRunContext],
+        message_id: DiscordMessageId,
+        include_voters: bool = False,
+        answer_ids: Annotated[
+            list[Annotated[int, Field(ge=1, le=10)]] | None,
+            Field(min_length=1, max_length=10),
+        ] = None,
+        voter_limit_per_answer: Annotated[int, Field(ge=1, le=100)] = 25,
+        after_user_id: DiscordUserId | None = None,
+    ) -> dict[str, object]:
+        """Read one bot-created poll live from Discord, with optional paginated voters.
+
+        Counts and percentages always come from the current Discord message. Voter lists are
+        opt-in and may be limited to selected answer IDs. Continue a voter page with the returned
+        next_after_user_id. For multiselect polls, percentage is share of all selections rather
+        than percentage of unique participants.
+        """
+
+        run_context = ctx.context
+        if run_context.poll_manager is None:
+            return {"ok": False, "error": "polls_unavailable"}
+        if run_context.poll_detail_calls >= MAX_POLL_DETAIL_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_poll_detail_limit_reached"}
+        run_context.poll_detail_calls += 1
+        await _set_activity(run_context, AgentActivity.KNOWLEDGE)
+        return await run_context.poll_manager.get(
+            guild_id=run_context.case.guild_id,
+            requester_user_id=run_context.case.requester_user_id,
+            message_id=int(message_id),
+            include_voters=include_voters,
+            answer_ids=tuple(dict.fromkeys(answer_ids or [])),
+            voter_limit_per_answer=voter_limit_per_answer,
+            after_user_id=int(after_user_id) if after_user_id is not None else None,
+        )
+
+    @function_tool
+    async def end_poll(
+        ctx: RunContextWrapper[ReviewRunContext],
+        message_id: DiscordMessageId,
+    ) -> dict[str, object]:
+        """End a live poll created by the current requester through this bot.
+
+        This changes Discord state but does not end the agent run. The poll must be indexed by the
+        bot and owned by the requesting user; use list_polls or a known message ID first.
+        """
+
+        run_context = ctx.context
+        if run_context.poll_manager is None:
+            return {"ok": False, "error": "polls_unavailable"}
+        if run_context.poll_end_calls >= MAX_POLL_END_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_poll_end_limit_reached"}
+        run_context.poll_end_calls += 1
+        await _set_activity(run_context, AgentActivity.RESPONSE)
+        return await run_context.poll_manager.end(
+            guild_id=run_context.case.guild_id,
+            requester_user_id=run_context.case.requester_user_id,
+            message_id=int(message_id),
+        )
 
     @function_tool
     async def list_charge_index(
@@ -1432,6 +1622,10 @@ def build_agent_tools(
     full_tools: list[object] = [
         *common_tools,
         *manual_tools,
+        create_poll,
+        list_polls,
+        get_poll,
+        end_poll,
         list_guild_roles,
         find_guild_members,
         find_channel_members,

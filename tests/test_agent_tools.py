@@ -23,6 +23,8 @@ from arrest_report_agent.application.ports import (
     MessageLookupQuery,
     MessageLookupResult,
     MessageReactionProfile,
+    PollCreateRequest,
+    PollListQuery,
 )
 from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.application.tools import _member_search_output, build_agent_tools
@@ -215,6 +217,72 @@ class ActivityRecorder:
 
     async def transition(self, activity: AgentActivity) -> None:
         self.activities.append(activity)
+
+
+class FakePollManager:
+    def __init__(self) -> None:
+        self.created: list[tuple[int, int, int, int | None, PollCreateRequest]] = []
+        self.listed: list[tuple[int, int, PollListQuery]] = []
+        self.read: list[tuple[int, int, int, bool, tuple[int, ...], int, int | None]] = []
+        self.ended: list[tuple[int, int, int]] = []
+
+    async def create(
+        self,
+        *,
+        guild_id: int,
+        current_channel_id: int,
+        requester_user_id: int,
+        target_channel_id: int | None,
+        request: PollCreateRequest,
+    ) -> dict[str, object]:
+        self.created.append(
+            (guild_id, current_channel_id, requester_user_id, target_channel_id, request)
+        )
+        return {"ok": True, "message_id": "66666666666666666", "interaction_complete": False}
+
+    async def list(
+        self,
+        *,
+        guild_id: int,
+        requester_user_id: int,
+        query: PollListQuery,
+    ) -> dict[str, object]:
+        self.listed.append((guild_id, requester_user_id, query))
+        return {"ok": True, "polls": []}
+
+    async def get(
+        self,
+        *,
+        guild_id: int,
+        requester_user_id: int,
+        message_id: int,
+        include_voters: bool,
+        answer_ids: tuple[int, ...],
+        voter_limit_per_answer: int,
+        after_user_id: int | None,
+    ) -> dict[str, object]:
+        self.read.append(
+            (
+                guild_id,
+                requester_user_id,
+                message_id,
+                include_voters,
+                answer_ids,
+                voter_limit_per_answer,
+                after_user_id,
+            )
+        )
+        return {"ok": True, "poll": {"message_id": str(message_id)}}
+
+    async def end(
+        self,
+        *,
+        guild_id: int,
+        requester_user_id: int,
+        message_id: int,
+    ) -> dict[str, object]:
+        self.ended.append((guild_id, requester_user_id, message_id))
+        return {"ok": True, "message_id": str(message_id), "interaction_complete": False}
 
 
 class FakeMemberDirectory:
@@ -1797,6 +1865,216 @@ async def test_dynamic_manual_question_uses_defaults_without_finishing_interacti
 
     assert follow_up["ok"] is True
     assert activity.activities == [AgentActivity.RESPONSE, AgentActivity.MANUAL_INDEX]
+
+
+def test_poll_tools_are_full_access_only_and_expose_flexible_bounded_schemas() -> None:
+    full_tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+    owner_names = {
+        tool.name
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+            access_level=AgentAccessLevel.REPORT_OWNER,
+        )
+    }
+
+    assert {"create_poll", "list_polls", "get_poll", "end_poll"}.isdisjoint(owner_names)
+    create_schema = full_tools["create_poll"].params_json_schema
+    properties = create_schema["properties"]
+    assert set(properties) == {
+        "question",
+        "answers",
+        "duration_hours",
+        "allow_multiselect",
+        "silent",
+        "intro",
+        "channel_id",
+    }
+    assert properties["answers"]["minItems"] == 2
+    assert properties["answers"]["maxItems"] == 10
+    assert properties["duration_hours"]["minimum"] == 1
+    assert properties["duration_hours"]["maximum"] == 768
+    assert properties["duration_hours"]["default"] == 24
+    assert properties["allow_multiselect"]["default"] is False
+    assert properties["silent"]["default"] is False
+
+
+@pytest.mark.asyncio
+async def test_poll_tools_forward_composable_arguments_without_finishing_the_run() -> None:
+    manager = FakePollManager()
+    activity = ActivityRecorder()
+    run_context = ReviewRunContext(
+        case=ReviewCase(
+            guild_id=11111111111111111,
+            parent_channel_id=22222222222222222,
+            channel_id=22222222222222222,
+            root_message_id=33333333333333333,
+            trigger_message_id=44444444444444444,
+            requester_user_id=55555555555555555,
+            interaction_mode=InteractionMode.INITIAL_REVIEW,
+            messages=[],
+            attachments=[],
+        ),
+        publisher=FakePublisher(),
+        attempt=1,
+        activity=activity,
+        poll_manager=manager,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+    create_arguments = json.dumps(
+        {
+            "question": "¿Qué horario prefieren?",
+            "answers": [
+                {"text": "Turno mañana", "emoji": "🌅"},
+                {"text": "Turno noche", "emoji": "<:night:12345678901234567>"},
+            ],
+            "duration_hours": 72,
+            "allow_multiselect": True,
+            "silent": True,
+            "intro": "Elijan todos los horarios que les sirven.",
+            "channel_id": "66666666666666666",
+        }
+    )
+    created = await tools["create_poll"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="create_poll",
+            tool_call_id="poll-create",
+            tool_arguments=create_arguments,
+        ),
+        create_arguments,
+    )
+    list_arguments = json.dumps(
+        {
+            "status": "open",
+            "creator_user_ids": ["55555555555555555"],
+            "channel_ids": ["66666666666666666"],
+            "created_after": "2026-08-01T00:00:00-04:00",
+            "expires_before": "2026-09-01T00:00:00Z",
+            "sort_direction": "asc",
+            "page": 2,
+            "limit": 5,
+        }
+    )
+    await tools["list_polls"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="list_polls",
+            tool_call_id="poll-list",
+            tool_arguments=list_arguments,
+        ),
+        list_arguments,
+    )
+    get_arguments = json.dumps(
+        {
+            "message_id": "66666666666666666",
+            "include_voters": True,
+            "answer_ids": [2, 1, 2],
+            "voter_limit_per_answer": 40,
+            "after_user_id": "77777777777777777",
+        }
+    )
+    await tools["get_poll"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="get_poll",
+            tool_call_id="poll-get",
+            tool_arguments=get_arguments,
+        ),
+        get_arguments,
+    )
+    end_arguments = json.dumps({"message_id": "66666666666666666"})
+    ended = await tools["end_poll"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="end_poll",
+            tool_call_id="poll-end",
+            tool_arguments=end_arguments,
+        ),
+        end_arguments,
+    )
+
+    request = manager.created[0][4]
+    query = manager.listed[0][2]
+    assert request.duration_hours == 72
+    assert request.allow_multiselect is True
+    assert request.answers[1].emoji == "<:night:12345678901234567>"
+    assert query.created_after == datetime(2026, 8, 1, 4, tzinfo=UTC)
+    assert query.expires_before == datetime(2026, 9, 1, tzinfo=UTC)
+    assert query.page == 2
+    assert manager.read == [
+        (
+            11111111111111111,
+            55555555555555555,
+            66666666666666666,
+            True,
+            (2, 1),
+            40,
+            77777777777777777,
+        )
+    ]
+    assert manager.ended == [
+        (11111111111111111, 55555555555555555, 66666666666666666)
+    ]
+    assert created["interaction_complete"] is False
+    assert ended["interaction_complete"] is False
+    assert not run_context.interaction_completed
+    assert activity.activities == [
+        AgentActivity.RESPONSE,
+        AgentActivity.KNOWLEDGE,
+        AgentActivity.KNOWLEDGE,
+        AgentActivity.RESPONSE,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_create_poll_rejects_duplicate_answers_before_discord() -> None:
+    manager = FakePollManager()
+    run_context = ReviewRunContext(
+        case=ReviewCase(
+            guild_id=11111111111111111,
+            parent_channel_id=22222222222222222,
+            channel_id=22222222222222222,
+            root_message_id=33333333333333333,
+            trigger_message_id=44444444444444444,
+            requester_user_id=55555555555555555,
+            interaction_mode=InteractionMode.INITIAL_REVIEW,
+            messages=[],
+            attachments=[],
+        ),
+        publisher=FakePublisher(),
+        attempt=1,
+        poll_manager=manager,
+    )
+    tool = {
+        item.name: item
+        for item in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }["create_poll"]
+    arguments = json.dumps(
+        {
+            "question": "¿Una opción?",
+            "answers": [{"text": "Sí"}, {"text": "SÍ"}],
+        }
+    )
+
+    result = await tool.on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="create_poll",
+            tool_call_id="poll-duplicate",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert result == {"ok": False, "error": "duplicate_answers"}
+    assert manager.created == []
 
 
 @pytest.mark.asyncio

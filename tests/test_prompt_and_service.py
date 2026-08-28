@@ -223,6 +223,22 @@ def test_complete_manual_instructions_are_general_and_full_access_only(persona) 
     assert "publish_manual_question" not in owner
 
 
+def test_poll_instructions_keep_discord_authoritative_and_full_access_only(persona) -> None:
+    full = build_agent_instructions(persona)
+    owner = build_agent_instructions(persona, AgentAccessLevel.REPORT_OWNER)
+
+    assert "<discord_polls>" in full
+    assert "create_poll" in full
+    assert "list_polls" in full
+    assert "get_poll" in full
+    assert "end_poll" in full
+    assert "Las encuestas nativas no son anónimas" in full
+    assert "Discord es la fuente de verdad" in full
+    assert "no termina la ejecución" in full
+    assert "<discord_polls>" not in owner
+    assert "create_poll" not in owner
+
+
 @pytest.mark.asyncio
 async def test_roy_prompt_separates_persona_voice_from_technical_review() -> None:
     persona = (await PackagedPersonaProvider().load("roy_velazco")).profile
@@ -304,6 +320,10 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
         "search_manual",
         "read_manual",
         "publish_manual_question",
+        "create_poll",
+        "list_polls",
+        "get_poll",
+        "end_poll",
         "list_guild_roles",
         "find_guild_members",
         "find_channel_members",

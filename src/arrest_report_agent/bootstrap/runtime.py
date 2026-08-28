@@ -98,6 +98,7 @@ from arrest_report_agent.pending_arrest_reports import (
     PendingArrestReportCog,
     PendingArrestReportService,
 )
+from arrest_report_agent.polls import DiscordPollService, PollEventCog, PollRepository
 from arrest_report_agent.radio_audit import (
     RadioAuditCog,
     RadioLogService,
@@ -300,6 +301,8 @@ async def build_runtime(
     manual_quiz_repository = ManualQuizRepository(postgres)
     manual_quiz_sessions = ManualQuizSessionRegistry(manual_quiz_repository)
     manual_quiz_publisher = ManualQuizDiscordPublisher(manual_quiz_sessions)
+    poll_repository = PollRepository(postgres)
+    poll_service = DiscordPollService(bot, poll_repository)
     review_cog = ReviewCog(
         bot,
         initial_bundle.settings,  # type: ignore[arg-type]
@@ -310,8 +313,10 @@ async def build_runtime(
         report_review_repository=report_review_repository,
         report_owner_run_repository=report_owner_run_repository,
         manual_quiz_publisher=manual_quiz_publisher,
+        poll_manager=poll_service,
     )
     bot.add_cog(review_cog)
+    bot.add_cog(PollEventCog(poll_repository))
     cost_monitoring = build_cost_monitoring_service(settings)
     all_bundles = [await config_provider.get(guild_id) for guild_id in guild_ids]
     logbook_enabled = any(
