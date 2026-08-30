@@ -119,6 +119,14 @@ def test_notification_embed_is_compact_and_does_not_contain_live_detail() -> Non
     assert "Cargos" not in payload
 
 
+def test_warrant_info_avoids_internal_api_details() -> None:
+    payload = str(warrant_discord.build_warrant_info_embed().to_dict())
+
+    assert "encargados" in payload
+    assert "SARP" not in payload
+    assert "pulse el botón" not in payload
+
+
 @pytest.mark.asyncio
 async def test_publishing_notification_does_not_query_sarp(
     monkeypatch: pytest.MonkeyPatch,

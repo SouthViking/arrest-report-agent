@@ -424,8 +424,7 @@ def build_warrant_info_embed() -> discord.Embed:
             "└ 📄 URL del reporte de incidente\n"
             "└ 🔢 Número de orden\n"
             "└ 🚓 Arresto, 🔍 Allanamiento o ⚖️ Ambos\n\n"
-            "La notificación llegará automáticamente a los encargados. "
-            "El detalle de SARP se consultará solamente cuando alguien pulse el botón.\n\n"
+            "La notificación llegará automáticamente a los encargados.\n\n"
             "*Sí, debes escribir el reporte antes de venir a tocar el timbre.*"
         ),
         color=discord.Color.blurple(),

@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.23.1",
-  "title": "Presentación de órdenes mejorada",
-  "summary": "Ajustamos la visibilidad y los textos del sistema de notificación de órdenes.",
+  "version": "0.23.2",
+  "title": "Guía de órdenes más clara",
+  "summary": "Simplificamos la información visible de /info-ordenes para enfocarla en sus usuarios finales.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,7 @@
   "changes": [
     {
       "type": "improved",
-      "text": "/info-ordenes ahora es visible para todos y evita exponer el canal configurado."
-    },
-    {
-      "type": "improved",
-      "text": "La confirmación y el título de las notificaciones ahora son más claros y neutrales."
+      "text": "/info-ordenes ya no expone detalles internos sobre la consulta de información."
     }
   ],
   "acknowledgements": []
