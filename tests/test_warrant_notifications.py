@@ -111,7 +111,7 @@ def test_notification_embed_is_compact_and_does_not_contain_live_detail() -> Non
     )
 
     payload = str(embed.to_dict())
-    assert embed.title == "⚖️ Nueva orden de arresto y allanamiento"
+    assert embed.title == "⚖️ Notificación de orden · Arresto y allanamiento"
     assert embed.author.name == "Charles Harrington"
     assert "N.º 1324" in payload
     assert "Abrir reporte de incidente" in payload
@@ -169,6 +169,33 @@ async def test_publishing_notification_does_not_query_sarp(
     channel.send.assert_awaited_once()
     interaction.followup.send.assert_awaited_once()
     assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
+    confirmation = interaction.followup.send.await_args.kwargs["embed"]
+    assert confirmation.title == "✅ Notificación enviada"
+    assert confirmation.description == (
+        "La orden N.º 1324 fue enviada correctamente a los encargados."
+    )
+    assert "**" not in str(confirmation.to_dict())
+
+
+@pytest.mark.asyncio
+async def test_warrant_info_is_public() -> None:
+    cog = warrant_discord.WarrantNotificationCog(
+        SimpleNamespace(),  # type: ignore[arg-type]
+        WarrantLookupService(FakeWarrantClient(_payload())),
+    )
+    member = SimpleNamespace()
+    options = WarrantNotificationOptions(
+        channel_id=50,
+        command_role_ids=(10,),
+        executive_role_ids=(20,),
+    )
+    cog._authorized_context = AsyncMock(return_value=(member, options))  # type: ignore[method-assign]
+    ctx = SimpleNamespace(respond=AsyncMock())
+
+    await cog.warrant_info.callback(cog, ctx)  # type: ignore[arg-type]
+
+    ctx.respond.assert_awaited_once()
+    assert ctx.respond.await_args.kwargs["ephemeral"] is False
 
 
 @pytest.mark.asyncio

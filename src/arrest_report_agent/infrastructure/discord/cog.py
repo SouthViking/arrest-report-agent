@@ -987,7 +987,7 @@ class ReviewCog(commands.Cog):
                     )
                 ):
                     extra_feature_lines.append(
-                        "• `/info-ordenes`: cómo notificar una orden a Command Staff."
+                        "• `/info-ordenes`: cómo notificar una orden a los encargados."
                     )
                 feature = bundle.snapshot.features.get("logbook")
                 if (

@@ -1,20 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.23.0",
-  "title": "Notificación y consulta de órdenes",
-  "summary": "Operational Staff ahora puede notificar órdenes a Command Staff y consultar su detalle directamente desde Discord.",
+  "version": "0.23.1",
+  "title": "Presentación de órdenes mejorada",
+  "summary": "Ajustamos la visibilidad y los textos del sistema de notificación de órdenes.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "Se agregaron /notificarorden e /info-ordenes con envío centralizado al canal de Command Staff."
+      "type": "improved",
+      "text": "/info-ordenes ahora es visible para todos y evita exponer el canal configurado."
     },
     {
-      "type": "added",
-      "text": "Las notificaciones permiten consultar u ocultar el detalle vigente de la orden sin almacenar su contenido en el bot."
+      "type": "improved",
+      "text": "La confirmación y el título de las notificaciones ahora son más claros y neutrales."
     }
   ],
   "acknowledgements": []

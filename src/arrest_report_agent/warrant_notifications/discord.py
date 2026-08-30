@@ -66,12 +66,12 @@ class WarrantNotificationCog(commands.Cog):
     ) -> None:
         self.provider = provider
         self.lookup = lookup
-        self.notify_warrant.description = "Notifica una orden a Command Staff"
+        self.notify_warrant.description = "Notifica una orden a los encargados"
         self.warrant_info.description = "Explica cómo notificar órdenes"
 
     @discord.slash_command(
         name="notificarorden",
-        description="Notifica una orden a Command Staff",
+        description="Notifica una orden a los encargados",
     )
     async def notify_warrant(self, ctx: discord.ApplicationContext) -> None:
         member, options = await self._authorized_context(ctx)
@@ -93,7 +93,7 @@ class WarrantNotificationCog(commands.Cog):
         member, options = await self._authorized_context(ctx)
         if member is None or options is None:
             return
-        await ctx.respond(embed=build_warrant_info_embed(), ephemeral=True)
+        await ctx.respond(embed=build_warrant_info_embed(), ephemeral=False)
 
     async def _authorized_context(
         self,
@@ -173,7 +173,10 @@ class WarrantNotificationCog(commands.Cog):
                     replied_user=False,
                 ),
             )
-            await interaction.followup.send(embed=_command_success(), ephemeral=True)
+            await interaction.followup.send(
+                embed=_command_success(warrant_id),
+                ephemeral=True,
+            )
             log_event(
                 LOGGER,
                 "info",
@@ -355,7 +358,7 @@ def build_warrant_notification_embed(
     warrant_type: WarrantType,
 ) -> discord.Embed:
     embed = discord.Embed(
-        title=f"{warrant_type.emoji} Nueva orden de {warrant_type.label.casefold()}",
+        title=f"{warrant_type.emoji} Notificación de orden · {warrant_type.label}",
         color=warrant_type.color,
     )
     embed.set_author(name=member.display_name, icon_url=member.display_avatar.url)
@@ -421,7 +424,7 @@ def build_warrant_info_embed() -> discord.Embed:
             "└ 📄 URL del reporte de incidente\n"
             "└ 🔢 Número de orden\n"
             "└ 🚓 Arresto, 🔍 Allanamiento o ⚖️ Ambos\n\n"
-            "La notificación llegará automáticamente al canal de Command Staff. "
+            "La notificación llegará automáticamente a los encargados. "
             "El detalle de SARP se consultará solamente cuando alguien pulse el botón.\n\n"
             "*Sí, debes escribir el reporte antes de venir a tocar el timbre.*"
         ),
@@ -608,8 +611,14 @@ def _safe_display_text(value: str) -> str:
     return discord.utils.escape_markdown(discord.utils.escape_mentions(value))
 
 
-def _command_success() -> discord.Embed:
-    return discord.Embed(title="✅ Orden notificada", color=discord.Color.green())
+def _command_success(warrant_id: int) -> discord.Embed:
+    return discord.Embed(
+        title="✅ Notificación enviada",
+        description=(
+            f"La orden N.º {warrant_id} fue enviada correctamente a los encargados."
+        ),
+        color=discord.Color.green(),
+    )
 
 
 def _command_failure() -> discord.Embed:
