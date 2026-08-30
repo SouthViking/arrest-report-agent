@@ -976,6 +976,19 @@ class ReviewCog(commands.Cog):
                     extra_feature_lines.append(
                         "• `/ver-evidencia`: consulta una bolsa y su cadena de custodia."
                     )
+                warrant_feature = bundle.snapshot.features.get("warrant_notifications")
+                if (
+                    warrant_feature is not None
+                    and warrant_feature.enabled
+                    and isinstance(ctx.author, discord.Member)
+                    and any(
+                        role.id in bundle.settings.operational_staff_role_ids
+                        for role in ctx.author.roles
+                    )
+                ):
+                    extra_feature_lines.append(
+                        "• `/info-ordenes`: cómo notificar una orden a Command Staff."
+                    )
                 feature = bundle.snapshot.features.get("logbook")
                 if (
                     feature is not None

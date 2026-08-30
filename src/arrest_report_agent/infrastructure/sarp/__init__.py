@@ -55,6 +55,7 @@ from .models import (
     SarpStolenVehicle,
     SarpStolenVehiclePage,
     SarpWarrant,
+    SarpWarrantDetail,
     SarpWarrantPage,
 )
 from .penal_code import SarpPenalCodeProvider, build_charge_catalog
@@ -115,6 +116,7 @@ __all__ = [
     "SarpServerError",
     "SarpTransportError",
     "SarpWarrant",
+    "SarpWarrantDetail",
     "SarpWarrantPage",
     "build_charge_catalog",
 ]

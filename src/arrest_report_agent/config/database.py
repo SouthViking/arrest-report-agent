@@ -196,6 +196,27 @@ class FtpRequestOptions(FrozenConfigModel):
         return (*self.command_role_ids, *self.executive_role_ids)
 
 
+class WarrantNotificationOptions(FrozenConfigModel):
+    """Destination and mentions for warrant notifications."""
+
+    channel_id: int = Field(gt=0)
+    command_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
+    executive_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
+
+    @model_validator(mode="after")
+    def validate_notification_roles(self) -> WarrantNotificationOptions:
+        role_ids = (*self.command_role_ids, *self.executive_role_ids)
+        if any(role_id <= 0 for role_id in role_ids):
+            raise ValueError("warrant notification role IDs must be positive")
+        if len(role_ids) != len(set(role_ids)):
+            raise ValueError("warrant notification roles must be unique")
+        return self
+
+    @property
+    def notification_role_ids(self) -> tuple[int, ...]:
+        return (*self.executive_role_ids, *self.command_role_ids)
+
+
 class FactionMemberAnalysisOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
     base_divisions: tuple[str, ...] = Field(min_length=1, max_length=10)
@@ -445,6 +466,16 @@ class GuildConfigSnapshot(FrozenConfigModel):
             FtpRequestOptions.model_validate(ftp_requests_feature.payload)
             if ftp_status_feature is None or not ftp_status_feature.enabled:
                 raise ValueError("enabled ftp_requests requires enabled ftp_status")
+        warrant_notifications_feature = self.features.get("warrant_notifications")
+        if warrant_notifications_feature is not None and warrant_notifications_feature.enabled:
+            if warrant_notifications_feature.schema_version != 1:
+                raise ValueError("warrant_notifications requires feature schema version 1")
+            WarrantNotificationOptions.model_validate(warrant_notifications_feature.payload)
+            roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
+            if roles.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError(
+                    "enabled warrant_notifications requires restricted operational staff roles"
+                )
         member_analysis_feature = self.features.get("faction_member_analysis")
         if member_analysis_feature is not None and member_analysis_feature.enabled:
             if member_analysis_feature.schema_version != 1:
@@ -677,6 +708,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return FtpRequestOptions.model_validate(feature.payload)
+
+    @property
+    def warrant_notification_options(self) -> WarrantNotificationOptions | None:
+        feature = self.snapshot.features.get("warrant_notifications")
+        if feature is None or not feature.enabled:
+            return None
+        return WarrantNotificationOptions.model_validate(feature.payload)
 
     @property
     def faction_member_analysis_options(self) -> FactionMemberAnalysisOptions | None:

@@ -370,6 +370,59 @@ async def test_mdc_endpoints_use_documented_paths_filters_and_typed_payloads() -
     ]
 
 
+async def test_warrant_detail_endpoint_is_typed() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/police/warrants/1368"
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "police-data",
+                "payload": {
+                    "id": 1368,
+                    "suspect_id": 8225,
+                    "suspect_name": "Rico Cirelli",
+                    "description": "Fundamento completo",
+                    "type": ["search"],
+                    "risk": "low",
+                    "status": 1,
+                    "filed_by": 2044,
+                    "filed_name": "Sheriff's Detective Katherine Watanabe",
+                    "signed_at": None,
+                    "signed_by": 0,
+                    "signed_name": "Firstname_Lastname",
+                    "closed_at": None,
+                    "closed_by": 0,
+                    "closed_name": "Firstname_Lastname",
+                    "created_at": "2026-08-29 23:57:45",
+                    "updated_at": "2026-08-29 23:57:45",
+                    "charges": [
+                        {
+                            "charge_id": 117,
+                            "code": "CH-11351",
+                            "charge": "Posesión de sustancia controlada",
+                            "type": "MENOR",
+                            "hours": 3,
+                            "fine": 25000,
+                        }
+                    ],
+                },
+            }
+        )
+
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url)) as client,
+    ):
+        warrant = await client.get_warrant(1368)
+
+    assert warrant.id == 1368
+    assert warrant.suspect_name == "Rico Cirelli"
+    assert warrant.types == ("search",)
+    assert warrant.filed_name == "Sheriff's Detective Katherine Watanabe"
+    assert warrant.charges[0].code == "CH-11351"
+
+
 async def test_emergency_call_endpoint_is_typed_and_treats_naive_dates_as_utc() -> None:
     async def handler(request: web.Request) -> web.Response:
         assert request.path == "/api/police/emergency-calls"

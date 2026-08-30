@@ -24,6 +24,7 @@ from arrest_report_agent.config import (
     GuildFeatureSnapshot,
     OperationalResourcesOptions,
     RadioAuditOptions,
+    WarrantNotificationOptions,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
 from arrest_report_agent.config.logging import exception_fields, log_event
@@ -78,6 +79,7 @@ FEATURE_LABELS = {
     "faction_status": "Estado de facción",
     "ftp_status": "FTP conectado",
     "ftp_requests": "Solicitudes FTP",
+    "warrant_notifications": "Notificación de órdenes",
     "faction_member_analysis": "Análisis de miembros",
     "operational_resources": "Recursos operativos",
     "forum_shortcuts": "Accesos al foro",
@@ -969,6 +971,10 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     value="ftp_requests",
                 ),
                 discord.SelectOption(
+                    label="Notificación de órdenes",
+                    value="warrant_notifications",
+                ),
+                discord.SelectOption(
                     label="Análisis de miembros",
                     value="faction_member_analysis",
                 ),
@@ -1066,6 +1072,14 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     raise ValueError(
                         "Solicitudes FTP requiere `channel_id` y los IDs de roles de "
                         "Command y Executive Staff."
+                    ) from error
+            if key == "warrant_notifications" and self.enabled.values[0] == "true":
+                try:
+                    WarrantNotificationOptions.model_validate(payload)
+                except ValueError as error:
+                    raise ValueError(
+                        "Notificación de órdenes requiere `channel_id` y los IDs de roles "
+                        "de Command y Executive Staff."
                     ) from error
             if key == "faction_member_analysis" and self.enabled.values[0] == "true":
                 try:

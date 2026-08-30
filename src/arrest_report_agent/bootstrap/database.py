@@ -518,6 +518,20 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         ),
                     ),
                     GuildFeatureSnapshot(
+                        key="warrant_notifications",
+                        enabled=guild_id == 1234674521416663070,
+                        schema_version=1,
+                        payload=(
+                            {
+                                "channel_id": 1261076248541532240,
+                                "command_role_ids": [1234678029662294047],
+                                "executive_role_ids": [1234678238182244414],
+                            }
+                            if guild_id == 1234674521416663070
+                            else {}
+                        ),
+                    ),
+                    GuildFeatureSnapshot(
                         key="faction_member_analysis",
                         enabled=(
                             guild_id == 1234674521416663070

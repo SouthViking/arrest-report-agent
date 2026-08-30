@@ -124,6 +124,11 @@ from arrest_report_agent.stolen_vehicles import (
 )
 from arrest_report_agent.suggestions import SuggestionCog, SuggestionRepository
 from arrest_report_agent.support import SupportCog
+from arrest_report_agent.warrant_notifications import (
+    WarrantLookupService,
+    WarrantNotificationCog,
+    WarrantNotificationView,
+)
 
 from .database import build_bucket_storage, build_postgres_client
 
@@ -499,6 +504,9 @@ async def build_runtime(
             raise RuntimeError("Stolen-vehicle service was not initialized")
         if faction_directory is None:
             raise RuntimeError("Faction-directory service was not initialized")
+        warrant_lookup = WarrantLookupService(sarp_client)
+        bot.add_view(WarrantNotificationView(warrant_lookup))
+        bot.add_cog(WarrantNotificationCog(config_provider, warrant_lookup))
         faction_status_service = FactionStatusService(
             sarp_client,
             directory=faction_directory,

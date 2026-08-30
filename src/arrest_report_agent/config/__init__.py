@@ -23,6 +23,7 @@ from .database import (
     RadioAuditOptions,
     ReportOwnerAccessOptions,
     RoleRequestOptions,
+    WarrantNotificationOptions,
 )
 from .model_catalog import ModelCatalog, ResolvedModel
 from .persona import (
@@ -94,6 +95,7 @@ __all__ = [
     "RadioAuditOptions",
     "ReportOwnerAccessOptions",
     "RoleRequestOptions",
+    "WarrantNotificationOptions",
     "LoadedPersona",
     "ModelCatalog",
     "PackagedPersonaProvider",

@@ -951,6 +951,27 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         }
         assert ftp_requests[999]["enabled"] is False
         assert ftp_requests[999]["payload"] == {}
+        warrant_notification_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.enabled, feature.payload "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'warrant_notifications' "
+                "ORDER BY revision.guild_id"
+            )
+        )
+        warrant_notifications = {
+            int(row["guild_id"]): row for row in warrant_notification_rows
+        }
+        assert warrant_notifications[1234674521416663070]["enabled"] is True
+        assert warrant_notifications[1234674521416663070]["payload"] == {
+            "channel_id": 1261076248541532240,
+            "command_role_ids": [1234678029662294047],
+            "executive_role_ids": [1234678238182244414],
+        }
+        assert warrant_notifications[999]["enabled"] is False
+        assert warrant_notifications[999]["payload"] == {}
         ftp_request_table = await client.fetch_one(
             sa.text("SELECT to_regclass('public.ftp_training_requests') AS name")
         )

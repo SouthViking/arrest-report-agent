@@ -52,6 +52,7 @@ from .models import (
     SarpResponse,
     SarpServerCacheInfo,
     SarpStolenVehiclePage,
+    SarpWarrantDetail,
     SarpWarrantPage,
 )
 
@@ -71,6 +72,7 @@ CHARACTER_PREVIEW_PAYLOAD_ADAPTER = TypeAdapter(SarpCharacterPreview)
 CHARACTER_POSSESSIONS_PAYLOAD_ADAPTER = TypeAdapter(SarpCharacterPossessions)
 FINE_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFinePage)
 WARRANT_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpWarrantPage)
+WARRANT_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpWarrantDetail)
 ARREST_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpArrestPage)
 ARREST_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpArrestDetail)
 EVIDENCE_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpEvidenceDetail)
@@ -478,6 +480,17 @@ class SarpClient:
                 "limit": limit,
             },
             payload_adapter=WARRANT_PAGE_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def get_warrant(self, warrant_id: int) -> SarpWarrantDetail:
+        """Return the current complete detail for one police warrant."""
+
+        _require_positive_id(warrant_id, "warrant_id")
+        response = await self.request(
+            "GET",
+            f"/police/warrants/{warrant_id}",
+            payload_adapter=WARRANT_DETAIL_PAYLOAD_ADAPTER,
         )
         return response.payload
 

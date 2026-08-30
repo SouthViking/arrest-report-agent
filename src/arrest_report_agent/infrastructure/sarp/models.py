@@ -281,6 +281,40 @@ class SarpWarrantPage(BaseModel):
     pages: int = Field(ge=0)
 
 
+class SarpWarrantDetail(BaseModel):
+    """Complete warrant returned by the police detail endpoint."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
+
+    id: int = Field(gt=0)
+    suspect_id: int = Field(gt=0)
+    suspect_name: str = Field(min_length=1)
+    description: str = ""
+    types: tuple[str, ...] = Field(default_factory=tuple, alias="type")
+    risk: str | None = None
+    status: int
+    filed_by: int | None = None
+    filed_name: str | None = None
+    signed_at: datetime | None = None
+    signed_by: int | None = None
+    signed_name: str | None = None
+    closed_at: datetime | None = None
+    closed_by: int | None = None
+    closed_name: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    charges: list[SarpPoliceCharge] = Field(default_factory=list)
+
+    @field_validator("types", mode="before")
+    @classmethod
+    def normalize_types(cls, value: object) -> object:
+        if value is None:
+            return ()
+        if isinstance(value, str):
+            return (value,)
+        return value
+
+
 class SarpArrest(BaseModel):
     """Police arrest record for one suspect."""
 

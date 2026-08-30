@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.22.0",
-  "title": "Encuestas nativas para el agente",
-  "summary": "El agente ahora puede crear y consultar encuestas nativas de Discord cuando se le solicite.",
+  "version": "0.23.0",
+  "title": "Notificación y consulta de órdenes",
+  "summary": "Operational Staff ahora puede notificar órdenes a Command Staff y consultar su detalle directamente desde Discord.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,11 @@
   "changes": [
     {
       "type": "added",
-      "text": "El agente puede publicar encuestas configurables con opciones, emojis, duración y selección múltiple."
+      "text": "Se agregaron /notificarorden e /info-ordenes con envío centralizado al canal de Command Staff."
     },
     {
       "type": "added",
-      "text": "También puede consultar resultados y participantes actuales, o cerrar una encuesta creada por el usuario."
+      "text": "Las notificaciones permiten consultar u ocultar el detalle vigente de la orden sin almacenar su contenido en el bot."
     }
   ],
   "acknowledgements": []
