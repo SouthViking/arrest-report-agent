@@ -41,15 +41,16 @@ class FakePollRepository:
         self.deleted.append((guild_id, message_id))
 
 
-def _record() -> PollRecord:
-    created = datetime(2026, 8, 27, 12, tzinfo=UTC)
+def _record(*, expired: bool = False) -> PollRecord:
+    now = datetime.now(UTC)
+    created = now - timedelta(hours=48) if expired else now
     return PollRecord(
         message_id=33333333333333333,
         guild_id=11111111111111111,
         channel_id=22222222222222222,
         creator_user_id=44444444444444444,
         created_at=created,
-        expires_at=created + timedelta(hours=24),
+        expires_at=(now - timedelta(hours=24) if expired else now + timedelta(hours=24)),
     )
 
 
@@ -166,6 +167,51 @@ async def test_get_poll_uses_live_discord_results_and_labels_multiselect_percent
     assert first["percentage"] == 75.0
     assert first["percentage_basis"] == "all_selections"
     assert repository.synced == [(record.guild_id, record.message_id)]
+
+
+@pytest.mark.asyncio
+async def test_get_poll_marks_expired_metadata_as_ended(monkeypatch) -> None:
+    record = _record(expired=True)
+    repository = FakePollRepository(record)
+    service = DiscordPollService(SimpleNamespace(), repository)  # type: ignore[arg-type]
+    answer = SimpleNamespace(id=1, text="Mañana", emoji="🌅", count=1)
+    poll = SimpleNamespace(
+        question=SimpleNamespace(text="¿Qué turno prefieren?"),
+        allow_multiselect=False,
+        answers=[answer],
+        expiry=record.expires_at,
+        results=SimpleNamespace(is_finalized=False),
+        total_votes=lambda: 1,
+        has_ended=lambda: False,
+        get_answer=lambda answer_id: answer if answer_id == 1 else None,
+    )
+    message = SimpleNamespace(
+        id=record.message_id,
+        jump_url="https://discord.com/channels/1/2/3",
+        poll=poll,
+    )
+    monkeypatch.setattr(
+        service,
+        "_resolve_channel",
+        AsyncMock(return_value=(SimpleNamespace(), SimpleNamespace(), SimpleNamespace())),
+    )
+    monkeypatch.setattr(service, "_fetch_message", AsyncMock(return_value=message))
+
+    result = await service.get(
+        guild_id=record.guild_id,
+        requester_user_id=record.creator_user_id,
+        message_id=record.message_id,
+        include_voters=False,
+        answer_ids=(),
+        voter_limit_per_answer=25,
+        after_user_id=None,
+    )
+
+    payload = result["poll"]
+    assert isinstance(payload, dict)
+    assert payload["status"] == "ended"
+    assert repository.ended == [(record.guild_id, record.message_id)]
+    assert repository.synced == []
 
 
 def test_custom_poll_emoji_is_parsed_as_a_discord_partial_emoji() -> None:
