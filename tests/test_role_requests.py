@@ -683,6 +683,8 @@ async def test_v2_request_publishes_public_state_and_two_private_review_mirrors(
     public_embed = role_request_env.channel.send_calls[0]["embed"]
     assert "Motivo reservado" not in str(public_embed.to_dict())
     assert len(first_review.send_calls) == len(second_review.send_calls) == 1
+    assert first_review.send_calls[0]["content"] == f"<@&{REVIEWER_ROLE_ID}>"
+    assert second_review.send_calls[0]["content"] == f"<@&{REVIEWER_ROLE_ID}>"
     assert "Motivo reservado" in str(first_review.send_calls[0]["embed"].to_dict())
     assert first_review.send_calls[0]["view"] is not None
     assert repository.request is not None
@@ -792,7 +794,7 @@ def test_pending_codec_round_trip_supports_retirement(role_request_env) -> None:
     assert message.embeds[0].fields[0].name == REQUEST_KIND_FIELD_TITLE
 
 
-def test_retirement_codec_requires_only_partial_button_disabled(role_request_env) -> None:
+def test_retirement_codec_accepts_legacy_disabled_partial_button(role_request_env) -> None:
     service, retired = _retirement_service(role_request_env)
     embed = build_pending_embed(
         requester=role_request_env.requester,
@@ -805,12 +807,13 @@ def test_retirement_codec_requires_only_partial_button_disabled(role_request_env
         kind=RoleRequestKind.RETIREMENT,
     )
     message = FakeMessage(message_id=851, channel=role_request_env.channel, embed=embed)
-    with pytest.raises(RoleRequestCodecError):
-        decode_pending_message(
-            message,
-            bot_user_id=BOT_ID,
-            allowed_channel_ids=frozenset({CHANNEL_ID}),
-        )
+    message.components[0].children[1].disabled = True
+    request = decode_pending_message(
+        message,
+        bot_user_id=BOT_ID,
+        allowed_channel_ids=frozenset({CHANNEL_ID}),
+    )
+    assert request.kind is RoleRequestKind.RETIREMENT
 
 
 def test_pending_codec_accepts_legacy_empty_fields(role_request_env) -> None:
@@ -1052,7 +1055,10 @@ async def test_retirement_approval_recalculates_managed_roles_and_preserves_exte
     assert request.kind is RoleRequestKind.RETIREMENT
     assert request.add_role_ids == (retired.id,)
     assert request.remove_role_ids == (role_request_env.removable.id,)
-    assert message.components[0].children[1].disabled is True
+    assert [child.custom_id for child in message.components[0].children] == [
+        APPROVE_ALL_CUSTOM_ID,
+        REJECT_CUSTOM_ID,
+    ]
 
     # This managed role was assigned after the request and must still be removed.
     role_request_env.requester.roles.append(role_request_env.add_two)

@@ -246,6 +246,14 @@ class RoleRequestService:
                 channels.append(channel)
         return tuple(channels)
 
+    def resolve_reviewer_roles(self, guild: discord.Guild) -> tuple[discord.Role, ...]:
+        """Resolve this guild's configured review roles for a private notification."""
+        return tuple(
+            role
+            for role_id in self.reviewer_role_ids
+            if (role := guild.get_role(role_id)) is not None
+        )
+
     def validate_channel_permissions(
         self,
         guild: discord.Guild,
@@ -682,7 +690,7 @@ class RoleRequestService:
                 view=RoleRequestDecisionView(
                     self,
                     registry=self.registry,
-                    partial_disabled=True,
+                    include_partial=False,
                 ),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -779,6 +787,9 @@ class RoleRequestService:
         review_channels = self.resolve_review_channels(member.guild)
         if not review_channels:
             raise RoleRequestValidationError(self.ui.subsystem_unavailable)
+        reviewer_roles = self.resolve_reviewer_roles(member.guild)
+        if not reviewer_roles:
+            raise RoleRequestValidationError(self.ui.subsystem_unavailable)
         pending = await self.find_pending_request(member.guild, member.id)
         if pending is not None:
             raise RoleRequestValidationError(self.ui.pending_exists.format(jump_url=pending.jump_url))
@@ -843,17 +854,24 @@ class RoleRequestService:
                 public_jump_url=public_message.jump_url,
                 kind=kind,
             )
+            reviewer_mentions = " ".join(role.mention for role in reviewer_roles)
+            reviewer_allowed_mentions = discord.AllowedMentions(
+                everyone=False,
+                users=False,
+                roles=list(reviewer_roles),
+            )
             for review_channel in review_channels:
                 try:
                     private_messages.append(
                         await review_channel.send(
+                            content=reviewer_mentions,
                             embed=private_embed,
                             view=RoleRequestDecisionView(
                                 self,
                                 registry=self.registry,
-                                partial_disabled=kind is RoleRequestKind.RETIREMENT,
+                                include_partial=kind is not RoleRequestKind.RETIREMENT,
                             ),
-                            allowed_mentions=discord.AllowedMentions.none(),
+                            allowed_mentions=reviewer_allowed_mentions,
                         )
                     )
                 except (discord.Forbidden, discord.HTTPException) as error:
@@ -1531,6 +1549,7 @@ class RoleRequestService:
                         self,
                         registry=self.registry,
                         disabled=True,
+                        include_partial=stored.kind is not RoleRequestKind.RETIREMENT,
                     ),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
@@ -1829,7 +1848,7 @@ class RoleRequestDecisionView(discord.ui.View):
         *,
         registry: RoleRequestServiceRegistry | None = None,
         disabled: bool = False,
-        partial_disabled: bool = False,
+        include_partial: bool = True,
     ) -> None:
         super().__init__(timeout=None)
         self.service = service
@@ -1838,7 +1857,8 @@ class RoleRequestDecisionView(discord.ui.View):
         self.approve_all_button.label = ui.approve_all_button
         self.approve_partial_button.label = ui.approve_partial_button
         self.reject_button.label = ui.reject_button
-        self.approve_partial_button.disabled = partial_disabled
+        if not include_partial:
+            self.remove_item(self.approve_partial_button)
         if disabled:
             for child in self.children:
                 child.disabled = True

@@ -380,12 +380,23 @@ def _validate_pending_components(
             custom_id = getattr(child, "custom_id", None)
             if custom_id in DECISION_CUSTOM_IDS:
                 components[custom_id] = bool(getattr(child, "disabled", False))
+    if kind is RoleRequestKind.NORMAL:
+        if set(components) != DECISION_CUSTOM_IDS:
+            raise RoleRequestCodecError("role request is no longer pending")
+        if any(components.values()):
+            raise RoleRequestCodecError("role request is no longer pending")
+        return
+
+    retirement_components = {APPROVE_ALL_CUSTOM_ID, REJECT_CUSTOM_ID}
+    if set(components) == retirement_components:
+        if components[APPROVE_ALL_CUSTOM_ID] or components[REJECT_CUSTOM_ID]:
+            raise RoleRequestCodecError("role request is no longer pending")
+        return
     if set(components) != DECISION_CUSTOM_IDS:
         raise RoleRequestCodecError("role request is no longer pending")
     if components[APPROVE_ALL_CUSTOM_ID] or components[REJECT_CUSTOM_ID]:
         raise RoleRequestCodecError("role request is no longer pending")
-    partial_disabled = components[APPROVE_PARTIAL_CUSTOM_ID]
-    if partial_disabled is not (kind is RoleRequestKind.RETIREMENT):
+    if not components[APPROVE_PARTIAL_CUSTOM_ID]:
         raise RoleRequestCodecError("role request is no longer pending")
 
 
