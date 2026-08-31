@@ -706,8 +706,17 @@ def test_arrest_lookup_migration_enables_only_lssd_and_creates_bindings() -> Non
         command.downgrade(alembic, "base")
         command.upgrade(alembic, "20260817_0032")
         asyncio.run(_seed_service_call_configuration_targets(database_url))
+        asyncio.run(_clear_pager_forward_configuration(database_url))
         command.upgrade(alembic, "head")
         asyncio.run(_assert_arrest_lookup_configuration(database_url))
+        asyncio.run(
+            _assert_pager_forward_configuration(
+                database_url,
+                lssd_channel_id=1234675609536430152,
+            )
+        )
+        command.downgrade(alembic, "20260830_0054")
+        asyncio.run(_assert_pager_forward_configuration(database_url, lssd_channel_id=None))
     finally:
         command.downgrade(alembic, "base")
         if previous is None:
@@ -1139,6 +1148,48 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         )
         assert cursor_table is not None
         assert cursor_table["name"] == "stolen_vehicle_feed_cursors"
+    finally:
+        await client.close()
+
+
+async def _clear_pager_forward_configuration(database_url: str) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        await client.execute(
+            sa.text(
+                "UPDATE guild_feature_settings AS feature "
+                "SET payload = feature.payload - 'forward_channel_id' "
+                "FROM guild_config_revisions AS revision "
+                "WHERE feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'pagers'"
+            )
+        )
+    finally:
+        await client.close()
+
+
+async def _assert_pager_forward_configuration(
+    database_url: str,
+    *,
+    lssd_channel_id: int | None,
+) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.payload "
+                "FROM guild_config_revisions AS revision "
+                "JOIN guild_feature_settings AS feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'pagers' "
+                "ORDER BY revision.guild_id"
+            )
+        )
+        payloads = {int(row["guild_id"]): row["payload"] for row in rows}
+        assert payloads[1234674521416663070].get("forward_channel_id") == lssd_channel_id
+        assert payloads[999].get("forward_channel_id") is None
     finally:
         await client.close()
 

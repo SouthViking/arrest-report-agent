@@ -1,16 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.23.2",
-  "title": "Guía de órdenes más clara",
-  "summary": "Simplificamos la información visible de /info-ordenes para enfocarla en sus usuarios finales.",
+  "version": "0.24.0",
+  "title": "Pagers visibles en el chat",
+  "summary": "Los nuevos pagers ahora también aparecen como reenvíos nativos en el canal general de la facción.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
+      "type": "added",
+      "text": "Cada pager publicado se reenvía automáticamente a #chat para darle mayor visibilidad."
+    },
+    {
       "type": "improved",
-      "text": "/info-ordenes ya no expone detalles internos sobre la consulta de información."
+      "text": "El destino del reenvío es configurable y un fallo secundario no afecta el pager original."
     }
   ],
   "acknowledgements": []

@@ -444,7 +444,14 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         key="pagers",
                         enabled=False,
                         schema_version=1,
-                        payload={"starting_number": 92 if guild_id == 1234674521416663070 else 1},
+                        payload={
+                            "starting_number": 92 if guild_id == 1234674521416663070 else 1,
+                            **(
+                                {"forward_channel_id": 1234675609536430152}
+                                if guild_id == 1234674521416663070
+                                else {}
+                            ),
+                        },
                     ),
                     GuildFeatureSnapshot(
                         key="deployment_notifications",

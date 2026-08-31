@@ -4,6 +4,7 @@ import asyncio
 import os
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import discord
@@ -21,6 +22,7 @@ from arrest_report_agent.config import (
     GuildConfigSnapshot,
     GuildFeatureSnapshot,
     GuildRuntimeSettings,
+    PagerOptions,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
 from arrest_report_agent.infrastructure.postgres import PostgresClient, PostgresClientConfig
@@ -39,7 +41,12 @@ from arrest_report_agent.pagers.models import Pager, PagerResponder, PagerStatus
 from arrest_report_agent.pagers.repository import PagerRepository
 
 
-def _snapshot(settings: AppSettings, *, enabled: bool) -> GuildConfigSnapshot:
+def _snapshot(
+    settings: AppSettings,
+    *,
+    enabled: bool,
+    forward_channel_id: int | None = None,
+) -> GuildConfigSnapshot:
     policies = {
         key: AccessPolicySnapshot(
             key=key,
@@ -104,7 +111,14 @@ def _snapshot(settings: AppSettings, *, enabled: bool) -> GuildConfigSnapshot:
                 key="pagers",
                 enabled=enabled,
                 schema_version=1,
-                payload={"starting_number": 92},
+                payload={
+                    "starting_number": 92,
+                    **(
+                        {"forward_channel_id": forward_channel_id}
+                        if forward_channel_id is not None
+                        else {}
+                    ),
+                },
             )
         },
         persona_revision_id=uuid4(),
@@ -197,6 +211,59 @@ def test_pager_recipient_can_be_notified_with_effective_channel_permission(
     )
 
     assert service.validate_recipients(channel, (300,)) == (role,)
+
+
+@pytest.mark.asyncio
+async def test_pager_uses_native_forward_for_configured_chat(
+    settings: AppSettings,
+    persona,
+) -> None:
+    runtime = GuildRuntimeSettings(
+        settings,
+        _snapshot(settings, enabled=True, forward_channel_id=400),
+    )
+    service = PagerService(SimpleNamespace(), SimpleNamespace(), runtime, persona, enabled=True)
+    destination = SimpleNamespace(id=400)
+    forwarded = SimpleNamespace(id=600)
+    message = SimpleNamespace(
+        id=500,
+        guild=SimpleNamespace(),
+        forward_to=AsyncMock(return_value=forwarded),
+    )
+    service._resolve_forward_channel = AsyncMock(  # type: ignore[method-assign]
+        return_value=destination
+    )
+
+    await service.forward_pager(_pager(), message)  # type: ignore[arg-type]
+
+    message.forward_to.assert_awaited_once()
+    args, kwargs = message.forward_to.await_args
+    assert args == (destination,)
+    assert kwargs["allowed_mentions"].to_dict() == discord.AllowedMentions.none().to_dict()
+
+
+@pytest.mark.asyncio
+async def test_pager_forward_failure_does_not_escape(
+    settings: AppSettings,
+    persona,
+) -> None:
+    runtime = GuildRuntimeSettings(
+        settings,
+        _snapshot(settings, enabled=True, forward_channel_id=400),
+    )
+    service = PagerService(SimpleNamespace(), SimpleNamespace(), runtime, persona, enabled=True)
+    message = SimpleNamespace(
+        id=500,
+        guild=SimpleNamespace(),
+        forward_to=AsyncMock(side_effect=RuntimeError("Discord refused the forward")),
+    )
+    service._resolve_forward_channel = AsyncMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(id=400)
+    )
+
+    await service.forward_pager(_pager(), message)  # type: ignore[arg-type]
+
+    message.forward_to.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -728,12 +795,24 @@ def test_enabled_pagers_require_restricted_complete_configuration(settings: AppS
 
     assert snapshot.policy(AccessPolicyKey.PAGER_CHANNELS).ids == (100,)
     assert GuildRuntimeSettings(settings, snapshot).pager_starting_number == 92
+    assert GuildRuntimeSettings(settings, snapshot).pager_forward_channel_id is None
+    assert PagerOptions(starting_number=92, forward_channel_id=400).forward_channel_id == 400
+    with pytest.raises(ValidationError):
+        PagerOptions(starting_number=True)  # type: ignore[arg-type]
+
+    forwarded_snapshot = _snapshot(settings, enabled=True, forward_channel_id=400)
+    assert GuildRuntimeSettings(settings, forwarded_snapshot).pager_forward_channel_id == 400
 
     payload = snapshot.model_dump()
     payload["policies"][AccessPolicyKey.PAGER_CHANNELS]["mode"] = AccessPolicyMode.DISABLED
     payload["policies"][AccessPolicyKey.PAGER_CHANNELS]["ids"] = ()
     with pytest.raises(ValidationError, match="pager_channels"):
         GuildConfigSnapshot.model_validate(payload)
+
+    invalid_options = forwarded_snapshot.model_dump()
+    invalid_options["features"]["pagers"]["payload"]["forward_channel_id"] = 0
+    with pytest.raises(ValidationError, match="greater than 0"):
+        GuildConfigSnapshot.model_validate(invalid_options)
 
 
 @pytest.mark.asyncio

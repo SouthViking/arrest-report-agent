@@ -28,7 +28,7 @@ def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings)
     assert settings.max_total_file_bytes == 52_428_800
     assert settings.channel_context_max_messages == 5
     assert settings.thread_context_max_historical_files == 2
-    assert settings.app_version == "0.23.2"
+    assert settings.app_version == "0.24.0"
 
 
 def test_empty_escalation_roles_disable_mentions_and_legacy_name_is_supported() -> None:
@@ -123,7 +123,7 @@ def test_railway_webhook_requires_complete_identity_and_url_safe_secret() -> Non
 
     assert settings.railway_webhook_enabled is True
     assert settings.railway_webhook_identity_is_complete is True
-    assert settings.app_version == "0.23.2"
+    assert settings.app_version == "0.24.0"
 
     with pytest.raises(ValidationError, match="RAILWAY_ENVIRONMENT_ID"):
         AppSettings(**{key: value for key, value in values.items() if key != "RAILWAY_ENVIRONMENT_ID"})

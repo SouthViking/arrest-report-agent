@@ -237,6 +237,7 @@ class PagerService:
                 view=PagerControlsView(),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
+            await self.forward_pager(pager, message)
             log_event(
                 LOGGER,
                 "info",
@@ -271,6 +272,57 @@ class PagerService:
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
+
+    async def forward_pager(self, pager: Pager, message: discord.Message) -> None:
+        """Forward a published pager without affecting its primary delivery."""
+
+        channel_id = self.settings.pager_forward_channel_id
+        if channel_id is None or channel_id == pager.channel_id:
+            return
+        try:
+            channel = await self._resolve_forward_channel(message.guild, channel_id)
+            forwarded = await message.forward_to(
+                channel,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "pager_forwarded",
+                guild_id=pager.guild_id,
+                source_channel_id=pager.channel_id,
+                source_message_id=message.id,
+                destination_channel_id=channel.id,
+                forwarded_message_id=forwarded.id,
+                pager_id=str(pager.id),
+                pager_number=pager.number,
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "warning",
+                "pager_forward_failed",
+                exc_info=error,
+                guild_id=pager.guild_id,
+                source_channel_id=pager.channel_id,
+                source_message_id=message.id,
+                destination_channel_id=channel_id,
+                pager_id=str(pager.id),
+                pager_number=pager.number,
+                **exception_fields(error),
+            )
+
+    async def _resolve_forward_channel(
+        self,
+        guild: discord.Guild,
+        channel_id: int,
+    ) -> discord.TextChannel | discord.Thread:
+        channel: object | None = guild.get_channel(channel_id)
+        if channel is None:
+            channel = await guild.fetch_channel(channel_id)
+        if not isinstance(channel, (discord.TextChannel, discord.Thread)):
+            raise LookupError("Pager forward destination is not a messageable guild channel")
+        return channel
 
     async def resolve_interaction_pager(self, interaction: discord.Interaction) -> Pager:
         if interaction.guild is None or interaction.message is None:

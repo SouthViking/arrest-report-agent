@@ -141,6 +141,11 @@ class RoleRequestOptions(FrozenConfigModel):
     retired_role_id: int | None = Field(default=None, gt=0)
 
 
+class PagerOptions(FrozenConfigModel):
+    starting_number: int = Field(ge=1, le=99_999, strict=True)
+    forward_channel_id: int | None = Field(default=None, gt=0, strict=True)
+
+
 class FactionStatusOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
 
@@ -371,13 +376,7 @@ class GuildConfigSnapshot(FrozenConfigModel):
         if feature is not None and feature.enabled:
             if feature.schema_version != 1:
                 raise ValueError("pagers requires feature schema version 1")
-            starting_number = feature.payload.get("starting_number")
-            if (
-                isinstance(starting_number, bool)
-                or not isinstance(starting_number, int)
-                or not 1 <= starting_number <= 99_999
-            ):
-                raise ValueError("pagers requires starting_number between 1 and 99999")
+            PagerOptions.model_validate(feature.payload)
             required = (
                 AccessPolicyKey.PAGER_CHANNELS,
                 AccessPolicyKey.PAGER_CREATOR_ROLES,
@@ -785,8 +784,14 @@ class GuildRuntimeSettings:
         feature = self.snapshot.features.get("pagers")
         if feature is None:
             return 1
-        value = feature.payload.get("starting_number", 1)
-        return int(value)
+        return PagerOptions.model_validate(feature.payload).starting_number
+
+    @property
+    def pager_forward_channel_id(self) -> int | None:
+        feature = self.snapshot.features.get("pagers")
+        if feature is None or not feature.enabled:
+            return None
+        return PagerOptions.model_validate(feature.payload).forward_channel_id
 
     @property
     def report_owner_access_max_rounds(self) -> int | None:
