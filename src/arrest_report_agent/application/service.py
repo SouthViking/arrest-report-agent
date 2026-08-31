@@ -14,6 +14,7 @@ from agents import (
     RunConfig,
     Runner,
     StopAtTools,
+    ToolExecutionConfig,
 )
 from agents.retry import ModelRetrySettings
 from openai.types.shared.reasoning import Reasoning
@@ -116,7 +117,7 @@ class ReviewService:
             verbosity=model.runtime_defaults.text_verbosity,
             max_tokens=model.runtime_defaults.max_output_tokens,
             tool_choice="required",
-            parallel_tool_calls=False,
+            parallel_tool_calls=True,
             retry=ModelRetrySettings(max_retries=settings.openai_max_retries),
             include_usage=True,
             extra_args={"service_tier": model.runtime_defaults.service_tier},
@@ -179,6 +180,7 @@ class ReviewService:
             workflow_name=self.settings.trace_workflow_name,
             group_id=f"discord-report:{case.guild_id}:{case.root_message_id}",
             trace_metadata=self._trace_metadata(case, run_context),
+            tool_execution=ToolExecutionConfig(max_function_tool_concurrency=6),
         )
         log_event(
             LOGGER,

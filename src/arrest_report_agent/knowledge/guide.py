@@ -3,9 +3,22 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
+from enum import StrEnum
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
+
+
+class ReportGuideSection(StrEnum):
+    OVERVIEW = "overview"
+    WRITING_STYLE = "writing_style"
+    NARRATIVE_STRUCTURE = "narrative_structure"
+    ESSENTIAL_CONTENT = "essential_content"
+    EVIDENCE = "evidence"
+    PHYSICAL_DESCRIPTION = "physical_description"
+    CHARGE_REVIEW = "charge_review"
+    REVIEW_CALIBRATION = "review_calibration"
 
 
 class ReportGuide:
@@ -20,8 +33,8 @@ class ReportGuide:
         payload = json.loads(Path(str(resource)).read_text(encoding="utf-8"))
         return cls(payload)
 
-    def get(self, sections: list[str] | None = None) -> dict[str, Any]:
-        requested = sections or ["overview"]
+    def get(self, sections: Sequence[str | ReportGuideSection] | None = None) -> dict[str, Any]:
+        requested = tuple(str(section) for section in sections) if sections else ("overview",)
         unknown = [name for name in requested if name not in self.sections]
         selected = {name: self.sections[name] for name in requested if name in self.sections}
         return {

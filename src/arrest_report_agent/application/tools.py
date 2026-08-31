@@ -37,6 +37,7 @@ from arrest_report_agent.knowledge import (
     RadioSearchField,
     RadioTermMatch,
     ReportGuide,
+    ReportGuideSection,
     as_charge_catalog_provider,
 )
 
@@ -222,12 +223,17 @@ def build_agent_tools(
 
     @function_tool
     async def get_report_guide(
-        ctx: RunContextWrapper[ReviewRunContext], sections: list[str] | None = None
+        ctx: RunContextWrapper[ReviewRunContext],
+        sections: Annotated[
+            list[ReportGuideSection] | None,
+            Field(min_length=1, max_length=8),
+        ] = None,
     ) -> dict[str, object]:
-        """Read the internal report-review guide. Omit sections for its compact overview.
+        """Read selected internal report-review criteria in one bounded call.
 
         Args:
-            sections: Names from available_sections returned by this tool.
+            sections: Relevant known sections to retrieve together. Omit only when the compact
+                overview itself is sufficient; never omit merely to discover section names.
         """
 
         await _set_activity(ctx.context, AgentActivity.KNOWLEDGE)
@@ -626,7 +632,10 @@ def build_agent_tools(
             list[Annotated[int, Field(gt=0)]] | None,
             Field(max_length=14),
         ] = None,
-        query: Annotated[str | None, Field(min_length=1, max_length=200)] = None,
+        queries: Annotated[
+            list[Annotated[str, Field(min_length=1, max_length=200)]] | None,
+            Field(min_length=1, max_length=10),
+        ] = None,
         fields: Annotated[
             list[ChargeSearchField] | None,
             Field(min_length=1, max_length=5),
@@ -635,26 +644,49 @@ def build_agent_tools(
         fuzzy: bool = False,
         limit: Annotated[int, Field(ge=1, le=100)] = 20,
     ) -> dict[str, object]:
-        """List charge categories or search a configurable compact charge index.
+        """List charge categories or search several charges independently in one call.
 
         Args:
             category_ids: Optional category IDs to restrict the index.
-            query: Spanish words or quoted phrases to find.
+            queries: One to ten Spanish searches evaluated independently and returned by query.
+                Omit to list categories or browse the selected categories.
             fields: Fields to inspect; defaults to code, title, type and category.
             match_mode: Require all query terms or allow any one of them.
             fuzzy: Allow conservative typo matching for terms of four or more characters.
-            limit: Maximum compact results, from 1 to 100.
+            limit: Maximum compact results per query, from 1 to 100.
         """
 
         await _set_activity(ctx.context, AgentActivity.KNOWLEDGE)
-        return charge_catalog_for(ctx.context).list_index(
-            category_ids=category_ids,
-            query=query,
-            fields=fields,
-            match_mode=match_mode,
-            fuzzy=fuzzy,
-            limit=limit,
-        )
+        catalog = charge_catalog_for(ctx.context)
+        if queries is None:
+            return catalog.list_index(
+                category_ids=category_ids,
+                fields=fields,
+                match_mode=match_mode,
+                fuzzy=fuzzy,
+                limit=limit,
+            )
+
+        normalized_queries = list(dict.fromkeys(query.strip() for query in queries))
+        if any(not query for query in normalized_queries):
+            return {"ok": False, "error": "invalid_query"}
+        return {
+            "query_count": len(normalized_queries),
+            "queries": [
+                {
+                    "query": query,
+                    **catalog.list_index(
+                        category_ids=category_ids,
+                        query=query,
+                        fields=fields,
+                        match_mode=match_mode,
+                        fuzzy=fuzzy,
+                        limit=limit,
+                    ),
+                }
+                for query in normalized_queries
+            ],
+        }
 
     @function_tool
     async def get_charge_details(

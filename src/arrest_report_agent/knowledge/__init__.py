@@ -8,7 +8,7 @@ from .catalog_provider import (
     StaticChargeCatalogProvider,
     as_charge_catalog_provider,
 )
-from .guide import ReportGuide
+from .guide import ReportGuide, ReportGuideSection
 from .manual import (
     ManualCatalog,
     ManualMatchMode,
@@ -42,6 +42,7 @@ __all__ = [
     "RadioSearchField",
     "RadioTermMatch",
     "ReportGuide",
+    "ReportGuideSection",
     "StaticChargeCatalogProvider",
     "as_charge_catalog_provider",
 ]

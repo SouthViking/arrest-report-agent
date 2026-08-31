@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from arrest_report_agent.config import BotPersona
 from arrest_report_agent.domain import AgentAccessLevel
+from arrest_report_agent.knowledge import ReportGuideSection
 
-PROMPT_VERSION = "2026-08-31.2"
+PROMPT_VERSION = "2026-08-31.3"
 
 
 def build_agent_instructions(
@@ -336,6 +337,14 @@ Puedes crear y consultar encuestas nativas de Discord mediante herramientas dete
   `get_message_attachments` cuando una revisión dependa de su contenido, cuando el usuario solicite
   inspección visual o cuando necesites un dato que no esté en los mensajes o archivos cargados."""
 
+    if access_level is AgentAccessLevel.FULL:
+        non_parallel_effect_tools = """`publish_manual_question`, `create_poll`, `end_poll`,
+  `set_message_reaction`, `mention_roles`, `send_message`, `finish_interaction`, `publish_review` y
+  `get_arrest_report` cuando vincule el hilo"""
+    else:
+        non_parallel_effect_tools = "`send_message`, `finish_interaction` y `publish_review`"
+    report_guide_sections = ", ".join(f"`{section.value}`" for section in ReportGuideSection)
+
     return f"""<identity>
 **Nombre:** {identity.display_name}
 **Nombre completo:** {identity.full_name}
@@ -403,6 +412,18 @@ Responde a la intención concreta del usuario. No asumas que toda mención solic
 </mission>
 
 <workflow>
+**Uso eficiente de herramientas:**
+- Cuando varias consultas de solo lectura sean independientes y ya tengas sus argumentos, emítelas
+  juntas en la misma respuesta para que se ejecuten en paralelo. No esperes el resultado de una si
+  no es requisito para construir los argumentos de la otra.
+- Mantén secuenciales las dependencias reales: por ejemplo, busca primero un reporte y usa después
+  su ID para obtener el detalle. No inventes argumentos para intentar paralelizar una dependencia.
+- Agrupa varias referencias radiales en una sola `search_radio_codes`, varios cargos en una sola
+  `list_charge_index` mediante `queries` y varios IDs resueltos en una sola `get_charge_details`.
+- Las tools que cambian Discord o persistencia deben ejecutarse solas, nunca junto a otra llamada:
+  {non_parallel_effect_tools}. Ejecuta exactamente una tool terminal y solo después de completar
+  todas las lecturas necesarias.
+
 **Decisión:**
 - Prioriza `SOLICITUD_ACTUAL`; utiliza los demás mensajes solo como contexto.
 {operational_decision}
@@ -422,6 +443,9 @@ Responde a la intención concreta del usuario. No asumas que toda mención solic
 **Ejecución:**
 - Las reglas de expediente que siguen aplican únicamente cuando el usuario solicita una revisión.
   Fuera de ese caso, responde o ejecuta la tarea concreta sin forzar un análisis de reporte.
+- Si necesitas la guía interna, solicita directamente y en una sola `get_report_guide` las secciones
+  pertinentes entre {report_guide_sections}. No hagas una llamada sin secciones solo para descubrir
+  este índice.
 {review_attachment_flow}
 - Al cargar una imagen, identifica su función por el contenido y no por el nombre del archivo. Evalúa
   cobertura semántica, no cantidad: una imagen puede reunir ambas fotografías o varias piezas.
@@ -477,7 +501,8 @@ Responde a la intención concreta del usuario. No asumas que toda mención solic
   sospechoso intentó huir o eludir una intervención policial. No exijas que el reporte transcriba
   una voz de alto, una orden literal ni que declare una detención física previa. Trátala como
   `unsupported` solo cuando la narrativa descarte la huida o no describa conducta evasiva alguna.
-- Usa `list_charge_index` con la búsqueda mínima útil; empieza por coincidencia exacta y `all`.
+- Usa `list_charge_index` con las búsquedas mínimas útiles; reúne en `queries` todos los cargos que
+  ya conozcas y empieza por coincidencia exacta y `all`.
 - Amplía campos, usa `any` o `fuzzy` solo si hace falta y valida después por ID; los códigos no son únicos.
 
 **Cierre:**

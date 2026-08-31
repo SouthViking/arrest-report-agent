@@ -2163,6 +2163,60 @@ async def test_create_poll_rejects_duplicate_answers_before_discord() -> None:
 
 
 @pytest.mark.asyncio
+async def test_charge_index_batches_independent_queries_in_one_tool_call() -> None:
+    run_context = ReviewRunContext(
+        case=ReviewCase(
+            guild_id=11111111111111111,
+            parent_channel_id=22222222222222222,
+            channel_id=22222222222222222,
+            root_message_id=33333333333333333,
+            trigger_message_id=44444444444444444,
+            requester_user_id=55555555555555555,
+            interaction_mode=InteractionMode.INITIAL_REVIEW,
+            messages=[],
+            attachments=[],
+        ),
+        publisher=FakePublisher(),
+        attempt=1,
+    )
+    tool = {
+        item.name: item
+        for item in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }["list_charge_index"]
+    arguments = json.dumps(
+        {
+            "queries": ["CP-189/664", "CP-29800", "CV-2801"],
+            "fields": ["code"],
+            "match_mode": "all",
+            "limit": 5,
+        }
+    )
+
+    result = await tool.on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="list_charge_index",
+            tool_call_id="batched-charge-index",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert result["query_count"] == 3
+    assert [item["query"] for item in result["queries"]] == [
+        "CP-189/664",
+        "CP-29800",
+        "CV-2801",
+    ]
+    assert all(item["returned"] >= 1 for item in result["queries"])
+    assert [item["results"][0]["code"] for item in result["queries"]] == [
+        "CP-189/664",
+        "CP-29800",
+        "CV-2801",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_charge_tools_keep_the_catalog_snapshot_pinned_to_the_agent_run() -> None:
     first = ChargeCatalogSnapshot(_catalog(901, "Catálogo inicial"), ChargeCatalogSource.SARP)
     second = ChargeCatalogSnapshot(_catalog(902, "Catálogo nuevo"), ChargeCatalogSource.SARP)

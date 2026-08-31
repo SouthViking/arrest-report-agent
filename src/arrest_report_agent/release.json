@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.26.0",
-  "title": "Validación contextual de cargos",
-  "summary": "El agente ahora puede comprobar antecedentes legales externos cuando son relevantes para revisar un cargo.",
+  "version": "0.26.1",
+  "title": "Revisiones más eficientes",
+  "summary": "El agente reduce esperas y turnos innecesarios al consultar varias fuentes independientes.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,15 +10,15 @@
   "changes": [
     {
       "type": "improved",
-      "text": "Comprueba antecedentes graves previos sin exigir que se repitan dentro de la narrativa."
+      "text": "Consulta en paralelo la información independiente necesaria para una revisión."
     },
     {
       "type": "improved",
-      "text": "Verifica si una multa seguía impaga después de su plazo de tres días en la fecha del reporte."
+      "text": "Agrupa búsquedas de cargos y secciones de la guía para evitar recorridos repetidos."
     },
     {
       "type": "improved",
-      "text": "Consulta únicamente los datos necesarios y distingue una comprobación negativa de una API temporalmente indisponible."
+      "text": "Mantiene en orden las consultas dependientes y las acciones que modifican Discord."
     }
   ],
   "acknowledgements": []

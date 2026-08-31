@@ -340,6 +340,10 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
         "publish_review",
     ]
     assert service.agent.model_settings.tool_choice == "required"
+    assert service.agent.model_settings.parallel_tool_calls is True
+    assert isinstance(service.agent.instructions, str)
+    assert "misma respuesta para que se ejecuten en paralelo" in service.agent.instructions
+    assert "deben ejecutarse solas, nunca junto a otra llamada" in service.agent.instructions
     assert service.agent.reset_tool_choice is False
     assert service.agent.tool_use_behavior == {
         "stop_at_tool_names": [
@@ -376,6 +380,8 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert "exactamente el\n  reporte raíz" in owner_prompt
     charge_search = next(tool for tool in service.agent.tools if tool.name == "list_charge_index")
     search_properties = charge_search.params_json_schema["properties"]
+    assert search_properties["queries"]["anyOf"][0]["minItems"] == 1
+    assert search_properties["queries"]["anyOf"][0]["maxItems"] == 10
     assert search_properties["fields"]["anyOf"][0]["items"]["enum"] == [
         "code",
         "title",
@@ -386,6 +392,21 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert search_properties["match_mode"]["enum"] == ["all", "any"]
     assert search_properties["fuzzy"]["default"] is False
     assert search_properties["limit"]["default"] == 20
+    guide_tool = next(tool for tool in service.agent.tools if tool.name == "get_report_guide")
+    guide_sections = guide_tool.params_json_schema["properties"]["sections"]["anyOf"][0]
+    assert guide_sections["minItems"] == 1
+    assert guide_sections["maxItems"] == 8
+    guide_section_definition = guide_tool.params_json_schema["$defs"]["ReportGuideSection"]
+    assert guide_section_definition["enum"] == [
+        "overview",
+        "writing_style",
+        "narrative_structure",
+        "essential_content",
+        "evidence",
+        "physical_description",
+        "charge_review",
+        "review_calibration",
+    ]
     radio_search = next(tool for tool in service.agent.tools if tool.name == "search_radio_codes")
     radio_properties = radio_search.params_json_schema["properties"]
     assert radio_properties["queries"]["minItems"] == 1
@@ -656,8 +677,11 @@ async def test_post_run_contract_failure_keeps_complete_runner_usage(
         output_tokens=200,
         total_tokens=3_200,
     )
+    captured_run_config = None
 
     async def finish_without_terminal_tool(*args, **kwargs):
+        nonlocal captured_run_config
+        captured_run_config = kwargs["run_config"]
         return SimpleNamespace(context_wrapper=SimpleNamespace(usage=complete_usage))
 
     monkeypatch.setattr(
@@ -681,6 +705,8 @@ async def test_post_run_contract_failure_keeps_complete_runner_usage(
     assert failure_log["output_tokens"] == 200
     assert failure_log["total_tokens"] == 3_200
     assert len(publisher.failures) == 1
+    assert captured_run_config is not None
+    assert captured_run_config.tool_execution.max_function_tool_concurrency == 6
 
 
 @pytest.mark.asyncio
