@@ -1267,6 +1267,91 @@ async def test_attachment_tool_limits_historical_images_loaded_on_demand() -> No
 
 
 @pytest.mark.asyncio
+async def test_attachment_tool_resolves_thread_starter_to_parent_channel() -> None:
+    guild_id = 98765432109876543
+    parent_channel_id = 11111111111111111
+    thread_id = 22222222222222222
+    requester_id = 33333333333333333
+    attachment_id = 44444444444444444
+    directory = FakeMessageDirectory(
+        MessageLookupResult(messages=()),
+        MessageAttachmentLookupResult(
+            attachments=(
+                MessageAttachmentProfile(
+                    id=attachment_id,
+                    filename="reporte.png",
+                    url="https://cdn.discord.test/reporte.png",
+                    content_type="image/png",
+                    size=1000,
+                    width=800,
+                    height=600,
+                    input_kind="image",
+                ),
+            )
+        ),
+    )
+    case = ReviewCase(
+        guild_id=guild_id,
+        parent_channel_id=parent_channel_id,
+        channel_id=thread_id,
+        thread_id=thread_id,
+        root_message_id=thread_id,
+        trigger_message_id=55555555555555555,
+        requester_user_id=requester_id,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=FakePublisher(),
+        attempt=1,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        message_directory=directory,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+            access_level=AgentAccessLevel.REPORT_OWNER,
+        )
+    }
+    arguments = json.dumps(
+        {
+            "message_id": str(thread_id),
+            "channel_id": str(thread_id),
+            "attachment_ids": [str(attachment_id)],
+        }
+    )
+
+    result = await tools["get_message_attachments"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="get_message_attachments",
+            tool_call_id="call-root-attachment",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert directory.attachment_calls == [
+        (
+            guild_id,
+            requester_id,
+            thread_id,
+            parent_channel_id,
+            thread_id,
+            (attachment_id,),
+        )
+    ]
+    assert isinstance(result, list)
+    assert isinstance(result[0], ToolOutputText)
+    assert json.loads(result[0].text)["channel_id"] == str(parent_channel_id)
+    assert isinstance(result[1], ToolOutputImage)
+
+
+@pytest.mark.asyncio
 async def test_message_tool_uses_run_scope_and_projects_results() -> None:
     guild_id = 98765432109876543
     current_channel_id = 11111111111111111

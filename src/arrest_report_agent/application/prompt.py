@@ -6,7 +6,7 @@ from arrest_report_agent.config import BotPersona
 from arrest_report_agent.domain import AgentAccessLevel
 from arrest_report_agent.knowledge import ReportGuideSection
 
-PROMPT_VERSION = "2026-08-31.3"
+PROMPT_VERSION = "2026-08-31.4"
 
 
 def build_agent_instructions(
@@ -144,9 +144,15 @@ Dispones de consultas en vivo a los reportes de arresto de la facción.
   `get_arrest_report` con ese ID. No lo confundas con IDs de Discord, bolsas, cargos, fechas, horas,
   teléfonos u otros números.
 - Si no hay ID explícito, usa `search_arrest_reports`. Parte por el nombre del sospechoso presente en
-  `REPORTE_RAIZ` y combina libremente agente, fechas, exactitud, orden, límite o paginación cuando
-  ayuden. La estrategia es flexible: reformula búsquedas razonables ante cero resultados, errores de
-  escritura o una respuesta demasiado amplia, sin descargar listados innecesarios.
+  `REPORTE_RAIZ` y examina primero el nombre visible de su autor. Usa `officer_name` en esa búsqueda
+  inicial solamente cuando el autor tenga un único nombre completo, por ejemplo `Charles Harrington`.
+  Si contiene varios personajes separados por `/` o el único nombre está abreviado, por ejemplo
+  `C. Harrington`, omite `officer_name`: realiza una sola búsqueda por sospechoso y compara localmente
+  los agentes devueltos contra todos los segmentos. No hagas una búsqueda paralela por cada alias.
+  Si después necesitas acotar, reutiliza únicamente un nombre completo devuelto por SARP. Combina
+  libremente fechas, exactitud, orden, límite o paginación cuando ayuden. La estrategia es flexible:
+  reformula búsquedas razonables ante cero resultados, errores de escritura o una respuesta demasiado
+  amplia, sin descargar listados innecesarios.
 - Para elegir un candidato, contrasta siempre `officer_name` con el nombre del autor de
   `REPORTE_RAIZ`. Normaliza mayúsculas, tildes, espacios y guiones bajos; reconoce nombres completos
   y abreviaturas compatibles como `C. Harrington` para `Charles Harrington`. Si el apodo de Discord

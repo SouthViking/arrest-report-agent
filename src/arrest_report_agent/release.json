@@ -1,24 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.26.1",
-  "title": "Revisiones más eficientes",
-  "summary": "El agente reduce esperas y turnos innecesarios al consultar varias fuentes independientes.",
+  "version": "0.26.2",
+  "title": "Búsqueda de reportes más precisa",
+  "summary": "El agente reconoce mejor a quienes usan nombres abreviados o varios personajes en Discord.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "Consulta en paralelo la información independiente necesaria para una revisión."
+      "type": "fixed",
+      "text": "Evita filtrar SARP con nombres abreviados o múltiples que podían ocultar reportes válidos."
     },
     {
-      "type": "improved",
-      "text": "Agrupa búsquedas de cargos y secciones de la guía para evitar recorridos repetidos."
-    },
-    {
-      "type": "improved",
-      "text": "Mantiene en orden las consultas dependientes y las acciones que modifican Discord."
+      "type": "fixed",
+      "text": "Recupera correctamente la imagen original del reporte cuando la revisión ocurre en un hilo."
     }
   ],
   "acknowledgements": []

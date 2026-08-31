@@ -1067,6 +1067,11 @@ def build_agent_tools(
         selected_channel_id = (
             int(channel_id) if channel_id is not None else _default_message_channel_id(run_context)
         )
+        selected_channel_id = _resolve_attachment_channel_id(
+            run_context,
+            channel_id=selected_channel_id,
+            message_id=int(message_id),
+        )
         if not _owner_attachment_query_is_allowed(
             run_context,
             channel_id=selected_channel_id,
@@ -1817,6 +1822,24 @@ def _owner_attachment_query_is_allowed(
     if run_context.case.thread_id is not None and channel_id == run_context.case.thread_id:
         return True
     return channel_id == run_context.case.parent_channel_id and message_id == run_context.case.root_message_id
+
+
+def _resolve_attachment_channel_id(
+    run_context: ReviewRunContext,
+    *,
+    channel_id: int,
+    message_id: int,
+) -> int:
+    """Resolve a report starter message to the parent channel that owns it."""
+
+    case = run_context.case
+    if (
+        case.thread_id is not None
+        and channel_id == case.thread_id
+        and message_id == case.root_message_id
+    ):
+        return case.parent_channel_id
+    return channel_id
 
 
 def _report_binding_thread_id(

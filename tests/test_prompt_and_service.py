@@ -181,6 +181,11 @@ def test_arrest_lookup_instructions_are_conditional_and_owner_scoped(persona) ->
     assert "get_arrest_report" in full
     assert "SARP es la fuente primaria para narrativa y cargos" in full
     assert "varios personajes separados por `/`" in full
+    assert "solamente cuando el autor tenga un único nombre completo" in full
+    assert "`C. Harrington`, omite `officer_name`" in full
+    assert "una sola búsqueda por sospechoso" in full
+    assert "No hagas una búsqueda paralela por cada alias" in full
+    assert "un nombre completo devuelto por SARP" in full
     assert "Mostrar esos IDs está permitido" in full
     assert "revisión se realizó\n  desde la imagen" in full
     assert "get_current_arrest_report" in owner
