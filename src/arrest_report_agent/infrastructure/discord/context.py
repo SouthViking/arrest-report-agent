@@ -414,17 +414,15 @@ class DiscordContextBuilder:
             else []
         )
         prioritized = trigger_messages + root_messages
-        historical_images_used = 0
         historical_files_used = 0
-        image_count = 0
         file_count = 0
         total_file_bytes = 0
         selected: list[DiscordAttachment] = []
         seen_ids: set[int] = set()
 
         def add_from(message: discord.Message, historical: bool) -> None:
-            nonlocal historical_files_used, historical_images_used
-            nonlocal image_count, file_count, total_file_bytes
+            nonlocal historical_files_used
+            nonlocal file_count, total_file_bytes
             for attachment in message.attachments:
                 if attachment.id in seen_ids:
                     continue
@@ -439,34 +437,25 @@ class DiscordContextBuilder:
                     continue
 
                 if input_kind is AttachmentInputKind.IMAGE:
-                    if attachment.size > self.settings.max_image_bytes:
-                        notices.append(f"Se omitió una imagen mayor al límite de tamaño ({attachment.id}).")
-                        continue
-                    if (
-                        historical
-                        and historical_images_used >= self.settings.thread_context_max_historical_images
-                    ):
-                        notices.append("Se limitaron las imágenes históricas del hilo.")
-                        continue
-                    if image_count >= self.settings.max_images_per_review:
-                        notices.append("Se alcanzó el máximo de imágenes por revisión.")
-                        continue
-                else:
-                    if attachment.size > self.settings.max_file_bytes:
-                        notices.append(f"Se omitió un archivo mayor al límite de tamaño ({attachment.id}).")
-                        continue
-                    if (
-                        historical
-                        and historical_files_used >= self.settings.thread_context_max_historical_files
-                    ):
-                        notices.append("Se limitaron los archivos históricos del hilo.")
-                        continue
-                    if file_count >= self.settings.max_files_per_review:
-                        notices.append("Se alcanzó el máximo de archivos por revisión.")
-                        continue
-                    if total_file_bytes + attachment.size > self.settings.max_total_file_bytes:
-                        notices.append("Los archivos alcanzaron el límite de tamaño total.")
-                        continue
+                    # Images remain discoverable through the message attachment IDs, but their
+                    # pixels are deliberately deferred to get_message_attachments. This keeps
+                    # low-quality screenshots out of the initial model input.
+                    continue
+                if attachment.size > self.settings.max_file_bytes:
+                    notices.append(f"Se omitió un archivo mayor al límite de tamaño ({attachment.id}).")
+                    continue
+                if (
+                    historical
+                    and historical_files_used >= self.settings.thread_context_max_historical_files
+                ):
+                    notices.append("Se limitaron los archivos históricos del hilo.")
+                    continue
+                if file_count >= self.settings.max_files_per_review:
+                    notices.append("Se alcanzó el máximo de archivos por revisión.")
+                    continue
+                if total_file_bytes + attachment.size > self.settings.max_total_file_bytes:
+                    notices.append("Los archivos alcanzaron el límite de tamaño total.")
+                    continue
 
                 selected.append(
                     DiscordAttachment(
@@ -482,15 +471,10 @@ class DiscordContextBuilder:
                         input_kind=input_kind.value,
                     )
                 )
-                if input_kind is AttachmentInputKind.IMAGE:
-                    image_count += 1
-                    if historical:
-                        historical_images_used += 1
-                else:
-                    file_count += 1
-                    total_file_bytes += attachment.size
-                    if historical:
-                        historical_files_used += 1
+                file_count += 1
+                total_file_bytes += attachment.size
+                if historical:
+                    historical_files_used += 1
 
         for message in prioritized:
             add_from(message, historical=False)
@@ -499,7 +483,7 @@ class DiscordContextBuilder:
         return selected, list(dict.fromkeys(notices))
 
 
-def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, Any]]:
+def render_agent_input(case: ReviewCase) -> list[dict[str, Any]]:
     """Render Discord history as native user/assistant turns for one SDK run."""
 
     attachments_by_message: dict[int, list[DiscordAttachment]] = {}
@@ -508,16 +492,22 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
 
     known_message_ids = {message.id for message in case.messages}
     orphan_attachments = [
-        attachment for attachment in case.attachments if attachment.message_id not in known_message_ids
+        attachment
+        for attachment in case.attachments
+        if attachment.message_id not in known_message_ids and not attachment.is_image
     ]
     rendered: list[dict[str, Any]] = []
     orphan_rendered = False
     for message in case.messages:
         if message.is_trigger and orphan_attachments:
-            rendered.append(_render_orphan_attachments(orphan_attachments, image_detail))
+            rendered.append(_render_orphan_attachments(orphan_attachments))
             orphan_rendered = True
 
-        message_attachments = attachments_by_message.get(message.id, [])
+        message_attachments = [
+            attachment
+            for attachment in attachments_by_message.get(message.id, [])
+            if not attachment.is_image
+        ]
         text = _render_discord_message(
             message,
             case,
@@ -529,7 +519,7 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
             content: list[dict[str, Any]] = [{"type": "output_text", "text": text, "annotations": []}]
         else:
             content = [{"type": "input_text", "text": text}]
-            _append_attachment_inputs(content, message_attachments, image_detail)
+            _append_attachment_inputs(content, message_attachments)
         rendered.append(
             {
                 "role": "assistant" if message.author_is_assistant else "user",
@@ -537,10 +527,10 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
             }
         )
         if message.author_is_assistant and message_attachments:
-            rendered.append(_render_assistant_attachment_context(message_attachments, image_detail))
+            rendered.append(_render_assistant_attachment_context(message_attachments))
 
     if orphan_attachments and not orphan_rendered:
-        rendered.append(_render_orphan_attachments(orphan_attachments, image_detail))
+        rendered.append(_render_orphan_attachments(orphan_attachments))
     if not any(message.is_trigger for message in case.messages):
         fallback_content: list[dict[str, Any]] = [
             {
@@ -549,7 +539,10 @@ def render_agent_input(case: ReviewCase, image_detail: str) -> list[dict[str, An
             }
         ]
         if not rendered:
-            _append_attachment_inputs(fallback_content, case.attachments, image_detail)
+            _append_attachment_inputs(
+                fallback_content,
+                [attachment for attachment in case.attachments if not attachment.is_image],
+            )
         rendered.append({"role": "user", "content": fallback_content})
     return rendered
 
@@ -621,8 +614,8 @@ def _render_discord_message(
         lines.append(f"Adjuntos cargados en contexto: {loaded_attachment_count}/{total_attachments}")
         if loaded_attachment_count < total_attachments:
             lines.append(
-                "Hay adjuntos omitidos: recupéralos con get_message_attachments usando este "
-                "message_id antes de concluir que falta material."
+                "Hay adjuntos diferidos: puedes recuperarlos con get_message_attachments usando "
+                "este message_id cuando el workflow requiera inspección visual o fallback."
             )
     if message.ambient_attachment_summary:
         lines.append(
@@ -673,31 +666,13 @@ def _attachment_group_summary(singular: str, plural: str, names: list[str]) -> s
 def _append_attachment_inputs(
     content: list[dict[str, Any]],
     attachments: list[DiscordAttachment],
-    image_detail: str,
 ) -> None:
-    images = [attachment for attachment in attachments if attachment.is_image]
     files = [attachment for attachment in attachments if not attachment.is_image]
-    image_position = 0
     file_position = 0
     for attachment in attachments:
         if attachment.is_image:
-            image_position += 1
-            dimensions = (
-                f"{attachment.width}x{attachment.height}"
-                if attachment.width and attachment.height
-                else "desconocidas"
-            )
-            content.append(
-                {
-                    "type": "input_text",
-                    "text": (
-                        f"Imagen adjunta {image_position}/{len(images)}; "
-                        f"archivo={attachment.filename}; dimensiones={dimensions}. "
-                        "Identifica su función por el contenido, no por el nombre."
-                    ),
-                }
-            )
-            content.append({"type": "input_image", "image_url": attachment.url, "detail": image_detail})
+            # Images are loaded only through get_message_attachments when the workflow needs
+            # visual fallback or the user explicitly requests visual inspection.
             continue
 
         file_position += 1
@@ -721,7 +696,6 @@ def _append_attachment_inputs(
 
 def _render_orphan_attachments(
     attachments: list[DiscordAttachment],
-    image_detail: str,
 ) -> dict[str, Any]:
     content: list[dict[str, Any]] = [
         {
@@ -731,13 +705,15 @@ def _render_orphan_attachments(
             ),
         }
     ]
-    _append_attachment_inputs(content, attachments, image_detail)
+    _append_attachment_inputs(
+        content,
+        [attachment for attachment in attachments if not attachment.is_image],
+    )
     return {"role": "user", "content": content}
 
 
 def _render_assistant_attachment_context(
     attachments: list[DiscordAttachment],
-    image_detail: str,
 ) -> dict[str, Any]:
     content: list[dict[str, Any]] = [
         {
@@ -745,7 +721,7 @@ def _render_assistant_attachment_context(
             "text": ("[CONTEXTO_PREVIO]\nAdjuntos publicados por el agente en su respuesta anterior."),
         }
     ]
-    _append_attachment_inputs(content, attachments, image_detail)
+    _append_attachment_inputs(content, attachments)
     return {"role": "user", "content": content}
 
 

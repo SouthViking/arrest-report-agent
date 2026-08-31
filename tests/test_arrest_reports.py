@@ -319,6 +319,46 @@ async def test_full_agent_can_search_fetch_and_replace_thread_binding() -> None:
 
 
 @pytest.mark.asyncio
+async def test_initial_review_can_bind_the_imminent_report_thread() -> None:
+    lookup = FakeArrestLookup()
+    tools = _tools(lookup, AgentAccessLevel.FULL)
+    context = _context()
+    context.case = context.case.model_copy(
+        update={
+            "channel_id": 22222222222222222,
+            "thread_id": None,
+            "root_message_id": 55555555555555555,
+            "trigger_message_id": 55555555555555555,
+            "interaction_mode": InteractionMode.INITIAL_REVIEW,
+        }
+    )
+    arguments = json.dumps({"report_id": 321, "bind_to_current_thread": True})
+
+    result = await tools["get_arrest_report"].on_invoke_tool(  # type: ignore[attr-defined]
+        ToolContext(
+            context=context,
+            tool_name="get_arrest_report",
+            tool_call_id="detail",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert result["bound_to_current_thread"] is True
+    assert lookup.binds == [
+        {
+            "guild_id": 11111111111111111,
+            "root_message_id": 55555555555555555,
+            "parent_channel_id": 22222222222222222,
+            "thread_id": 55555555555555555,
+            "report_id": 321,
+            "actor_user_id": 66666666666666666,
+            "trigger_message_id": 55555555555555555,
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_owner_can_only_fetch_current_bound_report() -> None:
     lookup = FakeArrestLookup()
     tools = _tools(lookup, AgentAccessLevel.REPORT_OWNER)

@@ -28,7 +28,7 @@ def _owner_report_attachments(count: int = 4) -> list[SimpleNamespace]:
     ]
 
 
-def test_render_includes_every_selected_character_and_report_image() -> None:
+def test_render_defers_every_selected_character_and_report_image() -> None:
     attachments = [
         DiscordAttachment(
             id=index,
@@ -78,14 +78,12 @@ def test_render_includes_every_selected_character_and_report_image() -> None:
         context_state=ContextState.COMPLETE,
     )
 
-    rendered = render_agent_input(case, "original")
+    rendered = render_agent_input(case)
     content = rendered[0]["content"]
     images = [part for part in content if part["type"] == "input_image"]
     text = content[0]["text"]
 
-    assert len(images) == 4
-    assert all(image["detail"] == "original" for image in images)
-    assert {image["image_url"] for image in images} == {attachment.url for attachment in attachments}
+    assert images == []
     assert "Solicitante: Teniente Charles Harrington" in text
     assert "Roles del solicitante: Teniente, GNT" in text
     assert "Participantes consultables (user_id=nombre): 20=Teniente Charles Harrington" in text
@@ -93,7 +91,9 @@ def test_render_includes_every_selected_character_and_report_image() -> None:
     assert "Atiende la solicitud actual" in text
     assert "una revisión se publicará en hilo" in text
     assert "elige reply o hilo" in text
-    assert "Adjuntos cargados en contexto: 4/4" in text
+    assert "Adjuntos cargados en contexto: 0/4" in text
+    assert "adjuntos diferidos" in text
+    assert "get_message_attachments" in text
     assert "Revisa el estado actual" not in text
 
 
@@ -146,10 +146,10 @@ def test_render_identifies_omitted_attachments_and_recovery_tool() -> None:
         context_notice="Se limitaron las imágenes históricas del hilo.",
     )
 
-    rendered = render_agent_input(case, "original")
+    rendered = render_agent_input(case)
     historical_text = rendered[0]["content"][0]["text"]
 
-    assert "Adjuntos cargados en contexto: 2/4" in historical_text
+    assert "Adjuntos cargados en contexto: 0/4" in historical_text
     assert "get_message_attachments" in historical_text
     assert f"mensaje={message_id}" in historical_text
 
@@ -218,7 +218,7 @@ def test_render_includes_roles_of_other_human_participants_once() -> None:
         attachments=[],
     )
 
-    rendered = render_agent_input(case, "original")
+    rendered = render_agent_input(case)
     trigger_text = rendered[-1]["content"][0]["text"]
 
     assert (
@@ -268,7 +268,7 @@ def test_render_sends_supported_documents_as_file_url_inputs() -> None:
         attachments=attachments,
     )
 
-    content = render_agent_input(case, "original")[0]["content"]
+    content = render_agent_input(case)[0]["content"]
     files = [part for part in content if part["type"] == "input_file"]
     labels = [part["text"] for part in content if part["type"] == "input_text"][1:]
 
@@ -326,14 +326,13 @@ def test_attachment_selection_includes_files_and_rejects_unsupported_types(setti
         target,
     )
 
-    assert [item.id for item in selected] == [2, 1]
-    assert [item.input_kind for item in selected] == ["file", "image"]
+    assert [item.id for item in selected] == [2]
+    assert [item.input_kind for item in selected] == ["file"]
     assert selected[0].is_current is True
-    assert selected[1].is_current is False
     assert notices == ["Se omitió el archivo no compatible 'material.zip'."]
 
 
-def test_attachment_selection_limits_historical_files_separately_from_images(settings, persona) -> None:
+def test_attachment_selection_defers_images_and_limits_historical_files(settings, persona) -> None:
     settings.thread_context_max_historical_files = 1
     settings.thread_context_max_historical_images = 1
 
@@ -371,9 +370,9 @@ def test_attachment_selection_limits_historical_files_separately_from_images(set
         target,
     )
 
-    assert [item.id for item in selected] == [6, 1, 5, 3]
+    assert [item.id for item in selected] == [6, 1, 3]
     assert "Se limitaron los archivos históricos del hilo." in notices
-    assert "Se limitaron las imágenes históricas del hilo." in notices
+    assert "Se limitaron las imágenes históricas del hilo." not in notices
 
 
 def test_bot_embed_content_is_preserved_in_thread_history(settings, persona) -> None:
@@ -449,7 +448,7 @@ def test_render_preserves_reply_and_edit_context() -> None:
         attachments=[],
     )
 
-    rendered = render_agent_input(case, "original")
+    rendered = render_agent_input(case)
     text = "\n".join(item["content"][0]["text"] for item in rendered)
 
     assert [item["role"] for item in rendered] == ["user", "user"]
@@ -473,7 +472,7 @@ def test_render_describes_inline_reply_without_delegating_routing() -> None:
         attachments=[],
     )
 
-    text = render_agent_input(case, "original")[0]["content"][0]["text"]
+    text = render_agent_input(case)[0]["content"][0]["text"]
 
     assert "Entorno de Discord: canal; la respuesta se publicará como reply al mensaje actual." in text
 
@@ -937,7 +936,7 @@ async def test_existing_thread_history_uses_message_limit_and_preserves_root_and
     assert case.context_state is ContextState.TRUNCATED
     assert case.context_notice == "El historial fue limitado a los mensajes más recientes."
     assert case.response_route == "thread"
-    rendered = render_agent_input(case, "original")
+    rendered = render_agent_input(case)
     assert [item["role"] for item in rendered] == ["user", "assistant", "user"]
     assert "RESPUESTA_DEL_AGENTE" in rendered[1]["content"][0]["text"]
     assert rendered[1]["content"][0] == {
@@ -1023,7 +1022,7 @@ async def test_channel_context_includes_bounded_prior_text_without_historical_at
     assert case.attachments == []
     assert case.context_state is ContextState.TRUNCATED
     assert case.context_notice == ("El contexto del canal fue limitado a los mensajes más recientes.")
-    rendered = render_agent_input(case, "original")
+    rendered = render_agent_input(case)
     assert "CONTEXTO_PREVIO_CANAL" in rendered[0]["content"][0]["text"]
     assert "CONTEXTO_PREVIO_CANAL" in rendered[1]["content"][0]["text"]
     assert "contenido y URL omitidos" in rendered[1]["content"][0]["text"]
@@ -1125,7 +1124,7 @@ def test_only_authenticated_discord_bot_is_rendered_as_assistant(settings, perso
         attachments=[],
     )
 
-    rendered = render_agent_input(case, "original")
+    rendered = render_agent_input(case)
 
     assert [item.author_is_assistant for item in converted] == [False, True, False, False]
     assert [item["role"] for item in rendered] == ["user", "assistant", "user", "user"]
@@ -1197,14 +1196,10 @@ def test_attachments_remain_with_their_originating_conversation_turn() -> None:
         attachments=[document, image],
     )
 
-    rendered = render_agent_input(case, "original")
+    rendered = render_agent_input(case)
 
     assert [item["role"] for item in rendered] == ["user", "assistant", "user"]
-    assert [part["type"] for part in rendered[0]["content"]] == [
-        "input_text",
-        "input_text",
-        "input_image",
-    ]
+    assert [part["type"] for part in rendered[0]["content"]] == ["input_text"]
     assert [part["type"] for part in rendered[1]["content"]] == ["output_text"]
     assert [part["type"] for part in rendered[2]["content"]] == [
         "input_text",
@@ -1257,7 +1252,7 @@ def test_assistant_attachments_are_reintroduced_as_user_input_context() -> None:
         attachments=[attachment],
     )
 
-    rendered = render_agent_input(case, "original")
+    rendered = render_agent_input(case)
 
     assert [item["role"] for item in rendered] == ["assistant", "user", "user"]
     assert [part["type"] for part in rendered[0]["content"]] == ["output_text"]
@@ -1332,7 +1327,7 @@ async def test_context_includes_only_brief_relevant_requester_role_names(setting
         "Rol 3",
     ]
     assert case.messages[0].author_role_names == case.requester_role_names
-    rendered = render_agent_input(case, "original")[0]["content"][0]["text"]
+    rendered = render_agent_input(case)[0]["content"][0]["text"]
     assert "Roles del solicitante: Rol 10, Rol 9, Rol 8, Rol 7, Rol 6, Rol 5, Rol 4, Rol 3" in rendered
     assert "Integración" not in rendered
     assert "@everyone" not in rendered

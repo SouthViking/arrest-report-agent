@@ -1052,10 +1052,17 @@ async def test_attachment_tool_loads_omitted_native_inputs_with_run_scope() -> N
     assert [type(output) for output in result] == [
         ToolOutputText,
         ToolOutputImage,
+        ToolOutputImage,
         ToolOutputFileContent,
     ]
     metadata = json.loads(result[0].text)
     assert metadata["loaded"] == [
+        {
+            "attachment_id": str(loaded_image_id),
+            "filename": "frontal.png",
+            "kind": "image",
+            "size": 1000,
+        },
         {
             "attachment_id": str(omitted_image_id),
             "filename": "cargos.png",
@@ -1069,19 +1076,13 @@ async def test_attachment_tool_loads_omitted_native_inputs_with_run_scope() -> N
             "size": 3000,
         },
     ]
-    assert metadata["skipped"] == [
-        {
-            "attachment_id": str(loaded_image_id),
-            "filename": "frontal.png",
-            "kind": "image",
-            "size": 1000,
-            "reason": "already_loaded",
-        }
-    ]
-    assert result[1].image_url == "https://cdn.discord.test/cargos.png"
+    assert metadata["skipped"] == []
+    assert result[1].image_url == "https://cdn.discord.test/frontal.png"
     assert result[1].detail == "auto"
-    assert result[2].file_url == "https://cdn.discord.test/narrativa.txt"
-    assert result[2].filename == "narrativa.txt"
+    assert result[2].image_url == "https://cdn.discord.test/cargos.png"
+    assert result[2].detail == "auto"
+    assert result[3].file_url == "https://cdn.discord.test/narrativa.txt"
+    assert result[3].filename == "narrativa.txt"
     assert run_context.loaded_attachment_ids == {
         loaded_image_id,
         omitted_image_id,
@@ -1179,6 +1180,90 @@ async def test_attachment_tool_enforces_limits_and_reports_missing_ids() -> None
         "unsupported_type",
         "not_found_in_message",
     ]
+
+
+@pytest.mark.asyncio
+async def test_attachment_tool_limits_historical_images_loaded_on_demand() -> None:
+    root_message_id = 44444444444444444
+    trigger_message_id = 44444444444444445
+    historical_message_id = 44444444444444443
+    first_image_id = 55555555555555551
+    second_image_id = 55555555555555552
+    directory = FakeMessageDirectory(
+        MessageLookupResult(messages=()),
+        MessageAttachmentLookupResult(
+            attachments=tuple(
+                MessageAttachmentProfile(
+                    id=image_id,
+                    filename=f"historical-{image_id}.png",
+                    url=f"https://cdn.discord.test/historical-{image_id}.png",
+                    content_type="image/png",
+                    size=1000,
+                    width=800,
+                    height=600,
+                    input_kind="image",
+                )
+                for image_id in (first_image_id, second_image_id)
+            )
+        ),
+    )
+    case = ReviewCase(
+        guild_id=98765432109876543,
+        parent_channel_id=11111111111111111,
+        channel_id=root_message_id,
+        thread_id=root_message_id,
+        root_message_id=root_message_id,
+        trigger_message_id=trigger_message_id,
+        requester_user_id=33333333333333333,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=FakePublisher(),
+        attempt=1,
+        message_directory=directory,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+            max_historical_images=1,
+        )
+    }
+    arguments = json.dumps(
+        {
+            "message_id": str(historical_message_id),
+            "attachment_ids": [str(first_image_id), str(second_image_id)],
+        }
+    )
+
+    result = await tools["get_message_attachments"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="get_message_attachments",
+            tool_call_id="call-historical-attachments",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    metadata = json.loads(result[0].text)
+    assert [item["attachment_id"] for item in metadata["loaded"]] == [str(first_image_id)]
+    assert metadata["skipped"] == [
+        {
+            "attachment_id": str(second_image_id),
+            "filename": f"historical-{second_image_id}.png",
+            "kind": "image",
+            "size": 1000,
+            "reason": "historical_image_limit",
+        }
+    ]
+    assert metadata["remaining_capacity"]["historical_images"] == 0
+    assert run_context.loaded_image_count == 1
+    assert run_context.loaded_historical_image_count == 1
 
 
 @pytest.mark.asyncio

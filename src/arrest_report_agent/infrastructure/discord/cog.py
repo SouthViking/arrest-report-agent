@@ -629,10 +629,7 @@ class ReviewCog(commands.Cog):
                             **exception_fields(publication_error),
                         )
                     return
-                agent_input = render_agent_input(
-                    case,
-                    self.service.model.runtime_defaults.image_detail,
-                )
+                agent_input = render_agent_input(case)
                 owner_reservation = None
                 if access_level is AgentAccessLevel.REPORT_OWNER:
                     max_rounds = getattr(self.settings, "report_owner_access_max_rounds", None)

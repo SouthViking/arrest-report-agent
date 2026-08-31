@@ -1,20 +1,28 @@
 {
   "schema_version": 3,
-  "version": "0.24.0",
-  "title": "Pagers visibles en el chat",
-  "summary": "Los nuevos pagers ahora también aparecen como reenvíos nativos en el canal general de la facción.",
+  "version": "0.25.0",
+  "title": "Revisión de reportes más precisa",
+  "summary": "El agente ahora prioriza la versión vigente del reporte en SARP y utiliza las capturas solo cuando realmente son necesarias.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "Cada pager publicado se reenvía automáticamente a #chat para darle mayor visibilidad."
+      "type": "improved",
+      "text": "Las revisiones nuevas buscan primero el reporte vigente por sospechoso y agente."
     },
     {
       "type": "improved",
-      "text": "El destino del reenvío es configurable y un fallo secundario no afecta el pager original."
+      "text": "La búsqueda reconoce nombres abreviados y apodos de Discord con múltiples personajes."
+    },
+    {
+      "type": "improved",
+      "text": "Cuando existen varias coincidencias, el agente solicita seleccionar el reporte correcto en vez de elegirlo al azar."
+    },
+    {
+      "type": "improved",
+      "text": "Las capturas quedan como respaldo ante reportes ausentes o temporalmente no disponibles en SARP."
     }
   ],
   "acknowledgements": []

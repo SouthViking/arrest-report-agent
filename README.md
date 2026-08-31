@@ -571,7 +571,7 @@ el contenido exacto del FAQ.
 | `MAX_TOTAL_FILE_BYTES` | `52428800` | Techo global combinado de archivos por ejecución. |
 | `CHANNEL_CONTEXT_MAX_MESSAGES` | `5` | Mensajes de texto anteriores del canal usados como contexto ambiental; `0` lo desactiva. |
 | `THREAD_CONTEXT_MAX_MESSAGES` | `20` | Historial reciente reconstruido. |
-| `THREAD_CONTEXT_MAX_HISTORICAL_IMAGES` | `2` | Imágenes previas incluidas inicialmente; las omitidas pueden recuperarse bajo demanda. |
+| `THREAD_CONTEXT_MAX_HISTORICAL_IMAGES` | `2` | Máximo de imágenes históricas que el agente puede recuperar bajo demanda por ejecución. |
 | `THREAD_CONTEXT_MAX_HISTORICAL_FILES` | `2` | Archivos previos reutilizados como contexto. |
 | `OPENAI_TRACING_ENABLED` | `true` | Habilita traces del Agents SDK. |
 | `OPENAI_TRACE_INCLUDE_SENSITIVE_DATA` | `false` | Excluye mensajes, imágenes, archivos y tool payloads del trace. |

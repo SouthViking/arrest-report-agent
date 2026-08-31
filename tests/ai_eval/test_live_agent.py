@@ -6,6 +6,7 @@ production prompt, scope guardrail, local knowledge tools, terminal tools and co
 
 from __future__ import annotations
 
+import base64
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -23,8 +24,17 @@ from arrest_report_agent.application.ports import (
     ArrestReportSummary,
     GuildRoleProfile,
     GuildRoleSearchResult,
+    MessageAttachmentLookupResult,
+    MessageAttachmentProfile,
+    MessageLookupQuery,
+    MessageLookupResult,
 )
-from arrest_report_agent.config import AppSettings, ModelCatalog, PackagedPersonaProvider
+from arrest_report_agent.config import (
+    AppSettings,
+    ModelCatalog,
+    PackagedPersonaProvider,
+    load_global_profile_banner,
+)
 from arrest_report_agent.domain import (
     AgentAccessLevel,
     ConversationMessage,
@@ -126,9 +136,18 @@ class FieldStaffRoleDirectory:
 class RecordingArrestReportLookup:
     """Expose live-shaped SARP results while recording the agent's search strategy."""
 
-    def __init__(self, *, unavailable: bool = False, ambiguous_first: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        unavailable: bool = False,
+        ambiguous_first: bool = False,
+        no_results: bool = False,
+        persistent_ambiguity: bool = False,
+    ) -> None:
         self.unavailable = unavailable
         self.ambiguous_first = ambiguous_first
+        self.no_results = no_results
+        self.persistent_ambiguity = persistent_ambiguity
         self.searches: list[ArrestReportSearchQuery] = []
         self.details: list[int] = []
         self.current: list[tuple[int, int]] = []
@@ -159,6 +178,14 @@ class RecordingArrestReportLookup:
 
     async def search(self, query: ArrestReportSearchQuery) -> ArrestReportSearchResult:
         self.searches.append(query)
+        if self.no_results:
+            return ArrestReportSearchResult(
+                reports=(),
+                total=0,
+                page=query.page,
+                limit=query.limit,
+                has_more=False,
+            )
         reports = [
             ArrestReportSummary(
                 report_id=self.report.report_id,
@@ -176,6 +203,16 @@ class RecordingArrestReportLookup:
                     officer_name="Marco Ruiz",
                     description="Otro procedimiento distinto.",
                     created_at=self.report.created_at - timedelta(days=1),
+                )
+            )
+        if self.persistent_ambiguity:
+            reports.append(
+                ArrestReportSummary(
+                    report_id=752,
+                    suspect_name=self.report.suspect_name,
+                    officer_name=self.report.officer_name,
+                    description="Segundo procedimiento plausible del mismo agente.",
+                    created_at=self.report.created_at - timedelta(hours=3),
                 )
             )
         return ArrestReportSearchResult(
@@ -210,6 +247,57 @@ class RecordingArrestReportLookup:
         return ArrestReportDetailResult(report=self.report)
 
 
+class RecordingMessageDirectory:
+    """Return one real image payload and record lazy attachment reads."""
+
+    def __init__(self) -> None:
+        encoded = base64.b64encode(load_global_profile_banner()).decode("ascii")
+        self.image_url = f"data:image/png;base64,{encoded}"
+        self.attachment_calls: list[tuple[int, int, int, int, int, tuple[int, ...]]] = []
+
+    async def lookup_messages(
+        self,
+        _guild_id: int,
+        _requester_user_id: int,
+        _current_channel_id: int,
+        _query: MessageLookupQuery,
+    ) -> MessageLookupResult:
+        return MessageLookupResult(messages=())
+
+    async def lookup_message_attachments(
+        self,
+        guild_id: int,
+        requester_user_id: int,
+        current_channel_id: int,
+        channel_id: int,
+        message_id: int,
+        attachment_ids: tuple[int, ...],
+    ) -> MessageAttachmentLookupResult:
+        self.attachment_calls.append(
+            (
+                guild_id,
+                requester_user_id,
+                current_channel_id,
+                channel_id,
+                message_id,
+                attachment_ids,
+            )
+        )
+        return MessageAttachmentLookupResult(
+            attachments=(
+                MessageAttachmentProfile(
+                    id=9001,
+                    filename="reporte.png",
+                    url=self.image_url,
+                    content_type="image/png",
+                    size=len(self.image_url),
+                    width=1600,
+                    height=900,
+                    input_kind="image",
+                ),
+            )
+        )
+
 @pytest.fixture
 def ai_eval_settings() -> AppSettings:
     """Load the real model selection and API key without requiring a Discord connection."""
@@ -239,6 +327,7 @@ async def _run_agent(
     radio_catalog: RecordingRadioCodeCatalog | None = None,
     access_level: AgentAccessLevel = AgentAccessLevel.FULL,
     member_directory: object | None = None,
+    message_directory: object | None = None,
     arrest_report_lookup: ArrestReportLookup | None = None,
 ) -> tuple[ReviewRunContext, InMemoryPublisher]:
     model = ModelCatalog.load_default().resolve(
@@ -252,6 +341,7 @@ async def _run_agent(
         attempt=1,
         access_level=access_level,
         member_directory=member_directory,  # type: ignore[arg-type]
+        message_directory=message_directory,  # type: ignore[arg-type]
     )
     persona = (await PackagedPersonaProvider().load(settings.bot_persona)).profile
     service = ReviewService(
@@ -266,7 +356,7 @@ async def _run_agent(
 
     await service.review(
         context,
-        render_agent_input(case, model.runtime_defaults.image_detail),
+        render_agent_input(case),
     )
 
     assert publisher.failures == [], f"agent execution failed: {publisher.failures}"
@@ -294,7 +384,12 @@ async def test_report_owner_cannot_order_a_manual_ok_reaction(
     assert publisher.messages
 
 
-def _case(*turns: tuple[str, str]) -> ReviewCase:
+def _case(
+    *turns: tuple[str, str],
+    root_author_display: str = "Ayudante Torres",
+    root_attachment_ids: tuple[int, ...] = (),
+    initial_channel_id: int = 4003,
+) -> ReviewCase:
     """Build a realistic thread transcript from user/assistant text turns."""
 
     assert turns
@@ -305,11 +400,12 @@ def _case(*turns: tuple[str, str]) -> ReviewCase:
             ConversationMessage(
                 id=_BASE_MESSAGE_ID + index,
                 author_id=_BOT_ID if is_assistant else _REQUESTER_ID,
-                author_display="Sgt. Vigil" if is_assistant else "Ayudante Torres",
+                author_display="Sgt. Vigil" if is_assistant else root_author_display,
                 author_is_bot=is_assistant,
                 author_is_assistant=is_assistant,
                 content=content,
                 created_at=_BASE_TIME + timedelta(minutes=index),
+                attachment_ids=list(root_attachment_ids) if index == 0 else [],
                 is_trigger=index == len(turns) - 1,
             )
         )
@@ -317,12 +413,12 @@ def _case(*turns: tuple[str, str]) -> ReviewCase:
     return ReviewCase(
         guild_id=4001,
         parent_channel_id=4002,
-        channel_id=messages[0].id if len(turns) > 1 else 4003,
+        channel_id=messages[0].id if len(turns) > 1 else initial_channel_id,
         thread_id=messages[0].id if len(turns) > 1 else None,
         root_message_id=messages[0].id,
         trigger_message_id=messages[-1].id,
         requester_user_id=_REQUESTER_ID,
-        requester_display_name="Elena Torres",
+        requester_display_name=root_author_display,
         requester_role_names=["Deputy Sheriff"],
         interaction_mode=(
             InteractionMode.THREAD_FOLLOW_UP if len(turns) > 1 else InteractionMode.INITIAL_REVIEW
@@ -1104,22 +1200,14 @@ async def test_owner_re_review_fetches_the_current_bound_arrest(
     assert publication.review_scope is ReviewScope.FULL
 
 
-async def test_sarp_failure_falls_back_to_available_report_context(
+async def test_sarp_failure_without_visual_material_does_not_invent_a_review(
     ai_eval_settings: AppSettings,
 ) -> None:
     lookup = RecordingArrestReportLookup(unavailable=True)
     case = _case(
         (
             "user",
-            """Las fotografías frontal y lateral están presentes y son legibles.
-
-Yo, ayudante Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las
-22:15. Observé a Daniel Vega huir de una intervención vehicular. Lo seguí hasta Idlewood, donde
-quedó detenido contra una barrera. Lo arresté sin lesiones y lo trasladé a Ganton. No se recolectó
-evidencia física.
-
-Cargos declarados:
-- CV-2801 — Evadir a un oficial de la paz.""",
+            "Mi expediente completo quedó registrado en el sistema.",
         ),
         (
             "assistant",
@@ -1131,13 +1219,139 @@ Cargos declarados:
         ),
     )
 
-    _, publisher = await _run_agent(
+    context, publisher = await _run_agent(
         ai_eval_settings,
         case,
         access_level=AgentAccessLevel.REPORT_OWNER,
         arrest_report_lookup=lookup,
     )
-    publication = _single_publication(publisher)
+    rendered_result = "\n".join(publisher.messages).casefold()
+    rendered_result += "\n" + "\n".join(
+        publication.model_dump_json().casefold() for publication in publisher.publications
+    )
 
     assert lookup.current == [(case.guild_id, case.root_message_id)]
-    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+    assert context.published or context.interaction_completed
+    assert all(
+        publication.verdict is ReviewVerdict.INCONCLUSIVE
+        for publication in publisher.publications
+    ), publisher.publications
+    assert any(term in rendered_result for term in ("sarp", "sistema", "disponible"))
+
+
+async def test_new_report_review_searches_sarp_and_binds_the_matching_report(
+    ai_eval_settings: AppSettings,
+) -> None:
+    lookup = RecordingArrestReportLookup()
+    case = _case(
+        (
+            "user",
+            "Terry McKenzie\nSolicito la revisión completa del reporte de arresto.",
+        ),
+        root_author_display="C. Harrington / M. Crawford",
+        initial_channel_id=4002,
+    )
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        arrest_report_lookup=lookup,
+    )
+
+    assert context.published or context.interaction_completed
+    assert lookup.searches, "the agent did not search SARP for the new review"
+    assert any(
+        query.suspect_name is not None and "terry" in query.suspect_name.casefold()
+        for query in lookup.searches
+    ), lookup.searches
+    assert lookup.details == [lookup.report.report_id]
+    assert lookup.bindings == [lookup.report.report_id]
+    assert publisher.publications
+
+
+async def test_new_report_review_uses_an_explicit_sarp_id_without_searching(
+    ai_eval_settings: AppSettings,
+) -> None:
+    lookup = RecordingArrestReportLookup()
+    case = _case(
+        (
+            "user",
+            "Terry McKenzie\nRevisa el reporte de arresto SARP ID 751 completo.",
+        ),
+        root_author_display="C. Harrington / M. Crawford",
+        initial_channel_id=4002,
+    )
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        arrest_report_lookup=lookup,
+    )
+
+    assert context.published or context.interaction_completed
+    assert lookup.searches == []
+    assert lookup.details == [lookup.report.report_id]
+    assert lookup.bindings == [lookup.report.report_id]
+    assert publisher.publications
+
+
+async def test_new_report_review_surfaces_persistent_sarp_ambiguity(
+    ai_eval_settings: AppSettings,
+) -> None:
+    lookup = RecordingArrestReportLookup(persistent_ambiguity=True)
+    case = _case(
+        (
+            "user",
+            "Terry McKenzie\nSolicito la revisión completa del reporte de arresto.",
+        ),
+        root_author_display="C. Harrington / M. Crawford",
+        initial_channel_id=4002,
+    )
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        arrest_report_lookup=lookup,
+    )
+    response = "\n".join(publisher.messages)
+
+    assert context.interaction_completed
+    assert lookup.searches
+    assert lookup.details == []
+    assert publisher.publications == []
+    assert "751" in response and "752" in response, response
+
+
+async def test_new_report_review_loads_images_only_after_sarp_has_no_match(
+    ai_eval_settings: AppSettings,
+) -> None:
+    lookup = RecordingArrestReportLookup(no_results=True)
+    message_directory = RecordingMessageDirectory()
+    case = _case(
+        (
+            "user",
+            "Terry McKenzie\nSolicito la revisión completa del reporte de arresto adjunto.",
+        ),
+        root_author_display="C. Harrington / M. Crawford",
+        root_attachment_ids=(9001,),
+        initial_channel_id=4002,
+    )
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        message_directory=message_directory,
+        arrest_report_lookup=lookup,
+    )
+    rendered_result = "\n".join(publisher.messages).casefold()
+    rendered_result += "\n" + "\n".join(
+        publication.model_dump_json().casefold() for publication in publisher.publications
+    )
+
+    assert context.published or context.interaction_completed
+    assert lookup.searches
+    assert lookup.details == []
+    assert message_directory.attachment_calls
+    assert context.loaded_image_count == 1
+    assert "sarp" in rendered_result
+    assert any(term in rendered_result for term in ("imagen", "captura", "adjunto")), rendered_result
