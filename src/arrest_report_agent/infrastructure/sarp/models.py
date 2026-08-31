@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
@@ -50,6 +50,19 @@ class SarpGlobalMetrics(BaseModel):
     model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
     online_account_counter: int = Field(alias="onlineAccountCounter", ge=0)
+
+
+class SarpOnlineCharacter(BaseModel):
+    """One character currently connected to the public SARP server."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    character_id: int = Field(gt=0)
+    character_name: str = Field(min_length=1, max_length=100)
+    character_level: int = Field(ge=0)
+    character_jailed: Literal[0, 1]
+    account_id: int = Field(gt=0)
+    account_name: str = Field(min_length=1, max_length=100)
 
 
 class SarpServerCacheInfo(BaseModel):

@@ -47,6 +47,7 @@ from .models import (
     SarpFactionRank,
     SarpFinePage,
     SarpGlobalMetrics,
+    SarpOnlineCharacter,
     SarpPenalCodePayload,
     SarpRateLimit,
     SarpResponse,
@@ -86,6 +87,7 @@ FACTION_FREQUENCIES_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionFrequency])
 FACTION_RANKS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionRank])
 FACTION_RADIO_LOG_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionRadioLogPage)
 GLOBAL_METRICS_PAYLOAD_ADAPTER = TypeAdapter(SarpGlobalMetrics)
+ONLINE_CHARACTERS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpOnlineCharacter])
 SERVER_CACHE_INFO_PAYLOAD_ADAPTER = TypeAdapter(SarpServerCacheInfo)
 
 
@@ -276,6 +278,16 @@ class SarpClient:
             "GET",
             "/public/global-metrics",
             payload_adapter=GLOBAL_METRICS_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def get_online_characters(self) -> list[SarpOnlineCharacter]:
+        """Fetch the public snapshot of characters currently connected."""
+
+        response = await self.request(
+            "GET",
+            "/public/global-metrics/online",
+            payload_adapter=ONLINE_CHARACTERS_PAYLOAD_ADAPTER,
         )
         return response.payload
 

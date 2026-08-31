@@ -552,6 +552,8 @@ el contenido exacto del FAQ.
 | `SARP_API_MAX_RETRIES` | `2` | Reintentos máximos para lecturas seguras ante transporte, rate limit o errores transitorios. |
 | `SARP_EMERGENCY_CALL_POLL_SECONDS` | `30` | Intervalo del feed de llamadas de servicio; admite entre 10 y 3600 segundos y no consulta la API sin canales activos. |
 | `SARP_STOLEN_VEHICLE_POLL_SECONDS` | `60` | Intervalo del feed de vehículos robados; admite entre 10 y 3600 segundos y no consulta la API sin canales activos. |
+| `SARP_ONLINE_PLAYERS_CACHE_SECONDS` | `30` | Vigencia local del listado público de personajes conectados usado por `/internos`; admite entre 0 y 300 segundos. |
+| `ONLINE_INMATES_PAGE_SIZE` | `10` | Cantidad de nombres mostrados por página en `/internos`; admite entre 1 y 25. |
 | `DISCORD_GUILD_IDS` | `*` | Servidores permitidos; acepta CSV. `DISCORD_GUILD_ID` queda como alias compatible. |
 | `REPORT_CHANNEL_IDS` | `*` | Canales usados por búsquedas, resúmenes, rankings, supervisión y ayuda; no restringe menciones. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` quedan como aliases compatibles. |
 | `AUTHORIZED_USER_IDS` | `*` | `*`/vacío permite a todos; una lista CSV limita la ejecución a esos usuarios. |

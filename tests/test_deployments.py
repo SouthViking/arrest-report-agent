@@ -61,13 +61,13 @@ def test_railway_payload_normalizes_supported_events_and_identity() -> None:
 def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     manifest = ReleaseManifest.load_packaged()
 
-    assert manifest.version == "0.26.3"
+    assert manifest.version == "0.26.4"
     assert manifest.repository_url == "https://github.com/SouthViking/arrest-report-agent"
-    assert manifest.changelog_targets == (1241206587079524442,)
+    assert manifest.changelog_targets == "all"
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "historial de conversación" in rendered_changes
-    assert "repetir innecesariamente" in rendered_changes
+    assert "`/internos`" in rendered_changes
+    assert "alfabético y paginado" in rendered_changes
     assert manifest.acknowledgements == ()
 
 
@@ -125,7 +125,7 @@ def test_deployment_embeds_keep_operational_data_and_persona_framing(persona) ->
 
     embed = build_deployment_embed(event, manifest, persona)
 
-    assert embed.title == "🚀 Contexto persistente en expedientes · v0.26.3"
+    assert embed.title == "🚀 Consulta de internos conectados · v0.26.4"
     assert persona.messages.interface.deployments.release_intro in (embed.description or "")
     assert any(field.name == "Cambios" for field in embed.fields)
     assert all(field.name != "Agradecimientos" for field in embed.fields)
@@ -244,7 +244,7 @@ async def test_success_event_waits_for_the_matching_runtime_and_then_targets_cha
 
     assert repository.processed == [event.id]
     assert [target.channel_id for target in repository.targets] == [456, 789]
-    assert all(target.notification_key.endswith(":0.26.3") for target in repository.targets)
+    assert all(target.notification_key.endswith(":0.26.4") for target in repository.targets)
 
 
 @pytest.mark.asyncio
@@ -319,11 +319,13 @@ async def test_empty_changelog_targets_suppress_success_announcement() -> None:
         guild_ids=lambda: _async_value((123,)),
         cached=lambda _guild_id: _async_value(bundle),
     )
+    manifest_payload = ReleaseManifest.load_packaged().model_dump(mode="json")
+    manifest_payload["changelog_targets"] = []
     worker = DeploymentNotificationWorker(
         SimpleNamespace(),  # type: ignore[arg-type]
         provider,  # type: ignore[arg-type]
         repository,  # type: ignore[arg-type]
-        ReleaseManifest.load_packaged(),
+        ReleaseManifest.model_validate(manifest_payload),
         current_commit_sha="b" * 40,
     )
 

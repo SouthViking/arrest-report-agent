@@ -84,6 +84,7 @@ from arrest_report_agent.manual_quiz import (
     ManualQuizSessionRegistry,
 )
 from arrest_report_agent.mdc import MdcCog, MdcService
+from arrest_report_agent.online_inmates import OnlineInmateCog, OnlineInmateService
 from arrest_report_agent.operational_profiles import CallsignCog, MemberProfileRepository
 from arrest_report_agent.operational_resources import (
     OperationalResourcesCog,
@@ -514,6 +515,10 @@ async def build_runtime(
             sarp_client,
             directory=faction_directory,
         )
+        online_inmate_service = OnlineInmateService(
+            sarp_client,
+            cache_seconds=settings.sarp_online_players_cache_seconds,
+        )
         bot.add_cog(MdcCog(config_provider, MdcService(sarp_client), persona.profile))
         bot.add_cog(
             EvidenceBagCog(
@@ -527,6 +532,14 @@ async def build_runtime(
                 config_provider,
                 faction_status_service,
                 persona.profile,
+            )
+        )
+        bot.add_cog(
+            OnlineInmateCog(
+                config_provider,
+                online_inmate_service,
+                persona.profile,
+                page_size=settings.online_inmates_page_size,
             )
         )
         bot.add_cog(

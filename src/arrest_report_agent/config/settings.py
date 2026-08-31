@@ -241,6 +241,18 @@ class AppSettings(BaseSettings):
         ge=10,
         le=3600,
     )
+    sarp_online_players_cache_seconds: int = Field(
+        default=30,
+        alias="SARP_ONLINE_PLAYERS_CACHE_SECONDS",
+        ge=0,
+        le=300,
+    )
+    online_inmates_page_size: int = Field(
+        default=10,
+        alias="ONLINE_INMATES_PAGE_SIZE",
+        ge=1,
+        le=25,
+    )
 
     openai_model: str = Field(default="gpt-5.6-terra", alias="OPENAI_MODEL", min_length=1)
     openai_reasoning_effort: str = Field(default="medium", alias="OPENAI_REASONING_EFFORT", min_length=1)

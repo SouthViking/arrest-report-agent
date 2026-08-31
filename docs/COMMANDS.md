@@ -285,6 +285,18 @@ servidor y los enlaces oficiales. Reutiliza el servicio y las cachés de `/conec
 del caché oficial se conserva durante cinco minutos y, si esa consulta falla, se omite solamente
 esa sección. `/conectados` sigue siendo el comando para consultar el detalle nominal del personal.
 
+## `/internos`
+
+Se registra únicamente con `SARP_API_ENABLED=true`, funciona en cualquier canal y exige pertenecer
+a `operational_staff_roles`. Publica para todo el canal un listado alfabético de los personajes
+conectados cuyo estado actual indica que están en prisión. No muestra nivel, cuenta ni IDs internos.
+
+La consulta usa el endpoint público de personajes conectados mediante el cliente SARP compartido.
+La muestra se conserva brevemente en memoria, agrupa solicitudes concurrentes y se reutiliza durante
+toda la navegación sin nuevas consultas. `SARP_ONLINE_PLAYERS_CACHE_SECONDS` controla el TTL local y
+`ONLINE_INMATES_PAGE_SIZE` la cantidad de nombres por página. Los detalles del caché no se exponen en
+Discord.
+
 ## `/vehiculos-robados`
 
 Se registra únicamente con `SARP_API_ENABLED=true` y funciona en cualquier canal para miembros de

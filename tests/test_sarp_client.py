@@ -224,6 +224,47 @@ async def test_global_metrics_endpoint_returns_connected_account_counter() -> No
     assert metrics == SarpGlobalMetrics(onlineAccountCounter=109)
 
 
+async def test_online_characters_endpoint_returns_validated_public_snapshot() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/public/global-metrics/online"
+        assert request.headers["Authorization"] == "Bearer sarp_test"
+        return web.json_response(
+            {
+                "message": "OK",
+                "httpCode": 200,
+                "source": "home",
+                "payload": [
+                    {
+                        "character_id": 2052,
+                        "character_name": "Abigail_Hernandez",
+                        "character_level": 21,
+                        "character_jailed": 0,
+                        "account_id": 2051,
+                        "account_name": "Sidewinder",
+                    },
+                    {
+                        "character_id": 14155,
+                        "character_name": "Sebastian_Albarracin",
+                        "character_level": 4,
+                        "character_jailed": 1,
+                        "account_id": 13244,
+                        "account_name": "Sebastian_Albarracin",
+                    },
+                ],
+            }
+        )
+
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
+        characters = await client.get_online_characters()
+
+    assert len(characters) == 2
+    assert characters[0].character_name == "Abigail_Hernandez"
+    assert characters[1].character_jailed == 1
+
+
 async def test_server_cache_endpoint_returns_validated_artifact_metadata() -> None:
     async def handler(request: web.Request) -> web.Response:
         assert request.path == "/api/public/server-cache/download"
