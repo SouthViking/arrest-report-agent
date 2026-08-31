@@ -706,7 +706,7 @@ def test_arrest_lookup_migration_enables_only_lssd_and_creates_bindings() -> Non
         command.downgrade(alembic, "base")
         command.upgrade(alembic, "20260817_0032")
         asyncio.run(_seed_service_call_configuration_targets(database_url))
-        asyncio.run(_clear_pager_forward_configuration(database_url))
+        asyncio.run(_seed_pager_forward_configuration(database_url))
         command.upgrade(alembic, "head")
         asyncio.run(_assert_arrest_lookup_configuration(database_url))
         asyncio.run(
@@ -1152,19 +1152,35 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         await client.close()
 
 
-async def _clear_pager_forward_configuration(database_url: str) -> None:
+async def _seed_pager_forward_configuration(database_url: str) -> None:
     client = PostgresClient(PostgresClientConfig(url=database_url))
     await client.open()
     try:
-        await client.execute(
+        revisions = await client.fetch_all(
             sa.text(
-                "UPDATE guild_feature_settings AS feature "
-                "SET payload = feature.payload - 'forward_channel_id' "
-                "FROM guild_config_revisions AS revision "
-                "WHERE feature.config_revision_id = revision.id "
-                "AND feature.feature_key = 'pagers'"
+                "SELECT id, guild_id FROM guild_config_revisions "
+                "WHERE guild_id IN (1234674521416663070, 999)"
             )
         )
+        async with client.transaction() as tx:
+            for revision in revisions:
+                guild_id = int(revision["guild_id"])
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO guild_feature_settings "
+                        "(id, config_revision_id, feature_key, enabled, schema_version, payload) "
+                        "VALUES (:id, :revision_id, 'pagers', true, 1, CAST(:payload AS jsonb)) "
+                        "ON CONFLICT (config_revision_id, feature_key) DO UPDATE "
+                        "SET payload = EXCLUDED.payload"
+                    ),
+                    {
+                        "id": uuid.uuid4(),
+                        "revision_id": revision["id"],
+                        "payload": json.dumps(
+                            {"starting_number": 92 if guild_id == 1234674521416663070 else 1}
+                        ),
+                    },
+                )
     finally:
         await client.close()
 
