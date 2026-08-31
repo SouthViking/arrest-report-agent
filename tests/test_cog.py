@@ -6,11 +6,13 @@ from types import SimpleNamespace
 import discord
 import pytest
 
+from arrest_report_agent.agent_sessions import PreparedAgentSession
 from arrest_report_agent.config import (
     OperationalResourcesOptions,
     PackagedPersonaProvider,
     SnowflakeAllowlist,
 )
+from arrest_report_agent.domain import AgentAccessLevel, InteractionMode, ReviewCase
 from arrest_report_agent.infrastructure.discord.cog import (
     ReviewCog,
     build_blocked_user_message,
@@ -65,6 +67,19 @@ class UnexpectedContextBuilder:
         raise AssertionError("Discord context must not be built for a blocked user")
 
 
+class RecordingAgentSessionManager:
+    def __init__(self) -> None:
+        self.calls = []
+
+    async def prepare(self, key, *, next_source_cursor):
+        self.calls.append((key, next_source_cursor))
+        return PreparedAgentSession(
+            session=SimpleNamespace(session_id=key.session_id),  # type: ignore[arg-type]
+            source_cursor="10",
+            created=False,
+        )
+
+
 class RecordingProfileSynchronizer:
     def __init__(self, events: list[str]) -> None:
         self.events = events
@@ -116,6 +131,51 @@ class FakeGuild:
             raise discord.NotFound(response, "Unknown Channel")
         return self.channels.get(channel_id)
 
+
+@pytest.mark.asyncio
+async def test_persistent_session_is_activated_only_in_configured_report_channels(
+    settings,
+    persona,
+) -> None:
+    manager = RecordingAgentSessionManager()
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    cog = ReviewCog(
+        bot,
+        settings,
+        UnexpectedReviewService(),  # type: ignore[arg-type]
+        persona,
+        agent_session_manager=manager,  # type: ignore[arg-type]
+    )
+    report_channel_id = next(iter(settings.report_channel_allowlist.ids or ()))
+    report_case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=report_channel_id,
+        channel_id=20,
+        thread_id=20,
+        root_message_id=10,
+        trigger_message_id=30,
+        requester_user_id=40,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[],
+        attachments=[],
+    )
+
+    prepared = await cog._prepare_agent_session(  # noqa: SLF001
+        report_case,
+        AgentAccessLevel.FULL,
+    )
+    skipped = await cog._prepare_agent_session(  # noqa: SLF001
+        report_case.model_copy(update={"parent_channel_id": 999}),
+        AgentAccessLevel.FULL,
+    )
+
+    assert prepared is not None
+    assert prepared.source_cursor == "10"
+    assert skipped is None
+    key, cursor = manager.calls[0]
+    assert key.namespace == "discord_agent_thread"
+    assert key.access_partition == "full"
+    assert cursor == "30"
 
 def test_operational_commands_are_registered_at_the_root() -> None:
     commands = [

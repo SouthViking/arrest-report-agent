@@ -12,6 +12,7 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 
+from arrest_report_agent.agent_sessions import AgentConversationKey, AgentSessionManager
 from arrest_report_agent.bootstrap.database import (
     DiscordBootstrapResolver,
     DiscordGuildInfo,
@@ -1895,5 +1896,30 @@ async def _exercise_database(database_url: str) -> None:
         assert verification["ok"] is True
         assert verification["guild_count"] == 1
         assert verification["missing_assets"] == []
+
+        session_manager = AgentSessionManager(client)
+        conversation_key = AgentConversationKey(
+            namespace="discord_agent_thread",
+            scope_key="guild:123:root:456",
+            access_partition="full",
+        )
+        first_session = await session_manager.prepare(
+            conversation_key,
+            next_source_cursor="100",
+        )
+        assert first_session.created
+        assert first_session.source_cursor is None
+        await first_session.session.add_items(  # type: ignore[arg-type]
+            [{"role": "user", "content": "primera consulta"}]
+        )
+        resumed_session = await session_manager.prepare(
+            conversation_key,
+            next_source_cursor="200",
+        )
+        assert not resumed_session.created
+        assert resumed_session.source_cursor == "100"
+        assert await resumed_session.session.get_items() == [
+            {"role": "user", "content": "primera consulta"}
+        ]
     finally:
         await client.close()

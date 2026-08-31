@@ -244,6 +244,39 @@ data_migrations = sa.Table(
     sa.Column("executed_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
 )
 
+agent_sessions = sa.Table(
+    "agent_sessions",
+    metadata,
+    sa.Column("session_id", sa.String(70), primary_key=True),
+    sa.Column("namespace", sa.String(80), nullable=False),
+    sa.Column("scope_key", sa.String(255), nullable=False),
+    sa.Column("access_partition", sa.String(80), nullable=False),
+    sa.Column("source_cursor", sa.String(255)),
+    sa.Column("created_at", sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+    sa.UniqueConstraint(
+        "namespace",
+        "scope_key",
+        "access_partition",
+        name="uq_agent_session_scope",
+    ),
+)
+
+agent_messages = sa.Table(
+    "agent_messages",
+    metadata,
+    sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column(
+        "session_id",
+        sa.String(70),
+        sa.ForeignKey("agent_sessions.session_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("message_data", sa.Text, nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=False), nullable=False, server_default=sa.func.now()),
+    sa.Index("idx_agent_messages_session_time", "session_id", "created_at"),
+)
+
 guild_member_profiles = sa.Table(
     "guild_member_profiles",
     metadata,

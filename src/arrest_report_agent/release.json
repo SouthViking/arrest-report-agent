@@ -1,20 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.26.2",
-  "title": "Búsqueda de reportes más precisa",
-  "summary": "El agente reconoce mejor a quienes usan nombres abreviados o varios personajes en Discord.",
+  "version": "0.26.3",
+  "title": "Contexto persistente en expedientes",
+  "summary": "El agente conserva el contexto de cada hilo de revisión para continuar el trabajo con mayor precisión.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Evita filtrar SARP con nombres abreviados o múltiples que podían ocultar reportes válidos."
+      "type": "added",
+      "text": "Mantiene el historial de conversación y consultas realizadas dentro de cada expediente."
     },
     {
       "type": "fixed",
-      "text": "Recupera correctamente la imagen original del reporte cuando la revisión ocurre en un hilo."
+      "text": "Evita reconstruir y repetir innecesariamente todo el historial en cada seguimiento."
     }
   ],
   "acknowledgements": []

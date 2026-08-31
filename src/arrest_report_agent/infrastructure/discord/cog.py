@@ -15,6 +15,11 @@ from typing import TYPE_CHECKING
 import discord
 from discord.ext import commands
 
+from arrest_report_agent.agent_sessions import (
+    AgentConversationKey,
+    AgentSessionManager,
+    PreparedAgentSession,
+)
 from arrest_report_agent.application import (
     PersonalReportPeriod,
     PersonalReportQuery,
@@ -30,7 +35,7 @@ from arrest_report_agent.config import (
     PersonaAccessMessages,
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
-from arrest_report_agent.domain import AgentAccessLevel, ErrorKind
+from arrest_report_agent.domain import AgentAccessLevel, ErrorKind, ReviewCase
 from arrest_report_agent.domain.errors import ContextUnavailableError, ReportOwnerSubmissionError
 from arrest_report_agent.report_owner_access import (
     OwnerRunReservationResult,
@@ -308,6 +313,7 @@ class ReviewCog(commands.Cog):
         report_owner_run_repository: ReportOwnerRunRepository | None = None,
         manual_quiz_publisher: ManualQuizDiscordPublisher | None = None,
         poll_manager: PollManager | None = None,
+        agent_session_manager: AgentSessionManager | None = None,
     ) -> None:
         self.bot = bot
         self._config_provider = config_provider
@@ -315,6 +321,7 @@ class ReviewCog(commands.Cog):
         self.report_owner_run_repository = report_owner_run_repository
         self.manual_quiz_publisher = manual_quiz_publisher
         self.poll_manager = poll_manager
+        self.agent_session_manager = agent_session_manager
         self._runtime_context: contextvars.ContextVar[ReviewCogRuntime | None] = contextvars.ContextVar(
             "review_cog_runtime", default=None
         )
@@ -629,7 +636,6 @@ class ReviewCog(commands.Cog):
                             **exception_fields(publication_error),
                         )
                     return
-                agent_input = render_agent_input(case)
                 owner_reservation = None
                 if access_level is AgentAccessLevel.REPORT_OWNER:
                     max_rounds = getattr(self.settings, "report_owner_access_max_rounds", None)
@@ -713,8 +719,25 @@ class ReviewCog(commands.Cog):
                     message_directory=self.message_directory,
                     poll_manager=self.poll_manager,
                 )
+                prepared_session = await self._prepare_agent_session(case, access_level)
+                source_cursor = self._source_cursor_as_message_id(prepared_session)
+                if (
+                    prepared_session is not None
+                    and prepared_session.source_cursor is not None
+                    and source_cursor is None
+                ):
+                    prepared_session = None
+                agent_input = render_agent_input(case, after_message_id=source_cursor)
                 try:
-                    await self.service.review(run_context, agent_input)
+                    if prepared_session is None:
+                        await self.service.review(run_context, agent_input)
+                    else:
+                        await self.service.review(
+                            run_context,
+                            agent_input,
+                            session=prepared_session.session,
+                            stateless_agent_input=render_agent_input(case),
+                        )
                 finally:
                     if owner_reservation is not None and owner_reservation.run_id is not None:
                         try:
@@ -742,6 +765,63 @@ class ReviewCog(commands.Cog):
         finally:
             if not lock.locked():
                 self._locks.pop(root_id, None)
+
+    async def _prepare_agent_session(
+        self,
+        case: ReviewCase,
+        access_level: AgentAccessLevel,
+    ) -> PreparedAgentSession | None:
+        """Activate generic persistence only for configured report conversations."""
+
+        manager = self.agent_session_manager
+        if manager is None:
+            return None
+        configured_channels = self.settings.report_channel_allowlist.ids
+        if (
+            configured_channels is None
+            or case.parent_channel_id not in configured_channels
+        ):
+            return None
+        key = AgentConversationKey(
+            namespace="discord_agent_thread",
+            scope_key=f"guild:{case.guild_id}:root:{case.root_message_id}",
+            access_partition=access_level.value,
+        )
+        next_cursor = str(max((message.id for message in case.messages), default=case.trigger_message_id))
+        try:
+            return await manager.prepare(key, next_source_cursor=next_cursor)
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "warning",
+                "agent_session_prepare_failed",
+                exc_info=error,
+                guild_id=case.guild_id,
+                parent_channel_id=case.parent_channel_id,
+                thread_id=case.thread_id or "none",
+                root_message_id=case.root_message_id,
+                trigger_message_id=case.trigger_message_id,
+                access_level=access_level.value,
+                fallback="stateless_full_context",
+                **exception_fields(error),
+            )
+            return None
+
+    @staticmethod
+    def _source_cursor_as_message_id(session: PreparedAgentSession | None) -> int | None:
+        if session is None or session.source_cursor is None:
+            return None
+        try:
+            return int(session.source_cursor)
+        except ValueError:
+            log_event(
+                LOGGER,
+                "warning",
+                "agent_session_cursor_invalid",
+                namespace="discord_agent_thread",
+                fallback="full_context",
+            )
+            return None
 
     async def _resolve_report_channels(
         self,

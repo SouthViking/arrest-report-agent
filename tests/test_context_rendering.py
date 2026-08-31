@@ -97,6 +97,89 @@ def test_render_defers_every_selected_character_and_report_image() -> None:
     assert "Revisa el estado actual" not in text
 
 
+def test_render_session_delta_keeps_only_new_human_messages() -> None:
+    now = datetime.now(UTC)
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=50,
+        thread_id=50,
+        root_message_id=10,
+        trigger_message_id=40,
+        requester_user_id=4,
+        requester_display_name="C. Harrington / M. Crawford",
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[
+            ConversationMessage(
+                id=10,
+                author_id=1,
+                author_display="Autor",
+                author_is_bot=False,
+                content="Reporte inicial",
+                created_at=now,
+                attachment_ids=[101],
+            ),
+            ConversationMessage(
+                id=20,
+                author_id=99,
+                author_display="Agente",
+                author_is_bot=True,
+                author_is_assistant=True,
+                content="Revisión anterior",
+                created_at=now,
+                attachment_ids=[102],
+            ),
+            ConversationMessage(
+                id=30,
+                author_id=5,
+                author_display="Supervisor",
+                author_is_bot=False,
+                content="También corrigió la fecha.",
+                created_at=now,
+                attachment_ids=[103],
+            ),
+            ConversationMessage(
+                id=40,
+                author_id=4,
+                author_display="C. Harrington / M. Crawford",
+                author_is_bot=False,
+                content="Revisa de nuevo.",
+                created_at=now,
+                is_trigger=True,
+            ),
+        ],
+        attachments=[
+            DiscordAttachment(
+                id=attachment_id,
+                message_id=message_id,
+                filename=filename,
+                url=f"https://cdn.discord.test/{filename}",
+                content_type="text/plain",
+                size=100,
+                is_current=False,
+                input_kind="file",
+            )
+            for attachment_id, message_id, filename in (
+                (101, 10, "root.txt"),
+                (102, 20, "assistant.txt"),
+                (103, 30, "new.txt"),
+            )
+        ],
+    )
+
+    rendered = render_agent_input(case, after_message_id=10)
+    combined = str(rendered)
+
+    assert "Reporte inicial" not in combined
+    assert "Revisión anterior" not in combined
+    assert "También corrigió la fecha." in combined
+    assert "Revisa de nuevo." in combined
+    assert "[CONTEXTO_OPERATIVO]" in combined
+    assert "new.txt" in combined
+    assert "root.txt" not in combined
+    assert "assistant.txt" not in combined
+
+
 def test_render_identifies_omitted_attachments_and_recovery_tool() -> None:
     message_id = 10
     case = ReviewCase(

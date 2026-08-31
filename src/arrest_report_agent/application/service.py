@@ -16,6 +16,7 @@ from agents import (
     StopAtTools,
     ToolExecutionConfig,
 )
+from agents.memory import Session
 from agents.retry import ModelRetrySettings
 from openai.types.shared.reasoning import Reasoning
 
@@ -31,7 +32,7 @@ from arrest_report_agent.knowledge import (
     as_charge_catalog_provider,
 )
 
-from .errors import classify_error, public_error_message
+from .errors import AgentSessionUnavailableError, classify_error, public_error_message
 from .hooks import ReviewLifecycleHooks
 from .ports import (
     ArrestReportLookup,
@@ -169,7 +170,14 @@ class ReviewService:
 
         return self.catalog_provider.snapshot().catalog
 
-    async def review(self, run_context: ReviewRunContext, agent_input: list[dict[str, Any]]) -> None:
+    async def review(
+        self,
+        run_context: ReviewRunContext,
+        agent_input: list[dict[str, Any]],
+        *,
+        session: Session | None = None,
+        stateless_agent_input: list[dict[str, Any]] | None = None,
+    ) -> None:
         if run_context.charge_catalog_snapshot is None:
             run_context.charge_catalog_snapshot = self.catalog_provider.snapshot()
         started_at = time.monotonic()
@@ -189,25 +197,43 @@ class ReviewService:
             model=self.model.id,
             reasoning_effort=self.model.reasoning_effort,
             service_tier=self.model.runtime_defaults.service_tier,
+            session_enabled=session is not None,
             **self._log_metadata(case, run_context),
         )
         result = None
         try:
-            result = await asyncio.wait_for(
-                Runner.run(
-                    (
-                        self.report_owner_agent
-                        if run_context.access_level is AgentAccessLevel.REPORT_OWNER
-                        else self.agent
-                    ),
-                    agent_input,  # type: ignore[arg-type]
-                    context=run_context,
-                    max_turns=self.settings.max_agent_turns,
-                    hooks=self.hooks,
-                    run_config=run_config,
-                ),
-                timeout=self.settings.review_timeout_seconds,
-            )
+            try:
+                result = await self._run_agent(
+                    run_context,
+                    agent_input,
+                    run_config,
+                    session=session,
+                    started_at=started_at,
+                )
+            except AgentSessionUnavailableError as session_error:
+                if (
+                    session is None
+                    or run_context.published
+                    or run_context.interaction_completed
+                    or run_context.messages_sent_count > 0
+                ):
+                    raise
+                log_event(
+                    LOGGER,
+                    "warning",
+                    "agent_session_runtime_fallback",
+                    exc_info=session_error,
+                    fallback="stateless_full_context",
+                    **exception_fields(session_error),
+                    **self._log_metadata(case, run_context),
+                )
+                result = await self._run_agent(
+                    run_context,
+                    stateless_agent_input or agent_input,
+                    run_config,
+                    session=None,
+                    started_at=started_at,
+                )
             if not run_context.published and not run_context.interaction_completed:
                 raise RuntimeError("Agent finished without a terminal response tool")
             if run_context.published and run_context.publication is None:
@@ -253,6 +279,7 @@ class ReviewService:
                         self.persona.identity.default_form_of_address,
                     )
                 )
+
                 run_context.message_sent = True
                 run_context.messages_sent_count += 1
                 run_context.interaction_completed = True
@@ -299,6 +326,35 @@ class ReviewService:
                     **exception_fields(publication_error),
                     **self._log_metadata(case, run_context),
                 )
+
+    async def _run_agent(
+        self,
+        run_context: ReviewRunContext,
+        agent_input: list[dict[str, Any]],
+        run_config: RunConfig,
+        *,
+        session: Session | None,
+        started_at: float,
+    ) -> Any:
+        remaining_timeout = self.settings.review_timeout_seconds - (time.monotonic() - started_at)
+        if remaining_timeout <= 0:
+            raise TimeoutError("Review timeout exhausted before the agent run")
+        return await asyncio.wait_for(
+            Runner.run(
+                (
+                    self.report_owner_agent
+                    if run_context.access_level is AgentAccessLevel.REPORT_OWNER
+                    else self.agent
+                ),
+                agent_input,  # type: ignore[arg-type]
+                context=run_context,
+                max_turns=self.settings.max_agent_turns,
+                hooks=self.hooks,
+                run_config=run_config,
+                session=session,
+            ),
+            timeout=remaining_timeout,
+        )
 
     def _log_metadata(
         self,

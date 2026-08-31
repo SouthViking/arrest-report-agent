@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import discord
 from agents import set_default_openai_key
 
+from arrest_report_agent.agent_sessions import AgentSessionManager
 from arrest_report_agent.ci_notifications import (
     CiNotificationRepository,
     CiNotificationWorker,
@@ -308,6 +309,7 @@ async def build_runtime(
     manual_quiz_publisher = ManualQuizDiscordPublisher(manual_quiz_sessions)
     poll_repository = PollRepository(postgres)
     poll_service = DiscordPollService(bot, poll_repository)
+    agent_session_manager = AgentSessionManager(postgres)
     review_cog = ReviewCog(
         bot,
         initial_bundle.settings,  # type: ignore[arg-type]
@@ -319,6 +321,7 @@ async def build_runtime(
         report_owner_run_repository=report_owner_run_repository,
         manual_quiz_publisher=manual_quiz_publisher,
         poll_manager=poll_service,
+        agent_session_manager=agent_session_manager,
     )
     bot.add_cog(review_cog)
     bot.add_cog(PollEventCog(poll_repository))

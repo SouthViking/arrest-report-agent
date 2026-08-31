@@ -14,6 +14,7 @@ from agents import (
 from agents.usage import Usage
 from pydantic import ValidationError
 
+from arrest_report_agent.application.errors import AgentSessionUnavailableError
 from arrest_report_agent.application.prompt import build_agent_instructions
 from arrest_report_agent.application.scope import ScopeDecision
 from arrest_report_agent.application.service import ReviewService
@@ -683,10 +684,12 @@ async def test_post_run_contract_failure_keeps_complete_runner_usage(
         total_tokens=3_200,
     )
     captured_run_config = None
+    captured_session = None
 
     async def finish_without_terminal_tool(*args, **kwargs):
-        nonlocal captured_run_config
+        nonlocal captured_run_config, captured_session
         captured_run_config = kwargs["run_config"]
+        captured_session = kwargs["session"]
         return SimpleNamespace(context_wrapper=SimpleNamespace(usage=complete_usage))
 
     monkeypatch.setattr(
@@ -695,9 +698,11 @@ async def test_post_run_contract_failure_keeps_complete_runner_usage(
     )
 
     with caplog.at_level("ERROR", logger="arrest_report_agent.application.service"):
+        session = SimpleNamespace(session_id="session-test")
         await service.review(
             context,
             [{"role": "user", "content": [{"type": "input_text", "text": "test"}]}],
+            session=session,  # type: ignore[arg-type]
         )
 
     failure_log = next(
@@ -712,6 +717,63 @@ async def test_post_run_contract_failure_keeps_complete_runner_usage(
     assert len(publisher.failures) == 1
     assert captured_run_config is not None
     assert captured_run_config.tool_execution.max_function_tool_concurrency == 6
+    assert captured_session is session
+
+
+@pytest.mark.asyncio
+async def test_service_falls_back_to_full_stateless_context_when_session_storage_fails(
+    settings, model, persona, monkeypatch, caplog
+) -> None:
+    service = ReviewService(
+        settings,
+        ChargeCatalog.load_default(),
+        ReportGuide.load_default(),
+        model,
+        persona,
+    )
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=9,
+        thread_id=9,
+        root_message_id=3,
+        trigger_message_id=4,
+        requester_user_id=5,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[],
+        attachments=[],
+    )
+    publisher = FailurePublisher()
+    context = ReviewRunContext(case=case, publisher=publisher, attempt=1)
+    calls: list[tuple[object, object]] = []
+    session = SimpleNamespace(session_id="session-test")
+    delta_input = [{"role": "user", "content": "revisa de nuevo"}]
+    full_input = [{"role": "user", "content": "reporte y conversación completa"}]
+
+    async def run(*args, **kwargs):
+        calls.append((args[1], kwargs["session"]))
+        if kwargs["session"] is not None:
+            raise AgentSessionUnavailableError("postgres unavailable")
+        context.interaction_completed = True
+        return SimpleNamespace(context_wrapper=SimpleNamespace(usage=Usage()))
+
+    monkeypatch.setattr("arrest_report_agent.application.service.Runner.run", run)
+
+    with caplog.at_level("WARNING", logger="arrest_report_agent.application.service"):
+        await service.review(
+            context,
+            delta_input,
+            session=session,  # type: ignore[arg-type]
+            stateless_agent_input=full_input,
+        )
+
+    assert calls == [(delta_input, session), (full_input, None)]
+    assert publisher.failures == []
+    assert any(
+        getattr(record, STRUCTURED_EVENT_ATTRIBUTE, {}).get("event")
+        == "agent_session_runtime_fallback"
+        for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio

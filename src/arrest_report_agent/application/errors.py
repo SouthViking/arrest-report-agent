@@ -20,6 +20,10 @@ class ClassifiedError:
     retryable: bool
 
 
+class AgentSessionUnavailableError(RuntimeError):
+    """Raised when persistent agent history cannot be read or written."""
+
+
 def classify_error(error: BaseException) -> ClassifiedError:
     """Map provider, runner and Discord failures to stable operational classes."""
 

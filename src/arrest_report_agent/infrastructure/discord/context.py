@@ -483,22 +483,42 @@ class DiscordContextBuilder:
         return selected, list(dict.fromkeys(notices))
 
 
-def render_agent_input(case: ReviewCase) -> list[dict[str, Any]]:
-    """Render Discord history as native user/assistant turns for one SDK run."""
+def render_agent_input(
+    case: ReviewCase,
+    *,
+    after_message_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """Render full Discord history or only new source turns for a persistent session."""
 
-    attachments_by_message: dict[int, list[DiscordAttachment]] = {}
-    for attachment in case.attachments:
-        attachments_by_message.setdefault(attachment.message_id, []).append(attachment)
+    messages = [
+        message
+        for message in case.messages
+        if after_message_id is None
+        or (message.id > after_message_id and not message.author_is_assistant)
+    ]
 
-    known_message_ids = {message.id for message in case.messages}
-    orphan_attachments = [
+    omitted_assistant_message_ids = {
+        message.id for message in case.messages if message.author_is_assistant and message not in messages
+    }
+    eligible_attachments = [
         attachment
         for attachment in case.attachments
+        if (after_message_id is None or attachment.message_id > after_message_id)
+        and attachment.message_id not in omitted_assistant_message_ids
+    ]
+    attachments_by_message: dict[int, list[DiscordAttachment]] = {}
+    for attachment in eligible_attachments:
+        attachments_by_message.setdefault(attachment.message_id, []).append(attachment)
+
+    known_message_ids = {message.id for message in messages}
+    orphan_attachments = [
+        attachment
+        for attachment in eligible_attachments
         if attachment.message_id not in known_message_ids and not attachment.is_image
     ]
     rendered: list[dict[str, Any]] = []
     orphan_rendered = False
-    for message in case.messages:
+    for message in messages:
         if message.is_trigger and orphan_attachments:
             rendered.append(_render_orphan_attachments(orphan_attachments))
             orphan_rendered = True
@@ -531,7 +551,7 @@ def render_agent_input(case: ReviewCase) -> list[dict[str, Any]]:
 
     if orphan_attachments and not orphan_rendered:
         rendered.append(_render_orphan_attachments(orphan_attachments))
-    if not any(message.is_trigger for message in case.messages):
+    if not any(message.is_trigger for message in messages):
         fallback_content: list[dict[str, Any]] = [
             {
                 "type": "input_text",
