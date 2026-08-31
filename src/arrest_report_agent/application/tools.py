@@ -45,6 +45,10 @@ from .ports import (
     ArrestReportLookup,
     ArrestReportSearchQuery,
     ChannelMemberSearchQuery,
+    CharacterLegalFactCheck,
+    CharacterLegalFactResult,
+    CharacterLegalFactsLookup,
+    CharacterLegalFactsQuery,
     EvidenceBagLookup,
     FactionFrequencyLookup,
     GuildMemberProfile,
@@ -55,9 +59,11 @@ from .ports import (
     GuildRoleSearchQuery,
     MessageAttachmentProfile,
     MessageLookupQuery,
+    OverdueUnpaidFineMatch,
     PollAnswerDraft,
     PollCreateRequest,
     PollListQuery,
+    PriorSeriousConvictionMatch,
 )
 from .service_context import ReviewRunContext
 
@@ -134,6 +140,7 @@ MESSAGE_TOOL_TEXT_BUDGET = 20_000
 MAX_ATTACHMENT_IDS_PER_CALL = 10
 MAX_ARREST_SEARCH_CALLS_PER_RUN = 3
 MAX_ARREST_DETAIL_CALLS_PER_RUN = 3
+MAX_CHARACTER_LEGAL_FACT_CALLS_PER_RUN = 3
 MAX_EVIDENCE_BAG_CALLS_PER_RUN = 3
 MAX_FACTION_FREQUENCY_CALLS_PER_RUN = 2
 MAX_MANUAL_LIST_CALLS_PER_RUN = 3
@@ -196,6 +203,7 @@ def build_agent_tools(
     image_detail: str = "auto",
     access_level: AgentAccessLevel = AgentAccessLevel.FULL,
     arrest_report_lookup: ArrestReportLookup | None = None,
+    character_legal_facts_lookup: CharacterLegalFactsLookup | None = None,
     evidence_bag_lookup: EvidenceBagLookup | None = None,
     faction_frequency_lookup: FactionFrequencyLookup | None = None,
     report_channel_ids: frozenset[int] = frozenset(),
@@ -1506,6 +1514,72 @@ def build_agent_tools(
         return _arrest_detail_payload(result.report, bound=True)
 
     @function_tool
+    async def get_character_legal_facts(
+        ctx: RunContextWrapper[ReviewRunContext],
+        character_name: Annotated[str, Field(min_length=1, max_length=100)],
+        checks: Annotated[
+            list[CharacterLegalFactCheck],
+            Field(min_length=1, max_length=2),
+        ],
+        reference_at: datetime | None = None,
+        exclude_arrest_id: Annotated[int | None, Field(gt=0)] = None,
+        max_matches_per_check: Annotated[int, Field(ge=1, le=10)] = 5,
+    ) -> dict[str, object]:
+        """Deterministically verify selected legal facts for one exact SARP character.
+
+        Request only facts relevant to the current question. `reference_at` determines what was
+        true at that instant and defaults to now. During an arrest review, pass the report creation
+        time and exclude its own report ID so the current charges cannot become their own prior
+        history. Results are facts, not a decision about whether any charge is justified.
+
+        Args:
+            character_name: Exact character name; spaces and underscores are equivalent.
+            checks: One or both supported facts. Unrequested API sections are not queried.
+            reference_at: ISO date-time used for chronology and the three-day fine threshold.
+            exclude_arrest_id: Current arrest ID to omit from prior-conviction checks.
+            max_matches_per_check: Maximum supporting rows returned, without limiting evaluation.
+        """
+
+        run_context = ctx.context
+        if character_legal_facts_lookup is None:
+            return {"ok": False, "error": "unavailable"}
+        if run_context.character_legal_fact_calls >= MAX_CHARACTER_LEGAL_FACT_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_legal_fact_limit_reached"}
+        run_context.character_legal_fact_calls += 1
+        await _set_activity(run_context, AgentActivity.RECORDS)
+        result = await character_legal_facts_lookup.check(
+            CharacterLegalFactsQuery(
+                character_name=character_name,
+                checks=tuple(dict.fromkeys(checks)),
+                reference_at=reference_at or datetime.now(UTC),
+                exclude_arrest_id=exclude_arrest_id,
+                max_matches_per_check=max_matches_per_check,
+            )
+        )
+        if result.error is not None:
+            payload: dict[str, object] = {"ok": False, "error": result.error}
+            if result.retry_after_seconds is not None:
+                payload["retry_after_seconds"] = result.retry_after_seconds
+            return payload
+        payload = {
+            "ok": True,
+            "character_name": result.character_name,
+            "reference_at": result.reference_at.isoformat(),
+            "checks": {},
+        }
+        check_payloads = payload["checks"]
+        assert isinstance(check_payloads, dict)
+        if result.prior_serious_convictions is not None:
+            check_payloads["prior_serious_convictions"] = _prior_serious_convictions_payload(
+                result.prior_serious_convictions
+            )
+        if result.overdue_unpaid_fines is not None:
+            check_payloads["overdue_unpaid_fines"] = _overdue_unpaid_fines_payload(
+                result.overdue_unpaid_fines
+            )
+        return payload
+
+    @function_tool
     async def get_faction_frequencies(
         ctx: RunContextWrapper[ReviewRunContext],
     ) -> dict[str, object]:
@@ -1666,6 +1740,8 @@ def build_agent_tools(
                 get_current_arrest_report,
             ]
         )
+    if character_legal_facts_lookup is not None:
+        live_record_tools.append(get_character_legal_facts)
     if evidence_bag_lookup is not None:
         live_record_tools.append(get_evidence_bag)
     full_tools[4:4] = live_record_tools
@@ -1844,6 +1920,57 @@ def _arrest_detail_payload(
             ],
         },
     }
+
+
+def _legal_fact_base_payload[MatchT](
+    result: CharacterLegalFactResult[MatchT],
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "status": result.status,
+        "value": result.value,
+        "match_count": result.match_count,
+        "matches_truncated": result.matches_truncated,
+    }
+    if result.error is not None:
+        payload["error"] = result.error
+    if result.retry_after_seconds is not None:
+        payload["retry_after_seconds"] = result.retry_after_seconds
+    return payload
+
+
+def _prior_serious_convictions_payload(
+    result: CharacterLegalFactResult[PriorSeriousConvictionMatch],
+) -> dict[str, object]:
+    payload = _legal_fact_base_payload(result)
+    payload["matches"] = [
+        {
+            "arrest_id": match.arrest_id,
+            "arrested_at": match.arrested_at.isoformat(),
+            "charge_code": match.charge_code,
+            "charge_name": match.charge_name,
+            "charge_type": match.charge_type,
+        }
+        for match in result.matches
+    ]
+    return payload
+
+
+def _overdue_unpaid_fines_payload(
+    result: CharacterLegalFactResult[OverdueUnpaidFineMatch],
+) -> dict[str, object]:
+    payload = _legal_fact_base_payload(result)
+    payload["matches"] = [
+        {
+            "fine_id": match.fine_id,
+            "description": match.description,
+            "amount": match.amount,
+            "issued_at": match.issued_at.isoformat(),
+            "overdue_since": match.overdue_since.isoformat(),
+            "overdue_days_at_reference": match.overdue_days_at_reference,
+        }
+        for match in result.matches
+    ]
+    return payload
 
 
 async def _set_activity(

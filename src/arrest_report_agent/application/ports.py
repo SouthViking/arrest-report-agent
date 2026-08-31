@@ -323,6 +323,69 @@ class ArrestReportLookup(Protocol):
         """Fetch the current SARP detail linked to one Discord report root."""
 
 
+type CharacterLegalFactCheck = Literal[
+    "prior_serious_convictions",
+    "overdue_unpaid_fines",
+]
+type CharacterLegalFactStatus = Literal["confirmed", "incomplete", "unavailable"]
+
+
+@dataclass(frozen=True)
+class CharacterLegalFactsQuery:
+    character_name: str
+    checks: tuple[CharacterLegalFactCheck, ...]
+    reference_at: datetime
+    exclude_arrest_id: int | None
+    max_matches_per_check: int
+
+
+@dataclass(frozen=True)
+class PriorSeriousConvictionMatch:
+    arrest_id: int
+    arrested_at: datetime
+    charge_code: str | None
+    charge_name: str
+    charge_type: str
+
+
+@dataclass(frozen=True)
+class OverdueUnpaidFineMatch:
+    fine_id: int
+    description: str
+    amount: int | float
+    issued_at: datetime
+    overdue_since: datetime
+    overdue_days_at_reference: int
+
+
+@dataclass(frozen=True)
+class CharacterLegalFactResult[LegalFactMatchT]:
+    status: CharacterLegalFactStatus
+    value: bool | None
+    matches: tuple[LegalFactMatchT, ...]
+    match_count: int
+    matches_truncated: bool
+    records_scanned: int
+    pages_scanned: int
+    error: str | None = None
+    retry_after_seconds: float | None = None
+
+
+@dataclass(frozen=True)
+class CharacterLegalFactsResult:
+    character_name: str | None
+    reference_at: datetime
+    prior_serious_convictions: CharacterLegalFactResult[PriorSeriousConvictionMatch] | None
+    overdue_unpaid_fines: CharacterLegalFactResult[OverdueUnpaidFineMatch] | None
+    error: str | None = None
+    retry_after_seconds: float | None = None
+
+
+class CharacterLegalFactsLookup(Protocol):
+    async def check(self, query: CharacterLegalFactsQuery) -> CharacterLegalFactsResult:
+        """Resolve one exact character and deterministically compute requested legal facts."""
+
+
 @dataclass(frozen=True)
 class EvidenceBagItem:
     """One analyzed item preserved as authoritative SARP text."""

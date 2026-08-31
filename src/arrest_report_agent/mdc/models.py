@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-import re
-import unicodedata
 from datetime import datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from arrest_report_agent.infrastructure.sarp.character_resolution import (
+    character_name_key as _character_name_key,
+)
+from arrest_report_agent.infrastructure.sarp.character_resolution import (
+    normalize_character_name as _normalize_character_name,
+)
 
 
 class MdcLookupError(RuntimeError):
@@ -86,13 +91,12 @@ class MdcRecord(FrozenMdcModel):
 
 
 def normalize_character_name(value: str) -> str:
-    """Normalize user input and API names without applying fuzzy matching."""
+    """Retain the public MDC normalization helper through the shared implementation."""
 
-    normalized = unicodedata.normalize("NFKC", value).replace("_", " ")
-    return re.sub(r"\s+", " ", normalized).strip()
+    return _normalize_character_name(value)
 
 
 def character_name_key(value: str) -> str:
-    """Return the case-insensitive exact-match key for one character name."""
+    """Retain the public MDC exact-match helper through the shared implementation."""
 
-    return normalize_character_name(value).casefold()
+    return _character_name_key(value)

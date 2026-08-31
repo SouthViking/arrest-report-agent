@@ -172,6 +172,14 @@ búsqueda o vinculación: solo puede resolver esa clave exacta y descargar nueva
 Los límites por ejecución acotan reformulaciones y lecturas sin impedir el fallback a mensajes,
 imágenes o archivos cuando la API no responde.
 
+`SarpCharacterLegalFactsLookup` comparte la resolución exacta de personajes con el MDC, pero queda
+separado del lookup de reportes. Recibe una lista cerrada de comprobaciones y consulta únicamente
+arrestos, multas o ambas secciones según lo solicitado. Para antecedentes graves excluye el arresto
+actual y solo considera registros anteriores a la fecha de referencia; para multas calcula en código
+el vencimiento exacto de tres días. Ambas ramas se ejecutan en paralelo, tienen paginación acotada y
+distinguen un `false` confirmado de una comprobación incompleta o indisponible. El perfil limitado
+del propietario no recibe esta herramienta de búsqueda nominal.
+
 El agente principal con acceso completo puede consultar el plan de frecuencias de la facción fijada
 por la configuración de la guild. La tool no acepta IDs ni facciones como argumentos y reutiliza el
 caché de metadatos de `FactionDirectoryService` para frecuencias y divisiones. Devuelve únicamente

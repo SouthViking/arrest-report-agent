@@ -151,6 +151,7 @@ class DatabaseConfigProvider:
                 snapshot.agent.reasoning_effort,
             )
             arrest_lookup = None
+            character_legal_facts_lookup = None
             faction_frequency_lookup = None
             faction_id = settings.arrest_report_lookup_faction_id
             if self.sarp_client is not None and faction_id is not None:
@@ -161,6 +162,11 @@ class DatabaseConfigProvider:
                     self.arrest_bindings,
                     faction_id=faction_id,
                 )
+                from arrest_report_agent.character_legal_facts import (
+                    SarpCharacterLegalFactsLookup,
+                )
+
+                character_legal_facts_lookup = SarpCharacterLegalFactsLookup(self.sarp_client)
                 if self.faction_directory is not None:
                     from arrest_report_agent.faction_directory import (
                         SarpFactionFrequencyLookup,
@@ -178,6 +184,7 @@ class DatabaseConfigProvider:
                 persona.profile,
                 self.radio_catalog,
                 arrest_lookup,
+                character_legal_facts_lookup,
                 evidence_bag_lookup=(self.evidence_bag_lookup if faction_id is not None else None),
                 faction_frequency_lookup=faction_frequency_lookup,
                 manual_catalog=self.manual_catalog,

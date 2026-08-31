@@ -16,11 +16,9 @@ from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.sarp import (
     SarpArrestDetail,
     SarpClient,
-    SarpError,
     SarpFactionArrestSummary,
-    SarpNotFoundError,
-    SarpRateLimitError,
 )
+from arrest_report_agent.infrastructure.sarp.failures import classify_sarp_failure
 
 from .repository import ArrestReportBindingRepository
 
@@ -169,7 +167,7 @@ class SarpArrestReportLookup:
         query: ArrestReportSearchQuery,
         error: Exception,
     ) -> ArrestReportSearchResult:
-        code, retry_after = _safe_failure(error)
+        code, retry_after = classify_sarp_failure(error)
         log_event(
             LOGGER,
             "warning",
@@ -192,7 +190,7 @@ class SarpArrestReportLookup:
         )
 
     def _detail_failure(self, error: Exception, *, report_id: int) -> ArrestReportDetailResult:
-        code, retry_after = _safe_failure(error)
+        code, retry_after = classify_sarp_failure(error)
         log_event(
             LOGGER,
             "warning",
@@ -244,15 +242,3 @@ def _detail(report: SarpArrestDetail) -> ArrestReportDetail:
 
 def _name_key(value: str) -> str:
     return " ".join(value.replace("_", " ").split()).casefold()
-
-
-def _safe_failure(error: Exception) -> tuple[str, float | None]:
-    if isinstance(error, SarpNotFoundError):
-        return "not_found", None
-    if isinstance(error, SarpRateLimitError):
-        return "rate_limited", error.rate_limit.retry_after_seconds
-    if isinstance(error, ValueError):
-        return "invalid_request", None
-    if isinstance(error, SarpError):
-        return "temporarily_unavailable", None
-    return "temporarily_unavailable", None

@@ -18,6 +18,11 @@ from arrest_report_agent.infrastructure.sarp import (
     SarpFinePage,
     SarpWarrantPage,
 )
+from arrest_report_agent.infrastructure.sarp.character_resolution import (
+    CharacterAmbiguousError,
+    CharacterNotFoundError,
+    resolve_exact_character,
+)
 
 from .models import (
     MdcArrest,
@@ -123,14 +128,12 @@ class MdcService:
         return record
 
     async def _lookup(self, display_name: str) -> MdcRecord:
-        matches = await self.client.search_characters(display_name.replace(" ", "_"))
-        expected_key = character_name_key(display_name)
-        exact = [item for item in matches if character_name_key(item.name) == expected_key]
-        if not exact:
-            raise MdcCharacterNotFoundError(display_name)
-        if len(exact) != 1:
-            raise MdcCharacterAmbiguousError(display_name)
-        character = exact[0]
+        try:
+            character = await resolve_exact_character(self.client, display_name)
+        except CharacterNotFoundError as error:
+            raise MdcCharacterNotFoundError(display_name) from error
+        except CharacterAmbiguousError as error:
+            raise MdcCharacterAmbiguousError(display_name) from error
         preview, possessions, fines, warrants, arrests = await asyncio.gather(
             self._capture(
                 MdcSection.STATUS,

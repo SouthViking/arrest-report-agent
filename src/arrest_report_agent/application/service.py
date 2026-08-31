@@ -32,7 +32,12 @@ from arrest_report_agent.knowledge import (
 
 from .errors import classify_error, public_error_message
 from .hooks import ReviewLifecycleHooks
-from .ports import ArrestReportLookup, EvidenceBagLookup, FactionFrequencyLookup
+from .ports import (
+    ArrestReportLookup,
+    CharacterLegalFactsLookup,
+    EvidenceBagLookup,
+    FactionFrequencyLookup,
+)
 from .prompt import PROMPT_VERSION, build_agent_instructions
 from .scope import build_scope_guardrail, scope_refusal_message
 from .service_context import ReviewRunContext
@@ -54,6 +59,7 @@ class ReviewService:
         persona: BotPersona,
         radio_catalog: RadioCodeCatalog | None = None,
         arrest_report_lookup: ArrestReportLookup | None = None,
+        character_legal_facts_lookup: CharacterLegalFactsLookup | None = None,
         evidence_bag_lookup: EvidenceBagLookup | None = None,
         faction_frequency_lookup: FactionFrequencyLookup | None = None,
         manual_catalog: ManualCatalog | None = None,
@@ -78,6 +84,7 @@ class ReviewService:
             image_detail=model.runtime_defaults.image_detail,
             access_level=AgentAccessLevel.FULL,
             arrest_report_lookup=arrest_report_lookup,
+            character_legal_facts_lookup=character_legal_facts_lookup,
             evidence_bag_lookup=evidence_bag_lookup,
             faction_frequency_lookup=faction_frequency_lookup,
             report_channel_ids=settings.report_channel_allowlist.ids or frozenset(),
@@ -96,6 +103,7 @@ class ReviewService:
             image_detail=model.runtime_defaults.image_detail,
             access_level=AgentAccessLevel.REPORT_OWNER,
             arrest_report_lookup=arrest_report_lookup,
+            character_legal_facts_lookup=None,
             evidence_bag_lookup=None,
             faction_frequency_lookup=None,
             report_channel_ids=settings.report_channel_allowlist.ids or frozenset(),
@@ -118,6 +126,7 @@ class ReviewService:
             instructions=build_agent_instructions(
                 persona,
                 arrest_lookup_enabled=arrest_report_lookup is not None,
+                character_legal_facts_enabled=character_legal_facts_lookup is not None,
                 evidence_lookup_enabled=evidence_bag_lookup is not None,
                 faction_frequency_lookup_enabled=faction_frequency_lookup is not None,
             ),
@@ -141,6 +150,7 @@ class ReviewService:
                 persona,
                 AgentAccessLevel.REPORT_OWNER,
                 arrest_lookup_enabled=arrest_report_lookup is not None,
+                character_legal_facts_enabled=False,
                 evidence_lookup_enabled=False,
                 faction_frequency_lookup_enabled=False,
             ),

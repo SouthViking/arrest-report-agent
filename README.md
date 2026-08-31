@@ -113,6 +113,10 @@ El personal con acceso completo puede buscar por sospechoso, agente y fechas, le
 y vincularlo al hilo de revisión. El propietario limitado solo puede volver a leer la referencia de
 su propio expediente. PostgreSQL conserva el vínculo, no la narrativa ni los cargos; cada re-revisión
 consulta nuevamente SARP y continúa admitiendo imágenes y archivos como fuente complementaria.
+El mismo módulo habilita una consulta selectiva de hechos legales del sospechoso: el agente puede
+comprobar antecedentes graves previos o multas impagas con más de tres días en la fecha del reporte.
+La resolución exacta del personaje, la paginación, la cronología y la clasificación se calculan en
+código; la herramienta devuelve hechos y nunca decide por sí sola si un cargo corresponde.
 
 El acceso completo puede resolver roles del servidor por nombre y, ante una solicitud explícita,
 notificar hasta tres mediante la tool terminal `mention_roles`. La publicación valida que cada rol

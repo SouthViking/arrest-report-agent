@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.25.0",
-  "title": "Revisión de reportes más precisa",
-  "summary": "El agente ahora prioriza la versión vigente del reporte en SARP y utiliza las capturas solo cuando realmente son necesarias.",
+  "version": "0.26.0",
+  "title": "Validación contextual de cargos",
+  "summary": "El agente ahora puede comprobar antecedentes legales externos cuando son relevantes para revisar un cargo.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,19 +10,15 @@
   "changes": [
     {
       "type": "improved",
-      "text": "Las revisiones nuevas buscan primero el reporte vigente por sospechoso y agente."
+      "text": "Comprueba antecedentes graves previos sin exigir que se repitan dentro de la narrativa."
     },
     {
       "type": "improved",
-      "text": "La búsqueda reconoce nombres abreviados y apodos de Discord con múltiples personajes."
+      "text": "Verifica si una multa seguía impaga después de su plazo de tres días en la fecha del reporte."
     },
     {
       "type": "improved",
-      "text": "Cuando existen varias coincidencias, el agente solicita seleccionar el reporte correcto en vez de elegirlo al azar."
-    },
-    {
-      "type": "improved",
-      "text": "Las capturas quedan como respaldo ante reportes ausentes o temporalmente no disponibles en SARP."
+      "text": "Consulta únicamente los datos necesarios y distingue una comprobación negativa de una API temporalmente indisponible."
     }
   ],
   "acknowledgements": []

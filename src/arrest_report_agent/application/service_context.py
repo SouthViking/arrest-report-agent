@@ -58,6 +58,7 @@ class ReviewRunContext:
     loaded_file_bytes: int = 0
     arrest_search_calls: int = 0
     arrest_detail_calls: int = 0
+    character_legal_fact_calls: int = 0
     evidence_bag_calls: int = 0
     faction_frequency_calls: int = 0
     manual_list_calls: int = 0

@@ -22,12 +22,18 @@ from arrest_report_agent.application.ports import (
     ArrestReportSearchQuery,
     ArrestReportSearchResult,
     ArrestReportSummary,
+    CharacterLegalFactResult,
+    CharacterLegalFactsLookup,
+    CharacterLegalFactsQuery,
+    CharacterLegalFactsResult,
     GuildRoleProfile,
     GuildRoleSearchResult,
     MessageAttachmentLookupResult,
     MessageAttachmentProfile,
     MessageLookupQuery,
     MessageLookupResult,
+    OverdueUnpaidFineMatch,
+    PriorSeriousConvictionMatch,
 )
 from arrest_report_agent.config import (
     AppSettings,
@@ -247,6 +253,72 @@ class RecordingArrestReportLookup:
         return ArrestReportDetailResult(report=self.report)
 
 
+class RecordingCharacterLegalFactsLookup:
+    """Return deterministic legal facts while recording the agent's selected checks."""
+
+    def __init__(self, *, serious: bool = False, overdue_fine: bool = False) -> None:
+        self.serious = serious
+        self.overdue_fine = overdue_fine
+        self.queries: list[CharacterLegalFactsQuery] = []
+
+    async def check(self, query: CharacterLegalFactsQuery) -> CharacterLegalFactsResult:
+        self.queries.append(query)
+        return CharacterLegalFactsResult(
+            character_name="Terry McKenzie",
+            reference_at=query.reference_at,
+            prior_serious_convictions=(
+                CharacterLegalFactResult(
+                    status="confirmed",
+                    value=self.serious,
+                    matches=(
+                        (
+                            PriorSeriousConvictionMatch(
+                                arrest_id=300,
+                                arrested_at=query.reference_at - timedelta(days=30),
+                                charge_code="CP-211",
+                                charge_name="Robo",
+                                charge_type="GRAVE",
+                            ),
+                        )
+                        if self.serious
+                        else ()
+                    ),
+                    match_count=1 if self.serious else 0,
+                    matches_truncated=False,
+                    records_scanned=3,
+                    pages_scanned=1,
+                )
+                if "prior_serious_convictions" in query.checks
+                else None
+            ),
+            overdue_unpaid_fines=(
+                CharacterLegalFactResult(
+                    status="confirmed",
+                    value=self.overdue_fine,
+                    matches=(
+                        (
+                            OverdueUnpaidFineMatch(
+                                fine_id=400,
+                                description="Multa de tránsito",
+                                amount=1_500,
+                                issued_at=query.reference_at - timedelta(days=5),
+                                overdue_since=query.reference_at - timedelta(days=2),
+                                overdue_days_at_reference=2,
+                            ),
+                        )
+                        if self.overdue_fine
+                        else ()
+                    ),
+                    match_count=1 if self.overdue_fine else 0,
+                    matches_truncated=False,
+                    records_scanned=2,
+                    pages_scanned=1,
+                )
+                if "overdue_unpaid_fines" in query.checks
+                else None
+            ),
+        )
+
 class RecordingMessageDirectory:
     """Return one real image payload and record lazy attachment reads."""
 
@@ -329,6 +401,7 @@ async def _run_agent(
     member_directory: object | None = None,
     message_directory: object | None = None,
     arrest_report_lookup: ArrestReportLookup | None = None,
+    character_legal_facts_lookup: CharacterLegalFactsLookup | None = None,
 ) -> tuple[ReviewRunContext, InMemoryPublisher]:
     model = ModelCatalog.load_default().resolve(
         settings.openai_model,
@@ -351,7 +424,8 @@ async def _run_agent(
         model,
         persona,
         radio_catalog,  # type: ignore[arg-type]
-        arrest_report_lookup,
+        arrest_report_lookup=arrest_report_lookup,
+        character_legal_facts_lookup=character_legal_facts_lookup,
     )
 
     await service.review(
@@ -1355,3 +1429,112 @@ async def test_new_report_review_loads_images_only_after_sarp_has_no_match(
     assert context.loaded_image_count == 1
     assert "sarp" in rendered_result
     assert any(term in rendered_result for term in ("imagen", "captura", "adjunto")), rendered_result
+
+
+async def test_review_checks_prior_serious_conviction_without_demanding_it_in_narrative(
+    ai_eval_settings: AppSettings,
+) -> None:
+    arrest_lookup = RecordingArrestReportLookup()
+    arrest_lookup.report = ArrestReportDetail(
+        report_id=751,
+        suspect_name="Terry McKenzie",
+        officer_name="Charles Harrington",
+        description=(
+            "Yo, ayudante Charles Harrington, bajo la asignación 280L, detuve a Terry "
+            "McKenzie tras encontrar una pistola cargada bajo su control durante una intervención. "
+            "El arma fue asegurada y el sospechoso fue trasladado a Ganton sin lesiones."
+        ),
+        created_at=datetime(2026, 8, 18, 12, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 8, 18, 13, 0, tzinfo=UTC),
+        charges=(
+            ArrestReportCharge(
+                charge_id=202,
+                code="CP-29800",
+                name="Posesión de un arma de fuego por un delincuente convicto",
+                charge_type="GRAVE",
+                hours=2,
+                fine=3_000,
+            ),
+        ),
+    )
+    facts_lookup = RecordingCharacterLegalFactsLookup(serious=True)
+    case = _case(
+        (
+            "user",
+            "Terry McKenzie\nRevisa completo el reporte SARP ID 751 y valida los cargos que "
+            "dependan de antecedentes legales externos.",
+        ),
+        root_author_display="C. Harrington / M. Crawford",
+        initial_channel_id=4002,
+    )
+
+    _, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        arrest_report_lookup=arrest_lookup,
+        character_legal_facts_lookup=facts_lookup,
+    )
+    publication = _single_publication(publisher)
+
+    assert facts_lookup.queries
+    assert facts_lookup.queries[0].checks == ("prior_serious_convictions",)
+    assert facts_lookup.queries[0].reference_at == arrest_lookup.report.created_at
+    assert facts_lookup.queries[0].exclude_arrest_id == arrest_lookup.report.report_id
+    assert all(
+        "antecedente" not in (
+            f"{finding.title} {finding.detail} {finding.recommendation}"
+        ).casefold()
+        for finding in publication.findings
+    ), publication.model_dump(mode="json")
+    assert publication.charges[0].alignment == "supported"
+
+
+async def test_review_checks_overdue_unpaid_fine_at_report_time(
+    ai_eval_settings: AppSettings,
+) -> None:
+    arrest_lookup = RecordingArrestReportLookup()
+    arrest_lookup.report = ArrestReportDetail(
+        report_id=751,
+        suspect_name="Terry McKenzie",
+        officer_name="Charles Harrington",
+        description=(
+            "Yo, ayudante Charles Harrington, bajo la asignación 280L, identifiqué a Terry "
+            "McKenzie y confirmé en el sistema una multa que continuaba impaga. Procedí con su "
+            "detención y traslado a Ganton sin incidentes."
+        ),
+        created_at=datetime(2026, 8, 18, 12, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 8, 18, 13, 0, tzinfo=UTC),
+        charges=(
+            ArrestReportCharge(
+                charge_id=244,
+                code="CP-1320",
+                name="Incumplimiento de comparecencia o pago",
+                charge_type="MENOR",
+                hours=2,
+                fine=7_500,
+            ),
+        ),
+    )
+    facts_lookup = RecordingCharacterLegalFactsLookup(overdue_fine=True)
+    case = _case(
+        (
+            "user",
+            "Terry McKenzie\nRevisa completo el reporte SARP ID 751 y comprueba si el plazo de "
+            "la multa ya había vencido en la fecha del arresto.",
+        ),
+        root_author_display="C. Harrington / M. Crawford",
+        initial_channel_id=4002,
+    )
+
+    _, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        arrest_report_lookup=arrest_lookup,
+        character_legal_facts_lookup=facts_lookup,
+    )
+    _single_publication(publisher)
+
+    assert facts_lookup.queries
+    assert facts_lookup.queries[0].checks == ("overdue_unpaid_fines",)
+    assert facts_lookup.queries[0].reference_at == arrest_lookup.report.created_at
+    assert facts_lookup.queries[0].exclude_arrest_id == arrest_lookup.report.report_id
