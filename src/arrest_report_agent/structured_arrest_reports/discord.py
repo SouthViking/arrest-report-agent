@@ -207,8 +207,6 @@ class StructuredArrestReportCog(commands.Cog):
                     submission,
                     suspect_filenames=suspect_names,
                     supporting_filenames=supporting_names,
-                    presenter_name=interaction.user.display_name,
-                    presenter_avatar_url=interaction.user.display_avatar.url,
                 ),
                 files=list(output_files),
                 allowed_mentions=discord.AllowedMentions.none(),

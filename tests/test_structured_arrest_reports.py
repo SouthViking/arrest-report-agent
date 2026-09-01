@@ -458,8 +458,6 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
         _submission(),
         suspect_filenames=suspect_names,
         supporting_filenames=supporting_names,
-        presenter_name="Charles Harrington",
-        presenter_avatar_url="https://cdn.discord.test/avatar.png",
     )
 
     assert len(files) == 2
@@ -470,13 +468,11 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
     assert isinstance(container, discord.ui.Container)
     assert container.color == discord.Color.gold()
     author_header = container.items[0]
-    assert isinstance(author_header, discord.ui.Section)
-    assert author_header.items[0].content.startswith("## 📋 Reporte de arresto · #321\n")
-    assert f"Autor: <@{_submission().owner_user_id}>" in author_header.items[0].content
-    assert f"<@{_submission().owner_user_id}>" in author_header.items[0].content
-    assert "Presentado por" not in author_header.items[0].content
-    assert isinstance(author_header.accessory, discord.ui.Thumbnail)
-    assert author_header.accessory.url == "https://cdn.discord.test/avatar.png"
+    assert isinstance(author_header, discord.ui.TextDisplay)
+    assert author_header.content.startswith("## 📋 Reporte de arresto · #321\n")
+    assert f"**Autor:** <@{_submission().owner_user_id}>" in author_header.content
+    assert "**Sospechoso:** Andy Quintero" in author_header.content
+    assert "Presentado por" not in author_header.content
     assert _thread_name("Andy Quintero", 321) == "Andy Quintero · #321"
     assert _thread_name("Andy Quintero", None) == "Andy Quintero"
 

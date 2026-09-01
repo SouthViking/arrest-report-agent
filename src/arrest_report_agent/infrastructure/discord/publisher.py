@@ -500,19 +500,11 @@ class DiscordReviewPublisher:
             )
             if not suspect_count or len(filenames) != suspect_count + supporting_count:
                 raise ValueError("Structured report attachment layout no longer matches its assets")
-            presenter = self.target.root.guild.get_member(submission.owner_user_id)
-            if presenter is None:
-                presenter = self.bot.get_user(submission.owner_user_id)
-            display_avatar = getattr(presenter, "display_avatar", None)
             await self.target.root.edit(
                 view=build_submission_view(
                     submission,
                     suspect_filenames=filenames[:suspect_count],
                     supporting_filenames=filenames[suspect_count:],
-                    presenter_name=getattr(presenter, "display_name", None),
-                    presenter_avatar_url=(
-                        str(display_avatar.url) if display_avatar is not None else None
-                    ),
                     color=review_card_color(publication.verdict),
                 ),
                 allowed_mentions=discord.AllowedMentions.none(),

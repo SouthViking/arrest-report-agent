@@ -19,7 +19,7 @@ from openai.types.shared.reasoning import Reasoning
 from pydantic import BaseModel, Field
 
 from arrest_report_agent.config import AppSettings, PersonaAccessMessages, ResolvedModel
-from arrest_report_agent.domain import RequestIntent, ReviewCase
+from arrest_report_agent.domain import InteractionMode, RequestIntent, ReviewCase
 
 from .service_context import ReviewRunContext
 
@@ -63,6 +63,18 @@ def build_scope_guardrail(
         agent_input: str | list[TResponseInputItem],
     ) -> GuardrailFunctionOutput:
         del agent, agent_input
+        if _is_structured_initial_review(ctx.context.case):
+            decision = ScopeDecision(
+                allowed=True,
+                category="structured_initial_review",
+                intent=RequestIntent.REVIEW,
+            )
+            ctx.context.request_intent = RequestIntent.REVIEW
+            ctx.context.has_revisable_material = True
+            return GuardrailFunctionOutput(
+                output_info=decision,
+                tripwire_triggered=False,
+            )
         result = await Runner.run(
             scope_agent,
             render_scope_input(ctx.context.case),
@@ -114,12 +126,21 @@ def render_scope_input(case: ReviewCase) -> str:
 def has_revisable_material(case: ReviewCase) -> bool:
     """Detect concrete report material without interpreting its substantive correctness."""
 
+    if case.structured_submission_id is not None:
+        return True
     if case.attachments or any(message.attachment_ids for message in case.messages):
         return True
     return any(
         not message.author_is_bot
         and (len(message.content.strip()) >= 240 or message.content.count("\n") >= 3)
         for message in case.messages
+    )
+
+
+def _is_structured_initial_review(case: ReviewCase) -> bool:
+    return (
+        case.structured_submission_id is not None
+        and case.interaction_mode is InteractionMode.INITIAL_REVIEW
     )
 
 

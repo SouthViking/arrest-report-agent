@@ -14,8 +14,6 @@ def build_submission_view(
     *,
     suspect_filenames: tuple[str, ...],
     supporting_filenames: tuple[str, ...],
-    presenter_name: str | None = None,
-    presenter_avatar_url: str | None = None,
     color: discord.Color | None = None,
 ) -> discord.ui.DesignerView:
     """Build the stable report card while preserving both categorized galleries."""
@@ -45,22 +43,11 @@ def build_submission_view(
     )
     header_text = (
         f"## 📋 Reporte de arresto{report_suffix}\n"
-        f"-# Autor: <@{submission.owner_user_id}>\n"
+        f"**Autor:** <@{submission.owner_user_id}>\n"
         f"**Sospechoso:** {submission.suspect_name}"
     )
-    header: discord.ui.ViewItem[discord.ui.DesignerView]
-    if presenter_avatar_url:
-        header = discord.ui.Section(
-            discord.ui.TextDisplay(header_text),
-            accessory=discord.ui.Thumbnail(
-                presenter_avatar_url,
-                description=f"Avatar de {presenter_name or 'quien presentó el reporte'}",
-            ),
-        )
-    else:
-        header = discord.ui.TextDisplay(header_text)
     container: discord.ui.Container[discord.ui.DesignerView] = discord.ui.Container(
-        header,
+        discord.ui.TextDisplay(header_text),
         discord.ui.Separator(),
         discord.ui.TextDisplay("### 📸 Fotografías del sospechoso"),
         suspect_gallery,

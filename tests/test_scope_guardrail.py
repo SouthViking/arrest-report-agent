@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 from agents import Agent, RunContextWrapper
@@ -117,3 +118,41 @@ async def test_scope_guardrail_is_blocking_and_aggregates_its_usage(settings, mo
     assert run_context.guardrail_usage.total_tokens == 30
     assert run_context.request_intent is RequestIntent.OUT_OF_SCOPE
     assert not run_context.has_revisable_material
+
+
+@pytest.mark.asyncio
+async def test_structured_initial_review_bypasses_classifier_deterministically(
+    settings,
+    model,
+    monkeypatch,
+) -> None:
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=3,
+        thread_id=3,
+        root_message_id=3,
+        trigger_message_id=3,
+        requester_user_id=4,
+        interaction_mode=InteractionMode.INITIAL_REVIEW,
+        structured_submission_id=UUID("00000000-0000-0000-0000-000000000123"),
+        structured_report_id=7851,
+        structured_suspect_name="Andy Quintero",
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(case=case, publisher=SimpleNamespace(), attempt=1)
+    wrapper = RunContextWrapper(context=run_context)
+    guardrail = build_scope_guardrail(settings, model)
+
+    async def unexpected_classification(*args, **kwargs):
+        raise AssertionError("Structured initial reviews must not call the classifier")
+
+    monkeypatch.setattr("arrest_report_agent.application.scope.Runner.run", unexpected_classification)
+    result = await guardrail.run(Agent(name="Main", instructions="test"), [], wrapper)
+
+    assert result.output.tripwire_triggered is False
+    assert result.output.output_info.intent is RequestIntent.REVIEW
+    assert run_context.request_intent is RequestIntent.REVIEW
+    assert run_context.has_revisable_material is True
+    assert wrapper.usage.requests == 0

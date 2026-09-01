@@ -1,28 +1,24 @@
 {
   "schema_version": 3,
-  "version": "0.27.2",
-  "title": "Publicación de reportes más resiliente",
-  "summary": "Permite volver a publicar un mismo reporte y recupera la revisión mediante búsqueda cuando el ID o el nombre ingresado no son confiables.",
+  "version": "0.27.3",
+  "title": "Revisión inicial estructurada corregida",
+  "summary": "Corrige la clasificación de los reportes creados con /revisar-arresto y simplifica su encabezado.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "Elimina la unicidad por ID SARP: un mismo reporte puede originar múltiples submissions y la idempotencia queda limitada a la interacción de Discord."
-    },
-    {
       "type": "fixed",
-      "text": "Conserva la ruta directa y el detalle precargado cuando el ID existe y coincide con el sospechoso indicado."
+      "text": "Clasifica determinísticamente como revisión la ejecución inicial de /revisar-arresto, evitando que un publish_review válido sea rechazado por una clasificación conversacional previa."
     },
     {
       "type": "improved",
-      "text": "Ante un ID inválido, inexistente o incompatible, crea el expediente sin vínculo previo para que el agente busque por sospechoso, desambigüe y vincule el candidato correcto."
+      "text": "Evita una llamada innecesaria al clasificador de intención cuando el propio comando ya garantiza que se solicitó una revisión inicial con material estructurado."
     },
     {
       "type": "improved",
-      "text": "Mantiene un índice no único para búsquedas por reporte y selecciona la submission publicada más reciente cuando existen varias."
+      "text": "Simplifica la tarjeta del reporte: elimina el avatar del autor y conserva Autor y Sospechoso como líneas destacadas."
     }
   ],
   "acknowledgements": []
