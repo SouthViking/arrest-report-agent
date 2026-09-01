@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.27.3",
-  "title": "Revisión inicial estructurada corregida",
-  "summary": "Corrige la clasificación de los reportes creados con /revisar-arresto y simplifica su encabezado.",
+  "version": "0.27.4",
+  "title": "Estado visual de reportes corregido",
+  "summary": "Corrige el color de la tarjeta estructurada después de completar una revisión formal.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,15 +10,11 @@
   "changes": [
     {
       "type": "fixed",
-      "text": "Clasifica determinísticamente como revisión la ejecución inicial de /revisar-arresto, evitando que un publish_review válido sea rechazado por una clasificación conversacional previa."
+      "text": "Conserva las galerías de Components V2 al actualizar el color del reporte después de un veredicto completo."
     },
     {
       "type": "improved",
-      "text": "Evita una llamada innecesaria al clasificador de intención cuando el propio comando ya garantiza que se solicitó una revisión inicial con material estructurado."
-    },
-    {
-      "type": "improved",
-      "text": "Simplifica la tarjeta del reporte: elimina el avatar del autor y conserva Autor y Sospechoso como líneas destacadas."
+      "text": "Elimina la dependencia incorrecta de los adjuntos tradicionales y una consulta innecesaria a PostgreSQL durante el recoloreado."
     }
   ],
   "acknowledgements": []

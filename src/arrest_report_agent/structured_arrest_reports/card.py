@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import discord
 
 from arrest_report_agent.domain import ReviewVerdict
@@ -67,3 +69,22 @@ def review_card_color(verdict: ReviewVerdict) -> discord.Color:
     if verdict is ReviewVerdict.CORRECTIONS_REQUIRED:
         return discord.Color.red()
     return discord.Color.orange()
+
+
+def recolor_submission_view(
+    message: discord.Message,
+    verdict: ReviewVerdict,
+) -> discord.ui.DesignerView:
+    """Preserve an existing Components V2 card while changing only its accent color."""
+
+    view = cast(
+        discord.ui.DesignerView,
+        discord.ui.DesignerView.from_message(message, timeout=None),
+    )
+    containers = [
+        item for item in view.children if isinstance(item, discord.ui.Container)
+    ]
+    if len(containers) != 1:
+        raise ValueError("Structured report root does not contain exactly one container")
+    containers[0].color = review_card_color(verdict)
+    return view

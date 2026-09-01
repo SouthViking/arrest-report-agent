@@ -645,7 +645,6 @@ class ReviewCog(commands.Cog):
                     self.persona,
                     allow_outgoing_mentions=access_level is AgentAccessLevel.FULL,
                     manual_quiz_publisher=self.manual_quiz_publisher,
-                    structured_report_repository=self.structured_report_repository,
                 )
                 try:
                     case = (

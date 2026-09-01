@@ -22,7 +22,6 @@ from arrest_report_agent.infrastructure.discord.publisher import (
     build_review_embed,
     build_review_embeds,
 )
-from arrest_report_agent.structured_arrest_reports import ArrestReportAssetCategory
 
 
 class FakeThread:
@@ -57,6 +56,7 @@ class FakeRoot:
         self.replies = []
         self.reactions = []
         self.attachments = []
+        self.components = []
         self.edits = []
         self.author = SimpleNamespace(id=123)
         self.channel = SimpleNamespace(sent=[])
@@ -113,25 +113,6 @@ class FakeMentionChannel:
 
     async def send(self, **kwargs) -> None:
         self.sent.append(kwargs)
-
-
-class FakeStructuredReportRepository:
-    def __init__(self, submission_id: UUID) -> None:
-        self.submission_id = submission_id
-        self.calls: list[UUID] = []
-        self.submission = SimpleNamespace(
-            owner_user_id=123,
-            sarp_arrest_id=56242,
-            suspect_name="Andy Quintero",
-            assets=(
-                SimpleNamespace(category=ArrestReportAssetCategory.SUSPECT_PHOTO),
-                SimpleNamespace(category=ArrestReportAssetCategory.SUPPORTING_IMAGE),
-            ),
-        )
-
-    async def get_by_id(self, submission_id: UUID) -> object:
-        self.calls.append(submission_id)
-        return self.submission
 
 
 def publication(verdict: str) -> ReviewPublication:
@@ -408,11 +389,24 @@ async def test_full_review_updates_structured_root_card_color(
     )
     guild = SimpleNamespace(id=10, get_member=lambda user_id: member if user_id == 123 else None)
     root = FakeRoot(guild=guild)
-    root.attachments = [
-        SimpleNamespace(filename="suspect.png"),
-        SimpleNamespace(filename="report.png"),
+    media_urls = (
+        "https://cdn.discord.test/attachments/10/20/suspect.png",
+        "https://cdn.discord.test/attachments/10/20/report.png",
+    )
+    source_view = discord.ui.DesignerView(
+        discord.ui.Container(
+            discord.ui.TextDisplay("## 📋 Reporte de arresto"),
+            discord.ui.MediaGallery(discord.MediaGalleryItem(media_urls[0])),
+            discord.ui.MediaGallery(discord.MediaGalleryItem(media_urls[1])),
+            color=discord.Color.gold(),
+        ),
+        timeout=None,
+        store=False,
+    )
+    root.components = [
+        discord.components.Container(component) for component in source_view.to_components()
     ]
-    repository = FakeStructuredReportRepository(submission_id)
+    assert root.attachments == []
     bot = SimpleNamespace(user=SimpleNamespace(id=999), get_user=lambda _user_id: None)
     target = ReviewTarget(
         root=root,
@@ -422,27 +416,23 @@ async def test_full_review_updates_structured_root_card_color(
         response_route=DiscordResponseRoute.THREAD,
         structured_submission_id=submission_id,
     )
-    publisher = DiscordReviewPublisher(
-        bot,
-        settings,
-        target,
-        persona,
-        structured_report_repository=repository,  # type: ignore[arg-type]
-    )
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
     await publisher.publish(publication(verdict))
 
-    assert repository.calls == [submission_id]
     assert len(root.edits) == 1
     view = root.edits[0]["view"]
     container = view.children[0]
     assert container.color == expected_color
+    galleries = [
+        item for item in container.items if isinstance(item, discord.ui.MediaGallery)
+    ]
+    assert tuple(item.url for gallery in galleries for item in gallery.items) == media_urls
 
 
 @pytest.mark.asyncio
 async def test_partial_review_never_updates_structured_root_card(settings, persona) -> None:
     submission_id = UUID("00000000-0000-0000-0000-000000000322")
-    repository = FakeStructuredReportRepository(submission_id)
     root = FakeRoot()
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     target = ReviewTarget(
@@ -453,13 +443,7 @@ async def test_partial_review_never_updates_structured_root_card(settings, perso
         response_route=DiscordResponseRoute.THREAD,
         structured_submission_id=submission_id,
     )
-    publisher = DiscordReviewPublisher(
-        bot,
-        settings,
-        target,
-        persona,
-        structured_report_repository=repository,  # type: ignore[arg-type]
-    )
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
     review = ReviewPublication(
         review_scope="charges",
         verdict="approved",
@@ -468,7 +452,6 @@ async def test_partial_review_never_updates_structured_root_card(settings, perso
 
     await publisher.publish(review)
 
-    assert repository.calls == []
     assert root.edits == []
 
 
