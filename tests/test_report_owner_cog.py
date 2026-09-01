@@ -225,6 +225,57 @@ async def test_owner_reservation_runs_restricted_agent_and_is_finalized(
 
 
 @pytest.mark.asyncio
+async def test_structured_initial_review_does_not_reserve_an_owner_round(
+    settings,
+    persona,
+    monkeypatch,
+) -> None:
+    restricted = settings.model_copy(update={"authorized_user_ids_csv": "999999"})
+    message, target, case, _ = _event(restricted)
+    service = _Service()
+    repository = _Repository(
+        OwnerRunReservation(
+            result=OwnerRunReservationResult.RESERVED,
+            used_rounds=1,
+            max_rounds=5,
+            run_id=uuid4(),
+        )
+    )
+    cog = ReviewCog(
+        SimpleNamespace(user=SimpleNamespace(id=999)),
+        restricted,
+        service,  # type: ignore[arg-type]
+        persona,
+        report_owner_run_repository=repository,  # type: ignore[arg-type]
+    )
+    builder = _OwnerContextBuilder(target, case)
+    cog._default_runtime = replace(  # noqa: SLF001
+        cog._default_runtime,  # noqa: SLF001
+        settings=SimpleNamespace(report_owner_access_max_rounds=5),
+        context_builder=builder,  # type: ignore[arg-type]
+    )
+    cog.presence = _Presence()  # type: ignore[assignment]
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.cog.DiscordReviewPublisher",
+        _Publisher,
+    )
+
+    completed = await cog._execute_review(  # noqa: SLF001
+        message,  # type: ignore[arg-type]
+        target,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        consume_owner_round=False,
+    )
+
+    assert completed is True
+    assert repository.reservations == 0
+    assert repository.completed == []
+    assert repository.failed == []
+    assert len(service.contexts) == 1
+    assert service.contexts[0].owner_round is None
+
+
+@pytest.mark.asyncio
 async def test_exhausted_owner_gets_specific_notice_without_running_agent(
     settings,
     persona,

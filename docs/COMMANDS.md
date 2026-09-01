@@ -44,7 +44,7 @@ los roles del módulo **FTP conectado** y habilita `/solicitar-fto` en cualquier
 aunque la publicación siempre se dirige al canal configurado.
 
 El módulo **Consulta de reportes de arresto** recibe `{"faction_id": 3}`. Habilita
-`/ver-evidencia` y permite al agente completo buscar y vincular arrestos de esa facción, además de
+`/revisar-arresto`, `/ver-evidencia` y permite al agente completo buscar y vincular arrestos de esa facción, además de
 consultar bolsas de evidencias cuando el usuario entrega una referencia explícita. En un expediente ya
 vinculado, el propietario con acceso limitado solo puede consultar su referencia vigente al pedir
 una nueva revisión. Si SARP está apagado globalmente, estas tools no se registran.
@@ -65,7 +65,7 @@ resultados se conservan en memoria por cinco minutos; las credenciales nunca se 
 registran en logs.
 
 Los comandos se registran directamente en la raíz, sin depender del nombre o personalidad del bot.
-Salvo `/ayuda`, `/info-reportes`, `/ts3`, `/info-roles`, los resultados de `/verguenza` y `/honor`, y el expediente publicado
+Salvo `/ayuda`, `/info-reportes`, `/revisar-arresto`, `/ts3`, `/info-roles`, los resultados de `/verguenza` y `/honor`, y el expediente publicado
 por `/solicitar-roles`, sus respuestas son efímeras: solo las ve quien ejecutó el comando. Los selectores
 de consultas quedan ligados a ese usuario, expiran a los 180 segundos y editan el mensaje existente
 en vez de publicar respuestas adicionales. Los tres botones de una solicitud de roles son la
@@ -79,6 +79,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 |---|---|---|---|
 | `/ayuda` | Todos | Pública | Persona seleccionada y configuración del bot |
 | `/info-reportes` | Acceso completo o acceso del propietario habilitado | Pública; rechazo efímero | Persona, canales y configuración de acceso del propietario |
+| `/revisar-arresto` | `operational_staff_roles`; módulo `arrest_report_lookup` activo; solo en `report_channels` | Formulario y confirmación efímeros; expediente e hilo públicos | Reporte vigente de SARP, PostgreSQL, Railway Bucket y Discord |
 | `/guia` | Todos | Efímera | `report_guide.json` |
 | `/cargos` | Todos | Efímera | Catálogo SARP con fallback `delitos.json` |
 | `/mdc` | `operational_staff_roles`; solo si SARP está activo | Modal privado; resultado público o efímero | API SARP en vivo |
@@ -128,13 +129,11 @@ Los comandos generales no aplican `AUTHORIZED_USER_IDS`; están destinados a tod
 puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists centrales antes de
 leer el historial de Discord.
 
-`/info-reportes` no ejecuta IA ni describe el catálogo general de revisión. Explica únicamente cómo
-el autor puede iniciar fuera de un hilo con `@mención Nombre Apellido` o
-`@mención Nombre Apellido - #NÚMERO` y, como mínimo, las imágenes
-frontal, lateral, reporte de arresto y lista de delitos. También puede publicar primero el reporte sin
-mencionar al bot, abrir su hilo y llamarlo allí con texto libre; en esa vía la primera ejecución del
-agente comienza a consumir el límite vigente. La guía explica además cómo responder su publicación,
-adjuntar correcciones y continuar la conversación. Si
+`/info-reportes` no ejecuta IA ni describe el catálogo general de revisión. Explica cómo usar
+`/revisar-arresto`, adjuntar las fotografías y respaldos, y continuar después dentro del hilo. La
+revisión inicial creada por el comando no consume una intervención. El formato anterior con
+`@mención Nombre Apellido` o `@mención Nombre Apellido - #NÚMERO` continúa disponible para reportes
+legacy y conversaciones ya existentes. Si
 `report_owner_access` está deshabilitado, informa que la capacidad no está disponible sin enseñar
 pasos que no funcionarían.
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from datetime import UTC, date, datetime
 from typing import Annotated, Literal
@@ -65,6 +66,8 @@ from .ports import (
     PollCreateRequest,
     PollListQuery,
     PriorSeriousConvictionMatch,
+    ReportImageCategory,
+    ReportImageLookup,
 )
 from .service_context import ReviewRunContext
 
@@ -209,6 +212,7 @@ def build_agent_tools(
     faction_frequency_lookup: FactionFrequencyLookup | None = None,
     report_channel_ids: frozenset[int] = frozenset(),
     manual_catalog: ManualCatalog | None = None,
+    report_image_lookup: ReportImageLookup | None = None,
 ) -> list[object]:
     """Create tools bound to immutable knowledge snapshots."""
 
@@ -1536,6 +1540,12 @@ def build_agent_tools(
             return {"ok": False, "error": "run_detail_limit_reached"}
         run_context.arrest_detail_calls += 1
         await _set_activity(run_context, AgentActivity.RECORDS)
+        preloaded = run_context.preloaded_arrest_report
+        if (
+            preloaded is not None
+            and run_context.case.structured_report_id == preloaded.report_id
+        ):
+            return _arrest_detail_payload(preloaded, bound=True)
         result = await arrest_report_lookup.get_current(
             guild_id=run_context.case.guild_id,
             root_message_id=run_context.case.root_message_id,
@@ -1549,6 +1559,113 @@ def build_agent_tools(
                 payload["retry_after_seconds"] = result.retry_after_seconds
             return payload
         return _arrest_detail_payload(result.report, bound=True)
+
+    async def _get_structured_images(
+        ctx: RunContextWrapper[ReviewRunContext],
+        *,
+        category: ReportImageCategory,
+        report_id: int | None,
+    ) -> list[NativeAttachmentOutput]:
+        run_context = ctx.context
+        if report_image_lookup is None:
+            return _attachment_tool_error("unavailable")
+        current_report_id = run_context.case.structured_report_id
+        if (
+            report_id is not None
+            and run_context.access_level is AgentAccessLevel.REPORT_OWNER
+            and (current_report_id is None or report_id != current_report_id)
+        ):
+            return _attachment_tool_error("report_outside_owner_scope")
+        root_message_id = None if report_id is not None else run_context.case.root_message_id
+        if report_id is None and current_report_id is None:
+            return _attachment_tool_error("not_structured_report")
+        await _set_activity(run_context, AgentActivity.EVIDENCE)
+        result = await report_image_lookup.get_images(
+            guild_id=run_context.case.guild_id,
+            root_message_id=root_message_id,
+            report_id=report_id,
+            category=category,
+        )
+        if result.error is not None:
+            return _attachment_tool_error(result.error)
+        outputs: list[NativeAttachmentOutput] = []
+        loaded: list[dict[str, object]] = []
+        skipped: list[dict[str, object]] = []
+        for image in result.images:
+            if image.asset_id in run_context.loaded_report_asset_ids:
+                skipped.append({"filename": image.filename, "reason": "already_loaded"})
+                continue
+            reason = _image_limit_reason(
+                image.size_bytes,
+                run_context.loaded_image_count,
+                max_image_bytes=max_image_bytes,
+                max_images_per_review=max_images_per_review,
+            )
+            if reason is not None:
+                skipped.append({"filename": image.filename, "reason": reason})
+                continue
+            encoded = base64.b64encode(image.payload).decode("ascii")
+            outputs.append(
+                ToolOutputImage(
+                    image_url=f"data:{image.content_type};base64,{encoded}",
+                    detail=_tool_image_detail(image_detail),
+                )
+            )
+            run_context.loaded_report_asset_ids.add(image.asset_id)
+            run_context.loaded_image_count += 1
+            loaded.append(
+                {
+                    "filename": image.filename,
+                    "position": image.position,
+                    "size": image.size_bytes,
+                }
+            )
+        metadata = {
+            "ok": True,
+            "report_id": result.report_id,
+            "category": category,
+            "loaded": loaded,
+            "skipped": skipped,
+            "remaining_image_capacity": max(
+                0, max_images_per_review - run_context.loaded_image_count
+            ),
+        }
+        return [ToolOutputText(text=_compact_json(metadata)), *outputs]
+
+    @function_tool
+    async def get_report_suspect_images(
+        ctx: RunContextWrapper[ReviewRunContext],
+        report_id: Annotated[int | None, Field(gt=0)] = None,
+    ) -> list[NativeAttachmentOutput]:
+        """Load only the suspect photographs from a structured arrest report.
+
+        Omit report_id for the active report. Full staff may select another structured report;
+        report owners remain limited to their current expediente. Use this only when identity,
+        frontal/lateral photographs or another visual fact must actually be inspected.
+        """
+
+        return await _get_structured_images(
+            ctx,
+            category="suspect_photo",
+            report_id=report_id,
+        )
+
+    @function_tool
+    async def get_report_supporting_images(
+        ctx: RunContextWrapper[ReviewRunContext],
+        report_id: Annotated[int | None, Field(gt=0)] = None,
+    ) -> list[NativeAttachmentOutput]:
+        """Load only report screenshots and supporting images from a structured report.
+
+        Omit report_id for the active report. Prefer current SARP text for narrative and charges;
+        load these images only for information the API does not expose or an explicit visual check.
+        """
+
+        return await _get_structured_images(
+            ctx,
+            category="supporting_image",
+            report_id=report_id,
+        )
 
     @function_tool
     async def get_character_legal_facts(
@@ -1739,6 +1856,11 @@ def build_agent_tools(
     ]
     if arrest_report_lookup is not None:
         report_tools.insert(0, get_current_arrest_report)
+    if report_image_lookup is not None:
+        report_tools[1:1] = [
+            get_report_suspect_images,
+            get_report_supporting_images,
+        ]
     if access_level is AgentAccessLevel.REPORT_OWNER:
         return [*common_tools, *report_tools]
     manual_tools = [
@@ -1776,6 +1898,10 @@ def build_agent_tools(
                 get_arrest_report,
                 get_current_arrest_report,
             ]
+        )
+    if report_image_lookup is not None:
+        live_record_tools.extend(
+            [get_report_suspect_images, get_report_supporting_images]
         )
     if character_legal_facts_lookup is not None:
         live_record_tools.append(get_character_legal_facts)

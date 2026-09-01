@@ -1,14 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.26.4",
-  "title": "Consulta de internos conectados",
-  "summary": "El personal operativo puede consultar qué personajes conectados se encuentran actualmente en prisión.",
+  "version": "0.27.0",
+  "title": "Revisión estructurada de arrestos",
+  "summary": "Los reportes de arresto ahora pueden publicarse e iniciar su revisión mediante un formulario ordenado.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
       "type": "added",
-      "text": "Agrega `/internos`, con un listado público, alfabético y paginado de los personajes conectados que están en prisión."
+      "text": "Agrega `/revisar-arresto` para publicar el expediente con fotografías y respaldos separados e iniciar automáticamente su revisión."
     }
   ],
   "acknowledgements": []

@@ -7,7 +7,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import discord
 
@@ -35,6 +35,12 @@ _REPORT_NAME_PATTERN = re.compile(
 )
 LOGGER = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from arrest_report_agent.structured_arrest_reports import (
+        ArrestReportSubmission,
+        StructuredArrestReportRepository,
+    )
+
 
 class DiscordResponseRoute(StrEnum):
     """Safe routing constraint derived before the runner starts."""
@@ -51,6 +57,9 @@ class ReviewTarget:
     parent: discord.TextChannel
     thread: discord.Thread | None
     response_route: DiscordResponseRoute = DiscordResponseRoute.INLINE_REPLY
+    requester: discord.Member | discord.User | None = None
+    structured_report_id: int | None = None
+    structured_suspect_name: str | None = None
 
 
 class DiscordContextBuilder:
@@ -59,10 +68,12 @@ class DiscordContextBuilder:
         settings: AppSettings,
         persona: BotPersona,
         bot: discord.Client | None = None,
+        structured_reports: StructuredArrestReportRepository | None = None,
     ) -> None:
         self.settings = settings
         self.bot = bot
         self.persona = persona
+        self.structured_reports = structured_reports
 
     async def resolve_target(
         self,
@@ -75,12 +86,19 @@ class DiscordContextBuilder:
             if not isinstance(parent, discord.TextChannel):
                 raise ContextUnavailableError("Configured thread has no text-channel parent")
             root = await self._resolve_thread_root(parent, thread, message)
+            submission = await self._structured_submission(root)
             return ReviewTarget(
                 root=root,
                 trigger=message,
                 parent=parent,
                 thread=thread,
                 response_route=DiscordResponseRoute.THREAD,
+                structured_report_id=(
+                    submission.sarp_arrest_id if submission is not None else None
+                ),
+                structured_suspect_name=(
+                    submission.suspect_name if submission is not None else None
+                ),
             )
         if not isinstance(message.channel, discord.TextChannel):
             raise ContextUnavailableError("Review message is not in a supported text channel")
@@ -117,13 +135,22 @@ class DiscordContextBuilder:
                 root = await parent.fetch_message(thread.id)
             except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
                 raise ContextUnavailableError("Unable to verify the report thread root") from error
-            self._require_human_owner(root, message.author.id)
+            submission = await self._structured_owner_submission(root, message.author.id)
+            if submission is None:
+                self._require_human_owner(root, message.author.id)
             return ReviewTarget(
                 root=root,
                 trigger=message,
                 parent=parent,
                 thread=thread,
                 response_route=DiscordResponseRoute.THREAD,
+                requester=message.author,
+                structured_report_id=(
+                    submission.sarp_arrest_id if submission is not None else None
+                ),
+                structured_suspect_name=(
+                    submission.suspect_name if submission is not None else None
+                ),
             )
 
         if not isinstance(message.channel, discord.TextChannel):
@@ -169,6 +196,31 @@ class DiscordContextBuilder:
             thread=root.thread,
             response_route=DiscordResponseRoute.THREAD,
         )
+
+    async def _structured_owner_submission(
+        self,
+        root: discord.Message,
+        requester_user_id: int,
+    ) -> ArrestReportSubmission | None:
+        submission = await self._structured_submission(root)
+        if not (
+            submission is not None
+            and submission.owner_user_id == requester_user_id
+            and submission.root_message_id == root.id
+        ):
+            return None
+        return submission
+
+    async def _structured_submission(
+        self,
+        root: discord.Message,
+    ) -> ArrestReportSubmission | None:
+        repository = self.structured_reports
+        if repository is None or root.guild is None:
+            return None
+        if not root.author.bot and root.webhook_id is None:
+            return None
+        return await repository.get_by_root(root.guild.id, root.id)
 
     @staticmethod
     def _require_human_owner(root: discord.Message, requester_user_id: int) -> None:
@@ -305,7 +357,7 @@ class DiscordContextBuilder:
             notices.extend(attachment_notices)
             context_state = ContextState.TRUNCATED
         subject = _case_subject(target.root, self.persona.identity.display_name)
-        requester = target.trigger.author
+        requester = target.requester or target.trigger.author
         return ReviewCase(
             guild_id=target.root.guild.id,
             parent_channel_id=target.parent.id,
@@ -323,6 +375,8 @@ class DiscordContextBuilder:
             ),
             response_route=target.response_route.value,
             case_subject=subject,
+            structured_report_id=target.structured_report_id,
+            structured_suspect_name=target.structured_suspect_name,
             messages=messages,
             attachments=attachments,
             context_state=context_state,
@@ -535,14 +589,19 @@ def render_agent_input(
         )
         if message.is_trigger:
             text = _render_operational_context(case) + "\n\n" + text
-        if message.author_is_assistant:
+        structured_bootstrap = bool(message.is_trigger and case.structured_report_id is not None)
+        if message.author_is_assistant and not structured_bootstrap:
             content: list[dict[str, Any]] = [{"type": "output_text", "text": text, "annotations": []}]
         else:
             content = [{"type": "input_text", "text": text}]
             _append_attachment_inputs(content, message_attachments)
         rendered.append(
             {
-                "role": "assistant" if message.author_is_assistant else "user",
+                "role": (
+                    "assistant"
+                    if message.author_is_assistant and not structured_bootstrap
+                    else "user"
+                ),
                 "content": content,
             }
         )
@@ -583,6 +642,16 @@ def _render_operational_context(case: ReviewCase) -> str:
         lines.append(f"Solicitante: {case.requester_display_name}")
     if case.requester_role_names:
         lines.append("Roles del solicitante: " + ", ".join(case.requester_role_names))
+    if case.structured_report_id is not None:
+        lines.append(
+            "Expediente estructurado: "
+            f"reporte SARP #{case.structured_report_id}; "
+            f"sospechoso={case.structured_suspect_name or 'sin nombre'}"
+        )
+        lines.append(
+            "Consulta primero get_current_arrest_report. Las fotografías y respaldos están "
+            "clasificados y deben cargarse solo si la revisión realmente los necesita."
+        )
     participant_registry = _participant_registry(case)
     if participant_registry:
         lines.append("Participantes consultables (user_id=nombre): " + participant_registry)

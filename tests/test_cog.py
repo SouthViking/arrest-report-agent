@@ -255,20 +255,20 @@ def test_report_info_embed_is_public_facing_and_explains_owner_access(persona) -
     assert embed.title == "📋 Revisa tu propio reporte"
     assert embed.description == persona.messages.help.owner_info_intro
     assert [field.name for field in embed.fields] == [
-        "1️⃣ Cómo empezar",
-        "2️⃣ Material mínimo",
-        "3️⃣ Cómo continuar",
+        "1️⃣ Publicar un reporte",
+        "2️⃣ Qué debes adjuntar",
+        "3️⃣ Revisión y correcciones",
         "🕒 Límite",
+        "También disponible",
         "📍 Canales habilitados",
     ]
-    assert "<@999>" in embed.fields[0].value
-    assert "Nombre Apellido" in embed.fields[0].value
-    assert "sin mencionarme" in embed.fields[0].value
-    assert "4 imágenes" in embed.fields[1].value
-    assert "Dentro del hilo" in embed.fields[1].value
-    assert "Dentro del hilo" in embed.fields[2].value
-    assert "5 intervenciones" in embed.fields[3].value
-    assert embed.fields[4].value == "• <#111>\n• <#222>"
+    assert "/revisar-arresto" in embed.fields[0].value
+    assert "una o dos imágenes" in embed.fields[1].value
+    assert "una y ocho imágenes" in embed.fields[1].value
+    assert "primera revisión" in embed.fields[2].value
+    assert "5" in embed.fields[3].value
+    assert "<@999>" in embed.fields[4].value
+    assert embed.fields[5].value == "• <#111>\n• <#222>"
     assert embed.thumbnail.url == "https://cdn.discordapp.com/avatar.png"
 
 

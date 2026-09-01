@@ -34,6 +34,10 @@ from arrest_report_agent.application.ports import (
     MessageLookupResult,
     OverdueUnpaidFineMatch,
     PriorSeriousConvictionMatch,
+    ReportImageAsset,
+    ReportImageCategory,
+    ReportImageLookup,
+    ReportImageResult,
 )
 from arrest_report_agent.config import (
     AppSettings,
@@ -370,6 +374,39 @@ class RecordingMessageDirectory:
             )
         )
 
+
+class RecordingReportImageLookup:
+    """Expose categorized structured-report images and record selective reads."""
+
+    def __init__(self) -> None:
+        self.calls: list[ReportImageCategory] = []
+        self.payload = load_global_profile_banner()
+
+    async def get_images(
+        self,
+        *,
+        guild_id: int,
+        root_message_id: int | None,
+        report_id: int | None,
+        category: ReportImageCategory,
+    ) -> ReportImageResult:
+        self.calls.append(category)
+        return ReportImageResult(
+            report_id=report_id or 751,
+            owner_user_id=_REQUESTER_ID,
+            images=(
+                ReportImageAsset(
+                    asset_id=f"{category}-1",
+                    filename="fotografia.png",
+                    content_type="image/png",
+                    size_bytes=len(self.payload),
+                    position=0,
+                    payload=self.payload,
+                ),
+            ),
+        )
+
+
 @pytest.fixture
 def ai_eval_settings() -> AppSettings:
     """Load the real model selection and API key without requiring a Discord connection."""
@@ -402,6 +439,8 @@ async def _run_agent(
     message_directory: object | None = None,
     arrest_report_lookup: ArrestReportLookup | None = None,
     character_legal_facts_lookup: CharacterLegalFactsLookup | None = None,
+    report_image_lookup: ReportImageLookup | None = None,
+    preloaded_arrest_report: ArrestReportDetail | None = None,
 ) -> tuple[ReviewRunContext, InMemoryPublisher]:
     model = ModelCatalog.load_default().resolve(
         settings.openai_model,
@@ -415,6 +454,7 @@ async def _run_agent(
         access_level=access_level,
         member_directory=member_directory,  # type: ignore[arg-type]
         message_directory=message_directory,  # type: ignore[arg-type]
+        preloaded_arrest_report=preloaded_arrest_report,
     )
     persona = (await PackagedPersonaProvider().load(settings.bot_persona)).profile
     service = ReviewService(
@@ -426,6 +466,7 @@ async def _run_agent(
         radio_catalog,  # type: ignore[arg-type]
         arrest_report_lookup=arrest_report_lookup,
         character_legal_facts_lookup=character_legal_facts_lookup,
+        report_image_lookup=report_image_lookup,
     )
 
     await service.review(
@@ -463,6 +504,8 @@ def _case(
     root_author_display: str = "Ayudante Torres",
     root_attachment_ids: tuple[int, ...] = (),
     initial_channel_id: int = 4003,
+    structured_report_id: int | None = None,
+    structured_suspect_name: str | None = None,
 ) -> ReviewCase:
     """Build a realistic thread transcript from user/assistant text turns."""
 
@@ -497,6 +540,8 @@ def _case(
         interaction_mode=(
             InteractionMode.THREAD_FOLLOW_UP if len(turns) > 1 else InteractionMode.INITIAL_REVIEW
         ),
+        structured_report_id=structured_report_id,
+        structured_suspect_name=structured_suspect_name,
         messages=messages,
         attachments=[],
     )
@@ -1366,6 +1411,40 @@ async def test_new_report_review_uses_an_explicit_sarp_id_without_searching(
     assert lookup.searches == []
     assert lookup.details == [lookup.report.report_id]
     assert lookup.bindings == [lookup.report.report_id]
+    assert publisher.publications
+
+
+async def test_structured_initial_review_reuses_sarp_detail_and_loads_only_requested_images(
+    ai_eval_settings: AppSettings,
+) -> None:
+    arrest_lookup = RecordingArrestReportLookup()
+    image_lookup = RecordingReportImageLookup()
+    case = _case(
+        (
+            "user",
+            "Inicia la revisión del expediente estructurado. Comprueba también que las "
+            "fotografías del sospechoso sean visibles; no hace falta abrir los demás respaldos.",
+        ),
+        root_author_display="C. Harrington / M. Crawford",
+        initial_channel_id=4002,
+        structured_report_id=arrest_lookup.report.report_id,
+        structured_suspect_name=arrest_lookup.report.suspect_name,
+    )
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        arrest_report_lookup=arrest_lookup,
+        report_image_lookup=image_lookup,
+        preloaded_arrest_report=arrest_lookup.report,
+    )
+
+    assert context.published or context.interaction_completed
+    assert arrest_lookup.searches == []
+    assert arrest_lookup.details == []
+    assert arrest_lookup.current == []
+    assert image_lookup.calls == ["suspect_photo"]
     assert publisher.publications
 
 

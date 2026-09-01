@@ -39,6 +39,7 @@ from .ports import (
     CharacterLegalFactsLookup,
     EvidenceBagLookup,
     FactionFrequencyLookup,
+    ReportImageLookup,
 )
 from .prompt import PROMPT_VERSION, build_agent_instructions
 from .scope import build_scope_guardrail, scope_refusal_message
@@ -65,6 +66,7 @@ class ReviewService:
         evidence_bag_lookup: EvidenceBagLookup | None = None,
         faction_frequency_lookup: FactionFrequencyLookup | None = None,
         manual_catalog: ManualCatalog | None = None,
+        report_image_lookup: ReportImageLookup | None = None,
     ) -> None:
         self.settings = settings
         self.catalog_provider = as_charge_catalog_provider(catalog)
@@ -73,6 +75,8 @@ class ReviewService:
         self.persona = persona
         self.radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
         self.manual_catalog = manual_catalog or ManualCatalog.load_default()
+        self.arrest_report_lookup = arrest_report_lookup
+        self.report_image_lookup = report_image_lookup
         tools = build_agent_tools(
             self.catalog_provider,
             guide,
@@ -91,6 +95,7 @@ class ReviewService:
             faction_frequency_lookup=faction_frequency_lookup,
             report_channel_ids=settings.report_channel_allowlist.ids or frozenset(),
             manual_catalog=self.manual_catalog,
+            report_image_lookup=report_image_lookup,
         )
         owner_tools = build_agent_tools(
             self.catalog_provider,
@@ -110,6 +115,7 @@ class ReviewService:
             faction_frequency_lookup=None,
             report_channel_ids=settings.report_channel_allowlist.ids or frozenset(),
             manual_catalog=self.manual_catalog,
+            report_image_lookup=report_image_lookup,
         )
         scope_guardrail = build_scope_guardrail(settings, model)
         self.hooks = ReviewLifecycleHooks()
@@ -131,6 +137,7 @@ class ReviewService:
                 character_legal_facts_enabled=character_legal_facts_lookup is not None,
                 evidence_lookup_enabled=evidence_bag_lookup is not None,
                 faction_frequency_lookup_enabled=faction_frequency_lookup is not None,
+                report_image_lookup_enabled=report_image_lookup is not None,
             ),
             model=model.id,
             model_settings=model_settings,
@@ -155,6 +162,7 @@ class ReviewService:
                 character_legal_facts_enabled=False,
                 evidence_lookup_enabled=False,
                 faction_frequency_lookup_enabled=False,
+                report_image_lookup_enabled=report_image_lookup is not None,
             ),
             model=model.id,
             model_settings=model_settings,

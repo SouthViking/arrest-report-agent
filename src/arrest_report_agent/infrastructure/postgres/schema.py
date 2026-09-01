@@ -1102,6 +1102,96 @@ report_arrest_bindings = sa.Table(
     sa.Index("ix_report_arrest_binding_arrest", "guild_id", "sarp_arrest_id"),
 )
 
+arrest_report_submissions = sa.Table(
+    "arrest_report_submissions",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("interaction_id", sa.BigInteger, nullable=False, unique=True),
+    sa.Column("owner_user_id", sa.BigInteger, nullable=False),
+    sa.Column("parent_channel_id", sa.BigInteger, nullable=False),
+    sa.Column("root_message_id", sa.BigInteger),
+    sa.Column("thread_id", sa.BigInteger),
+    sa.Column("sarp_arrest_id", sa.BigInteger, nullable=False),
+    sa.Column("suspect_name", sa.String(100), nullable=False),
+    sa.Column("publication_status", sa.String(20), nullable=False),
+    sa.Column("initial_review_status", sa.String(20), nullable=False),
+    sa.Column(
+        "created_at",
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now(),
+    ),
+    sa.Column(
+        "updated_at",
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now(),
+    ),
+    sa.CheckConstraint("sarp_arrest_id > 0", name="ck_arrest_submission_report_positive"),
+    sa.CheckConstraint(
+        "publication_status IN ('publishing','published','failed')",
+        name="ck_arrest_submission_publication_status",
+    ),
+    sa.CheckConstraint(
+        "initial_review_status IN ('pending','running','completed','failed')",
+        name="ck_arrest_submission_review_status",
+    ),
+    sa.UniqueConstraint(
+        "guild_id",
+        "sarp_arrest_id",
+        name="uq_arrest_submission_guild_report",
+    ),
+    sa.UniqueConstraint(
+        "guild_id",
+        "root_message_id",
+        name="uq_arrest_submission_guild_root",
+    ),
+    sa.Index("ix_arrest_submission_thread", "guild_id", "thread_id"),
+)
+
+arrest_report_assets = sa.Table(
+    "arrest_report_assets",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "submission_id",
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("arrest_report_submissions.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("category", sa.String(30), nullable=False),
+    sa.Column("position", sa.Integer, nullable=False),
+    sa.Column("object_key", sa.String(500), nullable=False),
+    sa.Column("sha256", sa.String(64), nullable=False),
+    sa.Column("filename", sa.String(255), nullable=False),
+    sa.Column("content_type", sa.String(100), nullable=False),
+    sa.Column("size_bytes", sa.BigInteger, nullable=False),
+    sa.Column(
+        "created_at",
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now(),
+    ),
+    sa.CheckConstraint(
+        "category IN ('suspect_photo','supporting_image')",
+        name="ck_arrest_report_asset_category",
+    ),
+    sa.CheckConstraint("position >= 0", name="ck_arrest_report_asset_position"),
+    sa.CheckConstraint("size_bytes > 0", name="ck_arrest_report_asset_size"),
+    sa.UniqueConstraint(
+        "submission_id",
+        "category",
+        "position",
+        name="uq_arrest_report_asset_position",
+    ),
+)
+
 role_requests = sa.Table(
     "role_requests",
     metadata,

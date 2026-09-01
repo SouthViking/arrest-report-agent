@@ -80,7 +80,7 @@ valores legacy siguientes sirven exclusivamente como entrada del importador inic
 
 ```dotenv
 DISCORD_GUILD_IDS=1234674521416663070
-REPORT_CHANNEL_IDS=1462992794569281617,1462992859761217745
+REPORT_CHANNEL_IDS=1462992794569281617,1462992859761217745,1529616211204378737
 AUTHORIZED_USER_IDS=*
 ROLE_REQUEST_ALLOWED_CHANNEL_IDS=*
 ROLE_REQUEST_ALLOWED_ROLE_IDS=*
@@ -123,8 +123,9 @@ notificar hasta tres mediante la tool terminal `mention_roles`. La publicación 
 pertenezca a la guild actual, bloquea `@everyone`/`@here` y limita `AllowedMentions` a los IDs
 resueltos. Esta capacidad no se expone al acceso limitado del propietario.
 
-`REPORT_CHANNEL_IDS` no restringe conversaciones. Define los canales que `/mis-reportes`,
-`/mi-resumen`, `/pendientes`, `/ranking`, `/verguenza`, `/honor` y `/errores-reportes` utilizan como archivo de reportes y los que `/ayuda`
+`REPORT_CHANNEL_IDS` no restringe las conversaciones generales del agente. Define los canales donde
+puede utilizarse `/revisar-arresto` y los que `/mis-reportes`, `/mi-resumen`, `/pendientes`,
+`/ranking`, `/verguenza`, `/honor` y `/errores-reportes` utilizan como archivo de reportes y los que `/ayuda`
 presenta como destinos habituales. `ALLOWED_CHANNEL_IDS` y `REVIEW_CHANNEL_IDS` siguen siendo aliases
 de migración. Al mostrarlos, el bot conserva únicamente los que pertenecen a la guild actual y son
 visibles para él y para el solicitante, evitando referencias `#desconocido` entre servidores.
@@ -369,8 +370,11 @@ Comandos disponibles:
 - `/ayuda`: índice público y compacto hacia las guías de reportes, roles, pagers, callsigns y
   sugerencias, junto con accesos rápidos a `/guia`, `/cargos` y `/faq`.
 - `/info-reportes`: guía pública y breve para que el autor inicie o continúe la revisión limitada
-  de su propio expediente. Explica el formato `@mención Nombre Apellido`, las cuatro imágenes
-  mínimas, el cupo vigente y los canales habilitados.
+  de su propio expediente. Explica el formulario estructurado, la revisión inicial, las
+  continuaciones disponibles, los canales habilitados y la compatibilidad con el formato anterior.
+- `/revisar-arresto`: permite a `operational_staff_roles` publicar un reporte validado en un canal
+  de `report_channels`, separar fotografías y respaldos, abrir su hilo e iniciar una primera
+  revisión sin consumir una de las cinco continuaciones del propietario.
 - `/guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.
 - `/cargos`: modal privado para buscar por código, título, descripción o categoría en el catálogo
   penal activo; muestra detalles y sanciones con paginación cuando corresponde.

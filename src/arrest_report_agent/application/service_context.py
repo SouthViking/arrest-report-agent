@@ -17,6 +17,7 @@ from arrest_report_agent.knowledge import ChargeCatalogSnapshot
 
 from .ports import (
     ActivityTracker,
+    ArrestReportDetail,
     GuildMemberDirectory,
     GuildMessageDirectory,
     PollManager,
@@ -52,6 +53,8 @@ class ReviewRunContext:
     publication: ReviewPublication | None = None
     guardrail_usage: Usage = field(default_factory=Usage)
     loaded_attachment_ids: set[int] = field(default_factory=set)
+    loaded_report_asset_ids: set[str] = field(default_factory=set)
+    preloaded_arrest_report: ArrestReportDetail | None = None
     loaded_image_count: int = 0
     loaded_historical_image_count: int = 0
     loaded_file_count: int = 0

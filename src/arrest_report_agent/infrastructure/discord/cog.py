@@ -48,6 +48,8 @@ from arrest_report_agent.support import append_support_note
 from .context import (
     REPORT_OWNER_MINIMUM_IMAGE_COUNT,
     DiscordContextBuilder,
+    DiscordResponseRoute,
+    ReviewTarget,
     render_agent_input,
 )
 from .general_knowledge import (
@@ -76,8 +78,12 @@ from .supervision import (
 from .trigger import DiscordAccessPolicy, TriggerDecision
 
 if TYPE_CHECKING:
-    from arrest_report_agent.application.ports import PollManager
+    from arrest_report_agent.application.ports import ArrestReportDetail, PollManager
     from arrest_report_agent.manual_quiz import ManualQuizDiscordPublisher
+    from arrest_report_agent.structured_arrest_reports import (
+        ArrestReportSubmission,
+        StructuredArrestReportRepository,
+    )
 
 LOGGER = logging.getLogger(__name__)
 
@@ -188,23 +194,43 @@ def build_report_info_embed(
     )
     if report_owner_max_rounds is not None:
         embed.add_field(
-            name="1️⃣ Cómo empezar",
-            value=copy.owner_info_start.format(bot_mention=bot_mention),
+            name="1️⃣ Publicar un reporte",
+            value=(
+                "Usa `/revisar-arresto`, escribe el nombre completo y el número del reporte, "
+                "y adjunta las imágenes solicitadas."
+            ),
             inline=False,
         )
         embed.add_field(
-            name="2️⃣ Material mínimo",
-            value=copy.owner_info_requirements,
+            name="2️⃣ Qué debes adjuntar",
+            value=(
+                "Incluye una o dos imágenes con las fotografías frontal y lateral del sospechoso "
+                "—pueden venir juntas— y entre una y ocho imágenes del reporte o sus respaldos."
+            ),
             inline=False,
         )
         embed.add_field(
-            name="3️⃣ Cómo continuar",
-            value=copy.owner_info_continue,
+            name="3️⃣ Revisión y correcciones",
+            value=(
+                "El bot publicará el expediente, abrirá un hilo e iniciará una primera revisión. "
+                "Después puedes adjuntar correcciones en el hilo y pedir una nueva revisión."
+            ),
             inline=False,
         )
         embed.add_field(
             name="🕒 Límite",
-            value=copy.owner_info_limit.format(max_rounds=report_owner_max_rounds),
+            value=(
+                "La revisión inicial no consume tus intervenciones. Después dispones de "
+                f"**{report_owner_max_rounds}** revisiones adicionales dentro del hilo."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="También disponible",
+            value=(
+                "Los reportes publicados con el formato anterior siguen funcionando. "
+                + copy.owner_info_start.format(bot_mention=bot_mention)
+            ),
             inline=False,
         )
         embed.add_field(name="📍 Canales habilitados", value=channels, inline=False)
@@ -314,6 +340,7 @@ class ReviewCog(commands.Cog):
         manual_quiz_publisher: ManualQuizDiscordPublisher | None = None,
         poll_manager: PollManager | None = None,
         agent_session_manager: AgentSessionManager | None = None,
+        structured_report_repository: StructuredArrestReportRepository | None = None,
     ) -> None:
         self.bot = bot
         self._config_provider = config_provider
@@ -322,6 +349,7 @@ class ReviewCog(commands.Cog):
         self.manual_quiz_publisher = manual_quiz_publisher
         self.poll_manager = poll_manager
         self.agent_session_manager = agent_session_manager
+        self.structured_report_repository = structured_report_repository
         self._runtime_context: contextvars.ContextVar[ReviewCogRuntime | None] = contextvars.ContextVar(
             "review_cog_runtime", default=None
         )
@@ -429,7 +457,12 @@ class ReviewCog(commands.Cog):
                     settings.supervisor_role_allowlist,
                 )
             ),
-            context_builder=DiscordContextBuilder(settings, persona, self.bot),  # type: ignore[arg-type]
+            context_builder=DiscordContextBuilder(
+                settings,
+                persona,
+                self.bot,
+                self.structured_report_repository,
+            ),  # type: ignore[arg-type]
             personal_report_finder=DiscordPersonalReportFinder(self.bot, settings),  # type: ignore[arg-type]
         )
 
@@ -570,6 +603,19 @@ class ReviewCog(commands.Cog):
                     **exception_fields(error),
                 )
                 return
+        await self._execute_review(message, target, access_level=access_level)
+
+    async def _execute_review(
+        self,
+        message: discord.Message,
+        target: ReviewTarget,
+        *,
+        access_level: AgentAccessLevel,
+        consume_owner_round: bool = True,
+        preloaded_arrest_report: ArrestReportDetail | None = None,
+    ) -> bool:
+        """Run the shared bounded review workflow for listener and structured submissions."""
+
         root_id = target.root.id
         lock = self._locks.setdefault(root_id, asyncio.Lock())
         if lock.locked():
@@ -580,11 +626,11 @@ class ReviewCog(commands.Cog):
                 root_message_id=root_id,
                 trigger_message_id=message.id,
             )
-            return
+            return False
         try:
             async with (
                 lock,
-                maintain_typing_indicator(message.channel),
+                maintain_typing_indicator(target.thread or message.channel),
                 self._semaphore,
                 self.presence.handling() as activity,
             ):
@@ -635,13 +681,13 @@ class ReviewCog(commands.Cog):
                             technical_reference=f"{root_id}-{attempt}-context_unavailable",
                             **exception_fields(publication_error),
                         )
-                    return
+                    return False
                 owner_reservation = None
-                if access_level is AgentAccessLevel.REPORT_OWNER:
+                if access_level is AgentAccessLevel.REPORT_OWNER and consume_owner_round:
                     max_rounds = getattr(self.settings, "report_owner_access_max_rounds", None)
                     if max_rounds is None or self.report_owner_run_repository is None:
                         await self._redirect_unauthorized_user(message)
-                        return
+                        return False
                     try:
                         owner_reservation = await self.report_owner_run_repository.reserve(
                             guild_id=case.guild_id,
@@ -665,7 +711,7 @@ class ReviewCog(commands.Cog):
                             **exception_fields(error),
                         )
                         await self._redirect_unauthorized_user(message)
-                        return
+                        return False
                     log_event(
                         LOGGER,
                         "info",
@@ -682,13 +728,13 @@ class ReviewCog(commands.Cog):
                         max_rounds=owner_reservation.max_rounds,
                     )
                     if owner_reservation.result is OwnerRunReservationResult.DUPLICATE:
-                        return
+                        return False
                     if owner_reservation.result is OwnerRunReservationResult.EXHAUSTED:
                         await self._redirect_owner_quota_exhausted(
                             message,
                             max_rounds=owner_reservation.max_rounds,
                         )
-                        return
+                        return False
                 run_context = ReviewRunContext(
                     case=case,
                     publisher=(
@@ -718,6 +764,7 @@ class ReviewCog(commands.Cog):
                     member_directory=self.member_directory,
                     message_directory=self.message_directory,
                     poll_manager=self.poll_manager,
+                    preloaded_arrest_report=preloaded_arrest_report,
                 )
                 prepared_session = await self._prepare_agent_session(case, access_level)
                 source_cursor = self._source_cursor_as_message_id(prepared_session)
@@ -762,9 +809,91 @@ class ReviewCog(commands.Cog):
                                 max_rounds=owner_reservation.max_rounds,
                                 **exception_fields(error),
                             )
+                return run_context.published or run_context.interaction_completed
         finally:
             if not lock.locked():
                 self._locks.pop(root_id, None)
+        return False
+
+    async def run_structured_initial_review(
+        self,
+        *,
+        root: discord.Message,
+        thread: discord.Thread,
+        requester: discord.Member,
+        submission: ArrestReportSubmission,
+        arrest_report: ArrestReportDetail,
+    ) -> None:
+        """Start exactly one free owner review for a validated structured submission."""
+
+        repository = self.structured_report_repository
+        if repository is None:
+            return
+        try:
+            claimed = await repository.claim_initial_review(submission.id)
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "structured_initial_review_claim_failed",
+                exc_info=error,
+                guild_id=submission.guild_id,
+                root_message_id=root.id,
+                thread_id=thread.id,
+                sarp_arrest_id=submission.sarp_arrest_id,
+                **exception_fields(error),
+            )
+            return
+        if not claimed:
+            return
+        success = False
+        target = ReviewTarget(
+            root=root,
+            trigger=root,
+            parent=thread.parent,
+            thread=thread,
+            response_route=DiscordResponseRoute.THREAD,
+            requester=requester,
+            structured_report_id=submission.sarp_arrest_id,
+            structured_suspect_name=submission.suspect_name,
+        )
+        try:
+            async with self._bind_guild_runtime(submission.guild_id):
+                success = await self._execute_review(
+                    root,
+                    target,
+                    access_level=AgentAccessLevel.REPORT_OWNER,
+                    consume_owner_round=False,
+                    preloaded_arrest_report=arrest_report,
+                )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "structured_initial_review_failed",
+                exc_info=error,
+                guild_id=submission.guild_id,
+                root_message_id=root.id,
+                thread_id=thread.id,
+                sarp_arrest_id=submission.sarp_arrest_id,
+                **exception_fields(error),
+            )
+        finally:
+            try:
+                await repository.finish_initial_review(submission.id, success=success)
+            except Exception as error:
+                log_event(
+                    LOGGER,
+                    "error",
+                    "structured_initial_review_finalization_failed",
+                    exc_info=error,
+                    guild_id=submission.guild_id,
+                    root_message_id=root.id,
+                    thread_id=thread.id,
+                    sarp_arrest_id=submission.sarp_arrest_id,
+                    success=success,
+                    **exception_fields(error),
+                )
 
     async def _prepare_agent_session(
         self,
@@ -1050,8 +1179,11 @@ class ReviewCog(commands.Cog):
                         role.id in bundle.settings.operational_staff_role_ids for role in ctx.author.roles
                     )
                 ):
-                    extra_feature_lines.append(
-                        "• `/ver-evidencia`: consulta una bolsa y su cadena de custodia."
+                    extra_feature_lines.extend(
+                        (
+                            "• `/revisar-arresto`: publica un reporte e inicia su revisión.",
+                            "• `/ver-evidencia`: consulta una bolsa y su cadena de custodia.",
+                        )
                     )
                 warrant_feature = bundle.snapshot.features.get("warrant_notifications")
                 if (

@@ -28,7 +28,7 @@ def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings)
     assert settings.max_total_file_bytes == 52_428_800
     assert settings.channel_context_max_messages == 5
     assert settings.thread_context_max_historical_files == 2
-    assert settings.app_version == "0.26.4"
+    assert settings.app_version == "0.27.0"
     assert settings.sarp_online_players_cache_seconds == 30
     assert settings.online_inmates_page_size == 10
 
@@ -125,7 +125,7 @@ def test_railway_webhook_requires_complete_identity_and_url_safe_secret() -> Non
 
     assert settings.railway_webhook_enabled is True
     assert settings.railway_webhook_identity_is_complete is True
-    assert settings.app_version == "0.26.4"
+    assert settings.app_version == "0.27.0"
 
     with pytest.raises(ValidationError, match="RAILWAY_ENVIRONMENT_ID"):
         AppSettings(**{key: value for key, value in values.items() if key != "RAILWAY_ENVIRONMENT_ID"})
@@ -501,7 +501,9 @@ def test_default_env_template_values_are_parseable(tmp_path) -> None:
     assert settings.discord_guild_ids == frozenset({1234674521416663070})
     assert settings.authorized_user_ids is None
     assert settings.supervisor_role_ids is None
-    assert settings.report_channel_ids == frozenset({1462992794569281617, 1462992859761217745})
+    assert settings.report_channel_ids == frozenset(
+        {1462992794569281617, 1462992859761217745, 1529616211204378737}
+    )
     assert settings.role_request_allowed_channel_ids is None
     assert settings.role_request_reviewer_role_ids == ()
     assert settings.role_request_allowed_role_ids == ()

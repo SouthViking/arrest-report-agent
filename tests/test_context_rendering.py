@@ -97,6 +97,44 @@ def test_render_defers_every_selected_character_and_report_image() -> None:
     assert "Revisa el estado actual" not in text
 
 
+def test_structured_bot_root_is_rendered_as_user_bootstrap_without_affecting_legacy() -> None:
+    message = ConversationMessage(
+        id=10,
+        author_id=99,
+        author_display="Sgt. Vigil",
+        author_is_bot=True,
+        author_is_assistant=True,
+        content="",
+        created_at=datetime.now(UTC),
+        attachment_ids=[101],
+        is_trigger=True,
+    )
+    base = {
+        "guild_id": 1,
+        "parent_channel_id": 2,
+        "channel_id": 2,
+        "root_message_id": 10,
+        "trigger_message_id": 10,
+        "requester_user_id": 20,
+        "interaction_mode": InteractionMode.INITIAL_REVIEW,
+        "messages": [message],
+        "attachments": [],
+    }
+    structured = ReviewCase(
+        **base,
+        structured_report_id=321,
+        structured_suspect_name="Andy Quintero",
+    )
+    legacy = ReviewCase(**base)
+
+    structured_input = render_agent_input(structured)
+    legacy_input = render_agent_input(legacy)
+
+    assert structured_input[0]["role"] == "user"
+    assert "Expediente estructurado: reporte SARP #321" in structured_input[0]["content"][0]["text"]
+    assert legacy_input[0]["role"] == "assistant"
+
+
 def test_render_session_delta_keeps_only_new_human_messages() -> None:
     now = datetime.now(UTC)
     case = ReviewCase(

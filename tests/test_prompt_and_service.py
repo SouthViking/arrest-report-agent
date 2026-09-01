@@ -176,6 +176,17 @@ def test_arrest_lookup_instructions_are_conditional_and_owner_scoped(persona) ->
         AgentAccessLevel.REPORT_OWNER,
         arrest_lookup_enabled=True,
     )
+    structured_full = build_agent_instructions(
+        persona,
+        arrest_lookup_enabled=True,
+        report_image_lookup_enabled=True,
+    )
+    structured_owner = build_agent_instructions(
+        persona,
+        AgentAccessLevel.REPORT_OWNER,
+        arrest_lookup_enabled=True,
+        report_image_lookup_enabled=True,
+    )
 
     assert "<sarp_arrest_reports>" not in disabled
     assert "search_arrest_reports" in full
@@ -192,6 +203,11 @@ def test_arrest_lookup_instructions_are_conditional_and_owner_scoped(persona) ->
     assert "get_current_arrest_report" in owner
     assert "search_arrest_reports" not in owner
     assert "no intentes buscar nombres" in owner
+    assert "get_report_suspect_images" not in disabled
+    assert "get_report_suspect_images" not in full
+    assert "get_report_suspect_images" not in owner
+    assert "get_report_suspect_images" in structured_full
+    assert "get_report_supporting_images" in structured_owner
 
 
 def test_faction_frequency_instructions_are_conditional_and_full_access_only(persona) -> None:

@@ -33,7 +33,7 @@ from .client import PostgresClient
 from .repository import CONFIG_NOTIFY_CHANNEL, ConfigurationRepository
 
 if TYPE_CHECKING:
-    from arrest_report_agent.application.ports import EvidenceBagLookup
+    from arrest_report_agent.application.ports import EvidenceBagLookup, ReportImageLookup
     from arrest_report_agent.faction_directory import FactionDirectoryService
     from arrest_report_agent.infrastructure.sarp import SarpClient
 
@@ -65,6 +65,7 @@ class DatabaseConfigProvider:
         faction_directory: FactionDirectoryService | None = None,
         evidence_bag_lookup: EvidenceBagLookup | None = None,
         manual_catalog: ManualCatalog | None = None,
+        report_image_lookup: ReportImageLookup | None = None,
     ) -> None:
         self.client = client
         self.repository = repository
@@ -77,6 +78,7 @@ class DatabaseConfigProvider:
         self.sarp_client = sarp_client
         self.faction_directory = faction_directory
         self.evidence_bag_lookup = evidence_bag_lookup
+        self.report_image_lookup = report_image_lookup
         # Import lazily so repositories can import the PostgreSQL schema without
         # creating a package-initialization cycle through this provider.
         from arrest_report_agent.arrest_reports import ArrestReportBindingRepository
@@ -188,6 +190,9 @@ class DatabaseConfigProvider:
                 evidence_bag_lookup=(self.evidence_bag_lookup if faction_id is not None else None),
                 faction_frequency_lookup=faction_frequency_lookup,
                 manual_catalog=self.manual_catalog,
+                report_image_lookup=(
+                    self.report_image_lookup if arrest_lookup is not None else None
+                ),
             )
             bundle = GuildRuntimeBundle(
                 snapshot=snapshot,

@@ -124,6 +124,11 @@ from arrest_report_agent.stolen_vehicles import (
     StolenVehicleFeedWorker,
     StolenVehicleService,
 )
+from arrest_report_agent.structured_arrest_reports import (
+    StructuredArrestReportRepository,
+    StructuredArrestReportService,
+)
+from arrest_report_agent.structured_arrest_reports.discord import StructuredArrestReportCog
 from arrest_report_agent.suggestions import SuggestionCog, SuggestionRepository
 from arrest_report_agent.support import SupportCog
 from arrest_report_agent.warrant_notifications import (
@@ -260,6 +265,11 @@ async def build_runtime(
     radio_catalog = RadioCodeCatalog.load_default()
     model_catalog = ModelCatalog.load_default()
     object_storage = build_bucket_storage(settings)
+    structured_report_repository = StructuredArrestReportRepository(postgres)
+    structured_report_service = StructuredArrestReportService(
+        structured_report_repository,
+        object_storage,
+    )
     repository = ConfigurationRepository(postgres, object_storage)
     config_provider = DatabaseConfigProvider(
         postgres,
@@ -273,6 +283,7 @@ async def build_runtime(
         faction_directory=faction_directory,
         evidence_bag_lookup=evidence_bag_service,
         manual_catalog=manual_catalog,
+        report_image_lookup=structured_report_service,
     )
     try:
         if sarp_penal_code_provider is not None:
@@ -323,8 +334,16 @@ async def build_runtime(
         manual_quiz_publisher=manual_quiz_publisher,
         poll_manager=poll_service,
         agent_session_manager=agent_session_manager,
+        structured_report_repository=structured_report_repository,
     )
     bot.add_cog(review_cog)
+    bot.add_cog(
+        StructuredArrestReportCog(
+            config_provider,
+            structured_report_service,
+            review_cog,
+        )
+    )
     bot.add_cog(PollEventCog(poll_repository))
     cost_monitoring = build_cost_monitoring_service(settings)
     all_bundles = [await config_provider.get(guild_id) for guild_id in guild_ids]

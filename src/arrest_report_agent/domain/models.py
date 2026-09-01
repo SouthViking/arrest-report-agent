@@ -141,6 +141,8 @@ class ReviewCase(BaseModel):
     interaction_mode: InteractionMode
     response_route: Literal["agent_choice", "inline_reply", "thread"] = "thread"
     case_subject: str | None = None
+    structured_report_id: int | None = Field(default=None, gt=0)
+    structured_suspect_name: str | None = Field(default=None, min_length=1, max_length=100)
     messages: list[ConversationMessage]
     attachments: list[DiscordAttachment]
     context_state: ContextState = ContextState.COMPLETE

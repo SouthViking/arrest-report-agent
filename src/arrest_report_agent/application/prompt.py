@@ -6,7 +6,7 @@ from arrest_report_agent.config import BotPersona
 from arrest_report_agent.domain import AgentAccessLevel
 from arrest_report_agent.knowledge import ReportGuideSection
 
-PROMPT_VERSION = "2026-08-31.4"
+PROMPT_VERSION = "2026-09-01.1"
 
 
 def build_agent_instructions(
@@ -17,6 +17,7 @@ def build_agent_instructions(
     character_legal_facts_enabled: bool = False,
     evidence_lookup_enabled: bool = False,
     faction_frequency_lookup_enabled: bool = False,
+    report_image_lookup_enabled: bool = False,
 ) -> str:
     """Build compact instructions from one validated runtime persona."""
 
@@ -36,6 +37,15 @@ def build_agent_instructions(
     boundaries = "\n".join(f"- {item}" for item in personality.boundaries)
 
     owner_constraints = ""
+    structured_image_guidance = ""
+    if report_image_lookup_enabled:
+        structured_image_guidance = """
+- Si el contexto identifica un expediente estructurado, usa `get_report_suspect_images` para sus
+  fotografías y `get_report_supporting_images` para capturas o respaldos. Carga solo la categoría
+  necesaria; no vuelvas a cargar un recurso ya obtenido.
+- Antes de afirmar que una fotografía, captura o respaldo está correcto, visible, completo o
+  ausente, debes cargar la categoría correspondiente. Nunca infieras un resultado visual solo por
+  la metadata del expediente."""
     assistant_function = (
         f"Asistente operativo de {identity.organization_acronym} para consultas, información y "
         "tareas autorizadas."
@@ -108,9 +118,10 @@ Esta ejecución tiene acceso limitado al propietario del expediente activo.
   amplíes el alcance ni ofrezcas funciones administrativas.
 </report_owner_access>
 """
-        interaction_tools = """
+        interaction_tools = f"""
 - Usa `get_messages` únicamente para leer mensajes del hilo activo o recuperar exactamente el
   reporte raíz. Usa `get_message_attachments` con el mismo alcance cuando falte un adjunto relevante.
+{structured_image_guidance}
 - No intentes seleccionar otros canales, expedientes o usuarios; esas fuentes no forman parte de
   esta ejecución."""
         mission = """**Objetivo:** Ayudar al propietario exclusivamente con su expediente de arresto
@@ -133,7 +144,7 @@ pero no simules embeds."""
 
     arrest_tools = ""
     if arrest_lookup_enabled and access_level is AgentAccessLevel.FULL:
-        arrest_tools = """
+        arrest_tools = f"""
 <sarp_arrest_reports>
 Dispones de consultas en vivo a los reportes de arresto de la facción.
 
@@ -173,6 +184,7 @@ Dispones de consultas en vivo a los reportes de arresto de la facción.
 - El detalle actual de SARP prevalece para la narrativa y los cargos registrados. Las imágenes y
   archivos pueden aportar fotografías, evidencia visual u otros datos que la API no entregue, pero
   no los cargues por rutina ni los uses para auditar ortografía cuando ya existe el texto de SARP.
+{structured_image_guidance}
 - Si, después de búsquedas razonables, SARP devuelve realmente `not_found`, usa
   `get_message_attachments` sobre el reporte raíz y revisa el material visual disponible. Declara de
   forma inequívoca en el resultado que no localizaste el reporte en SARP y que la revisión se realizó
@@ -184,17 +196,28 @@ Dispones de consultas en vivo a los reportes de arresto de la facción.
 </sarp_arrest_reports>
 """
     elif arrest_lookup_enabled:
-        arrest_tools = """
+        owner_structured_guidance = ""
+        if report_image_lookup_enabled:
+            owner_structured_guidance = """
+- No cargues imágenes por rutina cuando el detalle SARP resuelva la solicitud. Usa
+  `get_report_suspect_images` únicamente para validar fotografías y
+  `get_report_supporting_images` solo si falta un dato visual o se pide de forma explícita.
+- Toda afirmación sobre fotografías o respaldos exige cargar primero la categoría correspondiente;
+  nunca infieras su contenido desde la metadata."""
+        arrest_tools = f"""
 <sarp_arrest_reports>
 Este expediente puede tener un reporte SARP previamente vinculado.
 
+- Si el contexto indica `Expediente estructurado`, comienza la revisión inicial consultando
+  `get_current_arrest_report`: su detalle ya fue validado y vinculado. No busques por nombre ni ID.
 - Usa `get_current_arrest_report` cuando el propietario indique que corrigió el reporte o solicite
   una re-revisión. La tool solo puede recuperar la referencia de este expediente y nunca buscar otros.
 - Si responde `not_bound`, usa `get_message_attachments` sobre el reporte raíz como fallback. No
   solicites IDs, no intentes buscar nombres y declara que no pudiste recuperar una versión vinculada
   desde SARP y que revisaste la imagen.
-- El detalle actual de SARP prevalece para narrativa y cargos registrados. No cargues imágenes por
-  rutina cuando ese detalle resuelva la solicitud.
+- El detalle actual de SARP prevalece para narrativa y cargos registrados. Para reportes legacy
+  conserva `get_message_attachments` como fallback.
+{owner_structured_guidance}
 - Si SARP no está disponible, usa `get_message_attachments` si existe material visual suficiente y
   declara esa limitación; si la captura no es legible, usa `inconclusive` sin inventar contenido ni
   faltas ortográficas.

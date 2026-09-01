@@ -323,6 +323,39 @@ class ArrestReportLookup(Protocol):
         """Fetch the current SARP detail linked to one Discord report root."""
 
 
+type ReportImageCategory = Literal["suspect_photo", "supporting_image"]
+
+
+@dataclass(frozen=True)
+class ReportImageAsset:
+    asset_id: str
+    filename: str
+    content_type: str
+    size_bytes: int
+    position: int
+    payload: bytes
+
+
+@dataclass(frozen=True)
+class ReportImageResult:
+    report_id: int | None
+    owner_user_id: int | None
+    images: tuple[ReportImageAsset, ...]
+    error: str | None = None
+
+
+class ReportImageLookup(Protocol):
+    async def get_images(
+        self,
+        *,
+        guild_id: int,
+        root_message_id: int | None,
+        report_id: int | None,
+        category: ReportImageCategory,
+    ) -> ReportImageResult:
+        """Load one bounded category of structured report images."""
+
+
 type CharacterLegalFactCheck = Literal[
     "prior_serious_convictions",
     "overdue_unpaid_fines",

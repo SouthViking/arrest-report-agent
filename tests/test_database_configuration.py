@@ -923,6 +923,16 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         )
         assert binding_table is not None
         assert binding_table["name"] == "report_arrest_bindings"
+        structured_tables = await client.fetch_one(
+            sa.text(
+                "SELECT "
+                "to_regclass('public.arrest_report_submissions') AS submissions, "
+                "to_regclass('public.arrest_report_assets') AS assets"
+            )
+        )
+        assert structured_tables is not None
+        assert structured_tables["submissions"] == "arrest_report_submissions"
+        assert structured_tables["assets"] == "arrest_report_assets"
         pending_rows = await client.fetch_all(
             sa.text(
                 "SELECT revision.guild_id, feature.enabled, feature.payload "
