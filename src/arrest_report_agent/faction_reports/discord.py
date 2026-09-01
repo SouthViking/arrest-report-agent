@@ -13,6 +13,11 @@ from discord.ext import commands
 from arrest_report_agent.application.date_ranges import DateRangePeriod, resolve_date_range
 from arrest_report_agent.config import BotPersona, PersonaFactionReportMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.infrastructure.discord.forms import (
+    build_date_period_select,
+    build_publication_checkbox,
+    selected_date_period,
+)
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
 from .models import FactionReport, FactionReportTooLargeError
@@ -208,19 +213,10 @@ class FactionReportModal(discord.ui.DesignerModal):
     def __init__(self, cog: FactionReportCog, requester_id: int) -> None:
         self.cog = cog
         self.requester_id = requester_id
-        self.period = discord.ui.StringSelect(  # type: ignore[type-var]
+        self.period = build_date_period_select(
             custom_id="faction_report:v1:period",
-            options=[
-                discord.SelectOption(label="Último día", value="1"),
-                discord.SelectOption(label="Últimos 2 días", value="2"),
-                discord.SelectOption(label="Últimos 7 días", value="7", default=True),
-                discord.SelectOption(label="Últimos 14 días", value="14"),
-                discord.SelectOption(label="Últimos 30 días", value="30"),
-                discord.SelectOption(label="Últimos 90 días", value="90"),
-                discord.SelectOption(label="Rango personalizado", value="custom"),
-            ],
-            min_values=1,
-            max_values=1,
+            periods=tuple(DateRangePeriod),
+            default=DateRangePeriod.LAST_7_DAYS,
         )
         self.date_from = discord.ui.InputText(
             custom_id="faction_report:v1:date_from",
@@ -236,7 +232,7 @@ class FactionReportModal(discord.ui.DesignerModal):
             min_length=10,
             max_length=10,
         )
-        self.publish = discord.ui.Checkbox(
+        self.publish = build_publication_checkbox(
             custom_id="faction_report:v2:publish",
             default=False,
         )
@@ -251,11 +247,14 @@ class FactionReportModal(discord.ui.DesignerModal):
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        period = next(iter(self.period.values or ()), DateRangePeriod.LAST_7_DAYS.value)
+        period = selected_date_period(
+            self.period,
+            default=DateRangePeriod.LAST_7_DAYS,
+        )
         await self.cog.generate(
             interaction,
             requester_id=self.requester_id,
-            period=DateRangePeriod(period),
+            period=period,
             raw_date_from=self.date_from.value or "",
             raw_date_to=self.date_to.value or "",
             visibility=(

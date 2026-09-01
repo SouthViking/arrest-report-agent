@@ -26,6 +26,7 @@ from arrest_report_agent.config import (
     AccessPolicySnapshot,
     AppSettings,
     ArrestReportLookupOptions,
+    ArrestStatisticsOptions,
     FactionMemberAnalysisOptions,
     FactionReportOptions,
     ForumShortcutsOptions,
@@ -75,6 +76,21 @@ def test_pending_arrest_reports_options_are_bounded() -> None:
         PendingArrestReportsOptions(faction_id=3, max_range_days=366)
     with pytest.raises(ValueError, match="greater than or equal to 50"):
         PendingArrestReportsOptions(faction_id=3, max_records=49)
+
+
+def test_arrest_statistics_options_are_bounded() -> None:
+    options = ArrestStatisticsOptions(faction_id=3)
+    assert options.max_range_days == 30
+    assert options.max_reports == 200
+    assert options.cache_ttl_seconds == 900
+    assert options.detail_concurrency == 3
+    assert options.max_top == 10
+    with pytest.raises(ValueError, match="less than or equal to 90"):
+        ArrestStatisticsOptions(faction_id=3, max_range_days=91)
+    with pytest.raises(ValueError, match="less than or equal to 1000"):
+        ArrestStatisticsOptions(faction_id=3, max_reports=1_001)
+    with pytest.raises(ValueError, match="less than or equal to 5"):
+        ArrestStatisticsOptions(faction_id=3, detail_concurrency=6)
 
 
 def test_faction_report_options_are_bounded() -> None:
@@ -952,6 +968,28 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         }
         assert pending[999]["enabled"] is False
         assert pending[999]["payload"] == {}
+        statistics_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.enabled, feature.payload "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'arrest_statistics' "
+                "ORDER BY revision.guild_id"
+            )
+        )
+        statistics = {int(row["guild_id"]): row for row in statistics_rows}
+        assert statistics[1234674521416663070]["enabled"] is True
+        assert statistics[1234674521416663070]["payload"] == {
+            "faction_id": 3,
+            "max_range_days": 30,
+            "max_reports": 200,
+            "cache_ttl_seconds": 900,
+            "detail_concurrency": 3,
+            "max_top": 10,
+        }
+        assert statistics[999]["enabled"] is False
+        assert statistics[999]["payload"] == {}
         ftp_request_rows = await client.fetch_all(
             sa.text(
                 "SELECT revision.guild_id, feature.enabled, feature.payload "

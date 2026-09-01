@@ -260,6 +260,15 @@ class FactionReportOptions(FrozenConfigModel):
     max_bank_records: int = Field(default=10_000, ge=500, le=25_000)
 
 
+class ArrestStatisticsOptions(FrozenConfigModel):
+    faction_id: int = Field(gt=0)
+    max_range_days: int = Field(default=30, ge=1, le=90)
+    max_reports: int = Field(default=200, ge=10, le=1_000)
+    cache_ttl_seconds: int = Field(default=900, ge=30, le=3_600)
+    detail_concurrency: int = Field(default=3, ge=1, le=5)
+    max_top: Literal[5, 10] = 10
+
+
 class RadioAuditOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
     query_max_range_days: int = Field(default=30, ge=1, le=90)
@@ -518,6 +527,20 @@ class GuildConfigSnapshot(FrozenConfigModel):
             roles = self.policies[AccessPolicyKey.FACTION_REPORT_ROLES]
             if roles.mode is not AccessPolicyMode.RESTRICTED:
                 raise ValueError("enabled faction_reports requires restricted report roles")
+        arrest_statistics_feature = self.features.get("arrest_statistics")
+        if arrest_statistics_feature is not None and arrest_statistics_feature.enabled:
+            if arrest_statistics_feature.schema_version != 1:
+                raise ValueError("arrest_statistics requires feature schema version 1")
+            ArrestStatisticsOptions.model_validate(arrest_statistics_feature.payload)
+            roles = self.policies[AccessPolicyKey.FACTION_REPORT_ROLES]
+            if roles.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError(
+                    "enabled arrest_statistics requires restricted faction report roles"
+                )
+            if arrest_lookup_feature is None or not arrest_lookup_feature.enabled:
+                raise ValueError(
+                    "enabled arrest_statistics requires enabled arrest_report_lookup"
+                )
         logbook_feature = self.features.get("logbook")
         if logbook_feature is not None and logbook_feature.enabled:
             if logbook_feature.schema_version != 1 or logbook_feature.payload:
@@ -771,6 +794,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return FactionReportOptions.model_validate(feature.payload)
+
+    @property
+    def arrest_statistics_options(self) -> ArrestStatisticsOptions | None:
+        feature = self.snapshot.features.get("arrest_statistics")
+        if feature is None or not feature.enabled:
+            return None
+        return ArrestStatisticsOptions.model_validate(feature.payload)
 
     @property
     def radio_audit_options(self) -> RadioAuditOptions | None:

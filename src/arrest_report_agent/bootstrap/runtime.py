@@ -9,6 +9,7 @@ import discord
 from agents import set_default_openai_key
 
 from arrest_report_agent.agent_sessions import AgentSessionManager
+from arrest_report_agent.arrest_statistics import ArrestStatisticsCog, ArrestStatisticsService
 from arrest_report_agent.ci_notifications import (
     CiNotificationRepository,
     CiNotificationWorker,
@@ -589,6 +590,13 @@ async def build_runtime(
             PendingArrestReportCog(
                 config_provider,
                 PendingArrestReportService(sarp_client),
+                persona.profile,
+            )
+        )
+        bot.add_cog(
+            ArrestStatisticsCog(
+                config_provider,
+                ArrestStatisticsService(),
                 persona.profile,
             )
         )

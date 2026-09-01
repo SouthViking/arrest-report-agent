@@ -35,6 +35,11 @@ from arrest_report_agent.infrastructure.storage import (
 )
 
 BOOTSTRAP_MIGRATION_NAME = "bootstrap_env_v1"
+LSSD_GUILD_ID = 1234674521416663070
+LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS = (
+    1234678029662294047,
+    1234678238182244414,
+)
 
 
 class BootstrapError(RuntimeError):
@@ -379,7 +384,16 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
             AccessPolicySnapshot(
                 key=AccessPolicyKey.FACTION_REPORT_ROLES,
                 subject_type="role",
-                mode=AccessPolicyMode.DISABLED,
+                mode=(
+                    AccessPolicyMode.RESTRICTED
+                    if guild_id == LSSD_GUILD_ID
+                    else AccessPolicyMode.DISABLED
+                ),
+                ids=(
+                    LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS
+                    if guild_id == LSSD_GUILD_ID
+                    else ()
+                ),
             ),
             AccessPolicySnapshot(
                 key=AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS,
@@ -690,6 +704,23 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                                 "max_records": 1000,
                             }
                             if guild_id == 1234674521416663070
+                            else {}
+                        ),
+                    ),
+                    GuildFeatureSnapshot(
+                        key="arrest_statistics",
+                        enabled=guild_id == LSSD_GUILD_ID,
+                        schema_version=1,
+                        payload=(
+                            {
+                                "faction_id": 3,
+                                "max_range_days": 30,
+                                "max_reports": 200,
+                                "cache_ttl_seconds": 900,
+                                "detail_concurrency": 3,
+                                "max_top": 10,
+                            }
+                            if guild_id == LSSD_GUILD_ID
                             else {}
                         ),
                     ),

@@ -1,20 +1,24 @@
 {
   "schema_version": 3,
-  "version": "0.27.5",
-  "title": "Envío de reportes corregido",
-  "summary": "Corrige la respuesta del formulario de reportes estructurados y mantiene su publicación asociada al comando.",
+  "version": "0.28.0",
+  "title": "Estadísticas de arrestos",
+  "summary": "Agrega un análisis configurable de cargos y combinaciones frecuentes en los reportes de arresto.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Evita que Discord muestre el formulario como fallido mientras el reporte continúa procesándose."
+      "type": "added",
+      "text": "Incorpora /estadisticas-arrestos para consultar rankings de cargos, combinaciones y clasificación por período."
     },
     {
       "type": "improved",
-      "text": "Publica la tarjeta como respuesta del propio comando y mantiene los errores visibles únicamente para el autor."
+      "text": "Incluye confirmación previa, visibilidad configurable, caché y cobertura parcial ante fallos de SARP."
+    },
+    {
+      "type": "improved",
+      "text": "Centraliza los controles reutilizables de fecha y publicación para formularios de Discord."
     }
   ],
   "acknowledgements": []

@@ -1247,6 +1247,21 @@ class ReviewCog(commands.Cog):
                         extra_feature_lines.append(
                             "• `/auditar-radio`: analiza el uso del slot 1 según el manual."
                         )
+                arrest_statistics_feature = bundle.snapshot.features.get(
+                    "arrest_statistics"
+                )
+                if (
+                    arrest_statistics_feature is not None
+                    and arrest_statistics_feature.enabled
+                    and isinstance(ctx.author, discord.Member)
+                    and any(
+                        role.id in bundle.settings.faction_report_role_ids
+                        for role in ctx.author.roles
+                    )
+                ):
+                    extra_feature_lines.append(
+                        "• `/estadisticas-arrestos`: analiza cargos y combinaciones por período."
+                    )
         embed = build_help_embed(
             persona=self.persona,
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,

@@ -408,6 +408,12 @@ Comandos disponibles:
   `.xlsx` con el registro bancario del período y la nómina activa actual. Una casilla permite
   publicarlo en el canal y, si queda desmarcada, el archivo se entrega privadamente. La nómina se
   ordena por rango descendente y nombre. No incluye IDs internos, conexión exacta ni datos OOC.
+- `/estadisticas-arrestos`: permite a `faction_report_roles` analizar entre 1 y 30 días de
+  reportes. Antes de consultar los detalles muestra la cantidad encontrada, el uso de caché y las
+  solicitudes adicionales estimadas. Tras confirmar, publica o entrega privadamente un top 5 o 10
+  de cargos, sus combinaciones frecuentes y la clasificación grave/no grave. Limita cada análisis
+  a 200 reportes, consulta detalles con concurrencia acotada y conserva cobertura parcial si algún
+  reporte no está disponible.
 - `/radios-faccion`: permite a `operational_staff_roles` consultar radios por intervalos UTC desde
   una hora hasta 30 días, o por un rango horario personalizado, slot y miembro. Puede publicarlos o
   recibirlos de forma privada y descargar un registro TXT cuando el resultado es extenso.
