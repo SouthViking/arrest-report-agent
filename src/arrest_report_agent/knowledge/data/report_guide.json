@@ -1,5 +1,5 @@
 {
-  "version": "2026-08-17",
+  "version": "2026-09-01",
   "source": "Manual de procedimientos LSSD proporcionado para el MVP",
   "sections": {
     "overview": {
@@ -29,9 +29,9 @@
         "Hechos relevantes en orden entendible.",
         "Declaraciones y descripciones relevantes de testigos o sospechosos.",
         "Evidencia, recursos y unidades adicionales.",
-        "Conclusión, arresto y disposición final."
+        "Resultado del incidente cuando no sea ya inequívoco por el resto de la narrativa."
       ],
-      "flexibility": "No todos los incidentes requieren cada etapa ni el mismo orden; evaluar coherencia y suficiencia, no coincidencia literal con la plantilla."
+      "flexibility": "No todos los incidentes requieren cada etapa ni el mismo orden. No exigir un apartado, párrafo o frase de conclusión: si la actuación y su resultado se comprenden por el conjunto del reporte, el cierre está satisfecho. Evaluar coherencia y suficiencia, no coincidencia literal con la plantilla."
     },
     "essential_content": {
       "generally_required": [
@@ -40,7 +40,7 @@
         "Cómo se inició: llamada 911, observación propia, apoyo a otra unidad u otro origen.",
         "Dónde ocurrió: localización o referencia suficiente.",
         "Qué ocurrió y por qué la conducta justificó el arresto o la actuación.",
-        "Conclusión y resultado del incidente."
+        "Resultado del incidente cuando su omisión impida saber materialmente cómo terminó la actuación; no se exige una conclusión explícita o separada."
       ],
       "conditional": [
         "Número de llamada 911: puede omitirse si no existe sistema o si el incidente no nació de una llamada.",
@@ -65,10 +65,10 @@
         "En apoyos grupales u operativos masivos, individualizar a todos los participantes es una mejora opcional de claridad y no una corrección obligatoria."
       ],
       "evidence_bag_reference": {
-        "rule": "Cuando exista evidencia física asociada al arresto, el reporte debe indicar el número de la bolsa de evidencia.",
-        "placement": "Ubicar la referencia en el bloque final de anexos o evidencia del reporte.",
+        "rule": "Cuando exista evidencia física asociada al arresto, el reporte debe incluir una referencia numérica inequívocamente vinculada a esa evidencia. Son equivalentes expresiones como bolsa, serial, número, ID o referencia de evidencia; no se exige la palabra bolsa ni una fórmula literal.",
+        "placement": "La referencia puede aparecer junto a los ítems, elementos o evidencia descrita o en un bloque final. Varias referencias son válidas cuando corresponden a grupos distintos de evidencia.",
         "suggested_format": "** Se adjunta la referencia a la bolsa de evidencias: #NÚMERO. **",
-        "review_scope": "Verificar la referencia y su número; no exigir imágenes o archivos reales de la evidencia descrita."
+        "review_scope": "Verificar que cada número sea inequívocamente una referencia de evidencia por su contexto semántico. No exigir una etiqueta exacta, mover o repetir una referencia válida, ni solicitar imágenes o archivos reales de la evidencia descrita."
       },
       "format_flexibility": "La cantidad, orden y diseño de las imágenes puede variar. Identificar su función semántica antes de declarar que falta material."
     },
@@ -106,6 +106,8 @@
         "Toda falta verificable de ortografía, gramática, puntuación o redacción debe corregirse y bloquea la aprobación.",
         "Citar ejemplos representativos y agrupar errores lingüísticos del mismo tipo en un solo hallazgo accionable.",
         "Una preferencia de formato, como el diseño, el formato horario o el callsign, no bloquea si la guía no la exige y el dato continúa siendo inequívoco.",
+        "La ausencia de un cierre o una conclusión separada no genera un hallazgo si el desarrollo y el resultado del incidente ya son comprensibles; solo es material cuando realmente queda ambiguo cómo terminó la actuación.",
+        "Una referencia numérica descrita como serial, número, ID o referencia de ítems o elementos en evidencia satisface la trazabilidad sin tener que llamarse explícitamente bolsa.",
         "Agrupar observaciones relacionadas y omitir preferencias editoriales sin impacto operativo."
       ],
       "iteration": [

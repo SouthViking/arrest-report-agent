@@ -369,13 +369,8 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert "misma respuesta para que se ejecuten en paralelo" in service.agent.instructions
     assert "deben ejecutarse solas, nunca junto a otra llamada" in service.agent.instructions
     assert service.agent.reset_tool_choice is False
-    assert service.agent.tool_use_behavior == {
-        "stop_at_tool_names": [
-            "mention_roles",
-            "finish_interaction",
-            "publish_review",
-        ]
-    }
+    assert callable(service.agent.tool_use_behavior)
+    assert service.report_owner_agent.tool_use_behavior is service.agent.tool_use_behavior
     assert service.agent.input_guardrails[0].run_in_parallel is False
     owner_tool_names = [tool.name for tool in service.report_owner_agent.tools]
     assert owner_tool_names == [
@@ -402,6 +397,9 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert "read_manual" not in owner_tool_names
     assert "Puedes mencionar usuarios" not in owner_prompt
     assert "exactamente el\n  reporte raíz" in owner_prompt
+    assert "No exijas un apartado, párrafo o frase de conclusión" in owner_prompt
+    assert "`bolsa`, `serial`, `número`" in owner_prompt
+    assert "grupos distintos\n  de evidencia" in owner_prompt
     charge_search = next(tool for tool in service.agent.tools if tool.name == "list_charge_index")
     search_properties = charge_search.params_json_schema["properties"]
     assert search_properties["queries"]["anyOf"][0]["minItems"] == 1
@@ -493,6 +491,74 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert owner_metadata["owner_round"] == "4"
     assert owner_metadata["owner_max_rounds"] == "5"
     assert owner_metadata["owner_reservation_result"] == "reserved"
+
+
+def test_terminal_tool_behavior_continues_after_rejection_and_stops_after_completion(
+    settings,
+    model,
+    persona,
+) -> None:
+    service = ReviewService(
+        settings,
+        ChargeCatalog.load_default(),
+        ReportGuide.load_default(),
+        model,
+        persona,
+    )
+    behavior = service.agent.tool_use_behavior
+    assert callable(behavior)
+    publish_tool = next(tool for tool in service.agent.tools if tool.name == "publish_review")
+    finish_tool = next(tool for tool in service.agent.tools if tool.name == "finish_interaction")
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=3,
+        thread_id=3,
+        root_message_id=3,
+        trigger_message_id=4,
+        requester_user_id=5,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[],
+        attachments=[],
+    )
+    context = ReviewRunContext(
+        case=case,
+        publisher=SimpleNamespace(),  # type: ignore[arg-type]
+        attempt=1,
+        request_intent=RequestIntent.CONVERSATION,
+    )
+    wrapper = SimpleNamespace(context=context)
+
+    rejected = behavior(
+        wrapper,  # type: ignore[arg-type]
+        [
+            SimpleNamespace(
+                tool=publish_tool,
+                output={
+                    "ok": False,
+                    "error": "review_not_requested",
+                    "interaction_complete": False,
+                },
+            )
+        ],  # type: ignore[arg-type]
+    )
+
+    assert rejected.is_final_output is False
+    assert rejected.final_output is None
+
+    context.interaction_completed = True
+    completed_output = {
+        "ok": True,
+        "delivery": "discord_message",
+        "interaction_complete": True,
+    }
+    completed = behavior(
+        wrapper,  # type: ignore[arg-type]
+        [SimpleNamespace(tool=finish_tool, output=completed_output)],  # type: ignore[arg-type]
+    )
+
+    assert completed.is_final_output is True
+    assert completed.final_output == completed_output
 
 
 def test_approved_publication_allows_non_blocking_uncertainty() -> None:

@@ -1,24 +1,24 @@
 {
   "schema_version": 3,
-  "version": "0.28.0",
-  "title": "Estadísticas de arrestos",
-  "summary": "Agrega un análisis configurable de cargos y combinaciones frecuentes en los reportes de arresto.",
+  "version": "0.28.1",
+  "title": "Revisión de evidencias corregida",
+  "summary": "Mejora la interpretación de bolsas de evidencia y evita cierres incorrectos durante conversaciones sobre un reporte.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "Incorpora /estadisticas-arrestos para consultar rankings de cargos, combinaciones y clasificación por período."
+      "type": "fixed",
+      "text": "Distingue bolsas existentes sin análisis de identificadores inexistentes y comunica cada estado sin falsos hallazgos."
+    },
+    {
+      "type": "fixed",
+      "text": "Mantiene activa la ejecución cuando una respuesta conversacional intenta publicarse erróneamente como revisión formal."
     },
     {
       "type": "improved",
-      "text": "Incluye confirmación previa, visibilidad configurable, caché y cobertura parcial ante fallos de SARP."
-    },
-    {
-      "type": "improved",
-      "text": "Centraliza los controles reutilizables de fecha y publicación para formularios de Discord."
+      "text": "Acepta seriales e identificadores equivalentes como referencias de evidencia y no exige una conclusión separada cuando el resultado ya es claro."
     }
   ],
   "acknowledgements": []

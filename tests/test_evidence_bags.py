@@ -235,10 +235,8 @@ async def test_full_agent_tool_returns_flexible_projection_and_uses_bag_presence
     )
 
     assert result == {
-        "ok": True,
-        "status": "found",
+        "status": "analyzed",
         "evidence_id": 4_385_409,
-        "item_count": 2,
         "items": [
             {"result": "Lata de ECola, cantidad: 10, huellas: Tyler Morgan;"},
             {"result": "Radio UHF, cantidad: 4032, huellas: Tyler Morgan;"},
@@ -246,6 +244,47 @@ async def test_full_agent_tool_returns_flexible_projection_and_uses_bag_presence
     }
     assert lookup.calls == [4_385_409]
     assert activity.activities == [AgentActivity.EVIDENCE_BAG]
+
+
+async def test_evidence_tool_distinguishes_existing_unanalyzed_bag_from_missing_id() -> None:
+    existing = await EvidenceBagService(FakeEvidenceClient(SarpEvidenceDetail(id=7))).get(7)
+    existing_tools = tools(FakeEvidenceLookup(existing), AgentAccessLevel.FULL)
+    existing_context = context()
+    arguments = json.dumps({"evidence_id": 7, "include_custody": False})
+
+    existing_result = await existing_tools["get_evidence_bag"].on_invoke_tool(  # type: ignore[attr-defined]
+        ToolContext(
+            context=existing_context,
+            tool_name="get_evidence_bag",
+            tool_call_id="existing-unanalysed",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    missing_tools = tools(
+        FakeEvidenceLookup(EvidenceBagLookupResult(detail=None, error="not_found")),
+        AgentAccessLevel.FULL,
+    )
+    missing_result = await missing_tools["get_evidence_bag"].on_invoke_tool(  # type: ignore[attr-defined]
+        ToolContext(
+            context=context(),
+            tool_name="get_evidence_bag",
+            tool_call_id="missing",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert existing_result == {
+        "status": "exists_unanalyzed",
+        "evidence_id": 7,
+        "items": [],
+    }
+    assert missing_result == {
+        "status": "not_found",
+        "evidence_id": 7,
+    }
 
 
 async def test_evidence_tool_is_full_access_only_and_bounded_per_run() -> None:
@@ -272,8 +311,12 @@ async def test_evidence_tool_is_full_access_only_and_bounded_per_run() -> None:
             )
         )
 
-    assert [item["ok"] for item in invocations] == [True, True, True, False]
-    assert invocations[-1]["error"] == "run_evidence_limit_reached"
+    assert [item["status"] for item in invocations] == [
+        "analyzed",
+        "analyzed",
+        "analyzed",
+        "run_limit_reached",
+    ]
     assert lookup.calls == [4_385_409, 4_385_409, 4_385_409]
 
 
@@ -289,7 +332,25 @@ def test_evidence_instructions_are_exposed_only_to_full_agent(persona) -> None:
     assert "get_evidence_bag" in full
     assert "como máximo un emoji" in full
     assert "no agregues ninguno" in full
+    assert "exists_unanalyzed" in full
+    assert "not_found" in full
     assert "<sarp_evidence_bags>" not in owner
+
+
+def test_evidence_tool_description_declares_every_return_status() -> None:
+    result = EvidenceBagLookupResult(detail=None, error="not_found")
+    tool = tools(FakeEvidenceLookup(result), AgentAccessLevel.FULL)["get_evidence_bag"]
+
+    assert tool.description is not None  # type: ignore[attr-defined]
+    for status in (
+        "analyzed",
+        "exists_unanalyzed",
+        "not_found",
+        "rate_limited",
+        "unavailable",
+        "run_limit_reached",
+    ):
+        assert status in tool.description  # type: ignore[attr-defined]
 
 
 async def test_command_exposes_evidence_id_as_a_real_integer_option() -> None:
@@ -346,6 +407,16 @@ def test_public_embed_preserves_results_and_custody_without_internal_ids() -> No
     assert "almacén 917" in embed.fields[1].value
     assert "23535" not in str(embed.to_dict())
     assert embed.footer.text == "Consulta realizada por Charles Harrington"
+
+
+def test_public_embed_explains_existing_bag_without_laboratory_results() -> None:
+    embed = build_evidence_bag_embed(
+        EvidenceBagDetail(evidence_id=7, items=(), custody=()),
+    )
+
+    assert "La bolsa existe" in embed.fields[0].value
+    assert "no presenta resultados de laboratorio" in embed.fields[0].value
+    assert "vacía" not in embed.fields[0].value
 
 
 async def test_command_rejects_non_operational_member_before_lookup(persona) -> None:

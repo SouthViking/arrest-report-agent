@@ -146,7 +146,13 @@ def build_evidence_bag_embed(
     ]
     embed.add_field(
         name=f"🔬 Contenido registrado · {len(detail.items)}",
-        value=_bounded_lines(item_lines, empty="No hay resultados registrados para esta bolsa."),
+        value=_bounded_lines(
+            item_lines,
+            empty=(
+                "La bolsa existe, pero todavía no presenta resultados de laboratorio. "
+                "Puede no haber sido analizada."
+            ),
+        ),
         inline=False,
     )
     embed.add_field(

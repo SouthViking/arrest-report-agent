@@ -1710,6 +1710,9 @@ async def test_plain_conversation_cannot_publish_a_review() -> None:
     assert result == {
         "ok": False,
         "error": "review_not_requested",
+        "next_action": (
+            "Use finish_interaction to answer the conversation without publishing a review."
+        ),
         "interaction_complete": False,
     }
     assert publisher.publications == []

@@ -5,16 +5,19 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Mapping
 from typing import Any
 
 from agents import (
     Agent,
+    FunctionToolResult,
     InputGuardrailTripwireTriggered,
     ModelSettings,
     RunConfig,
+    RunContextWrapper,
     Runner,
-    StopAtTools,
     ToolExecutionConfig,
+    ToolsToFinalOutputResult,
 )
 from agents.memory import Session
 from agents.retry import ModelRetrySettings
@@ -48,6 +51,35 @@ from .tools import build_agent_tools
 from .usage import summarize_usage
 
 LOGGER = logging.getLogger(__name__)
+TERMINAL_TOOL_NAMES = frozenset({"mention_roles", "finish_interaction", "publish_review"})
+
+
+def _stop_after_completed_terminal_tool(
+    ctx: RunContextWrapper[ReviewRunContext],
+    tool_results: list[FunctionToolResult],
+) -> ToolsToFinalOutputResult:
+    """Stop only after a terminal tool completed its Discord side effect.
+
+    A rejected terminal call must return to the model so it can choose the correct terminal tool.
+    ``StopAtTools`` cannot make this distinction because it stops solely by tool name.
+    """
+
+    completed = ctx.context.published or ctx.context.interaction_completed
+    if not completed:
+        return ToolsToFinalOutputResult(is_final_output=False)
+    for result in tool_results:
+        if result.tool.name not in TERMINAL_TOOL_NAMES:
+            continue
+        output = result.output
+        if isinstance(output, Mapping) and (
+            output.get("ok") is False or output.get("interaction_complete") is False
+        ):
+            continue
+        return ToolsToFinalOutputResult(
+            is_final_output=True,
+            final_output=output,
+        )
+    return ToolsToFinalOutputResult(is_final_output=False)
 
 
 class ReviewService:
@@ -143,13 +175,7 @@ class ReviewService:
             model_settings=model_settings,
             tools=tools,  # type: ignore[arg-type]
             input_guardrails=[scope_guardrail],
-            tool_use_behavior=StopAtTools(
-                stop_at_tool_names=[
-                    "mention_roles",
-                    "finish_interaction",
-                    "publish_review",
-                ]
-            ),
+            tool_use_behavior=_stop_after_completed_terminal_tool,
             reset_tool_choice=False,
         )
 
@@ -168,7 +194,7 @@ class ReviewService:
             model_settings=model_settings,
             tools=owner_tools,  # type: ignore[arg-type]
             input_guardrails=[scope_guardrail],
-            tool_use_behavior=StopAtTools(stop_at_tool_names=["finish_interaction", "publish_review"]),
+            tool_use_behavior=_stop_after_completed_terminal_tool,
             reset_tool_choice=False,
         )
 

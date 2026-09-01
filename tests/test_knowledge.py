@@ -128,15 +128,35 @@ def test_guide_exposes_only_requested_sections() -> None:
     assert "contradicción clara" in " ".join(physical["flexibility"])
 
 
-def test_evidence_guide_treats_recordings_as_roleplay_and_requires_bag_reference() -> None:
+def test_evidence_guide_treats_recordings_as_roleplay_and_accepts_semantic_bag_reference() -> None:
     evidence = ReportGuide.load_default().get(["evidence"])["sections"]["evidence"]
 
     assert "entorno narrativo de roleplay" in evidence["role_environment"][0]
     assert "No exigir" in evidence["role_environment"][1]
     assert "no obliga a identificarlos individualmente" in evidence["role_environment"][3]
     assert "operativos masivos" in evidence["role_environment"][4]
-    assert "número de la bolsa" in evidence["evidence_bag_reference"]["rule"]
+    assert "referencia numérica" in evidence["evidence_bag_reference"]["rule"]
+    assert "serial" in evidence["evidence_bag_reference"]["rule"]
+    assert "no se exige la palabra bolsa" in evidence["evidence_bag_reference"]["rule"]
+    assert "grupos distintos" in evidence["evidence_bag_reference"]["placement"]
     assert "#NÚMERO" in evidence["evidence_bag_reference"]["suggested_format"]
+
+
+def test_guide_does_not_require_a_standalone_conclusion_when_outcome_is_clear() -> None:
+    guide = ReportGuide.load_default()
+    sections = guide.get(["narrative_structure", "essential_content", "review_calibration"])[
+        "sections"
+    ]
+
+    assert "No exigir un apartado, párrafo o frase de conclusión" in sections[
+        "narrative_structure"
+    ]["flexibility"]
+    assert "no se exige una conclusión explícita o separada" in sections["essential_content"][
+        "generally_required"
+    ][-1]
+    blocking = " ".join(sections["review_calibration"]["blocking_threshold"])
+    assert "ausencia de un cierre o una conclusión separada" in blocking
+    assert "descrita como serial" in blocking
 
 
 def test_charge_guide_filters_historical_rows_by_identity_and_proximity() -> None:
