@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.27.1",
-  "title": "Revisión estructurada más precisa",
-  "summary": "Optimiza la consulta inicial, corrige el acceso a imágenes clasificadas y agrega estados visuales seguros a los reportes estructurados.",
+  "version": "0.27.2",
+  "title": "Publicación de reportes más resiliente",
+  "summary": "Permite volver a publicar un mismo reporte y recupera la revisión mediante búsqueda cuando el ID o el nombre ingresado no son confiables.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,31 +10,19 @@
   "changes": [
     {
       "type": "improved",
-      "text": "Inyecta el detalle SARP ya validado en la revisión inicial, evitando una segunda consulta y un tool call redundante."
+      "text": "Elimina la unicidad por ID SARP: un mismo reporte puede originar múltiples submissions y la idempotencia queda limitada a la interacción de Discord."
     },
     {
       "type": "fixed",
-      "text": "Resuelve las submissions desde el hilo y recupera correctamente las fotografías y respaldos mediante su referencia interna."
+      "text": "Conserva la ruta directa y el detalle precargado cuando el ID existe y coincide con el sospechoso indicado."
     },
     {
       "type": "improved",
-      "text": "Mantiene una ruta acotada de búsqueda y desambiguación, restringiendo al propietario a candidatos de su propio expediente."
+      "text": "Ante un ID inválido, inexistente o incompatible, crea el expediente sin vínculo previo para que el agente busque por sospechoso, desambigüe y vincule el candidato correcto."
     },
     {
       "type": "improved",
-      "text": "Simplifica la publicación eliminando la confirmación efímera redundante y acortando el nombre de los hilos."
-    },
-    {
-      "type": "improved",
-      "text": "Muestra la mención y el avatar del autor en el encabezado Components V2 sin alterar las galerías clasificadas."
-    },
-    {
-      "type": "improved",
-      "text": "Actualiza la franja a amarillo, verde, rojo o naranja; solo una revisión completa puede modificar el estado general."
-    },
-    {
-      "type": "fixed",
-      "text": "Impide que conversaciones normales o revisiones parciales publiquen o alteren accidentalmente el veredicto general."
+      "text": "Mantiene un índice no único para búsquedas por reporte y selecciona la submission publicada más reciente cuando existen varias."
     }
   ],
   "acknowledgements": []

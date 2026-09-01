@@ -24,6 +24,7 @@ from arrest_report_agent.application.ports import (
 from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.application.tools import build_agent_tools
 from arrest_report_agent.domain import AgentAccessLevel, InteractionMode, ReviewCase
+from arrest_report_agent.infrastructure.postgres.schema import arrest_report_submissions
 from arrest_report_agent.infrastructure.storage import MemoryObjectStorage
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 from arrest_report_agent.structured_arrest_reports import (
@@ -492,9 +493,30 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
     assert "#None" not in header.content
 
 
+@pytest.mark.parametrize(
+    (
+        "suspect_name",
+        "report_id_text",
+        "expected_detail_lookups",
+        "expected_report_id",
+        "expected_thread_name",
+    ),
+    (
+        ("Andy Quintero", "", [], None, "Andy Quintero"),
+        ("Andy Quintero", "not-a-number", [], None, "Andy Quintero"),
+        ("Andy Quintero", "999", [999], None, "Andy Quintero"),
+        ("Andi Quintero", "321", [321], None, "Andi Quintero"),
+        ("Andy Quintero", "321", [321], 321, "Andy Quintero · #321"),
+    ),
+)
 @pytest.mark.asyncio
-async def test_submission_without_id_skips_prevalidation_hides_confirmation_and_starts_discovery(
+async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discovery(
     monkeypatch,
+    suspect_name: str,
+    report_id_text: str,
+    expected_detail_lookups: list[int],
+    expected_report_id: int | None,
+    expected_thread_name: str,
 ) -> None:
     class Member:
         def __init__(self) -> None:
@@ -522,12 +544,13 @@ async def test_submission_without_id_skips_prevalidation_hides_confirmation_and_
 
     class Repository:
         def __init__(self) -> None:
-            self.submission = _submission(None).model_copy(
+            self.submission = _submission(expected_report_id).model_copy(
                 update={
                     "interaction_id": 44,
                     "root_message_id": None,
                     "thread_id": None,
                     "publication_status": PublicationStatus.PUBLISHING,
+                    "suspect_name": suspect_name,
                 }
             )
             self.report_lookups: list[int] = []
@@ -541,7 +564,7 @@ async def test_submission_without_id_skips_prevalidation_hides_confirmation_and_
             return None
 
         async def reserve(self, **values: Any) -> tuple[ArrestReportSubmission, bool]:
-            assert values["sarp_arrest_id"] is None
+            assert values["sarp_arrest_id"] == expected_report_id
             return self.submission, True
 
         async def mark_published(self, submission_id: uuid.UUID, **values: Any) -> ArrestReportSubmission:
@@ -566,7 +589,7 @@ async def test_submission_without_id_skips_prevalidation_hides_confirmation_and_
         jump_url = "https://discord.test/report"
 
         async def create_thread(self, **values: Any) -> SimpleNamespace:
-            assert values["name"] == "Andy Quintero"
+            assert values["name"] == expected_thread_name
             return SimpleNamespace(id=4, parent=channel)
 
     class Channel:
@@ -646,8 +669,8 @@ async def test_submission_without_id_skips_prevalidation_hides_confirmation_and_
         requester_id=6,
         guild_id=1,
         channel_id=3,
-        suspect_name="Andy Quintero",
-        report_id_text="",
+        suspect_name=suspect_name,
+        report_id_text=report_id_text,
         suspect_photos=(Attachment(),),  # type: ignore[arg-type]
         supporting_images=(Attachment(),),  # type: ignore[arg-type]
     )
@@ -656,8 +679,24 @@ async def test_submission_without_id_skips_prevalidation_hides_confirmation_and_
     assert response.deferred is True
     assert cleanup_calls == 1
     assert followup.messages == []
-    assert lookup.details == []
-    assert lookup.binds == []
+    assert lookup.details == expected_detail_lookups
+    assert len(lookup.binds) == (1 if expected_report_id is not None else 0)
     assert repository.report_lookups == []
     assert len(channel.sent) == 1
-    assert review_cog.calls[0]["arrest_report"] is None
+    assert (review_cog.calls[0]["arrest_report"] is not None) == (
+        expected_report_id is not None
+    )
+
+
+def test_submission_schema_allows_reusing_a_sarp_report_id() -> None:
+    report_index = next(
+        index
+        for index in arrest_report_submissions.indexes
+        if index.name == "ix_arrest_submission_guild_report"
+    )
+    assert report_index.unique is not True
+    assert [column.name for column in report_index.columns] == ["guild_id", "sarp_arrest_id"]
+    assert all(
+        constraint.name != "uq_arrest_submission_guild_report"
+        for constraint in arrest_report_submissions.constraints
+    )

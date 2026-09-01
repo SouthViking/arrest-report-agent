@@ -1145,11 +1145,7 @@ arrest_report_submissions = sa.Table(
         "initial_review_status IN ('pending','running','completed','failed')",
         name="ck_arrest_submission_review_status",
     ),
-    sa.UniqueConstraint(
-        "guild_id",
-        "sarp_arrest_id",
-        name="uq_arrest_submission_guild_report",
-    ),
+    sa.Index("ix_arrest_submission_guild_report", "guild_id", "sarp_arrest_id"),
     sa.UniqueConstraint(
         "guild_id",
         "root_message_id",

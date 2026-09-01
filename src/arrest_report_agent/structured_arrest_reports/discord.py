@@ -91,18 +91,14 @@ class StructuredArrestReportCog(commands.Cog):
             return
         normalized_name = " ".join(suspect_name.split())
         raw_report_id = report_id_text.strip()
-        report_id: int | None = None
+        submitted_report_id: int | None = None
         if raw_report_id:
             try:
-                report_id = int(raw_report_id)
+                submitted_report_id = int(raw_report_id)
             except ValueError:
-                report_id = 0
-            if report_id <= 0:
-                await interaction.response.send_message(
-                    embed=_alert("El ID del reporte debe ser un número válido."),
-                    ephemeral=True,
-                )
-                return
+                submitted_report_id = None
+            if submitted_report_id is not None and submitted_report_id <= 0:
+                submitted_report_id = None
         if not normalized_name:
             await interaction.response.send_message(
                 embed=_alert("Indica el nombre completo del sospechoso."),
@@ -140,8 +136,6 @@ class StructuredArrestReportCog(commands.Cog):
             return
         await interaction.response.defer(ephemeral=True)
         existing = await self.service.repository.get_by_interaction(interaction.id)
-        if existing is None and report_id is not None:
-            existing = await self.service.repository.get_by_report(guild_id, report_id)
         if existing is not None and existing.publication_status is not PublicationStatus.FAILED:
             await interaction.followup.send(
                 embed=_existing_embed(existing),
@@ -150,31 +144,34 @@ class StructuredArrestReportCog(commands.Cog):
             )
             return
         detail = None
+        report_id: int | None = None
         submission_suspect_name = normalized_name
-        if report_id is not None:
-            detail_result = await lookup.get(report_id)
-            if detail_result.error is not None or detail_result.report is None:
-                description = (
-                    "No pude encontrar ese reporte en SARP. Revisa el número e inténtalo nuevamente."
-                    if detail_result.error == "not_found"
-                    else "No pude verificar el reporte en este momento. Inténtalo nuevamente más tarde."
-                )
-                await interaction.followup.send(
-                    embed=_alert(description),
-                    ephemeral=True,
-                )
-                return
-            detail = detail_result.report
-            if normalize_person_name(normalized_name) != normalize_person_name(detail.suspect_name):
-                await interaction.followup.send(
-                    embed=_alert(
-                        "El nombre indicado no coincide con el sospechoso del reporte. "
-                        f"SARP muestra: **{detail.suspect_name.replace('_', ' ')}**."
+        if submitted_report_id is not None:
+            detail_result = await lookup.get(submitted_report_id)
+            candidate = detail_result.report
+            if (
+                detail_result.error is None
+                and candidate is not None
+                and normalize_person_name(normalized_name)
+                == normalize_person_name(candidate.suspect_name)
+            ):
+                report_id = submitted_report_id
+                detail = candidate
+                submission_suspect_name = candidate.suspect_name.replace("_", " ")
+            else:
+                log_event(
+                    LOGGER,
+                    "info",
+                    "structured_arrest_report_id_fallback",
+                    guild_id=guild_id,
+                    user_id=requester_id,
+                    submitted_sarp_arrest_id=submitted_report_id,
+                    fallback_reason=(
+                        "suspect_name_mismatch"
+                        if candidate is not None and detail_result.error is None
+                        else detail_result.error or "invalid_detail"
                     ),
-                    ephemeral=True,
                 )
-                return
-            submission_suspect_name = detail.suspect_name.replace("_", " ")
         submission, created = await self.service.repository.reserve(
             guild_id=guild_id,
             interaction_id=interaction.id,
@@ -461,13 +458,13 @@ def _thread_name(suspect_name: str, report_id: int | None) -> str:
 
 def _existing_embed(submission: ArrestReportSubmission) -> discord.Embed:
     if submission.jump_url is not None:
-        description = f"Este reporte ya fue publicado: {submission.jump_url}"
+        description = f"Este envío ya fue publicado: {submission.jump_url}"
     elif submission.publication_status is PublicationStatus.PUBLISHING:
-        description = "Este reporte ya se está publicando. Espera un momento e inténtalo nuevamente."
+        description = "Este envío ya se está procesando. Espera un momento."
     else:
-        description = "Este reporte ya fue procesado anteriormente."
+        description = "Este mismo envío ya fue procesado anteriormente."
     return discord.Embed(
-        title="📋 Reporte ya registrado",
+        title="📋 Solicitud ya procesada",
         description=description,
         color=discord.Color.orange(),
     )

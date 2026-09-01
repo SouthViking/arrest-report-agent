@@ -41,30 +41,16 @@ class StructuredArrestReportRepository:
     ) -> tuple[ArrestReportSubmission, bool]:
         normalized_name = " ".join(suspect_name.split())
         async with self.client.transaction() as connection:
-            reservation_key = (
-                f"structured-arrest:{guild_id}:report:{sarp_arrest_id}"
-                if sarp_arrest_id is not None
-                else f"structured-arrest:{guild_id}:interaction:{interaction_id}"
-            )
+            reservation_key = f"structured-arrest:interaction:{interaction_id}"
             await connection.execute(
                 sa.text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
                 {"key": reservation_key},
             )
-            existing_filters: list[ColumnElement[bool]] = [
-                arrest_report_submissions.c.interaction_id == interaction_id
-            ]
-            if sarp_arrest_id is not None:
-                existing_filters.append(
-                    sa.and_(
-                        arrest_report_submissions.c.guild_id == guild_id,
-                        arrest_report_submissions.c.sarp_arrest_id == sarp_arrest_id,
-                    )
-                )
             existing = (
                 (
                     await connection.execute(
                         sa.select(arrest_report_submissions).where(
-                            sa.or_(*existing_filters)
+                            arrest_report_submissions.c.interaction_id == interaction_id
                         )
                     )
                 )
@@ -133,10 +119,28 @@ class StructuredArrestReportRepository:
         return await self._get(arrest_report_submissions.c.id == submission_id)
 
     async def get_by_report(self, guild_id: int, sarp_arrest_id: int) -> ArrestReportSubmission | None:
-        return await self._get(
-            arrest_report_submissions.c.guild_id == guild_id,
-            arrest_report_submissions.c.sarp_arrest_id == sarp_arrest_id,
-        )
+        async with self.client.connection() as connection:
+            row = (
+                (
+                    await connection.execute(
+                        sa.select(arrest_report_submissions)
+                        .where(
+                            arrest_report_submissions.c.guild_id == guild_id,
+                            arrest_report_submissions.c.sarp_arrest_id == sarp_arrest_id,
+                            arrest_report_submissions.c.publication_status
+                            == PublicationStatus.PUBLISHED.value,
+                        )
+                        .order_by(
+                            arrest_report_submissions.c.created_at.desc(),
+                            arrest_report_submissions.c.id.desc(),
+                        )
+                        .limit(1)
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            return await self._with_assets(connection, row) if row is not None else None
 
     async def get_by_root(self, guild_id: int, root_message_id: int) -> ArrestReportSubmission | None:
         return await self._get(
