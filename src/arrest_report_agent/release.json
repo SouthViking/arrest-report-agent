@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.27.4",
-  "title": "Estado visual de reportes corregido",
-  "summary": "Corrige el color de la tarjeta estructurada después de completar una revisión formal.",
+  "version": "0.27.5",
+  "title": "Envío de reportes corregido",
+  "summary": "Corrige la respuesta del formulario de reportes estructurados y mantiene su publicación asociada al comando.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,11 @@
   "changes": [
     {
       "type": "fixed",
-      "text": "Conserva las galerías de Components V2 al actualizar el color del reporte después de un veredicto completo."
+      "text": "Evita que Discord muestre el formulario como fallido mientras el reporte continúa procesándose."
     },
     {
       "type": "improved",
-      "text": "Elimina la dependencia incorrecta de los adjuntos tradicionales y una consulta innecesaria a PostgreSQL durante el recoloreado."
+      "text": "Publica la tarjeta como respuesta del propio comando y mantiene los errores visibles únicamente para el autor."
     }
   ],
   "acknowledgements": []

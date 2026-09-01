@@ -134,13 +134,16 @@ class StructuredArrestReportCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        await interaction.response.defer(ephemeral=True)
+        # The final report card replaces this public acknowledgement so Discord
+        # keeps the publication associated with the slash command invocation.
+        await interaction.response.defer(ephemeral=False, invisible=False)
         existing = await self.service.repository.get_by_interaction(interaction.id)
         if existing is not None and existing.publication_status is not PublicationStatus.FAILED:
-            await interaction.followup.send(
-                embed=_existing_embed(existing),
-                ephemeral=True,
-                allowed_mentions=discord.AllowedMentions.none(),
+            await _replace_deferred_with_ephemeral_error(
+                interaction,
+                _existing_embed(existing),
+                guild_id=guild_id,
+                user_id=requester_id,
             )
             return
         detail = None
@@ -181,10 +184,11 @@ class StructuredArrestReportCog(commands.Cog):
             suspect_name=submission_suspect_name,
         )
         if not created:
-            await interaction.followup.send(
-                embed=_existing_embed(submission),
-                ephemeral=True,
-                allowed_mentions=discord.AllowedMentions.none(),
+            await _replace_deferred_with_ephemeral_error(
+                interaction,
+                _existing_embed(submission),
+                guild_id=guild_id,
+                user_id=requester_id,
             )
             return
         try:
@@ -201,8 +205,7 @@ class StructuredArrestReportCog(commands.Cog):
                 suspect_files,
                 supporting_files,
             )
-            assert interaction.channel is not None
-            root = await interaction.channel.send(
+            root = await interaction.edit_original_response(
                 view=build_submission_view(
                     submission,
                     suspect_filenames=suspect_names,
@@ -241,19 +244,6 @@ class StructuredArrestReportCog(commands.Cog):
                         sarp_arrest_id=report_id,
                         binding_error=binding_error,
                     )
-            try:
-                await interaction.delete_original_response()
-            except (discord.NotFound, discord.HTTPException) as error:
-                log_event(
-                    LOGGER,
-                    "debug",
-                    "structured_arrest_report_deferred_response_cleanup_failed",
-                    guild_id=guild_id,
-                    root_message_id=root.id,
-                    thread_id=thread.id,
-                    user_id=requester_id,
-                    **exception_fields(error),
-                )
             task = asyncio.create_task(
                 self.review_cog.run_structured_initial_review(
                     root=root,
@@ -280,7 +270,12 @@ class StructuredArrestReportCog(commands.Cog):
             )
         except (AssetLimitError, ValueError) as error:
             await self.service.repository.mark_publication_failed(submission.id)
-            await interaction.followup.send(embed=_alert(str(error)), ephemeral=True)
+            await _replace_deferred_with_ephemeral_error(
+                interaction,
+                _alert(str(error)),
+                guild_id=guild_id,
+                user_id=requester_id,
+            )
         except Exception as error:
             await self.service.repository.mark_publication_failed(submission.id)
             log_event(
@@ -294,9 +289,11 @@ class StructuredArrestReportCog(commands.Cog):
                 sarp_arrest_id=report_id,
                 **exception_fields(error),
             )
-            await interaction.followup.send(
-                embed=_alert("No pude publicar el reporte. Inténtalo nuevamente más tarde."),
-                ephemeral=True,
+            await _replace_deferred_with_ephemeral_error(
+                interaction,
+                _alert("No pude publicar el reporte. Inténtalo nuevamente más tarde."),
+                guild_id=guild_id,
+                user_id=requester_id,
             )
 
     async def _command_denial(self, ctx: discord.ApplicationContext) -> discord.Embed | None:
@@ -465,6 +462,33 @@ def _existing_embed(submission: ArrestReportSubmission) -> discord.Embed:
         title="📋 Solicitud ya procesada",
         description=description,
         color=discord.Color.orange(),
+    )
+
+
+async def _replace_deferred_with_ephemeral_error(
+    interaction: discord.Interaction,
+    embed: discord.Embed,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> None:
+    """Remove the public acknowledgement before returning a private failure."""
+
+    try:
+        await interaction.delete_original_response()
+    except (discord.NotFound, discord.HTTPException) as error:
+        log_event(
+            LOGGER,
+            "debug",
+            "structured_arrest_report_deferred_response_cleanup_failed",
+            guild_id=guild_id,
+            user_id=user_id,
+            **exception_fields(error),
+        )
+    await interaction.followup.send(
+        embed=embed,
+        ephemeral=True,
+        allowed_mentions=discord.AllowedMentions.none(),
     )
 
 

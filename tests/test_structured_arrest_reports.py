@@ -40,6 +40,7 @@ from arrest_report_agent.structured_arrest_reports.discord import (
     StructuredArrestReportModal,
     _availability_denial,
     _discord_files,
+    _replace_deferred_with_ephemeral_error,
     _thread_name,
     build_submission_view,
 )
@@ -591,19 +592,13 @@ async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discove
     class Channel:
         id = 3
 
-        def __init__(self) -> None:
-            self.sent: list[dict[str, Any]] = []
-
-        async def send(self, **values: Any) -> Root:
-            self.sent.append(values)
-            return Root()
-
     class Response:
         def __init__(self) -> None:
             self.deferred = False
 
-        async def defer(self, *, ephemeral: bool) -> None:
-            assert ephemeral is True
+        async def defer(self, *, ephemeral: bool, invisible: bool) -> None:
+            assert ephemeral is False
+            assert invisible is False
             self.deferred = True
 
     class Followup:
@@ -639,6 +634,11 @@ async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discove
     response = Response()
     followup = Followup()
     cleanup_calls = 0
+    edits: list[dict[str, Any]] = []
+
+    async def edit_original_response(**values: Any) -> Root:
+        edits.append(values)
+        return Root()
 
     async def delete_original_response() -> None:
         nonlocal cleanup_calls
@@ -651,6 +651,7 @@ async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discove
         channel=channel,
         response=response,
         followup=followup,
+        edit_original_response=edit_original_response,
         delete_original_response=delete_original_response,
     )
     monkeypatch.setattr(discord, "Member", Member)
@@ -673,12 +674,18 @@ async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discove
     await asyncio.sleep(0)
 
     assert response.deferred is True
-    assert cleanup_calls == 1
+    assert cleanup_calls == 0
     assert followup.messages == []
     assert lookup.details == expected_detail_lookups
     assert len(lookup.binds) == (1 if expected_report_id is not None else 0)
     assert repository.report_lookups == []
-    assert len(channel.sent) == 1
+    assert len(edits) == 1
+    assert isinstance(edits[0]["view"], discord.ui.DesignerView)
+    assert len(edits[0]["files"]) == 2
+    allowed_mentions = edits[0]["allowed_mentions"]
+    assert allowed_mentions.everyone is False
+    assert allowed_mentions.users is False
+    assert allowed_mentions.roles is False
     assert (review_cog.calls[0]["arrest_report"] is not None) == (
         expected_report_id is not None
     )
@@ -696,3 +703,32 @@ def test_submission_schema_allows_reusing_a_sarp_report_id() -> None:
         constraint.name != "uq_arrest_submission_guild_report"
         for constraint in arrest_report_submissions.constraints
     )
+
+
+@pytest.mark.asyncio
+async def test_failed_publication_removes_public_acknowledgement_before_private_error() -> None:
+    events: list[tuple[str, dict[str, Any]]] = []
+
+    class Followup:
+        async def send(self, **values: Any) -> None:
+            events.append(("followup", values))
+
+    async def delete_original_response() -> None:
+        events.append(("delete", {}))
+
+    interaction = SimpleNamespace(
+        delete_original_response=delete_original_response,
+        followup=Followup(),
+    )
+    embed = discord.Embed(title="Error")
+
+    await _replace_deferred_with_ephemeral_error(  # type: ignore[arg-type]
+        interaction,
+        embed,
+        guild_id=1,
+        user_id=6,
+    )
+
+    assert [event for event, _values in events] == ["delete", "followup"]
+    assert events[1][1]["embed"] is embed
+    assert events[1][1]["ephemeral"] is True
