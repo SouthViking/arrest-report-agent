@@ -372,9 +372,12 @@ Comandos disponibles:
 - `/info-reportes`: guía pública y breve para que el autor inicie o continúe la revisión limitada
   de su propio expediente. Explica el formulario estructurado, la revisión inicial, las
   continuaciones disponibles, los canales habilitados y la compatibilidad con el formato anterior.
-- `/revisar-arresto`: permite a `operational_staff_roles` publicar un reporte validado en un canal
-  de `report_channels`, separar fotografías y respaldos, abrir su hilo e iniciar una primera
-  revisión sin consumir una de las cinco continuaciones del propietario.
+- `/revisar-arresto`: permite a `operational_staff_roles` publicar un reporte en un canal de
+  `report_channels`, indicar su ID SARP, separar fotografías y respaldos, abrir su hilo e iniciar
+  una primera revisión sin consumir una de las cinco continuaciones del propietario. La capa interna
+  conserva el flujo sin ID para poder habilitarlo posteriormente sin bifurcar la implementación.
+  La tarjeta comienza amarilla y solo una revisión completa puede cambiarla a verde, rojo o naranja;
+  consultas y revisiones parciales no alteran su estado general.
 - `/guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.
 - `/cargos`: modal privado para buscar por código, título, descripción o categoría en el catálogo
   penal activo; muestra detalles y sanciones con paginación cuando corresponde.

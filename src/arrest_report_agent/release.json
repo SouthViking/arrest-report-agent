@@ -1,14 +1,40 @@
 {
   "schema_version": 3,
-  "version": "0.27.0",
-  "title": "Revisión estructurada de arrestos",
-  "summary": "Los reportes de arresto ahora pueden publicarse e iniciar su revisión mediante un formulario ordenado.",
+  "version": "0.27.1",
+  "title": "Revisión estructurada más precisa",
+  "summary": "Optimiza la consulta inicial, corrige el acceso a imágenes clasificadas y agrega estados visuales seguros a los reportes estructurados.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
-      "type": "added",
-      "text": "Agrega `/revisar-arresto` para publicar el expediente con fotografías y respaldos separados e iniciar automáticamente su revisión."
+      "type": "improved",
+      "text": "Inyecta el detalle SARP ya validado en la revisión inicial, evitando una segunda consulta y un tool call redundante."
+    },
+    {
+      "type": "fixed",
+      "text": "Resuelve las submissions desde el hilo y recupera correctamente las fotografías y respaldos mediante su referencia interna."
+    },
+    {
+      "type": "improved",
+      "text": "Mantiene una ruta acotada de búsqueda y desambiguación, restringiendo al propietario a candidatos de su propio expediente."
+    },
+    {
+      "type": "improved",
+      "text": "Simplifica la publicación eliminando la confirmación efímera redundante y acortando el nombre de los hilos."
+    },
+    {
+      "type": "improved",
+      "text": "Muestra la mención y el avatar del autor en el encabezado Components V2 sin alterar las galerías clasificadas."
+    },
+    {
+      "type": "improved",
+      "text": "Actualiza la franja a amarillo, verde, rojo o naranja; solo una revisión completa puede modificar el estado general."
+    },
+    {
+      "type": "fixed",
+      "text": "Impide que conversaciones normales o revisiones parciales publiquen o alteren accidentalmente el veredicto general."
     }
   ],
   "acknowledgements": []

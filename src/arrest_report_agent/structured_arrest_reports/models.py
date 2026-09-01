@@ -64,7 +64,7 @@ class ArrestReportSubmission(BaseModel):
     parent_channel_id: int = Field(gt=0)
     root_message_id: int | None = Field(default=None, gt=0)
     thread_id: int | None = Field(default=None, gt=0)
-    sarp_arrest_id: int = Field(gt=0)
+    sarp_arrest_id: int | None = Field(default=None, gt=0)
     suspect_name: str = Field(min_length=1, max_length=100)
     publication_status: PublicationStatus
     initial_review_status: InitialReviewStatus

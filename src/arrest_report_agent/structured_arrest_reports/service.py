@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from uuid import UUID
 
 from arrest_report_agent.application.ports import (
     ReportImageAsset,
@@ -96,16 +97,23 @@ class StructuredArrestReportService:
         *,
         guild_id: int,
         category: ArrestReportAssetCategory,
+        submission_id: UUID | None = None,
         root_message_id: int | None = None,
         report_id: int | None = None,
     ) -> tuple[ArrestReportSubmission | None, tuple[LoadedReportAsset, ...]]:
-        if (root_message_id is None) == (report_id is None):
-            raise ValueError("Resolve a structured report by exactly one identifier")
-        submission = (
-            await self.repository.get_by_root(guild_id, root_message_id)
-            if root_message_id is not None
-            else await self.repository.get_by_report(guild_id, report_id or 0)
+        identifiers = sum(
+            value is not None for value in (submission_id, root_message_id, report_id)
         )
+        if identifiers != 1:
+            raise ValueError("Resolve a structured report by exactly one identifier")
+        if submission_id is not None:
+            submission = await self.repository.get_by_id(submission_id)
+            if submission is not None and submission.guild_id != guild_id:
+                submission = None
+        elif root_message_id is not None:
+            submission = await self.repository.get_by_root(guild_id, root_message_id)
+        else:
+            submission = await self.repository.get_by_report(guild_id, report_id or 0)
         if submission is None:
             return None, ()
         assets = tuple(asset for asset in submission.assets if asset.category is category)
@@ -123,6 +131,7 @@ class StructuredArrestReportService:
         self,
         *,
         guild_id: int,
+        submission_id: UUID | None,
         root_message_id: int | None,
         report_id: int | None,
         category: ReportImageCategory,
@@ -131,6 +140,7 @@ class StructuredArrestReportService:
             resolved_category = ArrestReportAssetCategory(category)
             submission, loaded = await self.load_category(
                 guild_id=guild_id,
+                submission_id=submission_id,
                 root_message_id=root_message_id,
                 report_id=report_id,
                 category=resolved_category,

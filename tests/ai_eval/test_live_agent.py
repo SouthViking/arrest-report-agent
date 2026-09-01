@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import pytest
 from agents import set_default_openai_key
@@ -153,11 +154,13 @@ class RecordingArrestReportLookup:
         ambiguous_first: bool = False,
         no_results: bool = False,
         persistent_ambiguity: bool = False,
+        current_not_bound: bool = False,
     ) -> None:
         self.unavailable = unavailable
         self.ambiguous_first = ambiguous_first
         self.no_results = no_results
         self.persistent_ambiguity = persistent_ambiguity
+        self.current_not_bound = current_not_bound
         self.searches: list[ArrestReportSearchQuery] = []
         self.details: list[int] = []
         self.current: list[tuple[int, int]] = []
@@ -254,6 +257,8 @@ class RecordingArrestReportLookup:
         self.current.append((guild_id, root_message_id))
         if self.unavailable:
             return ArrestReportDetailResult(report=None, error="temporarily_unavailable")
+        if self.current_not_bound:
+            return ArrestReportDetailResult(report=None, error="not_bound")
         return ArrestReportDetailResult(report=self.report)
 
 
@@ -386,6 +391,7 @@ class RecordingReportImageLookup:
         self,
         *,
         guild_id: int,
+        submission_id: UUID | None,
         root_message_id: int | None,
         report_id: int | None,
         category: ReportImageCategory,
@@ -471,7 +477,7 @@ async def _run_agent(
 
     await service.review(
         context,
-        render_agent_input(case),
+        render_agent_input(case, preloaded_arrest_report=preloaded_arrest_report),
     )
 
     assert publisher.failures == [], f"agent execution failed: {publisher.failures}"
@@ -504,6 +510,7 @@ def _case(
     root_author_display: str = "Ayudante Torres",
     root_attachment_ids: tuple[int, ...] = (),
     initial_channel_id: int = 4003,
+    structured_submission_id: UUID | None = None,
     structured_report_id: int | None = None,
     structured_suspect_name: str | None = None,
 ) -> ReviewCase:
@@ -540,6 +547,7 @@ def _case(
         interaction_mode=(
             InteractionMode.THREAD_FOLLOW_UP if len(turns) > 1 else InteractionMode.INITIAL_REVIEW
         ),
+        structured_submission_id=structured_submission_id,
         structured_report_id=structured_report_id,
         structured_suspect_name=structured_suspect_name,
         messages=messages,
@@ -1427,6 +1435,7 @@ async def test_structured_initial_review_reuses_sarp_detail_and_loads_only_reque
         ),
         root_author_display="C. Harrington / M. Crawford",
         initial_channel_id=4002,
+        structured_submission_id=UUID("00000000-0000-0000-0000-000000000751"),
         structured_report_id=arrest_lookup.report.report_id,
         structured_suspect_name=arrest_lookup.report.suspect_name,
     )
@@ -1444,7 +1453,39 @@ async def test_structured_initial_review_reuses_sarp_detail_and_loads_only_reque
     assert arrest_lookup.searches == []
     assert arrest_lookup.details == []
     assert arrest_lookup.current == []
+    assert context.arrest_detail_calls == 0
     assert image_lookup.calls == ["suspect_photo"]
+    assert publisher.publications
+
+
+async def test_structured_initial_review_without_id_searches_and_binds_the_matching_report(
+    ai_eval_settings: AppSettings,
+) -> None:
+    arrest_lookup = RecordingArrestReportLookup(current_not_bound=True)
+    case = _case(
+        (
+            "user",
+            "Inicia la revisión completa del expediente estructurado y usa la información vigente.",
+        ),
+        root_author_display="C. Harrington / M. Crawford",
+        initial_channel_id=4002,
+        structured_submission_id=UUID("00000000-0000-0000-0000-000000000752"),
+        structured_suspect_name=arrest_lookup.report.suspect_name,
+    )
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        arrest_report_lookup=arrest_lookup,
+    )
+
+    assert context.published or context.interaction_completed
+    assert arrest_lookup.current == []
+    assert arrest_lookup.searches
+    assert arrest_lookup.searches[0].suspect_name == arrest_lookup.report.suspect_name
+    assert arrest_lookup.details == [arrest_lookup.report.report_id]
+    assert arrest_lookup.bindings == [arrest_lookup.report.report_id]
     assert publisher.publications
 
 

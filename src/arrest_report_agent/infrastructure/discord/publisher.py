@@ -26,6 +26,7 @@ from .context import DiscordResponseRoute, ReviewTarget
 
 if TYPE_CHECKING:
     from arrest_report_agent.manual_quiz import ManualQuizDiscordPublisher, ManualQuizView
+    from arrest_report_agent.structured_arrest_reports import StructuredArrestReportRepository
 
 STATUS_EMOJIS = ("⏳", "✅", "❌", "⚠️")
 MAX_ROLE_MENTIONS_PER_MESSAGE = 3
@@ -43,6 +44,7 @@ class DiscordReviewPublisher:
         *,
         allow_outgoing_mentions: bool = True,
         manual_quiz_publisher: ManualQuizDiscordPublisher | None = None,
+        structured_report_repository: StructuredArrestReportRepository | None = None,
     ) -> None:
         self.bot = bot
         self.settings = settings
@@ -52,6 +54,7 @@ class DiscordReviewPublisher:
         self._escalation_roles_pinged = False
         self._allow_outgoing_mentions = allow_outgoing_mentions
         self._manual_quiz_publisher = manual_quiz_publisher
+        self._structured_report_repository = structured_report_repository
 
     async def mark_review_started(self) -> None:
         try:
@@ -79,6 +82,7 @@ class DiscordReviewPublisher:
             thread = await self._send_routed_payload(
                 embeds=build_review_embeds(publication, self.persona),
             )
+            await self._update_structured_report_card(publication)
             if thread is not None:
                 await self._close_approved_thread(thread)
             return
@@ -94,6 +98,7 @@ class DiscordReviewPublisher:
             embeds=build_review_embeds(publication, self.persona),
             allowed_mentions=allowed_mentions,
         )
+        await self._update_structured_report_card(publication)
 
     async def send_message(
         self,
@@ -462,6 +467,67 @@ class DiscordReviewPublisher:
                 guild_id=getattr(getattr(self.target.root, "guild", None), "id", "unknown"),
                 root_message_id=self.target.root.id,
                 thread_id=thread.id,
+                **exception_fields(error),
+            )
+
+    async def _update_structured_report_card(self, publication: ReviewPublication) -> None:
+        """Best-effort update of the root card after a completed full review."""
+
+        submission_id = self.target.structured_submission_id
+        repository = self._structured_report_repository
+        if submission_id is None or repository is None:
+            return
+        try:
+            submission = await repository.get_by_id(submission_id)
+            if submission is None:
+                raise LookupError("Structured arrest report submission not found")
+            from arrest_report_agent.structured_arrest_reports.card import (  # noqa: PLC0415
+                build_submission_view,
+                review_card_color,
+            )
+            from arrest_report_agent.structured_arrest_reports.models import (  # noqa: PLC0415
+                ArrestReportAssetCategory,
+            )
+
+            filenames = tuple(attachment.filename for attachment in self.target.root.attachments)
+            suspect_count = sum(
+                asset.category is ArrestReportAssetCategory.SUSPECT_PHOTO
+                for asset in submission.assets
+            )
+            supporting_count = sum(
+                asset.category is ArrestReportAssetCategory.SUPPORTING_IMAGE
+                for asset in submission.assets
+            )
+            if not suspect_count or len(filenames) != suspect_count + supporting_count:
+                raise ValueError("Structured report attachment layout no longer matches its assets")
+            presenter = self.target.root.guild.get_member(submission.owner_user_id)
+            if presenter is None:
+                presenter = self.bot.get_user(submission.owner_user_id)
+            display_avatar = getattr(presenter, "display_avatar", None)
+            await self.target.root.edit(
+                view=build_submission_view(
+                    submission,
+                    suspect_filenames=filenames[:suspect_count],
+                    supporting_filenames=filenames[suspect_count:],
+                    presenter_name=getattr(presenter, "display_name", None),
+                    presenter_avatar_url=(
+                        str(display_avatar.url) if display_avatar is not None else None
+                    ),
+                    color=review_card_color(publication.verdict),
+                ),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "warning",
+                "structured_arrest_report_card_update_failed",
+                exc_info=error,
+                guild_id=getattr(getattr(self.target.root, "guild", None), "id", "unknown"),
+                root_message_id=self.target.root.id,
+                submission_id=str(submission_id),
+                review_scope=publication.review_scope.value,
+                verdict=publication.verdict.value,
                 **exception_fields(error),
             )
 

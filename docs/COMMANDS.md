@@ -79,7 +79,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 |---|---|---|---|
 | `/ayuda` | Todos | Pública | Persona seleccionada y configuración del bot |
 | `/info-reportes` | Acceso completo o acceso del propietario habilitado | Pública; rechazo efímero | Persona, canales y configuración de acceso del propietario |
-| `/revisar-arresto` | `operational_staff_roles`; módulo `arrest_report_lookup` activo; solo en `report_channels` | Formulario y confirmación efímeros; expediente e hilo públicos | Reporte vigente de SARP, PostgreSQL, Railway Bucket y Discord |
+| `/revisar-arresto` | `operational_staff_roles`; módulo `arrest_report_lookup` activo; solo en `report_channels` | Formulario; expediente e hilo públicos; errores efímeros | Reporte vigente de SARP cuando se indica ID, PostgreSQL, Railway Bucket y Discord |
 | `/guia` | Todos | Efímera | `report_guide.json` |
 | `/cargos` | Todos | Efímera | Catálogo SARP con fallback `delitos.json` |
 | `/mdc` | `operational_staff_roles`; solo si SARP está activo | Modal privado; resultado público o efímero | API SARP en vivo |
@@ -130,12 +130,18 @@ puedan ver e invocar al bot. Los comandos personales sí aplican las allowlists 
 leer el historial de Discord.
 
 `/info-reportes` no ejecuta IA ni describe el catálogo general de revisión. Explica cómo usar
-`/revisar-arresto`, adjuntar las fotografías y respaldos, y continuar después dentro del hilo. La
+`/revisar-arresto`, indicar el ID de SARP, adjuntar las fotografías y respaldos y continuar después
+dentro del hilo. La capa de aplicación conserva la ruta sin ID para poder habilitarla en el modal sin
+duplicar el flujo. La
 revisión inicial creada por el comando no consume una intervención. El formato anterior con
 `@mención Nombre Apellido` o `@mención Nombre Apellido - #NÚMERO` continúa disponible para reportes
 legacy y conversaciones ya existentes. Si
 `report_owner_access` está deshabilitado, informa que la capacidad no está disponible sin enseñar
 pasos que no funcionarían.
+
+La tarjeta estructurada se publica con franja amarilla. Solo un `review_scope=full` puede actualizar
+esa franja: verde para `approved`, rojo para `corrections_required` y naranja para `inconclusive`.
+Las conversaciones y revisiones `narrative`, `charges` o `targeted` conservan el último estado general.
 
 Los comandos de supervisión comparten `SUPERVISOR_ROLE_IDS`. Ausente, vacío o `*` permite a
 todos; una lista CSV exige que el miembro posea al menos uno de esos roles. La comprobación está

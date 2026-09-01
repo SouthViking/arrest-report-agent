@@ -201,13 +201,15 @@ def test_arrest_lookup_instructions_are_conditional_and_owner_scoped(persona) ->
     assert "Mostrar esos IDs está permitido" in full
     assert "revisión se realizó\n  desde la imagen" in full
     assert "get_current_arrest_report" in owner
-    assert "search_arrest_reports" not in owner
-    assert "no intentes buscar nombres" in owner
+    assert "search_arrest_reports" in owner
+    assert "sin ID SARP" in owner
+    assert "compara el agente con el\n  `Solicitante`" in owner
     assert "get_report_suspect_images" not in disabled
     assert "get_report_suspect_images" not in full
     assert "get_report_suspect_images" not in owner
     assert "get_report_suspect_images" in structured_full
     assert "get_report_supporting_images" in structured_owner
+    assert "pide explícitamente mirar, comprobar o describir" in structured_owner
 
 
 def test_faction_frequency_instructions_are_conditional_and_full_access_only(persona) -> None:

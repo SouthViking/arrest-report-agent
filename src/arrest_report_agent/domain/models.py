@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -141,6 +142,7 @@ class ReviewCase(BaseModel):
     interaction_mode: InteractionMode
     response_route: Literal["agent_choice", "inline_reply", "thread"] = "thread"
     case_subject: str | None = None
+    structured_submission_id: UUID | None = None
     structured_report_id: int | None = Field(default=None, gt=0)
     structured_suspect_name: str | None = Field(default=None, min_length=1, max_length=100)
     messages: list[ConversationMessage]

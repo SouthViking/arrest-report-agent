@@ -1117,7 +1117,7 @@ arrest_report_submissions = sa.Table(
     sa.Column("parent_channel_id", sa.BigInteger, nullable=False),
     sa.Column("root_message_id", sa.BigInteger),
     sa.Column("thread_id", sa.BigInteger),
-    sa.Column("sarp_arrest_id", sa.BigInteger, nullable=False),
+    sa.Column("sarp_arrest_id", sa.BigInteger),
     sa.Column("suspect_name", sa.String(100), nullable=False),
     sa.Column("publication_status", sa.String(20), nullable=False),
     sa.Column("initial_review_status", sa.String(20), nullable=False),
@@ -1133,7 +1133,10 @@ arrest_report_submissions = sa.Table(
         nullable=False,
         server_default=sa.func.now(),
     ),
-    sa.CheckConstraint("sarp_arrest_id > 0", name="ck_arrest_submission_report_positive"),
+    sa.CheckConstraint(
+        "sarp_arrest_id IS NULL OR sarp_arrest_id > 0",
+        name="ck_arrest_submission_report_positive",
+    ),
     sa.CheckConstraint(
         "publication_status IN ('publishing','published','failed')",
         name="ck_arrest_submission_publication_status",

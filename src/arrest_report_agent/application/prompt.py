@@ -45,7 +45,9 @@ def build_agent_instructions(
   necesaria; no vuelvas a cargar un recurso ya obtenido.
 - Antes de afirmar que una fotografía, captura o respaldo está correcto, visible, completo o
   ausente, debes cargar la categoría correspondiente. Nunca infieras un resultado visual solo por
-  la metadata del expediente."""
+  la metadata del expediente.
+- Si el usuario pide explícitamente mirar, comprobar o describir fotografías o respaldos, debes
+  cargar esa categoría antes de usar una herramienta terminal, aunque SARP resuelva el resto."""
     assistant_function = (
         f"Asistente operativo de {identity.organization_acronym} para consultas, información y "
         "tareas autorizadas."
@@ -165,8 +167,10 @@ Dispones de consultas en vivo a los reportes de arresto de la facción.
   reformula búsquedas razonables ante cero resultados, errores de escritura o una respuesta demasiado
   amplia, sin descargar listados innecesarios.
 - Para elegir un candidato, contrasta siempre `officer_name` con el nombre del autor de
-  `REPORTE_RAIZ`. Normaliza mayúsculas, tildes, espacios y guiones bajos; reconoce nombres completos
-  y abreviaturas compatibles como `C. Harrington` para `Charles Harrington`. Si el apodo de Discord
+  `REPORTE_RAIZ`; cuando el expediente estructurado haya sido publicado por el bot, usa en su lugar
+  el `Solicitante` indicado en `CONTEXTO_OPERATIVO`. Normaliza mayúsculas, tildes, espacios y guiones
+  bajos; reconoce nombres completos y abreviaturas compatibles como `C. Harrington` para
+  `Charles Harrington`. Si el apodo de Discord
   contiene varios personajes separados por `/`, evalúa cada segmento por separado. Una inicial debe
   coincidir con el nombre y el apellido debe coincidir completo; no aceptes solo un apellido común.
 - Una coincidencia inequívoca requiere que sospechoso y agente sean compatibles y que la fecha no la
@@ -203,18 +207,31 @@ Dispones de consultas en vivo a los reportes de arresto de la facción.
   `get_report_suspect_images` únicamente para validar fotografías y
   `get_report_supporting_images` solo si falta un dato visual o se pide de forma explícita.
 - Toda afirmación sobre fotografías o respaldos exige cargar primero la categoría correspondiente;
-  nunca infieras su contenido desde la metadata."""
+  nunca infieras su contenido desde la metadata.
+- Si el usuario pide explícitamente mirar, comprobar o describir una categoría, debes cargarla antes
+  de terminar la interacción aunque el detalle SARP ya sea suficiente para el resto."""
         arrest_tools = f"""
 <sarp_arrest_reports>
 Este expediente puede tener un reporte SARP previamente vinculado.
 
-- Si el contexto indica `Expediente estructurado`, comienza la revisión inicial consultando
-  `get_current_arrest_report`: su detalle ya fue validado y vinculado. No busques por nombre ni ID.
+- Si el contexto incluye `REPORTE_SARP_PRECARGADO`, usa ese detalle directamente en la revisión
+  inicial y no llames `get_current_arrest_report` ni `get_arrest_report` para volver a obtenerlo.
+- Si `Expediente estructurado` incluye un número SARP pero no hay detalle precargado, comienza
+  consultando `get_current_arrest_report`: el expediente ya fue validado y vinculado. No busques por
+  nombre ni ID.
+- Si indica `sin ID SARP`, usa `search_arrest_reports` directamente en la revisión inicial. En una
+  continuación consulta primero `get_current_arrest_report` por si ya fue vinculado y vuelve a buscar
+  solo ante `not_bound`. Busca por el sospechoso del contexto y compara el agente con el
+  `Solicitante`, que es el autor humano aunque la raíz la haya publicado el bot. Si el solicitante
+  tiene varios personajes o un nombre abreviado, aplica las reglas de compatibilidad de nombres y
+  omite `officer_name` inicialmente. Cuando exista una sola coincidencia inequívoca usa
+  `get_arrest_report`; la tool la vinculará al hilo. Si quedan varias, enumera ID, fecha, sospechoso y
+  agente y pide que indiquen el correcto, sin escoger al azar.
 - Usa `get_current_arrest_report` cuando el propietario indique que corrigió el reporte o solicite
   una re-revisión. La tool solo puede recuperar la referencia de este expediente y nunca buscar otros.
-- Si responde `not_bound`, usa `get_message_attachments` sobre el reporte raíz como fallback. No
-  solicites IDs, no intentes buscar nombres y declara que no pudiste recuperar una versión vinculada
-  desde SARP y que revisaste la imagen.
+- En reportes legacy, si responde `not_bound`, usa `get_message_attachments` sobre el reporte raíz
+  como fallback y declara que no pudiste recuperar una versión vinculada desde SARP y que revisaste
+  la imagen.
 - El detalle actual de SARP prevalece para narrativa y cargos registrados. Para reportes legacy
   conserva `get_message_attachments` como fallback.
 {owner_structured_guidance}
@@ -371,7 +388,9 @@ Puedes crear y consultar encuestas nativas de Discord mediante herramientas dete
   `set_message_reaction`, `mention_roles`, `send_message`, `finish_interaction`, `publish_review` y
   `get_arrest_report` cuando vincule el hilo"""
     else:
-        non_parallel_effect_tools = "`send_message`, `finish_interaction` y `publish_review`"
+        non_parallel_effect_tools = (
+            "`send_message`, `finish_interaction`, `publish_review` y `get_arrest_report`"
+        )
     report_guide_sections = ", ".join(f"`{section.value}`" for section in ReportGuideSection)
 
     return f"""<identity>

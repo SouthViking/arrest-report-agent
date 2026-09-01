@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 
+from arrest_report_agent.application.ports import ArrestReportCharge, ArrestReportDetail
 from arrest_report_agent.domain import (
     ContextState,
     ConversationMessage,
@@ -122,17 +124,84 @@ def test_structured_bot_root_is_rendered_as_user_bootstrap_without_affecting_leg
     }
     structured = ReviewCase(
         **base,
+        structured_submission_id="00000000-0000-0000-0000-000000000321",
         structured_report_id=321,
         structured_suspect_name="Andy Quintero",
     )
     legacy = ReviewCase(**base)
 
-    structured_input = render_agent_input(structured)
+    preloaded = ArrestReportDetail(
+        report_id=321,
+        suspect_name="Andy Quintero",
+        officer_name="Charles Harrington",
+        description="Yo, Charles Harrington, procedí al arresto.",
+        created_at=datetime(2026, 9, 1, 12, 0, tzinfo=UTC),
+        updated_at=None,
+        charges=(
+            ArrestReportCharge(
+                charge_id=7,
+                code="1.1",
+                name="Cargo de prueba",
+                charge_type="GRAVE",
+                hours=2,
+                fine=500,
+            ),
+        ),
+    )
+    structured_input = render_agent_input(
+        structured,
+        preloaded_arrest_report=preloaded,
+    )
+    structured_without_id_input = render_agent_input(
+        structured.model_copy(update={"structured_report_id": None})
+    )
     legacy_input = render_agent_input(legacy)
 
     assert structured_input[0]["role"] == "user"
-    assert "Expediente estructurado: reporte SARP #321" in structured_input[0]["content"][0]["text"]
+    structured_text = structured_input[0]["content"][0]["text"]
+    assert "Expediente estructurado: reporte SARP #321" in structured_text
+    assert "[REPORTE_SARP_PRECARGADO]" in structured_text
+    assert '"description":"Yo, Charles Harrington, procedí al arresto."' in structured_text
+    assert "no llames get_current_arrest_report" in structured_text
+    assert (
+        "Expediente estructurado: sin ID SARP indicado"
+        in structured_without_id_input[0]["content"][0]["text"]
+    )
+    assert "search_arrest_reports" in structured_without_id_input[0]["content"][0]["text"]
     assert legacy_input[0]["role"] == "assistant"
+
+
+@pytest.mark.asyncio
+async def test_structured_submission_resolution_falls_back_to_thread_mapping(
+    settings,
+    persona,
+) -> None:
+    submission = SimpleNamespace(id=UUID("00000000-0000-0000-0000-000000000321"))
+
+    class Repository:
+        async def get_by_root(self, guild_id: int, root_message_id: int) -> None:
+            assert (guild_id, root_message_id) == (1, 10)
+            return None
+
+        async def get_by_thread(self, guild_id: int, thread_id: int) -> object:
+            assert (guild_id, thread_id) == (1, 20)
+            return submission
+
+    root = SimpleNamespace(
+        id=10,
+        guild=SimpleNamespace(id=1),
+        author=SimpleNamespace(bot=True),
+        webhook_id=None,
+    )
+    builder = DiscordContextBuilder(
+        settings,
+        persona,
+        structured_reports=Repository(),  # type: ignore[arg-type]
+    )
+
+    resolved = await builder._structured_submission(root, thread_id=20)  # type: ignore[arg-type]  # noqa: SLF001
+
+    assert resolved is submission
 
 
 def test_render_session_delta_keeps_only_new_human_messages() -> None:

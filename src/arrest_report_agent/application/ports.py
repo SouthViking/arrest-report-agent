@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Literal, Protocol
+from uuid import UUID
 
 from arrest_report_agent.domain import (
     AgentActivity,
@@ -349,6 +350,7 @@ class ReportImageLookup(Protocol):
         self,
         *,
         guild_id: int,
+        submission_id: UUID | None,
         root_message_id: int | None,
         report_id: int | None,
         category: ReportImageCategory,

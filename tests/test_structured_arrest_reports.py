@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from datetime import UTC, datetime
@@ -15,6 +16,8 @@ from arrest_report_agent.application.ports import (
     ArrestReportCharge,
     ArrestReportDetail,
     ArrestReportDetailResult,
+    ArrestReportSearchResult,
+    ArrestReportSummary,
     ReportImageAsset,
     ReportImageResult,
 )
@@ -32,6 +35,7 @@ from arrest_report_agent.structured_arrest_reports import (
     StructuredArrestReportService,
 )
 from arrest_report_agent.structured_arrest_reports.discord import (
+    StructuredArrestReportCog,
     StructuredArrestReportModal,
     _availability_denial,
     _discord_files,
@@ -39,6 +43,8 @@ from arrest_report_agent.structured_arrest_reports.discord import (
     build_submission_view,
 )
 from arrest_report_agent.structured_arrest_reports.service import StructuredReportFile
+
+_SUBMISSION_ID = uuid.UUID("00000000-0000-0000-0000-000000000321")
 
 
 class FakeRepository:
@@ -72,6 +78,11 @@ class FakeRepository:
             return self.submission
         return None
 
+    async def get_by_id(self, submission_id: uuid.UUID) -> ArrestReportSubmission | None:
+        if submission_id == self.submission.id:
+            return self.submission
+        return None
+
     async def get_by_report(
         self,
         guild_id: int,
@@ -84,17 +95,18 @@ class FakeRepository:
 
 class FakeImageLookup:
     def __init__(self) -> None:
-        self.calls: list[tuple[int | None, int | None, str]] = []
+        self.calls: list[tuple[uuid.UUID | None, int | None, int | None, str]] = []
 
     async def get_images(
         self,
         *,
         guild_id: int,
+        submission_id: uuid.UUID | None,
         root_message_id: int | None,
         report_id: int | None,
         category: str,
     ) -> ReportImageResult:
-        self.calls.append((root_message_id, report_id, category))
+        self.calls.append((submission_id, root_message_id, report_id, category))
         return ReportImageResult(
             report_id=321,
             owner_user_id=6,
@@ -114,23 +126,61 @@ class FakeImageLookup:
 class FakeArrestLookup:
     def __init__(self) -> None:
         self.current_calls = 0
+        self.searches: list[Any] = []
+        self.binds: list[dict[str, Any]] = []
+        self.report = ArrestReportDetail(
+            report_id=321,
+            suspect_name="Andy Quintero",
+            officer_name="Charles Harrington",
+            description="Yo, Charles Harrington, procedí al arresto.",
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            charges=(),
+        )
+
+    async def search(self, query: Any) -> ArrestReportSearchResult:
+        self.searches.append(query)
+        return ArrestReportSearchResult(
+            reports=(
+                ArrestReportSummary(
+                    report_id=self.report.report_id,
+                    suspect_name=self.report.suspect_name,
+                    officer_name=self.report.officer_name,
+                    description=self.report.description,
+                    created_at=self.report.created_at,
+                ),
+            ),
+            total=1,
+            page=1,
+            limit=10,
+            has_more=False,
+        )
+
+    async def get(self, report_id: int) -> ArrestReportDetailResult:
+        if report_id != self.report.report_id:
+            return ArrestReportDetailResult(report=None, error="not_found")
+        return ArrestReportDetailResult(report=self.report)
+
+    async def bind(self, **values: Any) -> None:
+        self.binds.append(values)
+        return None
 
     async def get_current(self, **_values: Any) -> ArrestReportDetailResult:
         self.current_calls += 1
         return ArrestReportDetailResult(report=None, error="not_bound")
 
 
-def _submission() -> ArrestReportSubmission:
+def _submission(report_id: int | None = 321) -> ArrestReportSubmission:
     now = datetime.now(UTC)
     return ArrestReportSubmission(
-        id=uuid.uuid4(),
+        id=_SUBMISSION_ID,
         guild_id=1,
         interaction_id=2,
         owner_user_id=6,
         parent_channel_id=3,
         root_message_id=4,
         thread_id=4,
-        sarp_arrest_id=321,
+        sarp_arrest_id=report_id,
         suspect_name="Andy Quintero",
         publication_status=PublicationStatus.PUBLISHED,
         initial_review_status=InitialReviewStatus.PENDING,
@@ -150,6 +200,7 @@ def _context(access_level: AgentAccessLevel) -> ReviewRunContext:
             trigger_message_id=5,
             requester_user_id=6,
             interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+            structured_submission_id=_SUBMISSION_ID,
             structured_report_id=321,
             structured_suspect_name="Andy Quintero",
             messages=[],
@@ -330,6 +381,61 @@ async def test_preloaded_report_detail_avoids_second_sarp_request() -> None:
 
 
 @pytest.mark.asyncio
+async def test_owner_without_report_id_can_only_resolve_a_candidate_from_its_submission() -> None:
+    lookup = FakeArrestLookup()
+    tools = {
+        tool.name: tool  # type: ignore[attr-defined]
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+            access_level=AgentAccessLevel.REPORT_OWNER,
+            arrest_report_lookup=lookup,  # type: ignore[arg-type]
+            report_channel_ids=frozenset({3}),
+        )
+    }
+    context = _context(AgentAccessLevel.REPORT_OWNER)
+    context.case = context.case.model_copy(update={"structured_report_id": None})
+
+    search_arguments = json.dumps({"suspect_name": "Another Person"})
+    search = await tools["search_arrest_reports"].on_invoke_tool(  # type: ignore[attr-defined]
+        ToolContext(
+            context=context,
+            tool_name="search_arrest_reports",
+            tool_call_id="search",
+            tool_arguments=search_arguments,
+        ),
+        search_arguments,
+    )
+    outside_arguments = json.dumps({"report_id": 999})
+    outside = await tools["get_arrest_report"].on_invoke_tool(  # type: ignore[attr-defined]
+        ToolContext(
+            context=context,
+            tool_name="get_arrest_report",
+            tool_call_id="outside",
+            tool_arguments=outside_arguments,
+        ),
+        outside_arguments,
+    )
+    detail_arguments = json.dumps({"report_id": 321})
+    detail = await tools["get_arrest_report"].on_invoke_tool(  # type: ignore[attr-defined]
+        ToolContext(
+            context=context,
+            tool_name="get_arrest_report",
+            tool_call_id="detail",
+            tool_arguments=detail_arguments,
+        ),
+        detail_arguments,
+    )
+
+    assert search["status"] == "matched"
+    assert lookup.searches[0].suspect_name == "Andy Quintero"
+    assert outside["error"] == "report_outside_owner_scope"
+    assert detail["ok"] is True
+    assert detail["bound_to_current_thread"] is True
+    assert lookup.binds[0]["report_id"] == 321
+
+
+@pytest.mark.asyncio
 async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate() -> None:
     modal = StructuredArrestReportModal(
         cog=SimpleNamespace(),  # type: ignore[arg-type]
@@ -341,6 +447,7 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
     assert modal.suspect_photos.max_values == 2
     assert modal.supporting_images.min_values == 1
     assert modal.supporting_images.max_values == 8
+    assert modal.report_id.required is True
 
     files, suspect_names, supporting_names = _discord_files(
         (StructuredReportFile("photo.png", "image/png", b"a"),),
@@ -350,10 +457,207 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
         _submission(),
         suspect_filenames=suspect_names,
         supporting_filenames=supporting_names,
+        presenter_name="Charles Harrington",
+        presenter_avatar_url="https://cdn.discord.test/avatar.png",
     )
 
     assert len(files) == 2
     assert suspect_names == ("photo.png",)
     assert supporting_names == ("2-photo.png",)
     assert isinstance(view, discord.ui.DesignerView)
-    assert _thread_name("Andy Quintero", 321) == "Revisión · Andy Quintero · #321"
+    container = view.children[0]
+    assert isinstance(container, discord.ui.Container)
+    assert container.color == discord.Color.gold()
+    author_header = container.items[0]
+    assert isinstance(author_header, discord.ui.Section)
+    assert author_header.items[0].content.startswith("## 📋 Reporte de arresto · #321\n")
+    assert f"Autor: <@{_submission().owner_user_id}>" in author_header.items[0].content
+    assert f"<@{_submission().owner_user_id}>" in author_header.items[0].content
+    assert "Presentado por" not in author_header.items[0].content
+    assert isinstance(author_header.accessory, discord.ui.Thumbnail)
+    assert author_header.accessory.url == "https://cdn.discord.test/avatar.png"
+    assert _thread_name("Andy Quintero", 321) == "Andy Quintero · #321"
+    assert _thread_name("Andy Quintero", None) == "Andy Quintero"
+
+    without_id = build_submission_view(
+        _submission(None),
+        suspect_filenames=suspect_names,
+        supporting_filenames=supporting_names,
+    )
+    container = without_id.children[0]
+    assert isinstance(container, discord.ui.Container)
+    header = container.items[0]
+    assert isinstance(header, discord.ui.TextDisplay)
+    assert header.content.startswith("## 📋 Reporte de arresto\n")
+    assert "#None" not in header.content
+
+
+@pytest.mark.asyncio
+async def test_submission_without_id_skips_prevalidation_hides_confirmation_and_starts_discovery(
+    monkeypatch,
+) -> None:
+    class Member:
+        def __init__(self) -> None:
+            self.id = 6
+            self.roles = (SimpleNamespace(id=7),)
+            self.display_name = "Charles Harrington"
+            self.display_avatar = SimpleNamespace(url="https://cdn.discord.test/avatar.png")
+
+    class Attachment:
+        filename = "photo.png"
+        content_type = "image/png"
+        size = 3
+
+        async def read(self) -> bytes:
+            return b"png"
+
+    class Lookup(FakeArrestLookup):
+        def __init__(self) -> None:
+            super().__init__()
+            self.details: list[int] = []
+
+        async def get(self, report_id: int) -> ArrestReportDetailResult:
+            self.details.append(report_id)
+            return await super().get(report_id)
+
+    class Repository:
+        def __init__(self) -> None:
+            self.submission = _submission(None).model_copy(
+                update={
+                    "interaction_id": 44,
+                    "root_message_id": None,
+                    "thread_id": None,
+                    "publication_status": PublicationStatus.PUBLISHING,
+                }
+            )
+            self.report_lookups: list[int] = []
+
+        async def get_by_interaction(self, interaction_id: int) -> None:
+            assert interaction_id == 44
+            return None
+
+        async def get_by_report(self, guild_id: int, report_id: int) -> None:
+            self.report_lookups.append(report_id)
+            return None
+
+        async def reserve(self, **values: Any) -> tuple[ArrestReportSubmission, bool]:
+            assert values["sarp_arrest_id"] is None
+            return self.submission, True
+
+        async def mark_published(self, submission_id: uuid.UUID, **values: Any) -> ArrestReportSubmission:
+            self.submission = self.submission.model_copy(
+                update={
+                    "root_message_id": values["root_message_id"],
+                    "thread_id": values["thread_id"],
+                    "publication_status": PublicationStatus.PUBLISHED,
+                }
+            )
+            return self.submission
+
+    class Service:
+        def __init__(self, repository: Repository) -> None:
+            self.repository = repository
+
+        async def store_images(self, *_args: Any, **_values: Any) -> tuple[()]:
+            return ()
+
+    class Root:
+        id = 4
+        jump_url = "https://discord.test/report"
+
+        async def create_thread(self, **values: Any) -> SimpleNamespace:
+            assert values["name"] == "Andy Quintero"
+            return SimpleNamespace(id=4, parent=channel)
+
+    class Channel:
+        id = 3
+
+        def __init__(self) -> None:
+            self.sent: list[dict[str, Any]] = []
+
+        async def send(self, **values: Any) -> Root:
+            self.sent.append(values)
+            return Root()
+
+    class Response:
+        def __init__(self) -> None:
+            self.deferred = False
+
+        async def defer(self, *, ephemeral: bool) -> None:
+            assert ephemeral is True
+            self.deferred = True
+
+    class Followup:
+        def __init__(self) -> None:
+            self.messages: list[dict[str, Any]] = []
+
+        async def send(self, **values: Any) -> None:
+            self.messages.append(values)
+
+    class ReviewCog:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, Any]] = []
+
+        async def run_structured_initial_review(self, **values: Any) -> None:
+            self.calls.append(values)
+
+    lookup = Lookup()
+    repository = Repository()
+    service = Service(repository)
+    review_cog = ReviewCog()
+    bundle = _bundle()
+    bundle.settings.max_file_bytes = 100
+    bundle.settings.max_total_file_bytes = 1_000
+    bundle.settings.thread_auto_archive_minutes = 1440
+    bundle.service = SimpleNamespace(arrest_report_lookup=lookup)
+
+    class Provider:
+        async def cached(self, guild_id: int) -> object:
+            assert guild_id == 1
+            return bundle
+
+    channel = Channel()
+    response = Response()
+    followup = Followup()
+    cleanup_calls = 0
+
+    async def delete_original_response() -> None:
+        nonlocal cleanup_calls
+        cleanup_calls += 1
+
+    interaction = SimpleNamespace(
+        id=44,
+        user=Member(),
+        guild=SimpleNamespace(id=1),
+        channel=channel,
+        response=response,
+        followup=followup,
+        delete_original_response=delete_original_response,
+    )
+    monkeypatch.setattr(discord, "Member", Member)
+    cog = StructuredArrestReportCog(  # type: ignore[arg-type]
+        Provider(),
+        service,
+        review_cog,
+    )
+
+    await cog.publish(
+        interaction,  # type: ignore[arg-type]
+        requester_id=6,
+        guild_id=1,
+        channel_id=3,
+        suspect_name="Andy Quintero",
+        report_id_text="",
+        suspect_photos=(Attachment(),),  # type: ignore[arg-type]
+        supporting_images=(Attachment(),),  # type: ignore[arg-type]
+    )
+    await asyncio.sleep(0)
+
+    assert response.deferred is True
+    assert cleanup_calls == 1
+    assert followup.messages == []
+    assert lookup.details == []
+    assert lookup.binds == []
+    assert repository.report_lookups == []
+    assert len(channel.sent) == 1
+    assert review_cog.calls[0]["arrest_report"] is None

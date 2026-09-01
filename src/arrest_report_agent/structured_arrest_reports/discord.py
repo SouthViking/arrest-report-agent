@@ -15,6 +15,7 @@ from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.assets import AssetLimitError, safe_filename
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
+from .card import build_submission_view
 from .models import ArrestReportSubmission, PublicationStatus
 from .service import StructuredArrestReportService, StructuredReportFile
 
@@ -89,13 +90,22 @@ class StructuredArrestReportCog(commands.Cog):
             await interaction.response.send_message(embed=denial, ephemeral=True)
             return
         normalized_name = " ".join(suspect_name.split())
-        try:
-            report_id = int(report_id_text.strip())
-        except ValueError:
-            report_id = 0
-        if report_id <= 0 or not normalized_name:
+        raw_report_id = report_id_text.strip()
+        report_id: int | None = None
+        if raw_report_id:
+            try:
+                report_id = int(raw_report_id)
+            except ValueError:
+                report_id = 0
+            if report_id <= 0:
+                await interaction.response.send_message(
+                    embed=_alert("El ID del reporte debe ser un número válido."),
+                    ephemeral=True,
+                )
+                return
+        if not normalized_name:
             await interaction.response.send_message(
-                embed=_alert("Indica un nombre completo y un ID numérico válido."),
+                embed=_alert("Indica el nombre completo del sospechoso."),
                 ephemeral=True,
             )
             return
@@ -129,7 +139,9 @@ class StructuredArrestReportCog(commands.Cog):
             )
             return
         await interaction.response.defer(ephemeral=True)
-        existing = await self.service.repository.get_by_report(guild_id, report_id)
+        existing = await self.service.repository.get_by_interaction(interaction.id)
+        if existing is None and report_id is not None:
+            existing = await self.service.repository.get_by_report(guild_id, report_id)
         if existing is not None and existing.publication_status is not PublicationStatus.FAILED:
             await interaction.followup.send(
                 embed=_existing_embed(existing),
@@ -137,35 +149,39 @@ class StructuredArrestReportCog(commands.Cog):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
-        detail_result = await lookup.get(report_id)
-        if detail_result.error is not None or detail_result.report is None:
-            description = (
-                "No pude encontrar ese reporte en SARP. Revisa el número e inténtalo nuevamente."
-                if detail_result.error == "not_found"
-                else "No pude verificar el reporte en este momento. Inténtalo nuevamente más tarde."
-            )
-            await interaction.followup.send(
-                embed=_alert(description),
-                ephemeral=True,
-            )
-            return
-        detail = detail_result.report
-        if normalize_person_name(normalized_name) != normalize_person_name(detail.suspect_name):
-            await interaction.followup.send(
-                embed=_alert(
-                    "El nombre indicado no coincide con el sospechoso del reporte. "
-                    f"SARP muestra: **{detail.suspect_name.replace('_', ' ')}**."
-                ),
-                ephemeral=True,
-            )
-            return
+        detail = None
+        submission_suspect_name = normalized_name
+        if report_id is not None:
+            detail_result = await lookup.get(report_id)
+            if detail_result.error is not None or detail_result.report is None:
+                description = (
+                    "No pude encontrar ese reporte en SARP. Revisa el número e inténtalo nuevamente."
+                    if detail_result.error == "not_found"
+                    else "No pude verificar el reporte en este momento. Inténtalo nuevamente más tarde."
+                )
+                await interaction.followup.send(
+                    embed=_alert(description),
+                    ephemeral=True,
+                )
+                return
+            detail = detail_result.report
+            if normalize_person_name(normalized_name) != normalize_person_name(detail.suspect_name):
+                await interaction.followup.send(
+                    embed=_alert(
+                        "El nombre indicado no coincide con el sospechoso del reporte. "
+                        f"SARP muestra: **{detail.suspect_name.replace('_', ' ')}**."
+                    ),
+                    ephemeral=True,
+                )
+                return
+            submission_suspect_name = detail.suspect_name.replace("_", " ")
         submission, created = await self.service.repository.reserve(
             guild_id=guild_id,
             interaction_id=interaction.id,
             owner_user_id=requester_id,
             parent_channel_id=channel_id,
             sarp_arrest_id=report_id,
-            suspect_name=detail.suspect_name.replace("_", " "),
+            suspect_name=submission_suspect_name,
         )
         if not created:
             await interaction.followup.send(
@@ -194,6 +210,8 @@ class StructuredArrestReportCog(commands.Cog):
                     submission,
                     suspect_filenames=suspect_names,
                     supporting_filenames=supporting_names,
+                    presenter_name=interaction.user.display_name,
+                    presenter_avatar_url=interaction.user.display_avatar.url,
                 ),
                 files=list(output_files),
                 allowed_mentions=discord.AllowedMentions.none(),
@@ -207,44 +225,34 @@ class StructuredArrestReportCog(commands.Cog):
                 root_message_id=root.id,
                 thread_id=thread.id,
             )
-            binding_error = await lookup.bind(
-                guild_id=guild_id,
-                root_message_id=root.id,
-                parent_channel_id=channel_id,
-                thread_id=thread.id,
-                report_id=report_id,
-                actor_user_id=requester_id,
-                trigger_message_id=root.id,
-            )
-            if binding_error is not None:
-                log_event(
-                    LOGGER,
-                    "warning",
-                    "structured_arrest_report_binding_failed",
+            if report_id is not None:
+                binding_error = await lookup.bind(
                     guild_id=guild_id,
                     root_message_id=root.id,
+                    parent_channel_id=channel_id,
                     thread_id=thread.id,
-                    sarp_arrest_id=report_id,
-                    binding_error=binding_error,
+                    report_id=report_id,
+                    actor_user_id=requester_id,
+                    trigger_message_id=root.id,
                 )
+                if binding_error is not None:
+                    log_event(
+                        LOGGER,
+                        "warning",
+                        "structured_arrest_report_binding_failed",
+                        guild_id=guild_id,
+                        root_message_id=root.id,
+                        thread_id=thread.id,
+                        sarp_arrest_id=report_id,
+                        binding_error=binding_error,
+                    )
             try:
-                await interaction.followup.send(
-                    embed=discord.Embed(
-                        title="✅ Reporte publicado",
-                        description=(
-                            f"El expediente quedó disponible en {root.jump_url}. "
-                            "La primera revisión comenzará en su hilo."
-                        ),
-                        color=discord.Color.green(),
-                    ),
-                    ephemeral=True,
-                    allowed_mentions=discord.AllowedMentions.none(),
-                )
-            except (discord.Forbidden, discord.HTTPException) as error:
+                await interaction.delete_original_response()
+            except (discord.NotFound, discord.HTTPException) as error:
                 log_event(
                     LOGGER,
-                    "warning",
-                    "structured_arrest_report_confirmation_failed",
+                    "debug",
+                    "structured_arrest_report_deferred_response_cleanup_failed",
                     guild_id=guild_id,
                     root_message_id=root.id,
                     thread_id=thread.id,
@@ -327,6 +335,7 @@ class StructuredArrestReportModal(discord.ui.DesignerModal):
             placeholder="Ej.: 56242",
             min_length=1,
             max_length=20,
+            required=True,
         )
         self.suspect_photos = discord.ui.FileUpload(
             custom_id="arrest-report:v1:suspect-photos",
@@ -341,7 +350,7 @@ class StructuredArrestReportModal(discord.ui.DesignerModal):
             required=True,
         )
         super().__init__(
-            discord.ui.Label("Nombre completo del sospechoso", self.suspect_name),
+            discord.ui.Label("Sospechoso", self.suspect_name),
             discord.ui.Label("ID del reporte SARP", self.report_id),
             discord.ui.Label(
                 "Fotografías del sospechoso",
@@ -369,47 +378,6 @@ class StructuredArrestReportModal(discord.ui.DesignerModal):
             suspect_photos=tuple(cast(list[discord.Attachment], self.suspect_photos.values or [])),
             supporting_images=tuple(cast(list[discord.Attachment], self.supporting_images.values or [])),
         )
-
-
-def build_submission_view(
-    submission: ArrestReportSubmission,
-    *,
-    suspect_filenames: tuple[str, ...],
-    supporting_filenames: tuple[str, ...],
-) -> discord.ui.DesignerView:
-    suspect_gallery: discord.ui.MediaGallery[discord.ui.DesignerView] = discord.ui.MediaGallery(
-        *(
-            discord.MediaGalleryItem(  # type: ignore[no-untyped-call]
-                f"attachment://{filename}",
-                description=f"Fotografía del sospechoso {index}",
-            )
-            for index, filename in enumerate(suspect_filenames, start=1)
-        )
-    )
-    supporting_gallery: discord.ui.MediaGallery[discord.ui.DesignerView] = discord.ui.MediaGallery(
-        *(
-            discord.MediaGalleryItem(  # type: ignore[no-untyped-call]
-                f"attachment://{filename}",
-                description=f"Respaldo del reporte {index}",
-            )
-            for index, filename in enumerate(supporting_filenames, start=1)
-        )
-    )
-    container: discord.ui.Container[discord.ui.DesignerView] = discord.ui.Container(
-        discord.ui.TextDisplay(
-            f"## 📋 Reporte de arresto · #{submission.sarp_arrest_id}\n"
-            f"**Sospechoso:** {submission.suspect_name}\n"
-            f"**Presentado por:** <@{submission.owner_user_id}>"
-        ),
-        discord.ui.Separator(),
-        discord.ui.TextDisplay("### 📸 Fotografías del sospechoso"),
-        suspect_gallery,
-        discord.ui.Separator(),
-        discord.ui.TextDisplay("### 📎 Reporte y respaldos"),
-        supporting_gallery,
-        color=discord.Color.dark_blue(),
-    )
-    return discord.ui.DesignerView(container, timeout=None, store=False)
 
 
 def _availability_denial(
@@ -485,8 +453,10 @@ def _is_supported_image(attachment: discord.Attachment) -> bool:
     return content_type in {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
 
-def _thread_name(suspect_name: str, report_id: int) -> str:
-    return f"Revisión · {' '.join(suspect_name.split())} · #{report_id}"[:100]
+def _thread_name(suspect_name: str, report_id: int | None) -> str:
+    normalized_name = " ".join(suspect_name.split())
+    suffix = f" · #{report_id}" if report_id is not None else ""
+    return f"{normalized_name}{suffix}"[:100]
 
 
 def _existing_embed(submission: ArrestReportSubmission) -> discord.Embed:

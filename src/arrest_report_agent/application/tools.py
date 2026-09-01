@@ -16,12 +16,14 @@ from agents import (
 )
 from pydantic import BaseModel, ConfigDict, Field
 
+from arrest_report_agent.application.arrest_report_payloads import arrest_detail_payload
 from arrest_report_agent.domain import (
     AgentAccessLevel,
     AgentActivity,
     ConversationResponseRoute,
     InteractionMode,
     ManualQuizPublication,
+    RequestIntent,
     ReviewPublication,
 )
 from arrest_report_agent.knowledge import (
@@ -43,7 +45,6 @@ from arrest_report_agent.knowledge import (
 )
 
 from .ports import (
-    ArrestReportDetail,
     ArrestReportLookup,
     ArrestReportSearchQuery,
     ChannelMemberSearchQuery,
@@ -1299,6 +1300,12 @@ def build_agent_tools(
         run_context = ctx.context
         if run_context.published:
             return {"ok": True, "already_published": True}
+        if run_context.request_intent is RequestIntent.CONVERSATION:
+            return {
+                "ok": False,
+                "error": "review_not_requested",
+                "interaction_complete": False,
+            }
         await _set_activity(run_context, AgentActivity.RESPONSE)
         await run_context.publisher.publish(publication)
         run_context.published = True
@@ -1418,13 +1425,22 @@ def build_agent_tools(
         run_context = ctx.context
         if arrest_report_lookup is None:
             return {"ok": False, "error": "unavailable"}
+        effective_suspect_name = suspect_name
+        if run_context.access_level is AgentAccessLevel.REPORT_OWNER:
+            if (
+                run_context.case.structured_submission_id is None
+                or run_context.case.structured_report_id is not None
+                or run_context.case.structured_suspect_name is None
+            ):
+                return {"ok": False, "error": "owner_search_not_allowed"}
+            effective_suspect_name = run_context.case.structured_suspect_name
         if run_context.arrest_search_calls >= MAX_ARREST_SEARCH_CALLS_PER_RUN:
             return {"ok": False, "error": "run_search_limit_reached"}
         run_context.arrest_search_calls += 1
         await _set_activity(run_context, AgentActivity.RECORDS)
         result = await arrest_report_lookup.search(
             ArrestReportSearchQuery(
-                suspect_name=suspect_name,
+                suspect_name=effective_suspect_name,
                 officer_name=officer_name,
                 date_from=date_from,
                 date_to=date_to,
@@ -1441,9 +1457,12 @@ def build_agent_tools(
             if result.retry_after_seconds is not None:
                 payload["retry_after_seconds"] = result.retry_after_seconds
             return payload
+        run_context.arrest_candidate_report_ids.update(
+            report.report_id for report in result.reports
+        )
         if not result.reports:
             status = "not_found"
-        elif (suspect_name is not None or officer_name is not None) and len(result.reports) > 1:
+        elif (effective_suspect_name is not None or officer_name is not None) and len(result.reports) > 1:
             status = "ambiguous"
         elif len(result.reports) == 1:
             status = "matched"
@@ -1485,6 +1504,13 @@ def build_agent_tools(
         run_context = ctx.context
         if arrest_report_lookup is None:
             return {"ok": False, "error": "unavailable"}
+        owner_discovery = run_context.access_level is AgentAccessLevel.REPORT_OWNER
+        if owner_discovery and (
+            run_context.case.structured_submission_id is None
+            or run_context.case.structured_report_id is not None
+            or report_id not in run_context.arrest_candidate_report_ids
+        ):
+            return {"ok": False, "error": "report_outside_owner_scope"}
         if run_context.arrest_detail_calls >= MAX_ARREST_DETAIL_CALLS_PER_RUN:
             return {"ok": False, "error": "run_detail_limit_reached"}
         run_context.arrest_detail_calls += 1
@@ -1499,7 +1525,7 @@ def build_agent_tools(
                 payload["retry_after_seconds"] = result.retry_after_seconds
             return payload
         bound = False
-        if bind_to_current_thread:
+        if bind_to_current_thread or owner_discovery:
             binding_thread_id = _report_binding_thread_id(run_context, report_channel_ids)
             if binding_thread_id is None:
                 return {"ok": False, "error": "binding_not_allowed"}
@@ -1515,7 +1541,7 @@ def build_agent_tools(
             if binding_error is not None:
                 return {"ok": False, "error": binding_error}
             bound = True
-        return _arrest_detail_payload(result.report, bound=bound)
+        return arrest_detail_payload(result.report, bound=bound)
 
     @function_tool
     async def get_current_arrest_report(
@@ -1545,7 +1571,7 @@ def build_agent_tools(
             preloaded is not None
             and run_context.case.structured_report_id == preloaded.report_id
         ):
-            return _arrest_detail_payload(preloaded, bound=True)
+            return arrest_detail_payload(preloaded, bound=True)
         result = await arrest_report_lookup.get_current(
             guild_id=run_context.case.guild_id,
             root_message_id=run_context.case.root_message_id,
@@ -1558,7 +1584,7 @@ def build_agent_tools(
             if result.retry_after_seconds is not None:
                 payload["retry_after_seconds"] = result.retry_after_seconds
             return payload
-        return _arrest_detail_payload(result.report, bound=True)
+        return arrest_detail_payload(result.report, bound=True)
 
     async def _get_structured_images(
         ctx: RunContextWrapper[ReviewRunContext],
@@ -1576,12 +1602,20 @@ def build_agent_tools(
             and (current_report_id is None or report_id != current_report_id)
         ):
             return _attachment_tool_error("report_outside_owner_scope")
-        root_message_id = None if report_id is not None else run_context.case.root_message_id
-        if report_id is None and current_report_id is None:
+        submission_id = (
+            None if report_id is not None else run_context.case.structured_submission_id
+        )
+        root_message_id = (
+            run_context.case.root_message_id
+            if report_id is None and submission_id is None
+            else None
+        )
+        if report_id is None and submission_id is None:
             return _attachment_tool_error("not_structured_report")
         await _set_activity(run_context, AgentActivity.EVIDENCE)
         result = await report_image_lookup.get_images(
             guild_id=run_context.case.guild_id,
+            submission_id=submission_id,
             root_message_id=root_message_id,
             report_id=report_id,
             category=category,
@@ -1855,7 +1889,11 @@ def build_agent_tools(
         publish_review,
     ]
     if arrest_report_lookup is not None:
-        report_tools.insert(0, get_current_arrest_report)
+        report_tools[0:0] = [
+            search_arrest_reports,
+            get_arrest_report,
+            get_current_arrest_report,
+        ]
     if report_image_lookup is not None:
         report_tools[1:1] = [
             get_report_suspect_images,
@@ -2071,36 +2109,6 @@ def _text_preview(value: str, limit: int) -> str:
     if len(normalized) <= limit:
         return normalized
     return normalized[: max(0, limit - 1)].rstrip() + "…"
-
-
-def _arrest_detail_payload(
-    report: ArrestReportDetail,
-    *,
-    bound: bool,
-) -> dict[str, object]:
-    return {
-        "ok": True,
-        "bound_to_current_thread": bound,
-        "report": {
-            "report_id": report.report_id,
-            "suspect_name": report.suspect_name,
-            "officer_name": report.officer_name,
-            "description": report.description,
-            "created_at": report.created_at.isoformat(),
-            "updated_at": (report.updated_at.isoformat() if report.updated_at is not None else None),
-            "charges": [
-                {
-                    "charge_id": charge.charge_id,
-                    "code": charge.code,
-                    "name": charge.name,
-                    "type": charge.charge_type,
-                    "hours": charge.hours,
-                    "fine": charge.fine,
-                }
-                for charge in report.charges
-            ],
-        },
-    }
 
 
 def _legal_fact_base_payload[MatchT](

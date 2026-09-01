@@ -36,26 +36,35 @@ class StructuredArrestReportRepository:
         interaction_id: int,
         owner_user_id: int,
         parent_channel_id: int,
-        sarp_arrest_id: int,
+        sarp_arrest_id: int | None,
         suspect_name: str,
     ) -> tuple[ArrestReportSubmission, bool]:
         normalized_name = " ".join(suspect_name.split())
         async with self.client.transaction() as connection:
+            reservation_key = (
+                f"structured-arrest:{guild_id}:report:{sarp_arrest_id}"
+                if sarp_arrest_id is not None
+                else f"structured-arrest:{guild_id}:interaction:{interaction_id}"
+            )
             await connection.execute(
                 sa.text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-                {"key": f"structured-arrest:{guild_id}:{sarp_arrest_id}"},
+                {"key": reservation_key},
             )
+            existing_filters: list[ColumnElement[bool]] = [
+                arrest_report_submissions.c.interaction_id == interaction_id
+            ]
+            if sarp_arrest_id is not None:
+                existing_filters.append(
+                    sa.and_(
+                        arrest_report_submissions.c.guild_id == guild_id,
+                        arrest_report_submissions.c.sarp_arrest_id == sarp_arrest_id,
+                    )
+                )
             existing = (
                 (
                     await connection.execute(
                         sa.select(arrest_report_submissions).where(
-                            sa.or_(
-                                arrest_report_submissions.c.interaction_id == interaction_id,
-                                sa.and_(
-                                    arrest_report_submissions.c.guild_id == guild_id,
-                                    arrest_report_submissions.c.sarp_arrest_id == sarp_arrest_id,
-                                ),
-                            )
+                            sa.or_(*existing_filters)
                         )
                     )
                 )
@@ -80,6 +89,7 @@ class StructuredArrestReportRepository:
                                     parent_channel_id=parent_channel_id,
                                     root_message_id=None,
                                     thread_id=None,
+                                    sarp_arrest_id=sarp_arrest_id,
                                     suspect_name=normalized_name,
                                     publication_status=PublicationStatus.PUBLISHING.value,
                                     initial_review_status=InitialReviewStatus.PENDING.value,
@@ -119,6 +129,9 @@ class StructuredArrestReportRepository:
     async def get_by_interaction(self, interaction_id: int) -> ArrestReportSubmission | None:
         return await self._get(arrest_report_submissions.c.interaction_id == interaction_id)
 
+    async def get_by_id(self, submission_id: uuid.UUID) -> ArrestReportSubmission | None:
+        return await self._get(arrest_report_submissions.c.id == submission_id)
+
     async def get_by_report(self, guild_id: int, sarp_arrest_id: int) -> ArrestReportSubmission | None:
         return await self._get(
             arrest_report_submissions.c.guild_id == guild_id,
@@ -129,6 +142,12 @@ class StructuredArrestReportRepository:
         return await self._get(
             arrest_report_submissions.c.guild_id == guild_id,
             arrest_report_submissions.c.root_message_id == root_message_id,
+        )
+
+    async def get_by_thread(self, guild_id: int, thread_id: int) -> ArrestReportSubmission | None:
+        return await self._get(
+            arrest_report_submissions.c.guild_id == guild_id,
+            arrest_report_submissions.c.thread_id == thread_id,
         )
 
     async def replace_assets(

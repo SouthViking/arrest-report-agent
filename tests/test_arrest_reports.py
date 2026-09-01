@@ -239,9 +239,11 @@ def test_arrest_tools_follow_agent_access_level() -> None:
         "get_arrest_report",
         "get_current_arrest_report",
     } <= set(full)
-    assert "get_current_arrest_report" in owner
-    assert "search_arrest_reports" not in owner
-    assert "get_arrest_report" not in owner
+    assert {
+        "search_arrest_reports",
+        "get_arrest_report",
+        "get_current_arrest_report",
+    } <= set(owner)
 
     disabled = {
         tool.name

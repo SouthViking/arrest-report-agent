@@ -40,6 +40,7 @@ from arrest_report_agent.domain import (
     QuizCategory,
     QuizDifficulty,
     QuizDurationSeconds,
+    RequestIntent,
     ReviewCase,
     ReviewVerdict,
 )
@@ -1622,6 +1623,7 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
         publisher=publisher,
         attempt=1,
         activity=activity,
+        request_intent=RequestIntent.REVIEW,
     )
     tools = {
         tool.name: tool
@@ -1658,6 +1660,60 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
         "verdict": "approved",
     }
     assert activity.activities == [AgentActivity.RESPONSE]
+
+
+@pytest.mark.asyncio
+async def test_plain_conversation_cannot_publish_a_review() -> None:
+    publisher = FakePublisher()
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=2,
+        root_message_id=3,
+        trigger_message_id=3,
+        requester_user_id=4,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=publisher,
+        attempt=1,
+        request_intent=RequestIntent.CONVERSATION,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+    arguments = json.dumps(
+        {
+            "publication": {
+                "verdict": "approved",
+                "summary": "Esto no debe convertirse en un veredicto.",
+                "findings": [],
+                "charges": [],
+            }
+        }
+    )
+
+    result = await tools["publish_review"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="publish_review",
+            tool_call_id="call-conversation-publish",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert result == {
+        "ok": False,
+        "error": "review_not_requested",
+        "interaction_complete": False,
+    }
+    assert publisher.publications == []
+    assert run_context.published is False
 
 
 @pytest.mark.asyncio

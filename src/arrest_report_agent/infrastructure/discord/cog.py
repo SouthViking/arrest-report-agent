@@ -196,8 +196,8 @@ def build_report_info_embed(
         embed.add_field(
             name="1️⃣ Publicar un reporte",
             value=(
-                "Usa `/revisar-arresto`, escribe el nombre completo y el número del reporte, "
-                "y adjunta las imágenes solicitadas."
+                "Usa `/revisar-arresto`, escribe el nombre del sospechoso y el número del "
+                "reporte, y adjunta las imágenes solicitadas."
             ),
             inline=False,
         )
@@ -213,7 +213,9 @@ def build_report_info_embed(
             name="3️⃣ Revisión y correcciones",
             value=(
                 "El bot publicará el expediente, abrirá un hilo e iniciará una primera revisión. "
-                "Después puedes adjuntar correcciones en el hilo y pedir una nueva revisión."
+                "La franja pasará de amarillo a verde si se aprueba, rojo si requiere correcciones "
+                "o naranja si no puede concluirse. Después puedes adjuntar correcciones en el hilo "
+                "y pedir una nueva revisión."
             ),
             inline=False,
         )
@@ -643,6 +645,7 @@ class ReviewCog(commands.Cog):
                     self.persona,
                     allow_outgoing_mentions=access_level is AgentAccessLevel.FULL,
                     manual_quiz_publisher=self.manual_quiz_publisher,
+                    structured_report_repository=self.structured_report_repository,
                 )
                 try:
                     case = (
@@ -774,7 +777,11 @@ class ReviewCog(commands.Cog):
                     and source_cursor is None
                 ):
                     prepared_session = None
-                agent_input = render_agent_input(case, after_message_id=source_cursor)
+                agent_input = render_agent_input(
+                    case,
+                    after_message_id=source_cursor,
+                    preloaded_arrest_report=preloaded_arrest_report,
+                )
                 try:
                     if prepared_session is None:
                         await self.service.review(run_context, agent_input)
@@ -783,7 +790,10 @@ class ReviewCog(commands.Cog):
                             run_context,
                             agent_input,
                             session=prepared_session.session,
-                            stateless_agent_input=render_agent_input(case),
+                            stateless_agent_input=render_agent_input(
+                                case,
+                                preloaded_arrest_report=preloaded_arrest_report,
+                            ),
                         )
                 finally:
                     if owner_reservation is not None and owner_reservation.run_id is not None:
@@ -822,7 +832,7 @@ class ReviewCog(commands.Cog):
         thread: discord.Thread,
         requester: discord.Member,
         submission: ArrestReportSubmission,
-        arrest_report: ArrestReportDetail,
+        arrest_report: ArrestReportDetail | None,
     ) -> None:
         """Start exactly one free owner review for a validated structured submission."""
 
@@ -854,6 +864,7 @@ class ReviewCog(commands.Cog):
             thread=thread,
             response_route=DiscordResponseRoute.THREAD,
             requester=requester,
+            structured_submission_id=submission.id,
             structured_report_id=submission.sarp_arrest_id,
             structured_suspect_name=submission.suspect_name,
         )

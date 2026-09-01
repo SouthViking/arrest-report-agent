@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from uuid import UUID
 
+import discord
 import pytest
 
 from arrest_report_agent.domain import (
@@ -20,6 +22,7 @@ from arrest_report_agent.infrastructure.discord.publisher import (
     build_review_embed,
     build_review_embeds,
 )
+from arrest_report_agent.structured_arrest_reports import ArrestReportAssetCategory
 
 
 class FakeThread:
@@ -53,6 +56,8 @@ class FakeRoot:
         self.created = 0
         self.replies = []
         self.reactions = []
+        self.attachments = []
+        self.edits = []
         self.author = SimpleNamespace(id=123)
         self.channel = SimpleNamespace(sent=[])
 
@@ -74,6 +79,9 @@ class FakeRoot:
 
     async def reply(self, **kwargs):
         self.replies.append(kwargs)
+
+    async def edit(self, **kwargs):
+        self.edits.append(kwargs)
 
 
 class FakeReaction:
@@ -105,6 +113,25 @@ class FakeMentionChannel:
 
     async def send(self, **kwargs) -> None:
         self.sent.append(kwargs)
+
+
+class FakeStructuredReportRepository:
+    def __init__(self, submission_id: UUID) -> None:
+        self.submission_id = submission_id
+        self.calls: list[UUID] = []
+        self.submission = SimpleNamespace(
+            owner_user_id=123,
+            sarp_arrest_id=56242,
+            suspect_name="Andy Quintero",
+            assets=(
+                SimpleNamespace(category=ArrestReportAssetCategory.SUSPECT_PHOTO),
+                SimpleNamespace(category=ArrestReportAssetCategory.SUPPORTING_IMAGE),
+            ),
+        )
+
+    async def get_by_id(self, submission_id: UUID) -> object:
+        self.calls.append(submission_id)
+        return self.submission
 
 
 def publication(verdict: str) -> ReviewPublication:
@@ -357,6 +384,92 @@ async def test_partial_approval_has_scoped_title_without_terminal_reaction(setti
     assert root.thread.edits == []
     assert "Revisión parcial: solo cargos" in root.thread.sent[0]["embeds"][0].title
     assert "Aprobado dentro del alcance" in root.thread.sent[0]["embeds"][0].title
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("verdict", "expected_color"),
+    [
+        ("approved", discord.Color.green()),
+        ("corrections_required", discord.Color.red()),
+        ("inconclusive", discord.Color.orange()),
+    ],
+)
+async def test_full_review_updates_structured_root_card_color(
+    settings,
+    persona,
+    verdict: str,
+    expected_color: discord.Color,
+) -> None:
+    submission_id = UUID("00000000-0000-0000-0000-000000000321")
+    member = SimpleNamespace(
+        display_name="Charles Harrington",
+        display_avatar=SimpleNamespace(url="https://cdn.discord.test/avatar.png"),
+    )
+    guild = SimpleNamespace(id=10, get_member=lambda user_id: member if user_id == 123 else None)
+    root = FakeRoot(guild=guild)
+    root.attachments = [
+        SimpleNamespace(filename="suspect.png"),
+        SimpleNamespace(filename="report.png"),
+    ]
+    repository = FakeStructuredReportRepository(submission_id)
+    bot = SimpleNamespace(user=SimpleNamespace(id=999), get_user=lambda _user_id: None)
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.THREAD,
+        structured_submission_id=submission_id,
+    )
+    publisher = DiscordReviewPublisher(
+        bot,
+        settings,
+        target,
+        persona,
+        structured_report_repository=repository,  # type: ignore[arg-type]
+    )
+
+    await publisher.publish(publication(verdict))
+
+    assert repository.calls == [submission_id]
+    assert len(root.edits) == 1
+    view = root.edits[0]["view"]
+    container = view.children[0]
+    assert container.color == expected_color
+
+
+@pytest.mark.asyncio
+async def test_partial_review_never_updates_structured_root_card(settings, persona) -> None:
+    submission_id = UUID("00000000-0000-0000-0000-000000000322")
+    repository = FakeStructuredReportRepository(submission_id)
+    root = FakeRoot()
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.THREAD,
+        structured_submission_id=submission_id,
+    )
+    publisher = DiscordReviewPublisher(
+        bot,
+        settings,
+        target,
+        persona,
+        structured_report_repository=repository,  # type: ignore[arg-type]
+    )
+    review = ReviewPublication(
+        review_scope="charges",
+        verdict="approved",
+        summary="Los cargos solicitados fueron revisados.",
+    )
+
+    await publisher.publish(review)
+
+    assert repository.calls == []
+    assert root.edits == []
 
 
 def test_targeted_review_renders_its_focus(persona) -> None:
