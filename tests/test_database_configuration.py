@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import uuid
@@ -27,6 +28,7 @@ from arrest_report_agent.config import (
     AppSettings,
     ArrestReportLookupOptions,
     ArrestStatisticsOptions,
+    BotPersona,
     FactionMemberAnalysisOptions,
     FactionReportOptions,
     ForumShortcutsOptions,
@@ -574,6 +576,30 @@ def test_database_migrations_and_versioned_configuration_round_trip() -> None:
             os.environ["DATABASE_URL"] = previous
 
 
+def test_scope_refusal_cleanup_migration_sanitizes_persisted_personas() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = database_url
+    alembic = Config("alembic.ini")
+    try:
+        command.downgrade(alembic, "base")
+        command.upgrade(alembic, "20260901_0060")
+        seeded_count = asyncio.run(_seed_legacy_scope_refusals(database_url))
+
+        command.upgrade(alembic, "head")
+
+        asyncio.run(_assert_scope_refusals_removed(database_url, seeded_count))
+    finally:
+        command.downgrade(alembic, "base")
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
+
+
 def test_callsign_migration_copies_staff_roles_and_publishes_persona() -> None:
     database_url = os.getenv("TEST_DATABASE_URL")
     if not database_url:
@@ -841,6 +867,75 @@ async def _seed_service_call_configuration_targets(database_url: str) -> None:
                     )
     finally:
         await client.close()
+
+
+async def _seed_legacy_scope_refusals(database_url: str) -> int:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        packaged = PackagedPersonaProvider()
+        profiles = [
+            (await packaged.load(persona_id)).profile
+            for persona_id in ("roy_velazco", "walter_vigil")
+        ]
+        async with client.transaction() as tx:
+            for profile in profiles:
+                persona_id = uuid.uuid4()
+                revision_id = uuid.uuid4()
+                payload = profile.model_dump(mode="json")
+                messages = dict(payload["messages"])
+                access = dict(messages["access"])
+                access["scope_refusal"] = f"legacy scope refusal for {profile.id}"
+                messages["access"] = access
+                payload["messages"] = messages
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO personas (id, slug) VALUES (:persona_id, :slug)"
+                    ),
+                    {"persona_id": persona_id, "slug": profile.id},
+                )
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO persona_revisions "
+                        "(id, persona_id, revision, schema_version, status, payload, checksum, "
+                        "published_at) "
+                        "VALUES (:revision_id, :persona_id, :revision, :schema_version, "
+                        "'published', CAST(:payload AS jsonb), :checksum, now())"
+                    ),
+                    {
+                        "revision_id": revision_id,
+                        "persona_id": persona_id,
+                        "revision": profile.revision,
+                        "schema_version": profile.schema_version,
+                        "payload": json.dumps(payload, ensure_ascii=False),
+                        "checksum": _persona_payload_checksum(payload),
+                    },
+                )
+        return len(profiles)
+    finally:
+        await client.close()
+
+
+async def _assert_scope_refusals_removed(database_url: str, expected_count: int) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(
+            sa.text("SELECT payload, checksum FROM persona_revisions ORDER BY id")
+        )
+        assert len(rows) == expected_count
+        for row in rows:
+            payload = dict(row["payload"])
+            assert "scope_refusal" not in payload["messages"]["access"]
+            assert row["checksum"] == _persona_payload_checksum(payload)
+            BotPersona.model_validate(payload)
+    finally:
+        await client.close()
+
+
+def _persona_payload_checksum(payload: dict[str, object]) -> str:
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(serialized).hexdigest()
 
 
 async def _assert_service_call_configuration(database_url: str) -> None:
