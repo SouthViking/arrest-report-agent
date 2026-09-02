@@ -1,7 +1,7 @@
 """Opt-in behavioral evaluations against the real OpenAI agent.
 
 These tests deliberately omit Discord transport and use an in-memory publisher. They still run the
-production prompt, scope guardrail, local knowledge tools, terminal tools and configured model.
+production prompt, local knowledge and action tools, session behavior and configured model.
 """
 
 from __future__ import annotations
@@ -1055,7 +1055,7 @@ async def test_answers_manual_question_without_publishing_a_review(
     context, publisher = await _run_agent(ai_eval_settings, case)
     response = "\n".join(publisher.messages).lower()
 
-    assert context.interaction_completed
+    assert context.messages_sent_count > 0
     assert publisher.publications == []
     assert publisher.messages
     assert any(term in response for term in ("cuándo", "fecha", "hora"))
@@ -1084,7 +1084,7 @@ async def test_indirect_status_override_updates_root_reaction_without_re_review(
 
     assert publisher.reactions == [(case.root_message_id, "✅")]
     assert publisher.publications == []
-    assert context.interaction_completed
+    assert context.messages_sent_count > 0
     assert publisher.messages
 
 
@@ -1108,7 +1108,7 @@ async def test_explicit_group_notification_resolves_and_mentions_role(
     assert directory.queries
     assert publisher.role_mentions
     assert publisher.role_mentions[0][0] == (directory.role_id,)
-    assert context.interaction_completed
+    assert context.messages_sent_count > 0
 
 
 async def test_re_review_uses_latest_corrected_version(
@@ -1209,7 +1209,7 @@ async def test_answers_batched_radio_and_phonetic_question_from_official_catalog
         for query in call["queries"]  # type: ignore[union-attr]
     }
 
-    assert context.interaction_completed
+    assert context.messages_sent_count > 0
     assert publisher.publications == []
     assert {"1020", "902r", "adam", "ocean"}.issubset(queried), radio_catalog.calls
     assert "ubicación" in response
@@ -1258,7 +1258,7 @@ async def test_answers_latest_arrest_question_with_live_sarp_tools(
     )
     response = "\n".join(publisher.messages).casefold()
 
-    assert context.interaction_completed
+    assert context.messages_sent_count > 0
     assert lookup.searches
     assert lookup.details == [lookup.report.report_id]
     assert "terry mckenzie" in response
@@ -1285,7 +1285,7 @@ async def test_refines_an_ambiguous_arrest_search_before_reading_detail(
         arrest_report_lookup=lookup,
     )
 
-    assert context.interaction_completed
+    assert context.messages_sent_count > 0
     assert len(lookup.searches) >= 2, lookup.searches
     assert lookup.searches[-1].suspect_name is not None
     assert "terry mckenzie" in lookup.searches[-1].suspect_name.casefold()
@@ -1358,7 +1358,7 @@ async def test_sarp_failure_without_visual_material_does_not_invent_a_review(
     )
 
     assert lookup.current == [(case.guild_id, case.root_message_id)]
-    assert context.published or context.interaction_completed
+    assert context.published or context.messages_sent_count > 0
     assert all(
         publication.verdict is ReviewVerdict.INCONCLUSIVE
         for publication in publisher.publications
@@ -1385,7 +1385,7 @@ async def test_new_report_review_searches_sarp_and_binds_the_matching_report(
         arrest_report_lookup=lookup,
     )
 
-    assert context.published or context.interaction_completed
+    assert context.published or context.messages_sent_count > 0
     assert lookup.searches, "the agent did not search SARP for the new review"
     assert any(
         query.suspect_name is not None and "terry" in query.suspect_name.casefold()
@@ -1415,7 +1415,7 @@ async def test_new_report_review_uses_an_explicit_sarp_id_without_searching(
         arrest_report_lookup=lookup,
     )
 
-    assert context.published or context.interaction_completed
+    assert context.published or context.messages_sent_count > 0
     assert lookup.searches == []
     assert lookup.details == [lookup.report.report_id]
     assert lookup.bindings == [lookup.report.report_id]
@@ -1449,7 +1449,7 @@ async def test_structured_initial_review_reuses_sarp_detail_and_loads_only_reque
         preloaded_arrest_report=arrest_lookup.report,
     )
 
-    assert context.published or context.interaction_completed
+    assert context.published or context.messages_sent_count > 0
     assert arrest_lookup.searches == []
     assert arrest_lookup.details == []
     assert arrest_lookup.current == []
@@ -1480,7 +1480,7 @@ async def test_structured_initial_review_without_id_searches_and_binds_the_match
         arrest_report_lookup=arrest_lookup,
     )
 
-    assert context.published or context.interaction_completed
+    assert context.published or context.messages_sent_count > 0
     assert arrest_lookup.current == []
     assert arrest_lookup.searches
     assert arrest_lookup.searches[0].suspect_name == arrest_lookup.report.suspect_name
@@ -1509,7 +1509,7 @@ async def test_new_report_review_surfaces_persistent_sarp_ambiguity(
     )
     response = "\n".join(publisher.messages)
 
-    assert context.interaction_completed
+    assert context.messages_sent_count > 0
     assert lookup.searches
     assert lookup.details == []
     assert publisher.publications == []
@@ -1542,7 +1542,7 @@ async def test_new_report_review_loads_images_only_after_sarp_has_no_match(
         publication.model_dump_json().casefold() for publication in publisher.publications
     )
 
-    assert context.published or context.interaction_completed
+    assert context.published or context.messages_sent_count > 0
     assert lookup.searches
     assert lookup.details == []
     assert message_directory.attachment_calls

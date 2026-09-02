@@ -11,6 +11,7 @@ from agents.memory import Session, SessionSettings
 from openai.types.responses import ResponseInputItemParam
 
 from arrest_report_agent.application.errors import AgentSessionUnavailableError
+from arrest_report_agent.application.session_input import sanitize_session_items
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import PostgresClient
 
@@ -56,7 +57,7 @@ class _CursorTrackingSession:
 
     async def add_items(self, items: list[ResponseInputItemParam]) -> None:
         try:
-            await self._delegate.add_items(items)
+            await self._delegate.add_items(sanitize_session_items(items))
         except Exception as error:
             self._log_storage_failure("agent_session_write_failed", error)
             raise AgentSessionUnavailableError("Unable to write the agent session") from error

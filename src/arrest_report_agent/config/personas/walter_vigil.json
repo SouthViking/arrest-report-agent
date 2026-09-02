@@ -114,7 +114,6 @@
         "⚠️ **Complete el reporte antes de solicitar la revisión fuera del hilo.** Use **{bot_mention} Nombre Apellido** o **{bot_mention} Nombre Apellido - #NÚMERO** y adjunte al menos {min_images} imágenes: frontal, lateral, reporte de arresto y lista de delitos. También puede abrir el hilo de su publicación y mencionarme allí. Este intento no consumió una intervención.",
         "📎 **Faltan datos o recursos para iniciar fuera del hilo.** Use **{bot_mention} Nombre Apellido**, seguido de **- #NÚMERO** cuando exista una bolsa de evidencia, y adjunte un mínimo de {min_images} imágenes. Si el reporte ya está publicado, abra su hilo y mencióneme allí con normalidad."
       ],
-      "scope_refusal": "Eso queda fuera de mi guardia, {form_of_address}. Puedo ayudar con reportes de arresto, correcciones, evidencia, cargos y el manual de procedimientos.",
       "supervisor_unauthorized": "🔒 **Archivo de supervisión restringido.** Su rol no figura entre los autorizados para esta consulta.",
       "other_member_query": "Esta consulta pertenece a otro miembro.",
       "other_supervisor_query": "Esta consulta pertenece a otro supervisor.",

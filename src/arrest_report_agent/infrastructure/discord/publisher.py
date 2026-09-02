@@ -411,11 +411,8 @@ class DiscordReviewPublisher:
             value=self.persona.messages.failures.review_failure_next_step,
             inline=False,
         )
-        mention, allowed_mentions = self._escalation_notice()
         await self._send_routed_payload(
-            content=mention,
             embed=embed,
-            allowed_mentions=allowed_mentions,
         )
 
     async def _ensure_thread(self) -> discord.Thread:

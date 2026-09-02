@@ -4,12 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from agents.usage import Usage
-
 from arrest_report_agent.domain import (
     AgentAccessLevel,
     ConversationResponseRoute,
-    RequestIntent,
     ReviewCase,
     ReviewPublication,
 )
@@ -39,19 +36,12 @@ class ReviewRunContext:
     member_directory: GuildMemberDirectory | None = None
     message_directory: GuildMessageDirectory | None = None
     poll_manager: PollManager | None = None
-    request_intent: RequestIntent | None = None
-    has_revisable_material: bool = False
-    agent_started: bool = False
-    agent_completed: bool = False
     review_marked: bool = False
     published: bool = False
-    message_sent: bool = False
     messages_sent_count: int = 0
     reactions_updated_count: int = 0
     selected_response_route: ConversationResponseRoute | None = None
-    interaction_completed: bool = False
     publication: ReviewPublication | None = None
-    guardrail_usage: Usage = field(default_factory=Usage)
     loaded_attachment_ids: set[int] = field(default_factory=set)
     loaded_report_asset_ids: set[str] = field(default_factory=set)
     preloaded_arrest_report: ArrestReportDetail | None = None

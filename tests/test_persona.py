@@ -211,12 +211,6 @@ async def test_provider_rejects_unknown_persona(tmp_path: Path) -> None:
             "must be a PNG, JPEG or GIF",
         ),
         (
-            lambda data: data["messages"]["access"].update(
-                {"scope_refusal": "Texto con {placeholder_incorrecto}."}
-            ),
-            "invalid persona",
-        ),
-        (
             lambda data: data["messages"]["help"].update(
                 {"footer": "Texto con {form_of_address.__class__}."}
             ),

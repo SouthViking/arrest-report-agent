@@ -53,12 +53,6 @@ class InteractionMode(StrEnum):
     THREAD_FOLLOW_UP = "thread_follow_up"
 
 
-class RequestIntent(StrEnum):
-    REVIEW = "review"
-    CONVERSATION = "conversation"
-    OUT_OF_SCOPE = "out_of_scope"
-
-
 class AgentAccessLevel(StrEnum):
     """Capabilities granted to one agent execution."""
 

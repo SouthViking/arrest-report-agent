@@ -122,7 +122,6 @@ class DiscordPollService:
             "expires_at": record.expires_at.isoformat(),
             "allow_multiselect": request.allow_multiselect,
             "answer_count": len(request.answers),
-            "interaction_complete": False,
         }
 
     async def list(
@@ -317,7 +316,7 @@ class DiscordPollService:
         if message.poll is None:
             return _error("not_a_poll")
         if message.poll.has_ended():
-            return {"ok": True, "already_ended": True, "interaction_complete": False}
+            return {"ok": True, "already_ended": True}
         try:
             ended_message = await message.end_poll()
         except discord.Forbidden as error:
@@ -366,7 +365,6 @@ class DiscordPollService:
             "message_url": ended_message.jump_url,
             "ended_at": ended_at.isoformat(),
             "metadata_updated": metadata_updated,
-            "interaction_complete": False,
         }
 
     async def _safe_get_record(

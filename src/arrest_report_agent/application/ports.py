@@ -574,7 +574,7 @@ class ReviewPublisher(Protocol):
         """Show deterministically that a classified review has started."""
 
     async def publish(self, publication: ReviewPublication) -> None:
-        """Publish a terminal review and execute its Discord side effects."""
+        """Publish a structured review and execute its Discord side effects."""
 
     async def send_message(
         self,

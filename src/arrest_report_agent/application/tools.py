@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from datetime import UTC, date, datetime
 from typing import Annotated, Literal
 
@@ -17,13 +18,13 @@ from agents import (
 from pydantic import BaseModel, ConfigDict, Field
 
 from arrest_report_agent.application.arrest_report_payloads import arrest_detail_payload
+from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import (
     AgentAccessLevel,
     AgentActivity,
     ConversationResponseRoute,
     InteractionMode,
     ManualQuizPublication,
-    RequestIntent,
     ReviewPublication,
 )
 from arrest_report_agent.knowledge import (
@@ -71,6 +72,8 @@ from .ports import (
     ReportImageLookup,
 )
 from .service_context import ReviewRunContext
+
+LOGGER = logging.getLogger(__name__)
 
 type GuildMemberField = Literal[
     "display_name",
@@ -429,8 +432,6 @@ def build_agent_tools(
         """
 
         run_context = ctx.context
-        if run_context.interaction_completed:
-            return {"ok": True, "already_completed": "publish_manual_question"}
         await _set_activity(run_context, AgentActivity.RESPONSE)
         delivery = await run_context.publisher.publish_manual_quiz(question)
         if not delivery.ok:
@@ -448,12 +449,10 @@ def build_agent_tools(
                 message,
                 ConversationResponseRoute.REPLY,
             )
-        run_context.message_sent = True
         run_context.messages_sent_count += 1
         return {
             **delivery.model_dump(mode="json"),
             "delivery": "discord_manual_quiz" if delivery.ok else "discord_message",
-            "interaction_complete": False,
         }
 
     @function_tool
@@ -506,9 +505,7 @@ def build_agent_tools(
             target_channel_id=int(channel_id) if channel_id is not None else None,
             request=PollCreateRequest(
                 question=normalized_question,
-                answers=tuple(
-                    PollAnswerDraft(text=answer.text, emoji=answer.emoji) for answer in answers
-                ),
+                answers=tuple(PollAnswerDraft(text=answer.text, emoji=answer.emoji) for answer in answers),
                 duration_hours=duration_hours,
                 allow_multiselect=allow_multiselect,
                 silent=silent,
@@ -1120,10 +1117,7 @@ def build_agent_tools(
                 skipped.append(_attachment_result_item(attachment, "unsupported_type"))
                 continue
             if attachment.input_kind == "image":
-                if (
-                    historical_message
-                    and run_context.loaded_historical_image_count >= max_historical_images
-                ):
+                if historical_message and run_context.loaded_historical_image_count >= max_historical_images:
                     skipped.append(_attachment_result_item(attachment, "historical_image_limit"))
                     continue
                 reason = _image_limit_reason(
@@ -1215,10 +1209,6 @@ def build_agent_tools(
         """
 
         run_context = ctx.context
-        if run_context.published:
-            return {"ok": True, "already_completed": "publish_review"}
-        if run_context.interaction_completed:
-            return {"ok": True, "already_completed": "finish_interaction"}
         normalized_emoji = emoji.strip()
         if not normalized_emoji:
             return {"ok": False, "error": "invalid_emoji"}
@@ -1233,7 +1223,6 @@ def build_agent_tools(
             "emoji": normalized_emoji,
             "outcome": outcome,
             "reaction_updates": run_context.reactions_updated_count,
-            "interaction_complete": False,
         }
 
     @function_tool(failure_error_function=None)
@@ -1246,7 +1235,7 @@ def build_agent_tools(
         content: Annotated[str | None, Field(min_length=1, max_length=1700)] = None,
         response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
     ) -> dict[str, object]:
-        """Mention one to three existing roles and finish the current interaction.
+        """Mention one to three existing roles and continue the current interaction.
 
         This capability is available only with full agent access. Resolve every ID first with
         list_guild_roles and use it only when the current user explicitly requests that those
@@ -1262,10 +1251,6 @@ def build_agent_tools(
         """
 
         run_context = ctx.context
-        if run_context.published:
-            return {"ok": True, "already_completed": "publish_review"}
-        if run_context.interaction_completed:
-            return {"ok": True, "already_completed": "finish_interaction"}
         await _set_activity(run_context, AgentActivity.RESPONSE)
         selected_route = run_context.selected_response_route or response_route
         effective_route = await run_context.publisher.mention_roles(
@@ -1275,23 +1260,20 @@ def build_agent_tools(
         )
         if run_context.selected_response_route is None:
             run_context.selected_response_route = effective_route
-        run_context.message_sent = True
         run_context.messages_sent_count += 1
-        run_context.interaction_completed = True
         return {
             "ok": True,
             "delivery": "discord_role_mention",
             "roles_mentioned": len(set(role_ids)),
             "messages_sent": run_context.messages_sent_count,
             "response_route": effective_route.value,
-            "interaction_complete": True,
         }
 
     @function_tool(failure_error_function=None)
-    async def publish_review(
+    async def execute_arrest_report_review(
         ctx: RunContextWrapper[ReviewRunContext], publication: ReviewPublication
     ) -> dict[str, object]:
-        """Publish the final structured verdict to Discord. This is the terminal tool.
+        """Publish one structured arrest-report review without ending the agent run.
 
         Args:
             publication: Validated verdict, findings, charge assessments and next step.
@@ -1300,15 +1282,25 @@ def build_agent_tools(
         run_context = ctx.context
         if run_context.published:
             return {"ok": True, "already_published": True}
-        if run_context.request_intent is RequestIntent.CONVERSATION:
-            return {
-                "ok": False,
-                "error": "review_not_requested",
-                "next_action": (
-                    "Use finish_interaction to answer the conversation without publishing a review."
-                ),
-                "interaction_complete": False,
-            }
+        await _set_activity(run_context, AgentActivity.REVIEW)
+        if not run_context.review_marked:
+            try:
+                await run_context.publisher.mark_review_started()
+                run_context.review_marked = True
+            except Exception as error:
+                case = run_context.case
+                log_event(
+                    LOGGER,
+                    "warning",
+                    "review_start_marker_failed",
+                    exc_info=error,
+                    guild_id=case.guild_id,
+                    channel_id=case.channel_id,
+                    root_message_id=case.root_message_id,
+                    trigger_message_id=case.trigger_message_id,
+                    attempt=run_context.attempt,
+                    **exception_fields(error),
+                )
         await _set_activity(run_context, AgentActivity.RESPONSE)
         await run_context.publisher.publish(publication)
         run_context.published = True
@@ -1339,65 +1331,18 @@ def build_agent_tools(
         """
 
         run_context = ctx.context
-        if run_context.published:
-            return {"ok": True, "already_completed": "publish_review"}
-        if run_context.interaction_completed:
-            return {"ok": True, "already_completed": "finish_interaction"}
         await _set_activity(run_context, AgentActivity.RESPONSE)
         effective_route = await _send_conversation_message(
             run_context,
             content,
             response_route,
         )
-        run_context.message_sent = True
         run_context.messages_sent_count += 1
         return {
             "ok": True,
             "delivery": "discord_message",
             "messages_sent": run_context.messages_sent_count,
             "response_route": effective_route.value,
-            "interaction_complete": False,
-        }
-
-    @function_tool(failure_error_function=None)
-    async def finish_interaction(
-        ctx: RunContextWrapper[ReviewRunContext],
-        content: str,
-        response_route: ConversationResponseRoute = ConversationResponseRoute.REPLY,
-    ) -> dict[str, object]:
-        """Send the final conversational response and explicitly finish the interaction.
-
-        Args:
-            content: Complete final Discord message. It may be an answer, a clarification request or
-                a handoff back to the user. Discord Markdown, links and moderate emojis are allowed;
-                you may mention a Discord user with `<@USER_ID>` when useful, using an ID available
-                in the conversation context or obtained with a member directory tool. Do not
-                imitate embeds or include mass mentions.
-            response_route: Use reply for a brief, visible answer or thread when the topic warrants
-                a longer exchange. Existing replies and threads remain in their current route. The
-                first message fixes the route for the rest of this interaction.
-        """
-
-        run_context = ctx.context
-        if run_context.published:
-            return {"ok": True, "already_completed": "publish_review"}
-        if run_context.interaction_completed:
-            return {"ok": True, "already_completed": "finish_interaction"}
-        await _set_activity(run_context, AgentActivity.RESPONSE)
-        effective_route = await _send_conversation_message(
-            run_context,
-            content,
-            response_route,
-        )
-        run_context.message_sent = True
-        run_context.messages_sent_count += 1
-        run_context.interaction_completed = True
-        return {
-            "ok": True,
-            "delivery": "discord_message",
-            "messages_sent": run_context.messages_sent_count,
-            "response_route": effective_route.value,
-            "interaction_complete": True,
         }
 
     @function_tool
@@ -1460,9 +1405,7 @@ def build_agent_tools(
             if result.retry_after_seconds is not None:
                 payload["retry_after_seconds"] = result.retry_after_seconds
             return payload
-        run_context.arrest_candidate_report_ids.update(
-            report.report_id for report in result.reports
-        )
+        run_context.arrest_candidate_report_ids.update(report.report_id for report in result.reports)
         if not result.reports:
             status = "not_found"
         elif (effective_suspect_name is not None or officer_name is not None) and len(result.reports) > 1:
@@ -1570,10 +1513,7 @@ def build_agent_tools(
         run_context.arrest_detail_calls += 1
         await _set_activity(run_context, AgentActivity.RECORDS)
         preloaded = run_context.preloaded_arrest_report
-        if (
-            preloaded is not None
-            and run_context.case.structured_report_id == preloaded.report_id
-        ):
+        if preloaded is not None and run_context.case.structured_report_id == preloaded.report_id:
             return arrest_detail_payload(preloaded, bound=True)
         result = await arrest_report_lookup.get_current(
             guild_id=run_context.case.guild_id,
@@ -1605,13 +1545,9 @@ def build_agent_tools(
             and (current_report_id is None or report_id != current_report_id)
         ):
             return _attachment_tool_error("report_outside_owner_scope")
-        submission_id = (
-            None if report_id is not None else run_context.case.structured_submission_id
-        )
+        submission_id = None if report_id is not None else run_context.case.structured_submission_id
         root_message_id = (
-            run_context.case.root_message_id
-            if report_id is None and submission_id is None
-            else None
+            run_context.case.root_message_id if report_id is None and submission_id is None else None
         )
         if report_id is None and submission_id is None:
             return _attachment_tool_error("not_structured_report")
@@ -1663,9 +1599,7 @@ def build_agent_tools(
             "category": category,
             "loaded": loaded,
             "skipped": skipped,
-            "remaining_image_capacity": max(
-                0, max_images_per_review - run_context.loaded_image_count
-            ),
+            "remaining_image_capacity": max(0, max_images_per_review - run_context.loaded_image_count),
         }
         return [ToolOutputText(text=_compact_json(metadata)), *outputs]
 
@@ -1892,8 +1826,7 @@ def build_agent_tools(
         get_messages,
         get_message_attachments,
         send_message,
-        finish_interaction,
-        publish_review,
+        execute_arrest_report_review,
     ]
     if arrest_report_lookup is not None:
         report_tools[0:0] = [
@@ -1930,8 +1863,7 @@ def build_agent_tools(
         set_message_reaction,
         mention_roles,
         send_message,
-        finish_interaction,
-        publish_review,
+        execute_arrest_report_review,
     ]
     live_record_tools: list[object] = []
     if faction_frequency_lookup is not None:
@@ -1945,9 +1877,7 @@ def build_agent_tools(
             ]
         )
     if report_image_lookup is not None:
-        live_record_tools.extend(
-            [get_report_suspect_images, get_report_supporting_images]
-        )
+        live_record_tools.extend([get_report_suspect_images, get_report_supporting_images])
     if character_legal_facts_lookup is not None:
         live_record_tools.append(get_character_legal_facts)
     if evidence_bag_lookup is not None:
@@ -2004,11 +1934,7 @@ def _resolve_attachment_channel_id(
     """Resolve a report starter message to the parent channel that owns it."""
 
     case = run_context.case
-    if (
-        case.thread_id is not None
-        and channel_id == case.thread_id
-        and message_id == case.root_message_id
-    ):
+    if case.thread_id is not None and channel_id == case.thread_id and message_id == case.root_message_id:
         return case.parent_channel_id
     return channel_id
 

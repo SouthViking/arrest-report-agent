@@ -12,7 +12,6 @@ from .enums import (
     QuizCategory,
     QuizDifficulty,
     QuizDurationSeconds,
-    RequestIntent,
     ReviewIssueType,
     ReviewScope,
     ReviewVerdict,
@@ -50,6 +49,5 @@ __all__ = [
     "ReviewIssueType",
     "ReviewPublication",
     "ReviewScope",
-    "RequestIntent",
     "ReviewVerdict",
 ]

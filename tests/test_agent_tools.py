@@ -40,7 +40,6 @@ from arrest_report_agent.domain import (
     QuizCategory,
     QuizDifficulty,
     QuizDurationSeconds,
-    RequestIntent,
     ReviewCase,
     ReviewVerdict,
 )
@@ -236,10 +235,8 @@ class FakePollManager:
         target_channel_id: int | None,
         request: PollCreateRequest,
     ) -> dict[str, object]:
-        self.created.append(
-            (guild_id, current_channel_id, requester_user_id, target_channel_id, request)
-        )
-        return {"ok": True, "message_id": "66666666666666666", "interaction_complete": False}
+        self.created.append((guild_id, current_channel_id, requester_user_id, target_channel_id, request))
+        return {"ok": True, "message_id": "66666666666666666"}
 
     async def list(
         self,
@@ -283,7 +280,7 @@ class FakePollManager:
         message_id: int,
     ) -> dict[str, object]:
         self.ended.append((guild_id, requester_user_id, message_id))
-        return {"ok": True, "message_id": str(message_id), "interaction_complete": False}
+        return {"ok": True, "message_id": str(message_id)}
 
 
 class FakeMemberDirectory:
@@ -399,7 +396,7 @@ def test_conversation_tools_only_expose_safe_response_routes() -> None:
         )
     }
 
-    for name in ("send_message", "finish_interaction"):
+    for name in ("send_message",):
         properties = tools[name].params_json_schema["properties"]
         assert properties["response_route"]["enum"] == ["reply", "thread"]
         assert set(properties) == {"content", "response_route"}
@@ -477,9 +474,8 @@ async def test_role_mention_tool_is_terminal_and_uses_resolved_ids() -> None:
         "roles_mentioned": 2,
         "messages_sent": 1,
         "response_route": "reply",
-        "interaction_complete": True,
     }
-    assert run_context.interaction_completed
+    assert run_context.messages_sent_count == 1
 
 
 def test_member_tool_exposes_bounded_projection_without_guild_argument() -> None:
@@ -1623,7 +1619,6 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
         publisher=publisher,
         attempt=1,
         activity=activity,
-        request_intent=RequestIntent.REVIEW,
     )
     tools = {
         tool.name: tool
@@ -1642,81 +1637,24 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
     )
     publish_context = ToolContext(
         context=run_context,
-        tool_name="publish_review",
+        tool_name="execute_arrest_report_review",
         tool_call_id="call-publish",
         tool_arguments=publish_arguments,
     )
-    result = await tools["publish_review"].on_invoke_tool(
+    result = await tools["execute_arrest_report_review"].on_invoke_tool(
         publish_context,
         publish_arguments,
     )
 
     assert publisher.publications[0].verdict is ReviewVerdict.APPROVED
-    assert publisher.markers == 0
+    assert publisher.markers == 1
     assert run_context.published
     assert result == {
         "ok": True,
         "review_scope": "full",
         "verdict": "approved",
     }
-    assert activity.activities == [AgentActivity.RESPONSE]
-
-
-@pytest.mark.asyncio
-async def test_plain_conversation_cannot_publish_a_review() -> None:
-    publisher = FakePublisher()
-    case = ReviewCase(
-        guild_id=1,
-        parent_channel_id=2,
-        channel_id=2,
-        root_message_id=3,
-        trigger_message_id=3,
-        requester_user_id=4,
-        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
-        messages=[],
-        attachments=[],
-    )
-    run_context = ReviewRunContext(
-        case=case,
-        publisher=publisher,
-        attempt=1,
-        request_intent=RequestIntent.CONVERSATION,
-    )
-    tools = {
-        tool.name: tool
-        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
-    }
-    arguments = json.dumps(
-        {
-            "publication": {
-                "verdict": "approved",
-                "summary": "Esto no debe convertirse en un veredicto.",
-                "findings": [],
-                "charges": [],
-            }
-        }
-    )
-
-    result = await tools["publish_review"].on_invoke_tool(
-        ToolContext(
-            context=run_context,
-            tool_name="publish_review",
-            tool_call_id="call-conversation-publish",
-            tool_arguments=arguments,
-        ),
-        arguments,
-    )
-
-    assert result == {
-        "ok": False,
-        "error": "review_not_requested",
-        "next_action": (
-            "Use finish_interaction to answer the conversation without publishing a review."
-        ),
-        "interaction_complete": False,
-    }
-    assert publisher.publications == []
-    assert run_context.published is False
+    assert activity.activities == [AgentActivity.REVIEW, AgentActivity.RESPONSE]
 
 
 @pytest.mark.asyncio
@@ -1758,15 +1696,13 @@ async def test_reaction_tool_updates_discord_immediately_without_finishing() -> 
         "emoji": "✅",
         "outcome": "replaced",
         "reaction_updates": 1,
-        "interaction_complete": False,
     }
     assert run_context.reactions_updated_count == 1
-    assert not run_context.interaction_completed
     assert not run_context.published
 
 
 @pytest.mark.asyncio
-async def test_messages_can_be_sent_before_explicit_conversational_completion() -> None:
+async def test_messages_can_be_sent_multiple_times_without_stopping_the_runner() -> None:
     publisher = FakePublisher()
     case = ReviewCase(
         guild_id=1,
@@ -1815,39 +1751,13 @@ async def test_messages_can_be_sent_before_explicit_conversational_completion() 
         "delivery": "discord_message",
         "messages_sent": 1,
         "response_route": "reply",
-        "interaction_complete": False,
     }
     assert publisher.routes == [
         ConversationResponseRoute.REPLY,
         ConversationResponseRoute.REPLY,
     ]
-    assert run_context.message_sent
     assert run_context.messages_sent_count == 2
-    assert not run_context.interaction_completed
     assert not run_context.published
-
-    final_message = "### Diferencia clave\nLa intención específica de matar distingue el intento."
-    final_arguments = json.dumps({"content": final_message})
-    final_result = await tools["finish_interaction"].on_invoke_tool(
-        ToolContext(
-            context=run_context,
-            tool_name="finish_interaction",
-            tool_call_id="call-finish",
-            tool_arguments=final_arguments,
-        ),
-        final_arguments,
-    )
-
-    assert publisher.messages[-1] == final_message
-    assert final_result == {
-        "ok": True,
-        "delivery": "discord_message",
-        "messages_sent": 3,
-        "response_route": "reply",
-        "interaction_complete": True,
-    }
-    assert run_context.messages_sent_count == 3
-    assert run_context.interaction_completed
 
 
 @pytest.mark.asyncio
@@ -2076,9 +1986,7 @@ async def test_dynamic_manual_question_uses_defaults_without_finishing_interacti
         "question_id": "dynamic-question-id",
         "retry_after_seconds": None,
         "delivery": "discord_manual_quiz",
-        "interaction_complete": False,
     }
-    assert not run_context.interaction_completed
     assert run_context.messages_sent_count == 1
 
     follow_up_arguments = json.dumps({})
@@ -2170,7 +2078,7 @@ async def test_poll_tools_forward_composable_arguments_without_finishing_the_run
             "channel_id": "66666666666666666",
         }
     )
-    created = await tools["create_poll"].on_invoke_tool(
+    await tools["create_poll"].on_invoke_tool(
         ToolContext(
             context=run_context,
             tool_name="create_poll",
@@ -2219,7 +2127,7 @@ async def test_poll_tools_forward_composable_arguments_without_finishing_the_run
         get_arguments,
     )
     end_arguments = json.dumps({"message_id": "66666666666666666"})
-    ended = await tools["end_poll"].on_invoke_tool(
+    await tools["end_poll"].on_invoke_tool(
         ToolContext(
             context=run_context,
             tool_name="end_poll",
@@ -2248,12 +2156,7 @@ async def test_poll_tools_forward_composable_arguments_without_finishing_the_run
             77777777777777777,
         )
     ]
-    assert manager.ended == [
-        (11111111111111111, 55555555555555555, 66666666666666666)
-    ]
-    assert created["interaction_complete"] is False
-    assert ended["interaction_complete"] is False
-    assert not run_context.interaction_completed
+    assert manager.ended == [(11111111111111111, 55555555555555555, 66666666666666666)]
     assert activity.activities == [
         AgentActivity.RESPONSE,
         AgentActivity.KNOWLEDGE,
@@ -2383,10 +2286,7 @@ async def test_charge_tools_keep_the_catalog_snapshot_pinned_to_the_agent_run() 
         charge_catalog_snapshot=provider.snapshot(),
     )
     provider.current = second
-    tools = {
-        tool.name: tool
-        for tool in build_agent_tools(provider, ReportGuide.load_default())
-    }
+    tools = {tool.name: tool for tool in build_agent_tools(provider, ReportGuide.load_default())}
     arguments = json.dumps({"charge_ids": [901]})
 
     result = await tools["get_charge_details"].on_invoke_tool(

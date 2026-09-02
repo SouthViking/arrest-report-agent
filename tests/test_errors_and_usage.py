@@ -57,6 +57,19 @@ def test_error_classifier_handles_timeout_auth_and_provider() -> None:
         classify_error(openai.AuthenticationError("bad key", response=response(401), body={})).kind
         is ErrorKind.AUTH_CONFIGURATION
     )
+
+
+def test_expired_remote_media_is_classified_as_recoverable_context() -> None:
+    error = openai.BadRequestError(
+        "Error while downloading file. Upstream status code: 404",
+        response=response(400),
+        body={"error": {"param": "url", "code": "invalid_value"}},
+    )
+
+    classified = classify_error(error)
+
+    assert classified.kind is ErrorKind.CONTEXT_UNAVAILABLE
+    assert classified.retryable
     assert (
         classify_error(openai.InternalServerError("upstream", response=response(500), body={})).kind
         is ErrorKind.PROVIDER_INTERNAL

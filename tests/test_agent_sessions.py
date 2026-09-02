@@ -9,6 +9,11 @@ from arrest_report_agent.agent_sessions import (
     AgentSessionManager,
     AgentSessionRecord,
 )
+from arrest_report_agent.application.session_input import (
+    HISTORICAL_FILE_PLACEHOLDER,
+    HISTORICAL_IMAGE_PLACEHOLDER,
+    merge_sanitized_session_input,
+)
 from arrest_report_agent.config.logging import STRUCTURED_EVENT_ATTRIBUTE
 
 
@@ -90,9 +95,7 @@ async def test_manager_reuses_cursor_and_advances_it_after_first_durable_input()
     await prepared.session.add_items(first_input)  # type: ignore[arg-type]
     await prepared.session.add_items([{"type": "function_call_output", "output": "ok"}])  # type: ignore[arg-type]
 
-    assert delegates[0].items == first_input + [
-        {"type": "function_call_output", "output": "ok"}
-    ]
+    assert delegates[0].items == first_input + [{"type": "function_call_output", "output": "ok"}]
     assert repository.advanced == [(key.session_id, "200")]
 
 
@@ -110,7 +113,75 @@ async def test_cursor_failure_is_logged_without_breaking_the_agent_run(caplog) -
     with caplog.at_level("WARNING", logger="arrest_report_agent.agent_sessions.manager"):
         await prepared.session.add_items([{"role": "user", "content": "nuevo"}])  # type: ignore[arg-type]
 
-    events = [
-        getattr(record, STRUCTURED_EVENT_ATTRIBUTE, {}).get("event") for record in caplog.records
-    ]
+    events = [getattr(record, STRUCTURED_EVENT_ATTRIBUTE, {}).get("event") for record in caplog.records]
     assert "agent_session_cursor_update_failed" in events
+
+
+@pytest.mark.asyncio
+async def test_session_persistence_replaces_transient_media_but_keeps_tool_structure() -> None:
+    repository = FakeRepository()
+    delegates: list[FakeSession] = []
+
+    def session_factory(session_id: str) -> FakeSession:
+        session = FakeSession(session_id)
+        delegates.append(session)
+        return session
+
+    manager = AgentSessionManager(  # type: ignore[arg-type]
+        object(),
+        repository=repository,  # type: ignore[arg-type]
+        session_factory=session_factory,  # type: ignore[arg-type]
+    )
+    prepared = await manager.prepare(
+        AgentConversationKey("discord_agent_thread", "guild:1:root:2", "full"),
+        next_source_cursor="200",
+    )
+    items = [
+        {
+            "type": "function_call_output",
+            "call_id": "call-images",
+            "output": [
+                {"type": "input_text", "text": '{"message_id":"123"}'},
+                {
+                    "type": "input_image",
+                    "image_url": "https://cdn.discordapp.com/expired.png?token=old",
+                },
+                {
+                    "type": "input_file",
+                    "file_url": "https://cdn.discordapp.com/expired.pdf?token=old",
+                },
+            ],
+        }
+    ]
+
+    await prepared.session.add_items(items)  # type: ignore[arg-type]
+
+    stored = delegates[0].items[0]
+    assert stored["type"] == "function_call_output"
+    assert stored["call_id"] == "call-images"
+    assert stored["output"] == [
+        {"type": "input_text", "text": '{"message_id":"123"}'},
+        {"type": "input_text", "text": HISTORICAL_IMAGE_PLACEHOLDER},
+        {"type": "input_text", "text": HISTORICAL_FILE_PLACEHOLDER},
+    ]
+    assert "discordapp.com" not in str(stored)
+
+
+def test_session_input_callback_sanitizes_history_but_keeps_current_media() -> None:
+    historical = [
+        {
+            "role": "user",
+            "content": [{"type": "input_image", "image_url": "https://cdn.discordapp.com/old.png"}],
+        }
+    ]
+    current = [
+        {
+            "role": "user",
+            "content": [{"type": "input_image", "image_url": "https://cdn.discordapp.com/current.png"}],
+        }
+    ]
+
+    merged = merge_sanitized_session_input(historical, current)  # type: ignore[arg-type]
+
+    assert merged[0]["content"] == [{"type": "input_text", "text": HISTORICAL_IMAGE_PLACEHOLDER}]
+    assert merged[1] == current[0]

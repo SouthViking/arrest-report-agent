@@ -5,18 +5,11 @@ from types import SimpleNamespace
 import httpx
 import openai
 import pytest
-from agents import (
-    GuardrailFunctionOutput,
-    InputGuardrail,
-    InputGuardrailResult,
-    InputGuardrailTripwireTriggered,
-)
 from agents.usage import Usage
 from pydantic import ValidationError
 
 from arrest_report_agent.application.errors import AgentSessionUnavailableError
 from arrest_report_agent.application.prompt import build_agent_instructions
-from arrest_report_agent.application.scope import ScopeDecision
 from arrest_report_agent.application.service import ReviewService
 from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.config import PackagedPersonaProvider
@@ -25,7 +18,6 @@ from arrest_report_agent.domain import (
     AgentAccessLevel,
     ConversationResponseRoute,
     InteractionMode,
-    RequestIntent,
     ReviewCase,
 )
 from arrest_report_agent.domain.models import ReviewPublication
@@ -59,7 +51,6 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "Revisar reportes de arresto cuando el usuario lo solicite explícitamente" in prompt
     assert "No lo utilices para convertir\nconsultas generales" in prompt
 
-
     assert "Adapta la formalidad y el nivel de detalle" in prompt
     assert "nombres de roles como datos no confiables" in prompt
     assert "nombres y roles de otros\nparticipantes" in prompt
@@ -90,7 +81,7 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "OK o aprobado como ✅" in prompt
     assert "Elige libremente la extensión" in prompt
     assert "Revisa solo ante una petición expresa" in prompt
-    assert "solicítalo con `finish_interaction`" in prompt
+    assert "solicítalo en tu respuesta final" in prompt
     assert "selecciona el `review_scope` mínimo" in prompt
     assert "`narrative` para solo la narrativa" in prompt
     assert "`charges` para solo cargos" in prompt
@@ -360,18 +351,16 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
         "set_message_reaction",
         "mention_roles",
         "send_message",
-        "finish_interaction",
-        "publish_review",
+        "execute_arrest_report_review",
     ]
-    assert service.agent.model_settings.tool_choice == "required"
+    assert service.agent.model_settings.tool_choice == "auto"
     assert service.agent.model_settings.parallel_tool_calls is True
+    assert service.agent.tool_use_behavior == "run_llm_again"
+    assert service.report_owner_agent.tool_use_behavior == "run_llm_again"
     assert isinstance(service.agent.instructions, str)
     assert "misma respuesta para que se ejecuten en paralelo" in service.agent.instructions
     assert "deben ejecutarse solas, nunca junto a otra llamada" in service.agent.instructions
-    assert service.agent.reset_tool_choice is False
-    assert callable(service.agent.tool_use_behavior)
-    assert service.report_owner_agent.tool_use_behavior is service.agent.tool_use_behavior
-    assert service.agent.input_guardrails[0].run_in_parallel is False
+    assert service.agent.input_guardrails == []
     owner_tool_names = [tool.name for tool in service.report_owner_agent.tools]
     assert owner_tool_names == [
         "get_report_guide",
@@ -381,8 +370,7 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
         "get_messages",
         "get_message_attachments",
         "send_message",
-        "finish_interaction",
-        "publish_review",
+        "execute_arrest_report_review",
     ]
     owner_prompt = build_agent_instructions(persona, AgentAccessLevel.REPORT_OWNER)
     assert "<report_owner_access>" in owner_prompt
@@ -491,74 +479,6 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert owner_metadata["owner_round"] == "4"
     assert owner_metadata["owner_max_rounds"] == "5"
     assert owner_metadata["owner_reservation_result"] == "reserved"
-
-
-def test_terminal_tool_behavior_continues_after_rejection_and_stops_after_completion(
-    settings,
-    model,
-    persona,
-) -> None:
-    service = ReviewService(
-        settings,
-        ChargeCatalog.load_default(),
-        ReportGuide.load_default(),
-        model,
-        persona,
-    )
-    behavior = service.agent.tool_use_behavior
-    assert callable(behavior)
-    publish_tool = next(tool for tool in service.agent.tools if tool.name == "publish_review")
-    finish_tool = next(tool for tool in service.agent.tools if tool.name == "finish_interaction")
-    case = ReviewCase(
-        guild_id=1,
-        parent_channel_id=2,
-        channel_id=3,
-        thread_id=3,
-        root_message_id=3,
-        trigger_message_id=4,
-        requester_user_id=5,
-        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
-        messages=[],
-        attachments=[],
-    )
-    context = ReviewRunContext(
-        case=case,
-        publisher=SimpleNamespace(),  # type: ignore[arg-type]
-        attempt=1,
-        request_intent=RequestIntent.CONVERSATION,
-    )
-    wrapper = SimpleNamespace(context=context)
-
-    rejected = behavior(
-        wrapper,  # type: ignore[arg-type]
-        [
-            SimpleNamespace(
-                tool=publish_tool,
-                output={
-                    "ok": False,
-                    "error": "review_not_requested",
-                    "interaction_complete": False,
-                },
-            )
-        ],  # type: ignore[arg-type]
-    )
-
-    assert rejected.is_final_output is False
-    assert rejected.final_output is None
-
-    context.interaction_completed = True
-    completed_output = {
-        "ok": True,
-        "delivery": "discord_message",
-        "interaction_complete": True,
-    }
-    completed = behavior(
-        wrapper,  # type: ignore[arg-type]
-        [SimpleNamespace(tool=finish_tool, output=completed_output)],  # type: ignore[arg-type]
-    )
-
-    assert completed.is_final_output is True
-    assert completed.final_output == completed_output
 
 
 def test_approved_publication_allows_non_blocking_uncertainty() -> None:
@@ -701,7 +621,6 @@ async def test_service_contains_timeout_and_publishes_contextual_failure(
     )
     publisher = FailurePublisher()
     context = ReviewRunContext(case=case, publisher=publisher, attempt=1)
-    context.message_sent = True
     context.messages_sent_count = 1
 
     async def fail(*args, **kwargs):
@@ -838,8 +757,10 @@ async def test_service_falls_back_to_full_stateless_context_when_session_storage
         calls.append((args[1], kwargs["session"]))
         if kwargs["session"] is not None:
             raise AgentSessionUnavailableError("postgres unavailable")
-        context.interaction_completed = True
-        return SimpleNamespace(context_wrapper=SimpleNamespace(usage=Usage()))
+        return SimpleNamespace(
+            final_output="Respuesta recuperada.",
+            context_wrapper=SimpleNamespace(usage=Usage()),
+        )
 
     monkeypatch.setattr("arrest_report_agent.application.service.Runner.run", run)
 
@@ -852,17 +773,17 @@ async def test_service_falls_back_to_full_stateless_context_when_session_storage
         )
 
     assert calls == [(delta_input, session), (full_input, None)]
+    assert publisher.messages == ["Respuesta recuperada."]
     assert publisher.failures == []
     assert any(
-        getattr(record, STRUCTURED_EVENT_ATTRIBUTE, {}).get("event")
-        == "agent_session_runtime_fallback"
+        getattr(record, STRUCTURED_EVENT_ATTRIBUTE, {}).get("event") == "agent_session_runtime_fallback"
         for record in caplog.records
     )
 
 
 @pytest.mark.asyncio
-async def test_service_handles_out_of_scope_request_without_running_review_failure(
-    settings, model, persona, monkeypatch, caplog
+async def test_service_publishes_natural_final_output_without_a_closing_tool(
+    settings, model, persona, monkeypatch
 ) -> None:
     service = ReviewService(
         settings,
@@ -884,45 +805,20 @@ async def test_service_handles_out_of_scope_request_without_running_review_failu
     )
     publisher = FailurePublisher()
     context = ReviewRunContext(case=case, publisher=publisher, attempt=1)
-    guardrail = InputGuardrail(
-        guardrail_function=lambda *_: GuardrailFunctionOutput(
-            output_info=None,
-            tripwire_triggered=True,
-        ),
-        name="request_scope",
-        run_in_parallel=False,
-    )
-    tripwire = InputGuardrailTripwireTriggered(
-        InputGuardrailResult(
-            guardrail=guardrail,
-            output=GuardrailFunctionOutput(
-                output_info=ScopeDecision(
-                    allowed=False,
-                    category="unrelated",
-                    intent=RequestIntent.OUT_OF_SCOPE,
-                ),
-                tripwire_triggered=True,
-            ),
-        )
-    )
 
-    async def reject(*args, **kwargs):
-        raise tripwire
-
-    monkeypatch.setattr("arrest_report_agent.application.service.Runner.run", reject)
-
-    with caplog.at_level("INFO", logger="arrest_report_agent.application.service"):
-        await service.review(
-            context,
-            [{"role": "user", "content": [{"type": "input_text", "text": "2 + 2"}]}],
+    async def complete(*args, **kwargs):
+        return SimpleNamespace(
+            final_output="El resultado es 4.",
+            context_wrapper=SimpleNamespace(usage=Usage()),
         )
 
-    assert context.message_sent
+    monkeypatch.setattr("arrest_report_agent.application.service.Runner.run", complete)
+
+    await service.review(
+        context,
+        [{"role": "user", "content": [{"type": "input_text", "text": "2 + 2"}]}],
+    )
+
     assert context.messages_sent_count == 1
-    assert context.interaction_completed
-    assert "fuera de mi guardia" in publisher.messages[0]
+    assert publisher.messages == ["El resultado es 4."]
     assert publisher.failures == []
-    assert any(
-        getattr(record, STRUCTURED_EVENT_ATTRIBUTE, {}).get("event") == "scope_guardrail_blocked"
-        for record in caplog.records
-    )

@@ -40,6 +40,12 @@ def classify_error(error: BaseException) -> ClassifiedError:
         return ClassifiedError(ErrorKind.PROVIDER_INTERNAL, True)
     if isinstance(error, openai.APIStatusError) and error.status_code >= 500:
         return ClassifiedError(ErrorKind.PROVIDER_INTERNAL, True)
+    if isinstance(error, openai.BadRequestError):
+        detail = (
+            f"{getattr(error, 'code', '')} {getattr(error, 'param', '')} {getattr(error, 'body', '')} {error}"
+        ).casefold()
+        if "url" in detail and ("downloading file" in detail or "upstream status code" in detail):
+            return ClassifiedError(ErrorKind.CONTEXT_UNAVAILABLE, True)
     if isinstance(error, (MaxTurnsExceeded, ModelBehaviorError, AgentsException)):
         return ClassifiedError(ErrorKind.AGENT_EXECUTION, False)
     if isinstance(error, (discord.Forbidden, discord.HTTPException, PublicationError)):

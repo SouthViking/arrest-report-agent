@@ -518,7 +518,7 @@ async def test_failure_publishes_only_contextual_message_and_next_step(settings,
 
 
 @pytest.mark.asyncio
-async def test_failure_mentions_only_existing_configured_roles_once(settings, persona) -> None:
+async def test_technical_failure_does_not_ping_supervisory_roles(settings, persona) -> None:
     roles = {
         111: SimpleNamespace(id=111, mention="<@&111>"),
         333: SimpleNamespace(id=333, mention="<@&333>"),
@@ -540,11 +540,8 @@ async def test_failure_mentions_only_existing_configured_roles_once(settings, pe
     await publisher.publish_failure("El segundo aviso no debe repetir la derivación.")
 
     first, second = root.thread.sent
-    assert first["content"] == "📣 Se requiere supervisión: <@&111> <@&333>"
-    assert first["allowed_mentions"].to_dict() == {
-        "roles": [111, 333],
-        "parse": [],
-    }
+    assert first["content"] is None
+    assert first["allowed_mentions"].to_dict() == {"parse": []}
     assert second["content"] is None
     assert second["allowed_mentions"].to_dict() == {"parse": []}
 

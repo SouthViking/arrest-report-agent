@@ -5,27 +5,23 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Mapping
 from typing import Any
 
 from agents import (
     Agent,
-    FunctionToolResult,
-    InputGuardrailTripwireTriggered,
     ModelSettings,
     RunConfig,
-    RunContextWrapper,
     Runner,
     ToolExecutionConfig,
-    ToolsToFinalOutputResult,
 )
 from agents.memory import Session
 from agents.retry import ModelRetrySettings
+from agents.usage import Usage
 from openai.types.shared.reasoning import Reasoning
 
 from arrest_report_agent.config import AppSettings, BotPersona, ResolvedModel
 from arrest_report_agent.config.logging import exception_fields, log_event
-from arrest_report_agent.domain import AgentAccessLevel, ReviewCase
+from arrest_report_agent.domain import AgentAccessLevel, AgentActivity, ReviewCase
 from arrest_report_agent.knowledge import (
     ChargeCatalog,
     ChargeCatalogProvider,
@@ -36,7 +32,6 @@ from arrest_report_agent.knowledge import (
 )
 
 from .errors import AgentSessionUnavailableError, classify_error, public_error_message
-from .hooks import ReviewLifecycleHooks
 from .ports import (
     ArrestReportLookup,
     CharacterLegalFactsLookup,
@@ -45,41 +40,12 @@ from .ports import (
     ReportImageLookup,
 )
 from .prompt import PROMPT_VERSION, build_agent_instructions
-from .scope import build_scope_guardrail, scope_refusal_message
 from .service_context import ReviewRunContext
+from .session_input import merge_sanitized_session_input
 from .tools import build_agent_tools
 from .usage import summarize_usage
 
 LOGGER = logging.getLogger(__name__)
-TERMINAL_TOOL_NAMES = frozenset({"mention_roles", "finish_interaction", "publish_review"})
-
-
-def _stop_after_completed_terminal_tool(
-    ctx: RunContextWrapper[ReviewRunContext],
-    tool_results: list[FunctionToolResult],
-) -> ToolsToFinalOutputResult:
-    """Stop only after a terminal tool completed its Discord side effect.
-
-    A rejected terminal call must return to the model so it can choose the correct terminal tool.
-    ``StopAtTools`` cannot make this distinction because it stops solely by tool name.
-    """
-
-    completed = ctx.context.published or ctx.context.interaction_completed
-    if not completed:
-        return ToolsToFinalOutputResult(is_final_output=False)
-    for result in tool_results:
-        if result.tool.name not in TERMINAL_TOOL_NAMES:
-            continue
-        output = result.output
-        if isinstance(output, Mapping) and (
-            output.get("ok") is False or output.get("interaction_complete") is False
-        ):
-            continue
-        return ToolsToFinalOutputResult(
-            is_final_output=True,
-            final_output=output,
-        )
-    return ToolsToFinalOutputResult(is_final_output=False)
 
 
 class ReviewService:
@@ -149,13 +115,11 @@ class ReviewService:
             manual_catalog=self.manual_catalog,
             report_image_lookup=report_image_lookup,
         )
-        scope_guardrail = build_scope_guardrail(settings, model)
-        self.hooks = ReviewLifecycleHooks()
         model_settings = ModelSettings(
             reasoning=Reasoning(effort=model.reasoning_effort),
             verbosity=model.runtime_defaults.text_verbosity,
             max_tokens=model.runtime_defaults.max_output_tokens,
-            tool_choice="required",
+            tool_choice="auto",
             parallel_tool_calls=True,
             retry=ModelRetrySettings(max_retries=settings.openai_max_retries),
             include_usage=True,
@@ -174,9 +138,6 @@ class ReviewService:
             model=model.id,
             model_settings=model_settings,
             tools=tools,  # type: ignore[arg-type]
-            input_guardrails=[scope_guardrail],
-            tool_use_behavior=_stop_after_completed_terminal_tool,
-            reset_tool_choice=False,
         )
 
         self.report_owner_agent: Agent[ReviewRunContext] = Agent(
@@ -193,9 +154,6 @@ class ReviewService:
             model=model.id,
             model_settings=model_settings,
             tools=owner_tools,  # type: ignore[arg-type]
-            input_guardrails=[scope_guardrail],
-            tool_use_behavior=_stop_after_completed_terminal_tool,
-            reset_tool_choice=False,
         )
 
     @property
@@ -223,6 +181,7 @@ class ReviewService:
             group_id=f"discord-report:{case.guild_id}:{case.root_message_id}",
             trace_metadata=self._trace_metadata(case, run_context),
             tool_execution=ToolExecutionConfig(max_function_tool_concurrency=6),
+            session_input_callback=merge_sanitized_session_input,
         )
         log_event(
             LOGGER,
@@ -245,12 +204,7 @@ class ReviewService:
                     started_at=started_at,
                 )
             except AgentSessionUnavailableError as session_error:
-                if (
-                    session is None
-                    or run_context.published
-                    or run_context.interaction_completed
-                    or run_context.messages_sent_count > 0
-                ):
+                if session is None or run_context.published or run_context.messages_sent_count > 0:
                     raise
                 log_event(
                     LOGGER,
@@ -268,8 +222,14 @@ class ReviewService:
                     session=None,
                     started_at=started_at,
                 )
-            if not run_context.published and not run_context.interaction_completed:
-                raise RuntimeError("Agent finished without a terminal response tool")
+            if not run_context.published and run_context.messages_sent_count == 0:
+                final_output = result.final_output
+                if not isinstance(final_output, str) or not final_output.strip():
+                    raise RuntimeError("Agent finished without a visible response")
+                if run_context.activity is not None:
+                    await run_context.activity.transition(AgentActivity.RESPONSE)
+                await run_context.publisher.send_message(final_output.strip())
+                run_context.messages_sent_count += 1
             if run_context.published and run_context.publication is None:
                 raise RuntimeError("Agent published a review without a publication payload")
             usage = summarize_usage(result.context_wrapper.usage, self.model)
@@ -295,40 +255,9 @@ class ReviewService:
                 **usage.to_log_fields(),
                 **self._log_metadata(case, run_context),
             )
-        except InputGuardrailTripwireTriggered as error:
-            usage = summarize_usage(run_context.guardrail_usage, self.model)
-            log_event(
-                LOGGER,
-                "info",
-                "scope_guardrail_blocked",
-                latency_ms=round((time.monotonic() - started_at) * 1000),
-                guardrail_name=error.guardrail_result.guardrail.get_name(),
-                **usage.to_log_fields(),
-                **self._log_metadata(case, run_context),
-            )
-            try:
-                await run_context.publisher.send_message(
-                    scope_refusal_message(
-                        self.persona.messages.access,
-                        self.persona.identity.default_form_of_address,
-                    )
-                )
-
-                run_context.message_sent = True
-                run_context.messages_sent_count += 1
-                run_context.interaction_completed = True
-            except Exception as publication_error:
-                log_event(
-                    LOGGER,
-                    "error",
-                    "scope_refusal_publication_failed",
-                    exc_info=publication_error,
-                    **exception_fields(publication_error),
-                    **self._log_metadata(case, run_context),
-                )
         except Exception as error:
             classified = classify_error(error)
-            usage_source = result.context_wrapper.usage if result is not None else run_context.guardrail_usage
+            usage_source = result.context_wrapper.usage if result is not None else Usage()
             usage = summarize_usage(usage_source, self.model)
             technical_reference = f"{case.root_message_id}-{run_context.attempt}-{classified.kind.value}"
             log_event(
@@ -344,7 +273,7 @@ class ReviewService:
                 **exception_fields(error),
                 **self._log_metadata(case, run_context),
             )
-            if run_context.published or run_context.interaction_completed:
+            if run_context.published:
                 return
             try:
                 await run_context.publisher.publish_failure(
@@ -383,7 +312,6 @@ class ReviewService:
                 agent_input,  # type: ignore[arg-type]
                 context=run_context,
                 max_turns=self.settings.max_agent_turns,
-                hooks=self.hooks,
                 run_config=run_config,
                 session=session,
             ),

@@ -1,24 +1,28 @@
 {
   "schema_version": 3,
-  "version": "0.28.1",
-  "title": "Revisión de evidencias corregida",
-  "summary": "Mejora la interpretación de bolsas de evidencia y evita cierres incorrectos durante conversaciones sobre un reporte.",
+  "version": "0.29.0",
+  "title": "Flujo del agente simplificado",
+  "summary": "Desacopla el agente del clasificador de intención y mejora la continuidad segura de las conversaciones persistentes.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Distingue bolsas existentes sin análisis de identificadores inexistentes y comunica cada estado sin falsos hallazgos."
-    },
-    {
-      "type": "fixed",
-      "text": "Mantiene activa la ejecución cuando una respuesta conversacional intenta publicarse erróneamente como revisión formal."
+      "type": "improved",
+      "text": "Elimina el clasificador previo y los cierres forzados; el agente decide cuándo consultar, actuar, revisar o responder con sus tools disponibles."
     },
     {
       "type": "improved",
-      "text": "Acepta seriales e identificadores equivalentes como referencias de evidencia y no exige una conclusión separada cuando el resultado ya es claro."
+      "text": "Convierte la publicación de revisiones y mensajes en acciones no terminales y usa tool_choice automático sin duplicar la salida visible."
+    },
+    {
+      "type": "fixed",
+      "text": "Sanitiza imágenes y archivos temporales en sesiones persistentes para evitar URLs vencidas y permite recargarlos bajo demanda."
+    },
+    {
+      "type": "fixed",
+      "text": "Los fallos técnicos de adjuntos ya no generan menciones automáticas a supervisores."
     }
   ],
   "acknowledgements": []

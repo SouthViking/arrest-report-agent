@@ -797,7 +797,7 @@ class ReviewCog(commands.Cog):
                 finally:
                     if owner_reservation is not None and owner_reservation.run_id is not None:
                         try:
-                            if run_context.published or run_context.interaction_completed:
+                            if run_context.published or run_context.messages_sent_count > 0:
                                 await self.report_owner_run_repository.mark_completed(
                                     owner_reservation.run_id
                                 )
@@ -818,7 +818,7 @@ class ReviewCog(commands.Cog):
                                 max_rounds=owner_reservation.max_rounds,
                                 **exception_fields(error),
                             )
-                return run_context.published or run_context.interaction_completed
+                return run_context.published or run_context.messages_sent_count > 0
         finally:
             if not lock.locked():
                 self._locks.pop(root_id, None)

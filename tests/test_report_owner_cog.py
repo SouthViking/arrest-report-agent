@@ -95,7 +95,7 @@ class _Service:
 
     async def review(self, context, _agent_input: object) -> None:
         self.contexts.append(context)
-        context.interaction_completed = True
+        context.messages_sent_count = 1
 
 
 class _Repository:

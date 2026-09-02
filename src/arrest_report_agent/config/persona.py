@@ -144,7 +144,6 @@ class PersonaAccessMessages(FrozenPersonaModel):
     blocked_user_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
     owner_quota_exhausted_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
     owner_invalid_report_messages: tuple[str, ...] = Field(min_length=2, max_length=8)
-    scope_refusal: str = Field(min_length=1, max_length=400)
     supervisor_unauthorized: str = Field(min_length=1, max_length=400)
     other_member_query: str = Field(min_length=1, max_length=250)
     other_supervisor_query: str = Field(min_length=1, max_length=250)
@@ -173,11 +172,6 @@ class PersonaAccessMessages(FrozenPersonaModel):
             self.unauthorized_user,
             {"form_of_address", "intro"},
             "unauthorized_user",
-        )
-        _require_template_fields(
-            self.scope_refusal,
-            {"form_of_address"},
-            "scope_refusal",
         )
         for index, message in enumerate(self.owner_quota_exhausted_messages):
             _require_template_fields(
