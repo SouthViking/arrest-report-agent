@@ -25,6 +25,7 @@ class SupervisorRankingEntry:
     unreviewed: int
     in_review: int
     inconclusive: int
+    report_urls: tuple[str, ...] = ()
 
     @property
     def pending(self) -> int:
@@ -46,7 +47,13 @@ def build_supervisor_ranking(
     """Aggregate the current Discord snapshot by report author."""
 
     mutable: dict[int, dict[str, int | str]] = {}
-    for report in reports:
+    report_urls: dict[int, list[str]] = {}
+    ordered_reports = sorted(
+        reports,
+        key=lambda report: (report.created_at, report.message_id),
+        reverse=True,
+    )
+    for report in ordered_reports:
         if report.author_id is None:
             continue
         row = mutable.setdefault(
@@ -61,6 +68,9 @@ def build_supervisor_ranking(
                 "inconclusive": 0,
             },
         )
+        urls = report_urls.setdefault(report.author_id, [])
+        if report.post_url and report.post_url not in urls:
+            urls.append(report.post_url)
         row["total"] = int(row["total"]) + 1
         if report.status is PersonalReportStatus.APPROVED:
             row["approved"] = int(row["approved"]) + 1
@@ -83,6 +93,7 @@ def build_supervisor_ranking(
             unreviewed=int(row["unreviewed"]),
             in_review=int(row["in_review"]),
             inconclusive=int(row["inconclusive"]),
+            report_urls=tuple(report_urls[author_id]),
         )
         for author_id, row in mutable.items()
     ]

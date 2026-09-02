@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.29.0",
-  "title": "Flujo del agente simplificado",
-  "summary": "Desacopla el agente del clasificador de intención y mejora la continuidad segura de las conversaciones persistentes.",
+  "version": "0.29.1",
+  "title": "Accesos directos en /verguenza",
+  "summary": "Facilita abrir los reportes pendientes directamente desde el ranking de vergüenza.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,19 +10,7 @@
   "changes": [
     {
       "type": "improved",
-      "text": "Elimina el clasificador previo y los cierres forzados; el agente decide cuándo consultar, actuar, revisar o responder con sus tools disponibles."
-    },
-    {
-      "type": "improved",
-      "text": "Convierte la publicación de revisiones y mensajes en acciones no terminales y usa tool_choice automático sin duplicar la salida visible."
-    },
-    {
-      "type": "fixed",
-      "text": "Sanitiza imágenes y archivos temporales en sesiones persistentes para evitar URLs vencidas y permite recargarlos bajo demanda."
-    },
-    {
-      "type": "fixed",
-      "text": "Los fallos técnicos de adjuntos ya no generan menciones automáticas a supervisores."
+      "text": "/verguenza incorpora enlaces numerados a los reportes sin aprobar más recientes de cada miembro."
     }
   ],
   "acknowledgements": []

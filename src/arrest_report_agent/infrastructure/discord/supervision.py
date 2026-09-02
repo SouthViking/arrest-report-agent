@@ -40,7 +40,9 @@ SUPERVISION_VIEW_TIMEOUT_SECONDS = 180
 PENDING_REPORTS_PER_PAGE = 5
 RANKING_ENTRIES_PER_PAGE = 10
 SHAME_RANKING_LIMIT = 10
+SHAME_REPORT_LINKS_PER_MEMBER = 3
 HONOR_RANKING_LIMIT = 10
+DISCORD_EMBED_FIELD_VALUE_LIMIT = 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -747,19 +749,43 @@ def build_shame_ranking_embed(
         entries = section.ranking[:SHAME_RANKING_LIMIT]
         all_author_ids.update(entry.author_id for entry in section.ranking)
         visible_author_ids.update(entry.author_id for entry in entries)
-        lines: list[str] = []
+        entry_lines: list[list[str]] = []
         for position, entry in enumerate(entries, start=1):
             medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(position, f"**{position}.**")
-            lines.append(
-                f"{medal} <@{entry.author_id}> — "
-                f"**{ui.shame_value.format(count=entry.total)}**\n"
-                f"↳ 📭 {entry.unreviewed} · ⏳ {entry.in_review} · "
-                f"❌ {entry.corrections_required} · "
-                f"⚠️ {entry.inconclusive}"
+            entry_lines.append(
+                [
+                    f"{medal} <@{entry.author_id}> — "
+                    f"**{ui.shame_value.format(count=entry.total)}**",
+                    f"↳ 📭 {entry.unreviewed} · ⏳ {entry.in_review} · "
+                    f"❌ {entry.corrections_required} · ⚠️ {entry.inconclusive}",
+                ]
             )
+
+        # Add one direct reference per member before offering second and third links. This keeps
+        # the ranking useful for everyone when a populated channel approaches Discord's field cap.
+        for link_index in range(SHAME_REPORT_LINKS_PER_MEMBER):
+            for lines, entry in zip(entry_lines, entries, strict=True):
+                if link_index >= len(entry.report_urls):
+                    continue
+                links = [
+                    f"[{index}]({url})"
+                    for index, url in enumerate(
+                        entry.report_urls[: link_index + 1],
+                        start=1,
+                    )
+                ]
+                candidate = [*lines[:2], f"↳ 🔗 {' · '.join(links)}"]
+                candidate_value = "\n".join(
+                    "\n".join(candidate if current is lines else current)
+                    for current in entry_lines
+                )
+                if len(candidate_value) <= DISCORD_EMBED_FIELD_VALUE_LIMIT:
+                    lines[:] = candidate
+
+        rendered_lines = ["\n".join(lines) for lines in entry_lines]
         embed.add_field(
             name=f"📍 #{section.channel_name}"[:256],
-            value="\n".join(lines) if lines else ui.shame_empty_body,
+            value="\n".join(rendered_lines) if rendered_lines else ui.shame_empty_body,
             inline=False,
         )
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -105,6 +106,11 @@ def test_open_report_ranking_excludes_approved_and_sorts_descending() -> None:
     assert ranking[0].pending == 2
     assert ranking[0].inconclusive == 1
     assert ranking[0].approved == 0
+    assert ranking[0].report_urls == (
+        "https://discord.com/channels/1/200/5",
+        "https://discord.com/channels/1/200/4",
+        "https://discord.com/channels/1/200/3",
+    )
     assert ranking[1].corrections_required == 1
 
 
@@ -201,8 +207,41 @@ def test_shame_embed_is_public_ready_and_counts_only_non_approved(persona) -> No
     assert persona.messages.interface.supervision.shame_legend in embed.description
     assert "3 expediente(s) sin aprobar" in embed.fields[0].value
     assert "📭 1 · ⏳ 1 · ❌ 1 · ⚠️ 0" in embed.fields[0].value
+    assert (
+        "↳ 🔗 [1](https://discord.com/channels/1/200/3) · "
+        "[2](https://discord.com/channels/1/200/2) · "
+        "[3](https://discord.com/channels/1/200/1)"
+    ) in embed.fields[0].value
+    assert "↳ 🔗 [1](https://discord.com/channels/1/200/4)" in embed.fields[0].value
     assert persona.messages.interface.supervision.shame_empty_body in embed.fields[1].value
     assert embed.footer.text == "Top 2 de 2 miembro(s) · Sgt. Rivera"
+
+
+def test_shame_embed_keeps_each_channel_field_within_discord_limit(persona) -> None:
+    reports = tuple(
+        replace(
+            report(message_id, 1_000 + message_id, PersonalReportStatus.PENDING),
+            post_url=f"https://discord.com/channels/1/200/{'9' * 160}{message_id}",
+        )
+        for message_id in range(1, 11)
+    )
+
+    embed = build_shame_ranking_embed(
+        (
+            ShameRankingSection(
+                channel_id=200,
+                channel_name="gnt-arrestos",
+                ranking=build_open_report_ranking(reports),
+            ),
+        ),
+        period=PersonalReportPeriod.LAST_90_DAYS,
+        truncated=False,
+        display_name="Sgt. Rivera",
+        ui=persona.messages.interface.supervision,
+        navigation=persona.messages.interface.navigation,
+    )
+
+    assert len(embed.fields[0].value) <= 1024
 
 
 def test_honor_embed_is_public_ready_and_includes_only_approved_authors(persona) -> None:
@@ -244,6 +283,7 @@ def test_honor_embed_is_public_ready_and_includes_only_approved_authors(persona)
     assert "🥇 <@100>" in embed.fields[0].value
     assert "2 aprobado(s) de 3 · 66.7%" in embed.fields[0].value
     assert "<@300>" not in embed.fields[0].value
+    assert "↳ 🔗" not in embed.fields[0].value
     assert persona.messages.interface.supervision.honor_empty_body in embed.fields[1].value
     assert embed.footer.text == "Top 2 de 2 miembro(s) · Sgt. Rivera"
 
