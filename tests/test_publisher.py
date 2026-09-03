@@ -395,7 +395,11 @@ async def test_full_review_updates_structured_root_card_color(
     )
     source_view = discord.ui.DesignerView(
         discord.ui.Container(
-            discord.ui.TextDisplay("## 📋 Reporte de arresto"),
+            discord.ui.TextDisplay(
+                "## 📋 Reporte de arresto · #321\n"
+                "**Autor:** <@123>\n"
+                "**Sospechoso:** Andy Quintero"
+            ),
             discord.ui.MediaGallery(discord.MediaGalleryItem(media_urls[0])),
             discord.ui.MediaGallery(discord.MediaGalleryItem(media_urls[1])),
             color=discord.Color.gold(),
@@ -428,6 +432,84 @@ async def test_full_review_updates_structured_root_card_color(
         item for item in container.items if isinstance(item, discord.ui.MediaGallery)
     ]
     assert tuple(item.url for gallery in galleries for item in gallery.items) == media_urls
+
+
+@pytest.mark.asyncio
+async def test_full_review_recolors_recognized_card_without_database_mapping(
+    settings,
+    persona,
+) -> None:
+    root = FakeRoot(guild=SimpleNamespace(id=10))
+    source_view = discord.ui.DesignerView(
+        discord.ui.Container(
+            discord.ui.TextDisplay(
+                "## 📋 Reporte de arresto · #321\n"
+                "**Autor:** <@123>\n"
+                "**Sospechoso:** Andy Quintero"
+            ),
+            discord.ui.MediaGallery(
+                discord.MediaGalleryItem("https://cdn.discord.test/suspect.png")
+            ),
+            discord.ui.MediaGallery(
+                discord.MediaGalleryItem("https://cdn.discord.test/report.png")
+            ),
+            color=discord.Color.gold(),
+        ),
+        timeout=None,
+        store=False,
+    )
+    root.components = [
+        discord.components.Container(component) for component in source_view.to_components()
+    ]
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.THREAD,
+        structured_submission_id=None,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
+
+    await publisher.publish(publication("approved"))
+
+    assert len(root.edits) == 1
+    container = root.edits[0]["view"].children[0]
+    assert container.color == discord.Color.green()
+
+
+@pytest.mark.asyncio
+async def test_full_review_does_not_recolor_unmapped_non_submission_card(
+    settings,
+    persona,
+) -> None:
+    root = FakeRoot(guild=SimpleNamespace(id=10))
+    source_view = discord.ui.DesignerView(
+        discord.ui.Container(
+            discord.ui.TextDisplay("## Otro mensaje"),
+            color=discord.Color.gold(),
+        ),
+        timeout=None,
+        store=False,
+    )
+    root.components = [
+        discord.components.Container(component) for component in source_view.to_components()
+    ]
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.THREAD,
+        structured_submission_id=None,
+    )
+    publisher = DiscordReviewPublisher(bot, settings, target, persona)
+
+    await publisher.publish(publication("corrections_required"))
+
+    assert root.edits == []
 
 
 @pytest.mark.asyncio

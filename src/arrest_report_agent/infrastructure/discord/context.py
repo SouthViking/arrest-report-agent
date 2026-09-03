@@ -147,6 +147,15 @@ class DiscordContextBuilder:
                 thread_id=thread.id,
             )
             if submission is None:
+                log_event(
+                    LOGGER,
+                    "warning",
+                    "structured_arrest_report_owner_unresolved",
+                    guild_id=getattr(getattr(root, "guild", None), "id", None),
+                    requester_user_id=message.author.id,
+                    root_message_id=root.id,
+                    thread_id=thread.id,
+                )
                 self._require_human_owner(root, message.author.id)
             return ReviewTarget(
                 root=root,
@@ -241,6 +250,26 @@ class DiscordContextBuilder:
             submission = await repository.get_by_root(root.guild.id, root.id)
         if submission is None and thread_id is not None:
             submission = await repository.get_by_thread(root.guild.id, thread_id)
+        if (
+            submission is None
+            and thread_id is not None
+            and (root.author.bot or root.webhook_id is not None)
+        ):
+            submission = await repository.recover_published_mapping(
+                guild_id=root.guild.id,
+                root_message_id=root.id,
+                thread_id=thread_id,
+            )
+            if submission is not None:
+                log_event(
+                    LOGGER,
+                    "warning",
+                    "structured_arrest_report_mapping_recovered",
+                    guild_id=root.guild.id,
+                    root_message_id=root.id,
+                    thread_id=thread_id,
+                    submission_id=submission.id,
+                )
         return submission
 
     @staticmethod

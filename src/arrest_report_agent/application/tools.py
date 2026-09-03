@@ -1537,30 +1537,35 @@ def build_agent_tools(
     ) -> list[NativeAttachmentOutput]:
         run_context = ctx.context
         if report_image_lookup is None:
-            return _attachment_tool_error("unavailable")
+            return _structured_image_tool_error("unavailable", category=category)
         current_report_id = run_context.case.structured_report_id
         if (
             report_id is not None
             and run_context.access_level is AgentAccessLevel.REPORT_OWNER
             and (current_report_id is None or report_id != current_report_id)
         ):
-            return _attachment_tool_error("report_outside_owner_scope")
-        submission_id = None if report_id is not None else run_context.case.structured_submission_id
-        root_message_id = (
-            run_context.case.root_message_id if report_id is None and submission_id is None else None
+            return _structured_image_tool_error(
+                "report_outside_owner_scope",
+                category=category,
+            )
+        targets_current_report = report_id is None or (
+            current_report_id is not None and report_id == current_report_id
         )
-        if report_id is None and submission_id is None:
-            return _attachment_tool_error("not_structured_report")
+        submission_id = run_context.case.structured_submission_id if targets_current_report else None
+        lookup_report_id = None if submission_id is not None else report_id
+        root_message_id = None
+        if submission_id is None and lookup_report_id is None:
+            root_message_id = run_context.case.root_message_id
         await _set_activity(run_context, AgentActivity.EVIDENCE)
         result = await report_image_lookup.get_images(
             guild_id=run_context.case.guild_id,
             submission_id=submission_id,
             root_message_id=root_message_id,
-            report_id=report_id,
+            report_id=lookup_report_id,
             category=category,
         )
         if result.error is not None:
-            return _attachment_tool_error(result.error)
+            return _structured_image_tool_error(result.error, category=category)
         outputs: list[NativeAttachmentOutput] = []
         loaded: list[dict[str, object]] = []
         skipped: list[dict[str, object]] = []
@@ -1593,10 +1598,21 @@ def build_agent_tools(
                     "size": image.size_bytes,
                 }
             )
+        image_presence = "present" if result.images else "absent"
+        status = (
+            "images_loaded"
+            if loaded
+            else "images_available_not_loaded"
+            if result.images
+            else "no_images_in_category"
+        )
         metadata = {
             "ok": True,
+            "status": status,
             "report_id": result.report_id,
             "category": category,
+            "image_presence": image_presence,
+            "can_determine_image_presence": True,
             "loaded": loaded,
             "skipped": skipped,
             "remaining_image_capacity": max(0, max_images_per_review - run_context.loaded_image_count),
@@ -1612,7 +1628,9 @@ def build_agent_tools(
 
         Omit report_id for the active report. Full staff may select another structured report;
         report owners remain limited to their current expediente. Use this only when identity,
-        frontal/lateral photographs or another visual fact must actually be inspected.
+        frontal/lateral photographs or another visual fact must actually be inspected. If the
+        result says image_presence is unknown, the tool could not verify the category: never treat
+        that result as proof that photographs are missing.
         """
 
         return await _get_structured_images(
@@ -1630,6 +1648,8 @@ def build_agent_tools(
 
         Omit report_id for the active report. Prefer current SARP text for narrative and charges;
         load these images only for information the API does not expose or an explicit visual check.
+        If the result says image_presence is unknown, the tool could not verify the category: never
+        treat that result as proof that supporting images are missing.
         """
 
         return await _get_structured_images(
@@ -1975,6 +1995,44 @@ def _attachment_tool_error(
         payload["channel_id"] = str(channel_id)
     if message_id is not None:
         payload["message_id"] = str(message_id)
+    return [ToolOutputText(text=_compact_json(payload))]
+
+
+def _structured_image_tool_error(
+    error: str,
+    *,
+    category: ReportImageCategory,
+) -> list[NativeAttachmentOutput]:
+    status_by_error = {
+        "unavailable": "image_lookup_unavailable",
+        "temporarily_unavailable": "image_lookup_unavailable",
+        "not_found": "structured_report_not_found",
+        "not_structured_report": "not_structured_report",
+        "report_outside_owner_scope": "report_outside_owner_scope",
+    }
+    message_by_error = {
+        "report_outside_owner_scope": (
+            "La consulta no está autorizada. Esto no aporta información sobre la presencia de imágenes."
+        ),
+        "not_structured_report": (
+            "El hilo no tiene un expediente estructurado verificable. Esto no demuestra que falten imágenes."
+        ),
+        "not_found": (
+            "No se pudo resolver el expediente estructurado ni comprobar sus imágenes. Esto no "
+            "demuestra que falten imágenes."
+        ),
+    }
+    payload = {
+        "ok": False,
+        "status": status_by_error.get(error, "image_lookup_failed"),
+        "category": category,
+        "image_presence": "unknown",
+        "can_determine_image_presence": False,
+        "message": message_by_error.get(
+            error,
+            "No se pudo comprobar esta categoría. Esto no demuestra que falten imágenes.",
+        ),
+    }
     return [ToolOutputText(text=_compact_json(payload))]
 
 

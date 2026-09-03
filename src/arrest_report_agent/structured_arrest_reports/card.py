@@ -86,5 +86,43 @@ def recolor_submission_view(
     ]
     if len(containers) != 1:
         raise ValueError("Structured report root does not contain exactly one container")
+    if not _has_submission_signature(containers[0]):
+        raise ValueError("Discord message is not a structured arrest-report card")
     containers[0].color = review_card_color(verdict)
     return view
+
+
+def is_submission_card(message: discord.Message) -> bool:
+    """Recognize the bot-owned card without relying on its database mapping."""
+
+    try:
+        view = cast(
+            discord.ui.DesignerView,
+            discord.ui.DesignerView.from_message(message, timeout=None),
+        )
+    except (TypeError, ValueError):
+        return False
+    containers = [
+        item for item in view.children if isinstance(item, discord.ui.Container)
+    ]
+    return len(containers) == 1 and _has_submission_signature(containers[0])
+
+
+def _has_submission_signature(
+    container: discord.ui.Container[discord.ui.DesignerView],
+) -> bool:
+    text_items = [
+        item.content
+        for item in container.items
+        if isinstance(item, discord.ui.TextDisplay)
+    ]
+    gallery_count = sum(
+        isinstance(item, discord.ui.MediaGallery) for item in container.items
+    )
+    return (
+        bool(text_items)
+        and text_items[0].startswith("## 📋 Reporte de arresto")
+        and "**Autor:**" in text_items[0]
+        and "**Sospechoso:**" in text_items[0]
+        and gallery_count == 2
+    )

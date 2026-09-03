@@ -204,6 +204,90 @@ async def test_structured_submission_resolution_falls_back_to_thread_mapping(
     assert resolved is submission
 
 
+@pytest.mark.asyncio
+async def test_structured_owner_recovers_a_rolled_back_publication_mapping(
+    settings,
+    persona,
+    monkeypatch,
+    caplog,
+) -> None:
+    owner_id = 123
+    report_channel_id = min(settings.report_channel_ids)
+    recovered = SimpleNamespace(
+        id=UUID("00000000-0000-0000-0000-000000000322"),
+        owner_user_id=owner_id,
+        root_message_id=800,
+        thread_id=800,
+        sarp_arrest_id=321,
+        suspect_name="Andy Quintero",
+    )
+
+    class Repository:
+        async def get_by_root(self, guild_id: int, root_message_id: int) -> None:
+            assert (guild_id, root_message_id) == (1, 800)
+            return None
+
+        async def get_by_thread(self, guild_id: int, thread_id: int) -> None:
+            assert (guild_id, thread_id) == (1, 800)
+            return None
+
+        async def recover_published_mapping(self, **values: int) -> object:
+            assert values == {
+                "guild_id": 1,
+                "root_message_id": 800,
+                "thread_id": 800,
+            }
+            return recovered
+
+    root = SimpleNamespace(
+        id=800,
+        guild=SimpleNamespace(id=1),
+        author=SimpleNamespace(id=999, bot=True),
+        webhook_id=None,
+    )
+
+    class FakeTextChannel:
+        id = report_channel_id
+
+        async def fetch_message(self, message_id: int):
+            assert message_id == root.id
+            return root
+
+    class FakeThread:
+        id = root.id
+
+        def __init__(self, parent: FakeTextChannel) -> None:
+            self.parent = parent
+
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.TextChannel",
+        FakeTextChannel,
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.Thread",
+        FakeThread,
+    )
+    thread = FakeThread(FakeTextChannel())
+    trigger = SimpleNamespace(id=801, author=SimpleNamespace(id=owner_id), channel=thread)
+    builder = DiscordContextBuilder(
+        settings,
+        persona,
+        structured_reports=Repository(),  # type: ignore[arg-type]
+    )
+
+    with caplog.at_level("WARNING"):
+        target = await builder.resolve_report_owner_target(
+            trigger,
+            TriggerActivation.MENTION,
+            bot_user_id=999,
+        )
+
+    assert target.structured_submission_id == recovered.id
+    assert target.structured_report_id == 321
+    assert target.structured_suspect_name == "Andy Quintero"
+    assert "structured_arrest_report_mapping_recovered" in caplog.text
+
+
 def test_render_session_delta_keeps_only_new_human_messages() -> None:
     now = datetime.now(UTC)
     case = ReviewCase(

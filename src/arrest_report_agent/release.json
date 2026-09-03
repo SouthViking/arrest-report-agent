@@ -1,16 +1,24 @@
 {
   "schema_version": 3,
-  "version": "0.29.1",
-  "title": "Accesos directos en /verguenza",
-  "summary": "Facilita abrir los reportes pendientes directamente desde el ranking de vergüenza.",
+  "version": "0.29.2",
+  "title": "Revisiones de arresto más confiables",
+  "summary": "Corregimos el seguimiento de los reportes estructurados y la comprobación de sus fotografías.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "/verguenza incorpora enlaces numerados a los reportes sin aprobar más recientes de cada miembro."
+      "type": "fixed",
+      "text": "Las nuevas revisiones vuelven a reconocerse correctamente dentro de los hilos creados con /revisar-arresto."
+    },
+    {
+      "type": "fixed",
+      "text": "La tarjeta del reporte ahora refleja correctamente el resultado de cada revisión completa."
+    },
+    {
+      "type": "fixed",
+      "text": "La revisión ya no marcará fotografías como ausentes cuando no haya podido comprobarlas."
     }
   ],
   "acknowledgements": []

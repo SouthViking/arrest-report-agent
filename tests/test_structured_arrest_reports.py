@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
@@ -33,6 +34,7 @@ from arrest_report_agent.structured_arrest_reports import (
     ArrestReportSubmission,
     InitialReviewStatus,
     PublicationStatus,
+    StructuredArrestReportRepository,
     StructuredArrestReportService,
 )
 from arrest_report_agent.structured_arrest_reports.discord import (
@@ -96,8 +98,10 @@ class FakeRepository:
 
 
 class FakeImageLookup:
-    def __init__(self) -> None:
+    def __init__(self, *, error: str | None = None, empty: bool = False) -> None:
         self.calls: list[tuple[uuid.UUID | None, int | None, int | None, str]] = []
+        self.error = error
+        self.empty = empty
 
     async def get_images(
         self,
@@ -109,10 +113,10 @@ class FakeImageLookup:
         category: str,
     ) -> ReportImageResult:
         self.calls.append((submission_id, root_message_id, report_id, category))
-        return ReportImageResult(
-            report_id=321,
-            owner_user_id=6,
-            images=(
+        images = (
+            ()
+            if self.empty or self.error is not None
+            else (
                 ReportImageAsset(
                     asset_id=f"{category}-1",
                     filename="image.png",
@@ -121,7 +125,13 @@ class FakeImageLookup:
                     position=0,
                     payload=b"png-data",
                 ),
-            ),
+            )
+        )
+        return ReportImageResult(
+            report_id=321,
+            owner_user_id=6,
+            images=images,
+            error=self.error,
         )
 
 
@@ -191,6 +201,140 @@ def _submission(report_id: int | None = 321) -> ArrestReportSubmission:
     )
 
 
+@pytest.mark.asyncio
+async def test_publication_transition_is_committed_in_a_transaction() -> None:
+    transaction_connection = object()
+    transaction_completed = False
+    fetch_connections: list[object | None] = []
+    now = datetime.now(UTC)
+
+    class Client:
+        @asynccontextmanager
+        async def transaction(self):
+            nonlocal transaction_completed
+            yield transaction_connection
+            transaction_completed = True
+
+        async def fetch_one(self, _statement: object, *, connection: object | None = None):
+            fetch_connections.append(connection)
+            return {
+                "id": _SUBMISSION_ID,
+                "guild_id": 1,
+                "interaction_id": 2,
+                "owner_user_id": 6,
+                "parent_channel_id": 3,
+                "root_message_id": 4,
+                "thread_id": 4,
+                "sarp_arrest_id": 321,
+                "suspect_name": "Andy Quintero",
+                "publication_status": PublicationStatus.PUBLISHED.value,
+                "initial_review_status": InitialReviewStatus.PENDING.value,
+                "created_at": now,
+                "updated_at": now,
+            }
+
+    repository = StructuredArrestReportRepository(Client())  # type: ignore[arg-type]
+
+    published = await repository.mark_published(
+        _SUBMISSION_ID,
+        root_message_id=4,
+        thread_id=4,
+    )
+
+    assert transaction_completed is True
+    assert fetch_connections == [transaction_connection]
+    assert published.publication_status is PublicationStatus.PUBLISHED
+    assert published.root_message_id == 4
+    assert published.thread_id == 4
+
+
+@pytest.mark.asyncio
+async def test_uncommitted_publication_mapping_is_recovered_from_its_binding() -> None:
+    now = datetime.now(UTC)
+    pending_row = {
+        "id": _SUBMISSION_ID,
+        "guild_id": 1,
+        "interaction_id": 2,
+        "owner_user_id": 6,
+        "parent_channel_id": 3,
+        "root_message_id": None,
+        "thread_id": None,
+        "sarp_arrest_id": 321,
+        "suspect_name": "Andy Quintero",
+        "publication_status": PublicationStatus.PUBLISHING.value,
+        "initial_review_status": InitialReviewStatus.COMPLETED.value,
+        "created_at": now,
+        "updated_at": now,
+    }
+    binding_row = {
+        "guild_id": 1,
+        "root_message_id": 4,
+        "parent_channel_id": 3,
+        "thread_id": 4,
+        "sarp_arrest_id": 321,
+        "bound_by_user_id": 6,
+        "trigger_message_id": 4,
+        "created_at": now,
+        "updated_at": now,
+    }
+    published_row = {
+        **pending_row,
+        "root_message_id": 4,
+        "thread_id": 4,
+        "publication_status": PublicationStatus.PUBLISHED.value,
+    }
+
+    class Result:
+        def __init__(self, rows: list[dict[str, Any]]) -> None:
+            self.rows = rows
+
+        def mappings(self):
+            return self
+
+        def one_or_none(self):
+            assert len(self.rows) <= 1
+            return self.rows[0] if self.rows else None
+
+        def all(self):
+            return self.rows
+
+    class Connection:
+        def __init__(self) -> None:
+            self.results = iter(
+                (
+                    Result([binding_row]),
+                    Result([pending_row]),
+                    Result([published_row]),
+                )
+            )
+            self.statements: list[object] = []
+
+        async def execute(self, statement: object):
+            self.statements.append(statement)
+            return next(self.results)
+
+    connection = Connection()
+
+    class Client:
+        @asynccontextmanager
+        async def transaction(self):
+            yield connection
+
+    repository = StructuredArrestReportRepository(Client())  # type: ignore[arg-type]
+
+    recovered = await repository.recover_published_mapping(
+        guild_id=1,
+        root_message_id=4,
+        thread_id=4,
+    )
+
+    assert recovered is not None
+    assert recovered.publication_status is PublicationStatus.PUBLISHED
+    assert recovered.root_message_id == 4
+    assert recovered.thread_id == 4
+    assert len(connection.statements) == 3
+
+
 def _context(access_level: AgentAccessLevel) -> ReviewRunContext:
     return ReviewRunContext(
         case=ReviewCase(
@@ -221,9 +365,7 @@ def _bundle(*, enabled: bool = True) -> SimpleNamespace:
             report_channel_allowlist=SimpleNamespace(ids=frozenset({3})),
             operational_staff_role_ids=(7,),
         ),
-        snapshot=SimpleNamespace(
-            features={"arrest_report_lookup": SimpleNamespace(enabled=enabled)}
-        ),
+        snapshot=SimpleNamespace(features={"arrest_report_lookup": SimpleNamespace(enabled=enabled)}),
     )
 
 
@@ -317,6 +459,16 @@ async def test_image_tools_are_categorized_idempotent_and_owner_scoped() -> None
         ),
         arguments,
     )
+    current_report_arguments = json.dumps({"report_id": 321})
+    current_report = await tools["get_report_suspect_images"].on_invoke_tool(  # type: ignore[attr-defined]
+        ToolContext(
+            context=context,
+            tool_name="get_report_suspect_images",
+            tool_call_id="current-report",
+            tool_arguments=current_report_arguments,
+        ),
+        current_report_arguments,
+    )
     forbidden_arguments = json.dumps({"report_id": 999})
     forbidden = await tools["get_report_supporting_images"].on_invoke_tool(  # type: ignore[attr-defined]
         ToolContext(
@@ -329,10 +481,90 @@ async def test_image_tools_are_categorized_idempotent_and_owner_scoped() -> None
     )
 
     assert [type(item) for item in first] == [ToolOutputText, ToolOutputImage]
-    assert json.loads(first[0].text)["category"] == "suspect_photo"
+    first_metadata = json.loads(first[0].text)
+    assert first_metadata["category"] == "suspect_photo"
+    assert first_metadata["status"] == "images_loaded"
+    assert first_metadata["image_presence"] == "present"
     assert [type(item) for item in second] == [ToolOutputText]
     assert json.loads(second[0].text)["skipped"][0]["reason"] == "already_loaded"
-    assert json.loads(forbidden[0].text)["error"] == "report_outside_owner_scope"
+    assert [type(item) for item in current_report] == [ToolOutputText]
+    assert lookup.calls[-1] == (_SUBMISSION_ID, None, None, "suspect_photo")
+    forbidden_metadata = json.loads(forbidden[0].text)
+    assert forbidden_metadata["status"] == "report_outside_owner_scope"
+    assert forbidden_metadata["image_presence"] == "unknown"
+    assert forbidden_metadata["can_determine_image_presence"] is False
+    assert "loaded" not in forbidden_metadata
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("error", "expected_status"),
+    [
+        ("not_found", "structured_report_not_found"),
+        ("temporarily_unavailable", "image_lookup_unavailable"),
+    ],
+)
+async def test_image_tool_errors_do_not_claim_images_are_absent(
+    error: str,
+    expected_status: str,
+) -> None:
+    lookup = FakeImageLookup(error=error)
+    tools = {
+        tool.name: tool  # type: ignore[attr-defined]
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+            access_level=AgentAccessLevel.REPORT_OWNER,
+            report_image_lookup=lookup,
+            report_channel_ids=frozenset({3}),
+        )
+    }
+    result = await tools["get_report_suspect_images"].on_invoke_tool(  # type: ignore[attr-defined]
+        ToolContext(
+            context=_context(AgentAccessLevel.REPORT_OWNER),
+            tool_name="get_report_suspect_images",
+            tool_call_id="lookup-error",
+            tool_arguments="{}",
+        ),
+        "{}",
+    )
+
+    metadata = json.loads(result[0].text)
+    assert metadata["ok"] is False
+    assert metadata["status"] == expected_status
+    assert metadata["image_presence"] == "unknown"
+    assert metadata["can_determine_image_presence"] is False
+    assert "loaded" not in metadata
+
+
+@pytest.mark.asyncio
+async def test_image_tool_reports_a_verified_empty_category() -> None:
+    lookup = FakeImageLookup(empty=True)
+    tools = {
+        tool.name: tool  # type: ignore[attr-defined]
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+            access_level=AgentAccessLevel.REPORT_OWNER,
+            report_image_lookup=lookup,
+            report_channel_ids=frozenset({3}),
+        )
+    }
+    result = await tools["get_report_suspect_images"].on_invoke_tool(  # type: ignore[attr-defined]
+        ToolContext(
+            context=_context(AgentAccessLevel.REPORT_OWNER),
+            tool_name="get_report_suspect_images",
+            tool_call_id="empty-category",
+            tool_arguments="{}",
+        ),
+        "{}",
+    )
+
+    metadata = json.loads(result[0].text)
+    assert metadata["ok"] is True
+    assert metadata["status"] == "no_images_in_category"
+    assert metadata["image_presence"] == "absent"
+    assert metadata["can_determine_image_presence"] is True
 
 
 @pytest.mark.asyncio
@@ -686,9 +918,7 @@ async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discove
     assert allowed_mentions.everyone is False
     assert allowed_mentions.users is False
     assert allowed_mentions.roles is False
-    assert (review_cog.calls[0]["arrest_report"] is not None) == (
-        expected_report_id is not None
-    )
+    assert (review_cog.calls[0]["arrest_report"] is not None) == (expected_report_id is not None)
 
 
 def test_submission_schema_allows_reusing_a_sarp_report_id() -> None:

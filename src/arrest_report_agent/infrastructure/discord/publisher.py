@@ -468,16 +468,27 @@ class DiscordReviewPublisher:
         """Best-effort update of the root card after a completed full review."""
 
         submission_id = self.target.structured_submission_id
-        if submission_id is None:
-            return
         try:
             from arrest_report_agent.structured_arrest_reports.card import (  # noqa: PLC0415
+                is_submission_card,
                 recolor_submission_view,
             )
 
+            if submission_id is None and not is_submission_card(self.target.root):
+                return
             await self.target.root.edit(
                 view=recolor_submission_view(self.target.root, publication.verdict),
                 allowed_mentions=discord.AllowedMentions.none(),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "structured_arrest_report_card_updated",
+                guild_id=getattr(getattr(self.target.root, "guild", None), "id", "unknown"),
+                root_message_id=self.target.root.id,
+                submission_id=str(submission_id) if submission_id is not None else "unmapped",
+                review_scope=publication.review_scope.value,
+                verdict=publication.verdict.value,
             )
         except Exception as error:
             log_event(
@@ -487,7 +498,7 @@ class DiscordReviewPublisher:
                 exc_info=error,
                 guild_id=getattr(getattr(self.target.root, "guild", None), "id", "unknown"),
                 root_message_id=self.target.root.id,
-                submission_id=str(submission_id),
+                submission_id=str(submission_id) if submission_id is not None else "unmapped",
                 review_scope=publication.review_scope.value,
                 verdict=publication.verdict.value,
                 **exception_fields(error),

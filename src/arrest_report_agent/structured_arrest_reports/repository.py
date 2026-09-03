@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import timedelta
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -12,6 +13,7 @@ from arrest_report_agent.infrastructure.postgres import PostgresClient
 from arrest_report_agent.infrastructure.postgres.schema import (
     arrest_report_assets,
     arrest_report_submissions,
+    report_arrest_bindings,
 )
 
 from .models import (
@@ -154,6 +156,90 @@ class StructuredArrestReportRepository:
             arrest_report_submissions.c.thread_id == thread_id,
         )
 
+    async def recover_published_mapping(
+        self,
+        *,
+        guild_id: int,
+        root_message_id: int,
+        thread_id: int,
+    ) -> ArrestReportSubmission | None:
+        """Repair one publication whose Discord mapping was rolled back after being returned.
+
+        The arrest binding was committed separately after the Discord message and thread
+        were created. It is therefore a safe recovery source when all ownership, channel,
+        report and timing fields identify exactly one unfinished submission.
+        """
+
+        async with self.client.transaction() as connection:
+            binding = (
+                (
+                    await connection.execute(
+                        sa.select(report_arrest_bindings).where(
+                            report_arrest_bindings.c.guild_id == guild_id,
+                            report_arrest_bindings.c.root_message_id == root_message_id,
+                            report_arrest_bindings.c.thread_id == thread_id,
+                        )
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if binding is None:
+                return None
+            candidates = (
+                (
+                    await connection.execute(
+                        sa.select(arrest_report_submissions)
+                        .where(
+                            arrest_report_submissions.c.guild_id == guild_id,
+                            arrest_report_submissions.c.owner_user_id
+                            == binding["bound_by_user_id"],
+                            arrest_report_submissions.c.parent_channel_id
+                            == binding["parent_channel_id"],
+                            arrest_report_submissions.c.sarp_arrest_id
+                            == binding["sarp_arrest_id"],
+                            arrest_report_submissions.c.publication_status
+                            == PublicationStatus.PUBLISHING.value,
+                            arrest_report_submissions.c.root_message_id.is_(None),
+                            arrest_report_submissions.c.thread_id.is_(None),
+                            arrest_report_submissions.c.created_at <= binding["created_at"],
+                            arrest_report_submissions.c.created_at
+                            >= binding["created_at"] - timedelta(minutes=5),
+                        )
+                        .order_by(arrest_report_submissions.c.created_at.desc())
+                        .limit(2)
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            if len(candidates) != 1:
+                return None
+            row = (
+                (
+                    await connection.execute(
+                        arrest_report_submissions.update()
+                        .where(
+                            arrest_report_submissions.c.id == candidates[0]["id"],
+                            arrest_report_submissions.c.publication_status
+                            == PublicationStatus.PUBLISHING.value,
+                            arrest_report_submissions.c.root_message_id.is_(None),
+                            arrest_report_submissions.c.thread_id.is_(None),
+                        )
+                        .values(
+                            publication_status=PublicationStatus.PUBLISHED.value,
+                            root_message_id=root_message_id,
+                            thread_id=thread_id,
+                            updated_at=sa.func.now(),
+                        )
+                        .returning(*arrest_report_submissions.c)
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return _submission(row) if row is not None else None
+
     async def replace_assets(
         self,
         submission_id: uuid.UUID,
@@ -244,16 +330,18 @@ class StructuredArrestReportRepository:
         publication_status: PublicationStatus,
         values: dict[str, object] | None = None,
     ) -> ArrestReportSubmission:
-        row = await self.client.fetch_one(
-            arrest_report_submissions.update()
-            .where(arrest_report_submissions.c.id == submission_id)
-            .values(
-                publication_status=publication_status.value,
-                updated_at=sa.func.now(),
-                **(values or {}),
+        async with self.client.transaction() as connection:
+            row = await self.client.fetch_one(
+                arrest_report_submissions.update()
+                .where(arrest_report_submissions.c.id == submission_id)
+                .values(
+                    publication_status=publication_status.value,
+                    updated_at=sa.func.now(),
+                    **(values or {}),
+                )
+                .returning(*arrest_report_submissions.c),
+                connection=connection,
             )
-            .returning(*arrest_report_submissions.c)
-        )
         if row is None:
             raise LookupError("Structured arrest report submission not found")
         return _submission(row)
