@@ -155,8 +155,7 @@ class StructuredArrestReportCog(commands.Cog):
             if (
                 detail_result.error is None
                 and candidate is not None
-                and normalize_person_name(normalized_name)
-                == normalize_person_name(candidate.suspect_name)
+                and normalize_person_name(normalized_name) == normalize_person_name(candidate.suspect_name)
             ):
                 report_id = submitted_report_id
                 detail = candidate
@@ -383,7 +382,11 @@ def _availability_denial(
         return _alert("La revisión estructurada no está disponible en este servidor.")
     channels = settings.report_channel_allowlist.ids
     if channels is None or channel_id not in channels:
-        return _alert("Usa este comando en uno de los canales habilitados para reportes.")
+        channel_links = "\n".join(f"• <#{configured_id}>" for configured_id in sorted(channels or ()))
+        description = "Este canal no está habilitado para revisar reportes."
+        if channel_links:
+            description += f" Usa `/revisar-arresto` en uno de estos canales:\n{channel_links}"
+        return _alert(description)
     allowed_roles = set(settings.operational_staff_role_ids)
     if not allowed_roles or not any(role.id in allowed_roles for role in member.roles):
         return _alert("No tienes un rol habilitado para publicar reportes.")

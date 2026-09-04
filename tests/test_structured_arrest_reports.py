@@ -373,7 +373,13 @@ def test_command_requires_enabled_feature_configured_channel_and_operational_rol
     member = SimpleNamespace(roles=(SimpleNamespace(id=7),))
     assert _availability_denial(_bundle(), member, 3) is None  # type: ignore[arg-type]
     assert _availability_denial(_bundle(enabled=False), member, 3) is not None  # type: ignore[arg-type]
-    assert _availability_denial(_bundle(), member, 999) is not None  # type: ignore[arg-type]
+    wrong_channel = _availability_denial(_bundle(), member, 999)  # type: ignore[arg-type]
+    assert wrong_channel is not None
+    assert wrong_channel.description == (
+        "Este canal no está habilitado para revisar reportes. "
+        "Usa `/revisar-arresto` en uno de estos canales:\n"
+        "• <#3>"
+    )
     outsider = SimpleNamespace(roles=(SimpleNamespace(id=8),))
     assert _availability_denial(_bundle(), outsider, 3) is not None  # type: ignore[arg-type]
 
