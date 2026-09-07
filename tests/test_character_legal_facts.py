@@ -379,7 +379,7 @@ async def test_character_resolution_and_rate_limits_return_safe_structured_failu
 
 
 @pytest.mark.asyncio
-async def test_agent_tool_is_selective_full_access_only_and_returns_compact_facts() -> None:
+async def test_agent_tool_is_available_to_both_access_levels_and_returns_compact_facts() -> None:
     lookup = FakeLookup()
     full_tools = {
         tool.name: tool  # type: ignore[attr-defined]
@@ -422,7 +422,7 @@ async def test_agent_tool_is_selective_full_access_only_and_returns_compact_fact
         arguments,
     )
 
-    assert "get_character_legal_facts" not in owner_tools
+    assert "get_character_legal_facts" in owner_tools
     assert result["ok"] is True
     assert result["checks"]["prior_serious_convictions"]["value"] is True
     assert "overdue_unpaid_fines" not in result["checks"]
@@ -449,4 +449,5 @@ async def test_prompt_teaches_selective_facts_and_alternative_legal_elements() -
     assert "overdue_unpaid_fines" in full
     assert "no hallar una multa vencida no descarta una incomparecencia" in full
     assert "no hallar una condena grave no descarta otras condiciones alternativas" in full
-    assert "<sarp_character_legal_facts>" not in owner
+    assert "<sarp_character_legal_facts>" in owner
+    assert "get_character_legal_facts" in owner

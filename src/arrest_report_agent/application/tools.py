@@ -1860,7 +1860,12 @@ def build_agent_tools(
             get_report_supporting_images,
         ]
     if access_level is AgentAccessLevel.REPORT_OWNER:
-        return [*common_tools, *report_tools]
+        owner_record_tools: list[object] = []
+        if character_legal_facts_lookup is not None:
+            owner_record_tools.append(get_character_legal_facts)
+        if evidence_bag_lookup is not None:
+            owner_record_tools.append(get_evidence_bag)
+        return [*common_tools, *owner_record_tools, *report_tools]
     manual_tools = [
         list_manual_sections,
         search_manual,

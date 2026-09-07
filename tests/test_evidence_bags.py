@@ -287,7 +287,7 @@ async def test_evidence_tool_distinguishes_existing_unanalyzed_bag_from_missing_
     }
 
 
-async def test_evidence_tool_is_full_access_only_and_bounded_per_run() -> None:
+async def test_evidence_tool_is_available_to_both_access_levels_and_bounded_per_run() -> None:
     result = await EvidenceBagService(FakeEvidenceClient(evidence_payload())).get(4_385_409)
     lookup = FakeEvidenceLookup(result)
     full = tools(lookup, AgentAccessLevel.FULL)
@@ -296,7 +296,7 @@ async def test_evidence_tool_is_full_access_only_and_bounded_per_run() -> None:
     arguments = json.dumps({"evidence_id": 4_385_409})
 
     assert "get_evidence_bag" in full
-    assert "get_evidence_bag" not in owner
+    assert "get_evidence_bag" in owner
     invocations = []
     for index in range(4):
         invocations.append(
@@ -320,7 +320,7 @@ async def test_evidence_tool_is_full_access_only_and_bounded_per_run() -> None:
     assert lookup.calls == [4_385_409, 4_385_409, 4_385_409]
 
 
-def test_evidence_instructions_are_exposed_only_to_full_agent(persona) -> None:
+def test_evidence_instructions_are_exposed_to_both_agents(persona) -> None:
     full = build_agent_instructions(persona, evidence_lookup_enabled=True)
     owner = build_agent_instructions(
         persona,
@@ -334,7 +334,8 @@ def test_evidence_instructions_are_exposed_only_to_full_agent(persona) -> None:
     assert "no agregues ninguno" in full
     assert "exists_unanalyzed" in full
     assert "not_found" in full
-    assert "<sarp_evidence_bags>" not in owner
+    assert "<sarp_evidence_bags>" in owner
+    assert "get_evidence_bag" in owner
 
 
 def test_evidence_tool_description_declares_every_return_status() -> None:

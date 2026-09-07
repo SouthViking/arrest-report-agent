@@ -6,7 +6,7 @@ from arrest_report_agent.config import BotPersona
 from arrest_report_agent.domain import AgentAccessLevel
 from arrest_report_agent.knowledge import ReportGuideSection
 
-PROMPT_VERSION = "2026-09-02.1"
+PROMPT_VERSION = "2026-09-07.1"
 
 
 def build_agent_instructions(
@@ -242,7 +242,7 @@ Este expediente puede tener un reporte SARP previamente vinculado.
 """
 
     character_legal_facts_tools = ""
-    if character_legal_facts_enabled and access_level is AgentAccessLevel.FULL:
+    if character_legal_facts_enabled:
         character_legal_facts_tools = """
 <sarp_character_legal_facts>
 Puedes comprobar hechos legales externos a la narrativa mediante `get_character_legal_facts`.
@@ -268,7 +268,7 @@ Puedes comprobar hechos legales externos a la narrativa mediante `get_character_
 """
 
     evidence_tools = ""
-    if evidence_lookup_enabled and access_level is AgentAccessLevel.FULL:
+    if evidence_lookup_enabled:
         evidence_tools = """
 <sarp_evidence_bags>
 Dispones de una consulta en vivo al contenido analizado y la cadena de custodia de bolsas de

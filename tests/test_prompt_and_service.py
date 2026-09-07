@@ -481,6 +481,26 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert owner_metadata["owner_reservation_result"] == "reserved"
 
 
+def test_report_owner_agent_receives_live_case_fact_tools(settings, model, persona) -> None:
+    service = ReviewService(
+        settings,
+        ChargeCatalog.load_default(),
+        ReportGuide.load_default(),
+        model,
+        persona,
+        character_legal_facts_lookup=SimpleNamespace(),  # type: ignore[arg-type]
+        evidence_bag_lookup=SimpleNamespace(),  # type: ignore[arg-type]
+    )
+
+    owner_tool_names = [tool.name for tool in service.report_owner_agent.tools]
+
+    assert "get_character_legal_facts" in owner_tool_names
+    assert "get_evidence_bag" in owner_tool_names
+    assert isinstance(service.report_owner_agent.instructions, str)
+    assert "<sarp_character_legal_facts>" in service.report_owner_agent.instructions
+    assert "<sarp_evidence_bags>" in service.report_owner_agent.instructions
+
+
 def test_approved_publication_allows_non_blocking_uncertainty() -> None:
     publication = ReviewPublication(
         verdict="approved",
