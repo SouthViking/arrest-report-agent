@@ -26,6 +26,8 @@ from arrest_report_agent.domain import (
     InteractionMode,
     ManualQuizPublication,
     ReviewPublication,
+    ReviewScope,
+    ReviewVerdict,
 )
 from arrest_report_agent.knowledge import (
     ChargeCatalog,
@@ -1269,17 +1271,12 @@ def build_agent_tools(
             "response_route": effective_route.value,
         }
 
-    @function_tool(failure_error_function=None)
-    async def execute_arrest_report_review(
-        ctx: RunContextWrapper[ReviewRunContext], publication: ReviewPublication
+    async def _publish_arrest_report_review(
+        run_context: ReviewRunContext,
+        publication: ReviewPublication,
     ) -> dict[str, object]:
-        """Publish one structured arrest-report review without ending the agent run.
+        """Publish through the shared review path used by every review-producing tool."""
 
-        Args:
-            publication: Validated verdict, findings, charge assessments and next step.
-        """
-
-        run_context = ctx.context
         if run_context.published:
             return {"ok": True, "already_published": True}
         await _set_activity(run_context, AgentActivity.REVIEW)
@@ -1310,6 +1307,57 @@ def build_agent_tools(
             "review_scope": publication.review_scope.value,
             "verdict": publication.verdict.value,
         }
+
+    @function_tool(failure_error_function=None)
+    async def approve_arrest_report(
+        ctx: RunContextWrapper[ReviewRunContext],
+        summary: Annotated[
+            str,
+            Field(
+                min_length=1,
+                max_length=500,
+                description="Brief approval message using the configured persona voice.",
+            ),
+        ],
+    ) -> dict[str, object]:
+        """Publish a full approved review after an authorized reviewer explicitly approves it.
+
+        This capability is available only with full agent access. Use it for direct status
+        instructions such as "márcalo como aprobado" or "dale el OK". It persists a formal full
+        review, updates the report card and replaces the status reaction; it is not a cosmetic
+        reaction shortcut.
+
+        Args:
+            summary: Brief visible confirmation of the authorized approval.
+        """
+
+        run_context = ctx.context
+        if run_context.access_level is not AgentAccessLevel.FULL:
+            return {"ok": False, "error": "insufficient_access"}
+        publication = ReviewPublication(
+            review_scope=ReviewScope.FULL,
+            verdict=ReviewVerdict.APPROVED,
+            summary=summary,
+            findings=[],
+            charges=[],
+        )
+        return await _publish_arrest_report_review(run_context, publication)
+
+    @function_tool(failure_error_function=None)
+    async def execute_arrest_report_review(
+        ctx: RunContextWrapper[ReviewRunContext], publication: ReviewPublication
+    ) -> dict[str, object]:
+        """Publish one evidence-based arrest-report review without ending the agent run.
+
+        Use this after evaluating the requested scope. A report owner may request a new review, but
+        their desired verdict is not authoritative: determine it from the current material. Direct
+        supervisor approval uses `approve_arrest_report` instead.
+
+        Args:
+            publication: Validated verdict, findings, charge assessments and next step.
+        """
+
+        return await _publish_arrest_report_review(ctx.context, publication)
 
     @function_tool(failure_error_function=None)
     async def send_message(
@@ -1888,6 +1936,7 @@ def build_agent_tools(
         set_message_reaction,
         mention_roles,
         send_message,
+        approve_arrest_report,
         execute_arrest_report_review,
     ]
     live_record_tools: list[object] = []

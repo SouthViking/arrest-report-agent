@@ -12,6 +12,7 @@ from arrest_report_agent.infrastructure.sarp import (
     SarpFactionArrestSummary,
 )
 from arrest_report_agent.pending_arrest_reports import (
+    ArrestReportDiscordReference,
     PendingArrestReport,
     PendingArrestReportCog,
     PendingArrestReportModal,
@@ -162,6 +163,7 @@ async def test_service_lists_reports_without_an_approved_formal_review() -> None
         for index in range(1, 5)
     ]
     lookup_calls: list[dict[str, object]] = []
+    reference_calls: list[dict[str, object]] = []
 
     async def search(_faction_id: int, **_kwargs: object) -> SarpFactionArrestSearchPayload:
         return SarpFactionArrestSearchPayload(data=reports, total=len(reports))
@@ -195,9 +197,24 @@ async def test_service_lists_reports_without_an_approved_formal_review() -> None
             ),
         }
 
+    async def latest_report_references(**kwargs: object):
+        reference_calls.append(kwargs)
+        return {
+            4: ArrestReportDiscordReference(
+                report_id=4,
+                guild_id=99,
+                parent_channel_id=200,
+                root_message_id=1004,
+                recorded_at=now,
+            )
+        }
+
     service = PendingArrestReportService(
         SimpleNamespace(search_faction_arrests=search),
-        SimpleNamespace(latest_published_full_reviews=latest_published_full_reviews),
+        SimpleNamespace(
+            latest_published_full_reviews=latest_published_full_reviews,
+            latest_report_references=latest_report_references,
+        ),
     )
 
     result = await service.scan(
@@ -211,12 +228,20 @@ async def test_service_lists_reports_without_an_approved_formal_review() -> None
 
     assert [report.report_id for report in result.unapproved_reports] == [4, 3, 2]
     assert result.unapproved_reports[0].review_verdict is None
+    assert result.unapproved_reports[0].review_url.endswith("/99/200/1004")
     assert result.unapproved_reports[1].review_verdict is ReviewVerdict.INCONCLUSIVE
     assert result.unapproved_reports[2].review_url.endswith("/99/100/1002")
     assert lookup_calls == [
         {
             "guild_id": 99,
             "report_ids": (1, 2, 3, 4),
+            "channel_ids": frozenset({100, 200}),
+        }
+    ]
+    assert reference_calls == [
+        {
+            "guild_id": 99,
+            "report_ids": (4,),
             "channel_ids": frozenset({100, 200}),
         }
     ]
@@ -263,6 +288,47 @@ async def test_review_repository_uses_latest_published_full_review_per_report() 
     assert "report_arrest_bindings" in statement
     assert "report_reviews" in statement
     assert "review_scope" in statement
+
+
+@pytest.mark.asyncio
+async def test_review_repository_uses_latest_bound_root_without_a_review() -> None:
+    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
+    statements: list[object] = []
+
+    async def fetch_all(statement: object):
+        statements.append(statement)
+        return [
+            {
+                "report_id": 10,
+                "guild_id": 99,
+                "parent_channel_id": 200,
+                "root_message_id": 1002,
+                "recorded_at": now,
+            },
+            {
+                "report_id": 10,
+                "guild_id": 99,
+                "parent_channel_id": 100,
+                "root_message_id": 1001,
+                "recorded_at": now - timedelta(hours=1),
+            },
+        ]
+
+    repository = PendingArrestReviewRepository(SimpleNamespace(fetch_all=fetch_all))
+
+    result = await repository.latest_report_references(
+        guild_id=99,
+        report_ids=(10, 10),
+        channel_ids=(100, 200),
+    )
+
+    assert len(statements) == 1
+    assert result[10].root_message_id == 1002
+    assert result[10].jump_url == "https://discord.com/channels/99/200/1002"
+    statement = str(statements[0])
+    assert "report_arrest_bindings" in statement
+    assert "parent_channel_id" in statement
+    assert "report_reviews" not in statement
 
 
 @pytest.mark.asyncio
@@ -528,6 +594,7 @@ def test_embed_lists_unapproved_reviews_in_a_dedicated_compact_section(persona) 
                 officer_name="Officer One",
                 suspect_name="Suspect One",
                 created_at=now,
+                review_url="https://discord.com/channels/99/100/1000",
             ),
             UnapprovedArrestReport(
                 report_id=11,
@@ -558,7 +625,10 @@ def test_embed_lists_unapproved_reviews_in_a_dedicated_compact_section(persona) 
     assert "La redacción está al día" in description
     assert "🔎 **Sin aprobación:** 3" in description
     assert "### 🔎 Revisiones aún no aprobadas" in description
-    assert "❌ **#10** · Suspect One · Sin revisión" in description
+    assert (
+        "❌ **#10** · Suspect One · Sin revisión · "
+        "[Abrir](https://discord.com/channels/99/100/1000)" in description
+    )
     assert "🟡 **#11** · Suspect Two · Correcciones pendientes" in description
     assert "⚪ **#12** · Suspect Three · Revisión inconclusa" in description
     assert "[Abrir](https://discord.com/channels/99/100/1001)" in description

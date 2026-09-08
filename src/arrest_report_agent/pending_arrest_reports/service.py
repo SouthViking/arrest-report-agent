@@ -12,6 +12,7 @@ from arrest_report_agent.domain import ReviewVerdict
 from arrest_report_agent.infrastructure.sarp import SarpClient, SarpFactionArrestSummary
 
 from .models import (
+    ArrestReportDiscordReference,
     PendingArrestReport,
     PendingArrestReportScan,
     PendingReportReason,
@@ -41,6 +42,14 @@ class PendingArrestReviewLookup(Protocol):
         report_ids: Collection[int],
         channel_ids: Collection[int] | None,
     ) -> Mapping[int, PublishedArrestReview]: ...
+
+    async def latest_report_references(
+        self,
+        *,
+        guild_id: int,
+        report_ids: Collection[int],
+        channel_ids: Collection[int] | None,
+    ) -> Mapping[int, ArrestReportDiscordReference]: ...
 
 
 class PendingArrestReportService:
@@ -138,11 +147,24 @@ class PendingArrestReportService:
             report_ids=tuple(report.id for report in reports),
             channel_ids=report_channel_ids,
         )
+        reports_without_reviews = tuple(
+            report.id for report in reports if report.id not in reviews
+        )
+        references = (
+            await self.review_lookup.latest_report_references(
+                guild_id=guild_id,
+                report_ids=reports_without_reviews,
+                channel_ids=report_channel_ids,
+            )
+            if reports_without_reviews
+            else {}
+        )
         unapproved = []
         for report in reports:
             review = reviews.get(report.id)
             if review is not None and review.verdict is ReviewVerdict.APPROVED:
                 continue
+            reference = references.get(report.id)
             unapproved.append(
                 UnapprovedArrestReport(
                     report_id=report.id,
@@ -150,7 +172,11 @@ class PendingArrestReportService:
                     suspect_name=_display_name(report.suspect_name),
                     created_at=report.created_at.astimezone(UTC),
                     review_verdict=review.verdict if review is not None else None,
-                    review_url=review.jump_url if review is not None else None,
+                    review_url=(
+                        review.jump_url
+                        if review is not None
+                        else reference.jump_url if reference is not None else None
+                    ),
                 )
             )
         return tuple(sorted(unapproved, key=lambda item: (item.created_at, item.report_id)))

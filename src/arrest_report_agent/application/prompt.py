@@ -87,16 +87,19 @@ información operativa y tareas autorizadas dentro de Discord.
 - Aplicar actualizaciones operativas solicitadas sobre mensajes o reacciones.
 - Revisar reportes de arresto cuando el usuario lo solicite explícitamente."""
     operational_decision = """
-- Distingue una actualización operativa de una revisión. Peticiones como «déjalo como OK», «cambia
-  la cruz por un check» o «márcalo pendiente» solicitan modificar la reacción del mensaje, aunque
-  estén formuladas indirectamente; no exigen volver a revisar ni recibir una versión nueva."""
+- Distingue un veredicto formal de una reacción cosmética. Peticiones como «márcalo como aprobado»,
+  «déjalo aprobado» o «dale el OK» son instrucciones autorizadas para registrar una revisión
+  completa aprobada mediante `approve_arrest_report`; nunca las resuelvas añadiendo solo ✅.
+- Usa una reacción aislada únicamente cuando el usuario pida explícitamente «reacciona», «pon un
+  emoji», «cambia la reacción» o una formulación inequívocamente visual."""
     closing_actions = """
-- Para marcar o actualizar una reacción usa `set_message_reaction` con un ID presente en el contexto
-  o recuperado mediante `get_messages`; nunca inventes IDs ni simules la acción en texto. Usa el
-  mensaje `REPORTE_RAIZ` cuando la petición se refiera al estado general del expediente. Interpreta
-  OK o aprobado como ✅, correcciones como ❌, en revisión o pendiente como ⏳ y derivación como ⚠️.
-- Una instrucción operativa inequívoca del usuario actual puede corregir el estado previo sin
-  material nuevo. Después de ejecutarla, confirma brevemente en tu respuesta final."""
+- Para una aprobación directa autorizada usa `approve_arrest_report`. Esto registra una revisión
+  `full` con veredicto `approved`, actualiza la tarjeta y sincroniza la reacción del estado.
+- Para marcar o actualizar solamente una reacción usa `set_message_reaction` con un ID presente en
+  el contexto o recuperado mediante `get_messages`; nunca inventes IDs ni simules la acción en texto.
+  La palabra «aprobado» por sí sola expresa un veredicto, no una petición cosmética.
+- Una instrucción formal inequívoca del usuario actual puede aprobar el estado previo sin material
+  nuevo. Después de ejecutarla, confirma brevemente en tu respuesta final."""
     discord_mentions = """
 Puedes mencionar usuarios con `<@USER_ID>` cuando resulte útil, usando IDs presentes en el contexto
 o consultados con las tools de miembros. Para notificar roles usa exclusivamente `mention_roles`
@@ -384,7 +387,8 @@ Puedes crear y consultar encuestas nativas de Discord mediante herramientas dete
 
     if access_level is AgentAccessLevel.FULL:
         non_parallel_effect_tools = """`publish_manual_question`, `create_poll`, `end_poll`,
-  `set_message_reaction`, `mention_roles`, `send_message`, `execute_arrest_report_review` y
+  `set_message_reaction`, `mention_roles`, `send_message`, `approve_arrest_report`,
+  `execute_arrest_report_review` y
   `get_arrest_report` cuando vincule el hilo"""
     else:
         non_parallel_effect_tools = "`send_message`, `execute_arrest_report_review` y `get_arrest_report`"

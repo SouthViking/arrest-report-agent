@@ -1658,6 +1658,99 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
 
 
 @pytest.mark.asyncio
+async def test_authorized_approval_tool_publishes_a_full_approved_review() -> None:
+    publisher = FakePublisher()
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=2,
+        root_message_id=3,
+        trigger_message_id=4,
+        requester_user_id=5,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[],
+        attachments=[],
+    )
+    activity = ActivityRecorder()
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=publisher,
+        attempt=2,
+        access_level=AgentAccessLevel.FULL,
+        activity=activity,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+    arguments = json.dumps({"summary": "Aprobado por instrucción del supervisor."})
+
+    result = await tools["approve_arrest_report"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="approve_arrest_report",
+            tool_call_id="call-authorized-approval",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    publication = publisher.publications[0]
+    assert publication.review_scope.value == "full"
+    assert publication.verdict is ReviewVerdict.APPROVED
+    assert publication.findings == []
+    assert publication.charges == []
+    assert result == {
+        "ok": True,
+        "review_scope": "full",
+        "verdict": "approved",
+    }
+    assert run_context.published
+    assert activity.activities == [AgentActivity.REVIEW, AgentActivity.RESPONSE]
+
+
+@pytest.mark.asyncio
+async def test_authorized_approval_tool_rejects_report_owner_context() -> None:
+    publisher = FakePublisher()
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=2,
+        root_message_id=3,
+        trigger_message_id=4,
+        requester_user_id=5,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[],
+        attachments=[],
+    )
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=publisher,
+        attempt=2,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+    arguments = json.dumps({"summary": "Aprobado."})
+
+    result = await tools["approve_arrest_report"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="approve_arrest_report",
+            tool_call_id="call-owner-approval",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert result == {"ok": False, "error": "insufficient_access"}
+    assert publisher.publications == []
+    assert not run_context.published
+
+
+@pytest.mark.asyncio
 async def test_reaction_tool_updates_discord_immediately_without_finishing() -> None:
     publisher = FakePublisher()
     root_message_id = 33333333333333333

@@ -73,12 +73,12 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "Mantén el mismo rigor y respeto" in prompt
     assert "No asumas que toda mención solicita una revisión" in prompt
     assert "Aplicar actualizaciones operativas solicitadas" in prompt
-    assert "Distingue una actualización operativa de una revisión" in prompt
-    assert "«déjalo como OK»" in prompt
-    assert "no exigen volver a revisar ni recibir una versión nueva" in prompt
-    assert "usa `set_message_reaction`" in prompt
-    assert "mensaje `REPORTE_RAIZ`" in prompt
-    assert "OK o aprobado como ✅" in prompt
+    assert "Distingue un veredicto formal de una reacción cosmética" in prompt
+    assert "«márcalo como aprobado»" in prompt
+    assert "mediante `approve_arrest_report`" in prompt
+    assert "nunca las resuelvas añadiendo solo ✅" in prompt
+    assert "solamente una reacción usa `set_message_reaction`" in prompt
+    assert "La palabra «aprobado» por sí sola expresa un veredicto" in prompt
     assert "Elige libremente la extensión" in prompt
     assert "Revisa solo ante una petición expresa" in prompt
     assert "solicítalo en tu respuesta final" in prompt
@@ -351,6 +351,7 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
         "set_message_reaction",
         "mention_roles",
         "send_message",
+        "approve_arrest_report",
         "execute_arrest_report_review",
     ]
     assert service.agent.model_settings.tool_choice == "auto"
@@ -379,6 +380,8 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert "list_guild_roles" not in owner_prompt
     assert "find_guild_members" not in owner_prompt
     assert "set_message_reaction" not in owner_prompt
+    assert "approve_arrest_report" not in owner_prompt
+    assert "approve_arrest_report" not in owner_tool_names
     assert "mention_roles" not in owner_tool_names
     assert "list_manual_sections" not in owner_tool_names
     assert "search_manual" not in owner_tool_names

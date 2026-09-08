@@ -8,6 +8,7 @@ from .discord import (
     build_pending_arrest_reports_embed,
 )
 from .models import (
+    ArrestReportDiscordReference,
     PendingArrestReport,
     PendingArrestReportScan,
     PendingReportReason,
@@ -25,6 +26,7 @@ from .service import (
 )
 
 __all__ = [
+    "ArrestReportDiscordReference",
     "PendingArrestReport",
     "PendingArrestReportCog",
     "PendingArrestReportModal",

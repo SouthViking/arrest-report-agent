@@ -59,6 +59,23 @@ class PublishedArrestReview(FrozenPendingReportModel):
         )
 
 
+class ArrestReportDiscordReference(FrozenPendingReportModel):
+    """Most recent Discord root bound to one SARP arrest report."""
+
+    report_id: int = Field(gt=0)
+    guild_id: int = Field(gt=0)
+    parent_channel_id: int = Field(gt=0)
+    root_message_id: int = Field(gt=0)
+    recorded_at: datetime
+
+    @property
+    def jump_url(self) -> str:
+        return (
+            f"https://discord.com/channels/{self.guild_id}/"
+            f"{self.parent_channel_id}/{self.root_message_id}"
+        )
+
+
 class UnapprovedArrestReport(FrozenPendingReportModel):
     """SARP report whose latest formal Discord review is not approved."""
 
@@ -73,8 +90,8 @@ class UnapprovedArrestReport(FrozenPendingReportModel):
     def validate_review_reference(self) -> UnapprovedArrestReport:
         if self.review_verdict is ReviewVerdict.APPROVED:
             raise ValueError("approved reports cannot be listed as unapproved")
-        if (self.review_verdict is None) != (self.review_url is None):
-            raise ValueError("review verdict and URL must either both be present or both be absent")
+        if self.review_verdict is not None and self.review_url is None:
+            raise ValueError("a persisted review verdict requires its Discord URL")
         return self
 
 

@@ -524,7 +524,11 @@ def _format_unapproved_report_entry(report: UnapprovedArrestReport) -> str:
         state = f"Revisión inconclusa · [Abrir]({report.review_url})"
         emoji = "⚪"
     else:
-        state = "Sin revisión"
+        state = (
+            f"Sin revisión · [Abrir]({report.review_url})"
+            if report.review_url is not None
+            else "Sin revisión"
+        )
         emoji = "❌"
     return f"{emoji} **#{report.report_id}** · {suspect} · {state}"
 
