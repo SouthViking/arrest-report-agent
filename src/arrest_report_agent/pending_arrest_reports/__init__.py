@@ -5,6 +5,7 @@ from .discord import (
     PendingArrestReportModal,
     PendingReportPaginationView,
     PendingReportVisibility,
+    PendingReviewInclusion,
     build_pending_arrest_reports_embed,
 )
 from .models import (
@@ -39,6 +40,7 @@ __all__ = [
     "PendingReportScanTooLargeError",
     "PendingReportStatus",
     "PendingReportVisibility",
+    "PendingReviewInclusion",
     "PublishedArrestReview",
     "UnapprovedArrestReport",
     "build_pending_arrest_reports_embed",

@@ -39,6 +39,11 @@ class PendingReportVisibility(StrEnum):
     PRIVATE = "private"
 
 
+class PendingReviewInclusion(StrEnum):
+    OMIT = "omit"
+    INCLUDE = "include"
+
+
 PendingReportPeriod = DateRangePeriod
 
 
@@ -105,6 +110,7 @@ class PendingArrestReportCog(commands.Cog):
         raw_date_from: str,
         raw_date_to: str,
         visibility: PendingReportVisibility,
+        review_inclusion: PendingReviewInclusion = PendingReviewInclusion.OMIT,
     ) -> None:
         if (
             interaction.guild is None
@@ -169,6 +175,9 @@ class PendingArrestReportCog(commands.Cog):
                     max_records=bundle.settings.pending_arrest_reports_max_records,
                     guild_id=guild_id,
                     report_channel_ids=bundle.settings.report_channel_allowlist.ids,
+                    include_unapproved_reviews=(
+                        review_inclusion is PendingReviewInclusion.INCLUDE
+                    ),
                 )
             view = PendingReportPaginationView(
                 requester_id=requester_id,
@@ -202,6 +211,10 @@ class PendingArrestReportCog(commands.Cog):
                 date_to=date_to.isoformat(),
                 total_reports=result.total_reports,
                 pending_reports=result.pending_count,
+                unapproved_reviews_included=(
+                    review_inclusion is PendingReviewInclusion.INCLUDE
+                ),
+                unapproved_reports=result.unapproved_count,
             )
         except PendingReportScanTooLargeError as error:
             await interaction.followup.send(
@@ -231,7 +244,7 @@ class PendingArrestReportCog(commands.Cog):
 
 
 class PendingArrestReportModal(discord.ui.DesignerModal):
-    """Collect a bounded date range and result visibility."""
+    """Collect a bounded date range, optional review status and visibility."""
 
     def __init__(self, cog: PendingArrestReportCog, requester_id: int) -> None:
         self.cog = cog
@@ -280,10 +293,34 @@ class PendingArrestReportModal(discord.ui.DesignerModal):
             min_values=1,
             max_values=1,
         )
+        self.review_inclusion = discord.ui.StringSelect(  # type: ignore[type-var]
+            custom_id="pending_arrests:v1:review_inclusion",
+            options=[
+                discord.SelectOption(
+                    label="No incluir",
+                    value=PendingReviewInclusion.OMIT.value,
+                    description="Muestra solo reportes que parecen incompletos",
+                    emoji="➖",
+                    default=True,
+                ),
+                discord.SelectOption(
+                    label="Incluir",
+                    value=PendingReviewInclusion.INCLUDE.value,
+                    description="Agrega revisiones que todavía no están aprobadas",
+                    emoji="🔎",
+                ),
+            ],
+            min_values=1,
+            max_values=1,
+        )
         super().__init__(
             discord.ui.Label("Período", self.period),
             discord.ui.Label("Desde · solo para rango personalizado", self.date_from),
             discord.ui.Label("Hasta · solo para rango personalizado", self.date_to),
+            discord.ui.Label(
+                "Agregar revisiones aún no aprobadas",
+                self.review_inclusion,
+            ),
             discord.ui.Label("Quién puede ver el resultado", self.visibility),
             title="Buscar reportes pendientes",
             custom_id=f"pending_arrests:v1:scan:{requester_id}",
@@ -296,6 +333,10 @@ class PendingArrestReportModal(discord.ui.DesignerModal):
             iter(self.visibility.values or ()),
             PendingReportVisibility.PUBLIC.value,
         )
+        review_inclusion = next(
+            iter(self.review_inclusion.values or ()),
+            PendingReviewInclusion.OMIT.value,
+        )
         await self.cog.scan(
             interaction,
             requester_id=self.requester_id,
@@ -303,6 +344,7 @@ class PendingArrestReportModal(discord.ui.DesignerModal):
             raw_date_from=self.date_from.value or "",
             raw_date_to=self.date_to.value or "",
             visibility=PendingReportVisibility(visibility),
+            review_inclusion=PendingReviewInclusion(review_inclusion),
         )
 
 
@@ -403,16 +445,18 @@ def build_pending_arrest_reports_embed(
         intro = "La redacción está al día, pero todavía hay revisiones sin aprobar."
     else:
         intro = ui.no_pending
+    summary = (
+        f"**Período:** {_format_date(result.date_from)} — {_format_date(result.date_to)}\n"
+        f"📄 **Revisados:** {result.total_reports} · "
+        f"⏳ **Pendientes:** {result.pending_count} · "
+        f"✅ **Cumplimiento:** {compliance}\n"
+        f"👮 **Agentes con pendientes:** {len(group_counts)}"
+    )
+    if result.unapproved_reviews_included:
+        summary = f"{summary} · 🔎 **Sin aprobación:** {result.unapproved_count}"
     description_parts = [
         intro,
-        (
-            f"**Período:** {_format_date(result.date_from)} — {_format_date(result.date_to)}\n"
-            f"📄 **Revisados:** {result.total_reports} · "
-            f"⏳ **Pendientes:** {result.pending_count} · "
-            f"✅ **Cumplimiento:** {compliance}\n"
-            f"👮 **Agentes con pendientes:** {len(group_counts)} · "
-            f"🔎 **Sin aprobación:** {result.unapproved_count}"
-        ),
+        summary,
     ]
     if reports:
         description_parts.extend(

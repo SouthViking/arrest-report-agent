@@ -23,6 +23,7 @@ from arrest_report_agent.pending_arrest_reports import (
     PendingReportScanTooLargeError,
     PendingReportStatus,
     PendingReportVisibility,
+    PendingReviewInclusion,
     PublishedArrestReview,
     UnapprovedArrestReport,
     build_pending_arrest_reports_embed,
@@ -224,9 +225,11 @@ async def test_service_lists_reports_without_an_approved_formal_review() -> None
         now=now,
         guild_id=99,
         report_channel_ids=frozenset({100, 200}),
+        include_unapproved_reviews=True,
     )
 
     assert [report.report_id for report in result.unapproved_reports] == [4, 3, 2]
+    assert result.unapproved_reviews_included is True
     assert result.unapproved_reports[0].review_verdict is None
     assert result.unapproved_reports[0].review_url.endswith("/99/200/1004")
     assert result.unapproved_reports[1].review_verdict is ReviewVerdict.INCONCLUSIVE
@@ -245,6 +248,53 @@ async def test_service_lists_reports_without_an_approved_formal_review() -> None
             "channel_ids": frozenset({100, 200}),
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_service_skips_unapproved_review_lookup_by_default() -> None:
+    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
+    lookup_calls: list[str] = []
+
+    async def search(_faction_id: int, **_kwargs: object) -> SarpFactionArrestSearchPayload:
+        return SarpFactionArrestSearchPayload(
+            data=[
+                _summary(
+                    1,
+                    description="Yo, Officer Example, redacté un informe completo.",
+                    created_at=now,
+                )
+            ],
+            total=1,
+        )
+
+    async def latest_published_full_reviews(**_kwargs: object):
+        lookup_calls.append("reviews")
+        return {}
+
+    async def latest_report_references(**_kwargs: object):
+        lookup_calls.append("references")
+        return {}
+
+    service = PendingArrestReportService(
+        SimpleNamespace(search_faction_arrests=search),
+        SimpleNamespace(
+            latest_published_full_reviews=latest_published_full_reviews,
+            latest_report_references=latest_report_references,
+        ),
+    )
+
+    result = await service.scan(
+        faction_id=3,
+        date_from=date(2026, 8, 18),
+        date_to=date(2026, 8, 18),
+        now=now,
+        guild_id=99,
+        report_channel_ids=frozenset({100}),
+    )
+
+    assert result.unapproved_reviews_included is False
+    assert result.unapproved_reports == ()
+    assert lookup_calls == []
 
 
 @pytest.mark.asyncio
@@ -432,6 +482,15 @@ async def test_modal_requires_visibility_choice_and_offers_both_scopes() -> None
         PendingReportVisibility.PRIVATE.value,
     }
     assert next(option for option in modal.visibility.options if option.default).value == "public"
+    assert {option.value for option in modal.review_inclusion.options} == {
+        PendingReviewInclusion.OMIT.value,
+        PendingReviewInclusion.INCLUDE.value,
+    }
+    default_review_option = next(
+        option for option in modal.review_inclusion.options if option.default
+    )
+    assert default_review_option.value == PendingReviewInclusion.OMIT.value
+    assert "revisiones aún no aprobadas" in modal.children[3].label.lower()
 
 
 @pytest.mark.asyncio
@@ -439,6 +498,7 @@ async def test_private_single_page_result_omits_the_absent_pagination_view(perso
     member = _member(11, (200,))
     followups: list[dict[str, object]] = []
     deferrals: list[dict[str, object]] = []
+    scan_calls: list[dict[str, object]] = []
     result = PendingArrestReportScan(
         faction_id=3,
         date_from=date(2026, 8, 14),
@@ -458,7 +518,8 @@ async def test_private_single_page_result_omits_the_absent_pagination_view(perso
             persona=SimpleNamespace(profile=persona),
         )
 
-    async def scan(**_kwargs: object) -> PendingArrestReportScan:
+    async def scan(**kwargs: object) -> PendingArrestReportScan:
+        scan_calls.append(kwargs)
         return result
 
     async def defer(**kwargs: object) -> None:
@@ -493,6 +554,7 @@ async def test_private_single_page_result_omits_the_absent_pagination_view(perso
     assert followups[0]["ephemeral"] is True
     assert "view" not in followups[0]
     assert followups[0]["embed"].title == "⏳ Reportes de arresto pendientes"
+    assert scan_calls[0]["include_unapproved_reviews"] is False
 
 
 def test_custom_range_validation_is_bounded() -> None:
@@ -579,6 +641,7 @@ def test_embed_without_pending_reports_is_green(persona) -> None:
     assert embed.color == discord.Color.green()
     assert "⏳ **Pendientes:** 0" in embed.description
     assert "✅ **Cumplimiento:** 100,0 %" in embed.description
+    assert "Sin aprobación" not in embed.description
 
 
 def test_embed_lists_unapproved_reviews_in_a_dedicated_compact_section(persona) -> None:
@@ -588,6 +651,7 @@ def test_embed_lists_unapproved_reviews_in_a_dedicated_compact_section(persona) 
         date_from=date(2026, 8, 1),
         date_to=date(2026, 8, 18),
         total_reports=3,
+        unapproved_reviews_included=True,
         unapproved_reports=(
             UnapprovedArrestReport(
                 report_id=10,
@@ -644,6 +708,7 @@ def test_embed_groups_unapproved_reports_by_api_officer_name(persona) -> None:
         date_from=date(2026, 8, 1),
         date_to=date(2026, 8, 18),
         total_reports=3,
+        unapproved_reviews_included=True,
         unapproved_reports=(
             UnapprovedArrestReport(
                 report_id=20,
@@ -708,6 +773,7 @@ def test_combined_pending_and_unapproved_page_stays_within_discord_limit(persona
         date_to=date(2026, 8, 18),
         total_reports=16,
         pending_reports=pending,
+        unapproved_reviews_included=True,
         unapproved_reports=unapproved,
     )
 

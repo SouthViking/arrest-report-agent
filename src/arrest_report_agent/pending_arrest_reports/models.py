@@ -101,6 +101,7 @@ class PendingArrestReportScan(FrozenPendingReportModel):
     date_to: date
     total_reports: int = Field(ge=0)
     pending_reports: tuple[PendingArrestReport, ...] = ()
+    unapproved_reviews_included: bool = False
     unapproved_reports: tuple[UnapprovedArrestReport, ...] = ()
 
     @computed_field  # type: ignore[prop-decorator]

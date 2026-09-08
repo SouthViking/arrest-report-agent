@@ -73,6 +73,7 @@ class PendingArrestReportService:
         now: datetime | None = None,
         guild_id: int | None = None,
         report_channel_ids: Collection[int] | None = None,
+        include_unapproved_reviews: bool = False,
     ) -> PendingArrestReportScan:
         if faction_id <= 0:
             raise ValueError("faction_id must be positive")
@@ -119,10 +120,14 @@ class PendingArrestReportService:
                 key=lambda item: (item.created_at, item.report_id),
             )
         )
-        unapproved = await self._unapproved_reports(
-            reports,
-            guild_id=guild_id,
-            report_channel_ids=report_channel_ids,
+        unapproved = (
+            await self._unapproved_reports(
+                reports,
+                guild_id=guild_id,
+                report_channel_ids=report_channel_ids,
+            )
+            if include_unapproved_reviews
+            else ()
         )
         return PendingArrestReportScan(
             faction_id=faction_id,
@@ -130,6 +135,7 @@ class PendingArrestReportService:
             date_to=date_to,
             total_reports=total,
             pending_reports=pending,
+            unapproved_reviews_included=include_unapproved_reviews,
             unapproved_reports=unapproved,
         )
 
