@@ -380,15 +380,18 @@ def build_pending_arrest_reports_embed(
     """Render one compact embed as a mobile-friendly chronological list."""
 
     ordered_reports, group_counts = _group_reports_by_officer(result.pending_reports)
+    ordered_unapproved, unapproved_group_counts = _group_reports_by_officer(
+        result.unapproved_reports
+    )
     page_count = max(
         1,
         ceil(len(ordered_reports) / REPORTS_PER_PAGE),
-        ceil(len(result.unapproved_reports) / REPORTS_PER_PAGE),
+        ceil(len(ordered_unapproved) / REPORTS_PER_PAGE),
     )
     bounded_page = min(max(page, 0), page_count - 1)
     start = bounded_page * REPORTS_PER_PAGE
     reports = ordered_reports[start : start + REPORTS_PER_PAGE]
-    unapproved_reports = result.unapproved_reports[start : start + REPORTS_PER_PAGE]
+    unapproved_reports = ordered_unapproved[start : start + REPORTS_PER_PAGE]
     compliance = (
         "—"
         if result.compliance_percentage is None
@@ -427,7 +430,12 @@ def build_pending_arrest_reports_embed(
         description_parts.extend(
             (
                 "### 🔎 Revisiones aún no aprobadas",
-                _format_unapproved_report_entries(unapproved_reports),
+                _format_grouped_unapproved_report_entries(
+                    unapproved_reports,
+                    ordered_reports=ordered_unapproved,
+                    page_start=start,
+                    group_counts=unapproved_group_counts,
+                ),
             )
         )
     description = "\n\n".join(description_parts)
@@ -449,10 +457,12 @@ def build_pending_arrest_reports_embed(
     return embed
 
 
-def _group_reports_by_officer(
-    reports: tuple[PendingArrestReport, ...],
-) -> tuple[tuple[PendingArrestReport, ...], dict[str, int]]:
-    grouped: dict[str, list[PendingArrestReport]] = {}
+def _group_reports_by_officer[
+    ReportWithOfficer: (PendingArrestReport, UnapprovedArrestReport)
+](
+    reports: tuple[ReportWithOfficer, ...],
+) -> tuple[tuple[ReportWithOfficer, ...], dict[str, int]]:
+    grouped: dict[str, list[ReportWithOfficer]] = {}
     for report in reports:
         grouped.setdefault(_officer_key(report), []).append(report)
     ordered_groups = sorted(
@@ -509,10 +519,37 @@ def _format_report_entry(report: PendingArrestReport) -> str:
     )
 
 
-def _format_unapproved_report_entries(
+def _format_grouped_unapproved_report_entries(
     reports: tuple[UnapprovedArrestReport, ...],
+    *,
+    ordered_reports: tuple[UnapprovedArrestReport, ...],
+    page_start: int,
+    group_counts: dict[str, int],
 ) -> str:
-    return "\n".join(_format_unapproved_report_entry(report) for report in reports)
+    previous_key = (
+        _officer_key(ordered_reports[page_start - 1])
+        if page_start > 0 and ordered_reports
+        else None
+    )
+    sections: list[str] = []
+    current_key: str | None = None
+    current_lines: list[str] = []
+    for report in reports:
+        key = _officer_key(report)
+        if key != current_key:
+            if current_lines:
+                sections.append("\n".join(current_lines))
+            suffix = " · continuación" if not sections and key == previous_key else ""
+            count = group_counts[key]
+            current_lines = [
+                f"### 👮 {_compact_name(report.officer_name, limit=55)} · "
+                f"{count} sin aprobar{suffix}"
+            ]
+            current_key = key
+        current_lines.append(_format_unapproved_report_entry(report))
+    if current_lines:
+        sections.append("\n".join(current_lines))
+    return "\n\n".join(sections)
 
 
 def _format_unapproved_report_entry(report: UnapprovedArrestReport) -> str:
@@ -533,7 +570,7 @@ def _format_unapproved_report_entry(report: UnapprovedArrestReport) -> str:
     return f"{emoji} **#{report.report_id}** · {suspect} · {state}"
 
 
-def _officer_key(report: PendingArrestReport) -> str:
+def _officer_key(report: PendingArrestReport | UnapprovedArrestReport) -> str:
     return " ".join(report.officer_name.split()).casefold()
 
 

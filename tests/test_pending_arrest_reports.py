@@ -625,6 +625,9 @@ def test_embed_lists_unapproved_reviews_in_a_dedicated_compact_section(persona) 
     assert "La redacción está al día" in description
     assert "🔎 **Sin aprobación:** 3" in description
     assert "### 🔎 Revisiones aún no aprobadas" in description
+    assert "### 👮 Officer One · 1 sin aprobar" in description
+    assert "### 👮 Officer Three · 1 sin aprobar" in description
+    assert "### 👮 Officer Two · 1 sin aprobar" in description
     assert (
         "❌ **#10** · Suspect One · Sin revisión · "
         "[Abrir](https://discord.com/channels/99/100/1000)" in description
@@ -632,6 +635,49 @@ def test_embed_lists_unapproved_reviews_in_a_dedicated_compact_section(persona) 
     assert "🟡 **#11** · Suspect Two · Correcciones pendientes" in description
     assert "⚪ **#12** · Suspect Three · Revisión inconclusa" in description
     assert "[Abrir](https://discord.com/channels/99/100/1001)" in description
+
+
+def test_embed_groups_unapproved_reports_by_api_officer_name(persona) -> None:
+    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
+    result = PendingArrestReportScan(
+        faction_id=3,
+        date_from=date(2026, 8, 1),
+        date_to=date(2026, 8, 18),
+        total_reports=3,
+        unapproved_reports=(
+            UnapprovedArrestReport(
+                report_id=20,
+                officer_name="Bravo Officer",
+                suspect_name="Suspect One",
+                created_at=now - timedelta(hours=1),
+            ),
+            UnapprovedArrestReport(
+                report_id=21,
+                officer_name="Alpha Officer",
+                suspect_name="Suspect Two",
+                created_at=now - timedelta(hours=2),
+            ),
+            UnapprovedArrestReport(
+                report_id=22,
+                officer_name="Alpha Officer",
+                suspect_name="Suspect Three",
+                created_at=now - timedelta(hours=3),
+            ),
+        ),
+    )
+
+    embed = build_pending_arrest_reports_embed(
+        result,
+        ui=persona.messages.interface.pending_arrest_reports,
+    )
+    description = embed.description or ""
+
+    assert description.count("### 👮 Alpha Officer · 2 sin aprobar") == 1
+    assert description.count("### 👮 Bravo Officer · 1 sin aprobar") == 1
+    assert description.index("Alpha Officer · 2 sin aprobar") < description.index(
+        "Bravo Officer · 1 sin aprobar"
+    )
+    assert description.index("**#22**") < description.index("**#21**")
 
 
 def test_combined_pending_and_unapproved_page_stays_within_discord_limit(persona) -> None:

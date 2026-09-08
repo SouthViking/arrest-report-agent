@@ -1,20 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.29.6",
-  "title": "Aprobaciones y seguimiento de reportes",
-  "summary": "Las aprobaciones solicitadas a Roy ahora quedan registradas correctamente y el seguimiento de reportes ofrece mejores accesos directos.",
+  "version": "0.29.7",
+  "title": "Responsables en reportes pendientes",
+  "summary": "/reportes-pendientes ahora organiza las revisiones faltantes por el agente responsable.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
       "type": "improved",
-      "text": "Pedir que un reporte sea marcado como aprobado ahora registra una revisión formal y actualiza su estado, en lugar de limitarse a reaccionar con un emoji."
-    },
-    {
-      "type": "improved",
-      "text": "/reportes-pendientes incluye acceso directo a la publicación cuando existe un expediente vinculado aunque todavía no tenga una revisión formal."
+      "text": "Las revisiones aún no aprobadas se agrupan por el nombre del agente registrado en SARP, manteniendo el estado y el acceso directo de cada expediente."
     }
   ],
   "acknowledgements": []
