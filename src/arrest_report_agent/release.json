@@ -1,16 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.29.4",
-  "title": "Más contexto en revisiones de arresto",
-  "summary": "Las revisiones pueden validar más información relevante del expediente.",
+  "version": "0.29.5",
+  "title": "Control de revisión en reportes pendientes",
+  "summary": "/reportes-pendientes ahora también identifica expedientes que todavía no tienen una revisión aprobada.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
       "type": "improved",
-      "text": "La revisión inicial y las continuaciones del autor ahora pueden consultar antecedentes legales relevantes y bolsas de evidencia."
+      "text": "Distingue reportes sin revisión, con correcciones pendientes o con revisión inconclusa."
+    },
+    {
+      "type": "improved",
+      "text": "Incluye acceso directo a la revisión cuando está disponible."
+    },
+    {
+      "type": "improved",
+      "text": "Mantiene ambos listados ordenados y paginados."
     }
   ],
   "acknowledgements": []

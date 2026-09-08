@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Collection, Mapping
 from datetime import UTC, date, datetime, timedelta
+from typing import Protocol
 
+from arrest_report_agent.domain import ReviewVerdict
 from arrest_report_agent.infrastructure.sarp import SarpClient, SarpFactionArrestSummary
 
 from .models import (
@@ -14,6 +17,8 @@ from .models import (
     PendingReportReason,
     PendingReportScanTooLargeError,
     PendingReportStatus,
+    PublishedArrestReview,
+    UnapprovedArrestReport,
 )
 
 PAGE_SIZE = 50
@@ -28,11 +33,26 @@ REPEATED_CHARACTER = re.compile(r"([a-záéíóúñ])\1{4,}", re.IGNORECASE)
 MAX_SHORT_NONSTANDARD_CHARACTERS = 120
 
 
+class PendingArrestReviewLookup(Protocol):
+    async def latest_published_full_reviews(
+        self,
+        *,
+        guild_id: int,
+        report_ids: Collection[int],
+        channel_ids: Collection[int] | None,
+    ) -> Mapping[int, PublishedArrestReview]: ...
+
+
 class PendingArrestReportService:
     """Fetch and classify reports without retaining their narrative."""
 
-    def __init__(self, client: SarpClient) -> None:
+    def __init__(
+        self,
+        client: SarpClient,
+        review_lookup: PendingArrestReviewLookup | None = None,
+    ) -> None:
         self.client = client
+        self.review_lookup = review_lookup
 
     async def scan(
         self,
@@ -42,6 +62,8 @@ class PendingArrestReportService:
         date_to: date,
         max_records: int = DEFAULT_MAX_RECORDS,
         now: datetime | None = None,
+        guild_id: int | None = None,
+        report_channel_ids: Collection[int] | None = None,
     ) -> PendingArrestReportScan:
         if faction_id <= 0:
             raise ValueError("faction_id must be positive")
@@ -88,13 +110,50 @@ class PendingArrestReportService:
                 key=lambda item: (item.created_at, item.report_id),
             )
         )
+        unapproved = await self._unapproved_reports(
+            reports,
+            guild_id=guild_id,
+            report_channel_ids=report_channel_ids,
+        )
         return PendingArrestReportScan(
             faction_id=faction_id,
             date_from=date_from,
             date_to=date_to,
             total_reports=total,
             pending_reports=pending,
+            unapproved_reports=unapproved,
         )
+
+    async def _unapproved_reports(
+        self,
+        reports: Collection[SarpFactionArrestSummary],
+        *,
+        guild_id: int | None,
+        report_channel_ids: Collection[int] | None,
+    ) -> tuple[UnapprovedArrestReport, ...]:
+        if self.review_lookup is None or guild_id is None:
+            return ()
+        reviews = await self.review_lookup.latest_published_full_reviews(
+            guild_id=guild_id,
+            report_ids=tuple(report.id for report in reports),
+            channel_ids=report_channel_ids,
+        )
+        unapproved = []
+        for report in reports:
+            review = reviews.get(report.id)
+            if review is not None and review.verdict is ReviewVerdict.APPROVED:
+                continue
+            unapproved.append(
+                UnapprovedArrestReport(
+                    report_id=report.id,
+                    officer_name=_display_name(report.police_name),
+                    suspect_name=_display_name(report.suspect_name),
+                    created_at=report.created_at.astimezone(UTC),
+                    review_verdict=review.verdict if review is not None else None,
+                    review_url=review.jump_url if review is not None else None,
+                )
+            )
+        return tuple(sorted(unapproved, key=lambda item: (item.created_at, item.report_id)))
 
 
 def unfinished_reason(description: str) -> PendingReportReason | None:

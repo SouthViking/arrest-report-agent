@@ -13,8 +13,16 @@ from .models import (
     PendingReportReason,
     PendingReportScanTooLargeError,
     PendingReportStatus,
+    PublishedArrestReview,
+    UnapprovedArrestReport,
 )
-from .service import PendingArrestReportService, status_for_age, unfinished_reason
+from .repository import PendingArrestReviewRepository
+from .service import (
+    PendingArrestReportService,
+    PendingArrestReviewLookup,
+    status_for_age,
+    unfinished_reason,
+)
 
 __all__ = [
     "PendingArrestReport",
@@ -22,11 +30,15 @@ __all__ = [
     "PendingArrestReportModal",
     "PendingArrestReportScan",
     "PendingArrestReportService",
+    "PendingArrestReviewLookup",
+    "PendingArrestReviewRepository",
     "PendingReportPaginationView",
     "PendingReportReason",
     "PendingReportScanTooLargeError",
     "PendingReportStatus",
     "PendingReportVisibility",
+    "PublishedArrestReview",
+    "UnapprovedArrestReport",
     "build_pending_arrest_reports_embed",
     "status_for_age",
     "unfinished_reason",

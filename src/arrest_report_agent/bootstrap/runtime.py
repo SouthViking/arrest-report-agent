@@ -100,6 +100,7 @@ from arrest_report_agent.pagers import (
 from arrest_report_agent.pending_arrest_reports import (
     PendingArrestReportCog,
     PendingArrestReportService,
+    PendingArrestReviewRepository,
 )
 from arrest_report_agent.polls import DiscordPollService, PollEventCog, PollRepository
 from arrest_report_agent.radio_audit import (
@@ -589,7 +590,10 @@ async def build_runtime(
         bot.add_cog(
             PendingArrestReportCog(
                 config_provider,
-                PendingArrestReportService(sarp_client),
+                PendingArrestReportService(
+                    sarp_client,
+                    PendingArrestReviewRepository(postgres),
+                ),
                 persona.profile,
             )
         )
