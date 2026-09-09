@@ -335,6 +335,72 @@ async def test_uncommitted_publication_mapping_is_recovered_from_its_binding() -
     assert len(connection.statements) == 3
 
 
+@pytest.mark.asyncio
+async def test_published_structured_roots_are_resolved_in_one_query() -> None:
+    now = datetime.now(UTC)
+    rows = [
+        {
+            "id": _SUBMISSION_ID,
+            "guild_id": 1,
+            "interaction_id": 2,
+            "owner_user_id": 6,
+            "parent_channel_id": 3,
+            "root_message_id": 4,
+            "thread_id": 5,
+            "sarp_arrest_id": 321,
+            "suspect_name": "Andy Quintero",
+            "publication_status": PublicationStatus.PUBLISHED.value,
+            "initial_review_status": InitialReviewStatus.COMPLETED.value,
+            "created_at": now,
+            "updated_at": now,
+        }
+    ]
+
+    class Result:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return rows
+
+    class Connection:
+        def __init__(self) -> None:
+            self.statements: list[object] = []
+
+        async def execute(self, statement: object):
+            self.statements.append(statement)
+            return Result()
+
+    connection = Connection()
+
+    class Client:
+        @asynccontextmanager
+        async def connection(self):
+            yield connection
+
+    repository = StructuredArrestReportRepository(Client())  # type: ignore[arg-type]
+
+    submissions = await repository.get_published_by_roots(1, (4, 4, 999))
+
+    assert len(connection.statements) == 1
+    assert [submission.root_message_id for submission in submissions] == [4]
+    assert submissions[0].owner_user_id == 6
+    assert submissions[0].assets == ()
+
+
+@pytest.mark.asyncio
+async def test_empty_structured_root_lookup_does_not_open_a_connection() -> None:
+    class Client:
+        @asynccontextmanager
+        async def connection(self):
+            raise AssertionError("The database must not be queried")
+            yield
+
+    repository = StructuredArrestReportRepository(Client())  # type: ignore[arg-type]
+
+    assert await repository.get_published_by_roots(1, ()) == ()
+
+
 def _context(access_level: AgentAccessLevel) -> ReviewRunContext:
     return ReviewRunContext(
         case=ReviewCase(

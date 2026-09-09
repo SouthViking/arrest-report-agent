@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 
@@ -13,6 +14,8 @@ from arrest_report_agent.application import (
     PersonalReportStatus,
     PersonalReportStatusFilter,
     PersonalReportSummary,
+    build_approved_report_ranking,
+    build_open_report_ranking,
 )
 from arrest_report_agent.infrastructure.discord.personal_reports import (
     DiscordPersonalReportFinder,
@@ -21,6 +24,11 @@ from arrest_report_agent.infrastructure.discord.personal_reports import (
     build_personal_reports_embed,
     build_personal_summary_embed,
     send_personal_report_result,
+)
+from arrest_report_agent.structured_arrest_reports import (
+    ArrestReportSubmission,
+    InitialReviewStatus,
+    PublicationStatus,
 )
 
 
@@ -100,11 +108,13 @@ def fake_message(
     reaction_users: tuple[object, ...] = (),
     reference=None,
     thread_id: int | None = None,
+    bot: bool = False,
+    webhook_id: int | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=message_id,
-        author=SimpleNamespace(id=author_id, bot=False),
-        webhook_id=None,
+        author=SimpleNamespace(id=author_id, bot=bot),
+        webhook_id=webhook_id,
         channel=channel,
         content=content,
         attachments=[SimpleNamespace(filename="report.png")] if attachments else [],
@@ -113,6 +123,30 @@ def fake_message(
         thread=SimpleNamespace(id=thread_id) if thread_id else None,
         created_at=datetime(2026, 8, 4, 12, message_id % 60, tzinfo=UTC),
         jump_url=f"https://discord.com/channels/1/{channel.id}/{message_id}",
+    )
+
+
+def structured_submission(
+    *,
+    root_message_id: int,
+    owner_user_id: int,
+    thread_id: int,
+) -> ArrestReportSubmission:
+    now = datetime(2026, 8, 4, tzinfo=UTC)
+    return ArrestReportSubmission(
+        id=UUID(f"00000000-0000-0000-0000-{root_message_id:012d}"),
+        guild_id=1234674521416663070,
+        interaction_id=root_message_id + 1000,
+        owner_user_id=owner_user_id,
+        parent_channel_id=1462992794569281617,
+        root_message_id=root_message_id,
+        thread_id=thread_id,
+        sarp_arrest_id=7896,
+        suspect_name="Dante Carranza",
+        publication_status=PublicationStatus.PUBLISHED,
+        initial_review_status=InitialReviewStatus.COMPLETED,
+        created_at=now,
+        updated_at=now,
     )
 
 
@@ -183,6 +217,102 @@ async def test_finder_returns_only_root_report_posts_and_uses_trusted_reactions(
 
     assert [report.message_id for report in supervisor_result.reports] == [7, 6, 3, 2, 1]
     assert supervisor_result.reports[1].author_id == 456
+
+
+@pytest.mark.asyncio
+async def test_finder_attributes_valid_structured_cards_to_their_persisted_owner(
+    settings,
+    monkeypatch,
+) -> None:
+    owner = SimpleNamespace(id=456, display_name="C. Harrington")
+    channel = FakeHistoryChannel(1462992794569281617, "gnt-arrestos", [])
+    channel.messages = [
+        fake_message(40, channel=channel, author_id=123),
+        fake_message(
+            41,
+            channel=channel,
+            author_id=999,
+            attachments=False,
+            reactions=(("✅", True),),
+            bot=True,
+            webhook_id=999,
+        ),
+        fake_message(
+            42,
+            channel=channel,
+            author_id=999,
+            attachments=False,
+            reactions=(("✅", True),),
+            bot=True,
+            webhook_id=999,
+        ),
+        fake_message(
+            43,
+            channel=channel,
+            author_id=999,
+            attachments=False,
+            reactions=(("✅", True),),
+            bot=True,
+            webhook_id=999,
+        ),
+        fake_message(
+            44,
+            channel=channel,
+            author_id=999,
+            attachments=False,
+            reactions=(("❌", True),),
+            bot=True,
+            webhook_id=999,
+        ),
+    ]
+    guild = FakeGuild(1234674521416663070, [channel], members=(owner,))
+
+    class Repository:
+        def __init__(self) -> None:
+            self.calls: list[tuple[int, tuple[int, ...]]] = []
+
+        async def get_published_by_roots(self, guild_id: int, root_ids: tuple[int, ...]):
+            self.calls.append((guild_id, root_ids))
+            return (
+                structured_submission(root_message_id=41, owner_user_id=owner.id, thread_id=141),
+                structured_submission(root_message_id=43, owner_user_id=owner.id, thread_id=143),
+                structured_submission(root_message_id=44, owner_user_id=owner.id, thread_id=144),
+            )
+
+    repository = Repository()
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.personal_reports.discord.TextChannel",
+        FakeHistoryChannel,
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.personal_reports.is_submission_card",
+        lambda message: message.id in {41, 42, 44},
+    )
+    finder = DiscordPersonalReportFinder(
+        SimpleNamespace(user=SimpleNamespace(id=999)),
+        settings,
+        repository,  # type: ignore[arg-type]
+    )
+
+    result = await finder.find_all(
+        guild,  # type: ignore[arg-type]
+        owner,  # type: ignore[arg-type]
+        PersonalReportQuery(period=PersonalReportPeriod.CURRENT_MONTH),
+        now=datetime(2026, 8, 5, tzinfo=UTC),
+    )
+
+    assert [report.message_id for report in result.reports] == [44, 41, 40]
+    structured = result.reports[1]
+    assert structured.author_id == owner.id
+    assert structured.author_display_name == "C. Harrington"
+    assert structured.status is PersonalReportStatus.APPROVED
+    assert structured.title == "Dante Carranza · #7896"
+    assert structured.thread_url == "https://discord.com/channels/1234674521416663070/141"
+    assert [entry.author_id for entry in build_approved_report_ranking(result.reports)] == [owner.id]
+    assert [entry.author_id for entry in build_open_report_ranking(result.reports)] == [123, owner.id]
+    assert repository.calls == [
+        (1234674521416663070, (41, 42, 43, 44)),
+    ]
 
 
 @pytest.mark.asyncio

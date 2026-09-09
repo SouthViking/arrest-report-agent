@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from math import ceil
+from typing import TYPE_CHECKING
 
 import discord
 
@@ -26,8 +28,15 @@ from arrest_report_agent.config import (
     PersonaPersonalReportMessages,
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.structured_arrest_reports.card import is_submission_card
 
 from .supervisor_access import SupervisorRolePolicy
+
+if TYPE_CHECKING:
+    from arrest_report_agent.structured_arrest_reports import (
+        ArrestReportSubmission,
+        StructuredArrestReportRepository,
+    )
 
 LOGGER = logging.getLogger(__name__)
 
@@ -58,9 +67,15 @@ BOT_STATUS_REACTIONS = {
 class DiscordPersonalReportFinder:
     """Read a bounded snapshot from configured report channels without invoking AI."""
 
-    def __init__(self, bot: discord.Bot, settings: AppSettings) -> None:
+    def __init__(
+        self,
+        bot: discord.Bot,
+        settings: AppSettings,
+        structured_reports: StructuredArrestReportRepository | None = None,
+    ) -> None:
         self.bot = bot
         self.settings = settings
+        self.structured_reports = structured_reports
         self.supervisor_policy = SupervisorRolePolicy.from_settings(settings)
 
     def visible_channels(
@@ -140,6 +155,7 @@ class DiscordPersonalReportFinder:
             channels = tuple(channel for channel in channels if channel.id == query.channel_id)
 
         reports: list[PersonalReport] = []
+        structured_candidates: list[tuple[discord.Message, PersonalReportStatus]] = []
         supervisor_member_cache: dict[int, discord.Member | None] = {}
         truncated = False
         for channel in channels:
@@ -156,6 +172,8 @@ class DiscordPersonalReportFinder:
                         self.supervisor_policy,
                         supervisor_member_cache,
                     )
+                    if _could_be_structured_report(message):
+                        structured_candidates.append((message, status))
                     if not _is_report_candidate(message, author_id, status):
                         continue
                     if not query.status.includes(status):
@@ -176,8 +194,62 @@ class DiscordPersonalReportFinder:
             if scanned >= MAX_HISTORY_MESSAGES_PER_CHANNEL:
                 truncated = True
 
+        reports.extend(
+            await self._structured_personal_reports(
+                guild,
+                structured_candidates,
+                author_id=author_id,
+                status_filter=query.status,
+            )
+        )
+
         reports.sort(key=lambda report: (report.created_at, report.message_id), reverse=True)
         return PersonalReportSearchResult(reports=tuple(reports), truncated=truncated)
+
+    async def _structured_personal_reports(
+        self,
+        guild: discord.Guild,
+        candidates: Iterable[tuple[discord.Message, PersonalReportStatus]],
+        *,
+        author_id: int | None,
+        status_filter: PersonalReportStatusFilter,
+    ) -> tuple[PersonalReport, ...]:
+        candidate_rows = tuple(candidates)
+        if self.structured_reports is None or not candidate_rows:
+            return ()
+        try:
+            submissions = await self.structured_reports.get_published_by_roots(
+                guild.id,
+                tuple(message.id for message, _status in candidate_rows),
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "warning",
+                "structured_personal_report_lookup_failed",
+                exc_info=error,
+                guild_id=guild.id,
+                candidate_count=len(candidate_rows),
+                **exception_fields(error),
+            )
+            return ()
+
+        submissions_by_root = {
+            submission.root_message_id: submission
+            for submission in submissions
+            if submission.root_message_id is not None
+        }
+        reports: list[PersonalReport] = []
+        for message, status in candidate_rows:
+            submission = submissions_by_root.get(message.id)
+            if submission is None or not is_submission_card(message):
+                continue
+            if author_id is not None and submission.owner_user_id != author_id:
+                continue
+            if not status_filter.includes(status):
+                continue
+            reports.append(_to_structured_personal_report(message, status, submission, guild))
+        return tuple(reports)
 
 
 class PersonalReportsModal(discord.ui.DesignerModal):
@@ -664,6 +736,15 @@ def _is_report_candidate(
     return bool(message.attachments) or status is not PersonalReportStatus.PENDING
 
 
+def _could_be_structured_report(message: discord.Message) -> bool:
+    """Select bot/webhook roots for one batched authoritative lookup."""
+
+    return bool(
+        message.reference is None
+        and (message.author.bot or message.webhook_id is not None)
+    )
+
+
 def _to_personal_report(
     message: discord.Message,
     status: PersonalReportStatus,
@@ -681,6 +762,39 @@ def _to_personal_report(
         thread_url=thread_url,
         author_id=message.author.id,
         author_display_name=_author_display_name(message.author),
+    )
+
+
+def _to_structured_personal_report(
+    message: discord.Message,
+    status: PersonalReportStatus,
+    submission: ArrestReportSubmission,
+    guild: discord.Guild,
+) -> PersonalReport:
+    report_suffix = (
+        f" · #{submission.sarp_arrest_id}"
+        if submission.sarp_arrest_id is not None
+        else ""
+    )
+    owner = guild.get_member(submission.owner_user_id)
+    return PersonalReport(
+        message_id=message.id,
+        channel_id=message.channel.id,
+        created_at=message.created_at,
+        title=f"{submission.suspect_name}{report_suffix}"[:80],
+        status=status,
+        post_url=message.jump_url,
+        thread_url=(
+            f"https://discord.com/channels/{guild.id}/{submission.thread_id}"
+            if submission.thread_id is not None
+            else None
+        ),
+        author_id=submission.owner_user_id,
+        author_display_name=(
+            _author_display_name(owner)
+            if owner is not None
+            else f"Usuario {submission.owner_user_id}"
+        ),
     )
 
 

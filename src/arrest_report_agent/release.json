@@ -1,14 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.29.8",
-  "title": "Consulta configurable de reportes pendientes",
-  "summary": "/reportes-pendientes permite decidir si se incluyen las revisiones que aún no están aprobadas.",
+  "version": "0.29.9",
+  "title": "Rankings de reportes actualizados",
+  "summary": "/honor y /verguenza ahora incluyen correctamente los reportes publicados mediante /revisar-arresto.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
-      "type": "improved",
-      "text": "El modal incorpora una opción para incluir las revisiones aún no aprobadas; permanece desactivada por defecto para ofrecer una consulta más simple y rápida."
+      "type": "fixed",
+      "text": "Los reportes estructurados se atribuyen a su autor real y se contabilizan según su estado actual, manteniendo compatibilidad con las publicaciones anteriores."
     }
   ],
   "acknowledgements": []

@@ -144,6 +144,33 @@ class StructuredArrestReportRepository:
             )
             return await self._with_assets(connection, row) if row is not None else None
 
+    async def get_published_by_roots(
+        self,
+        guild_id: int,
+        root_message_ids: tuple[int, ...],
+    ) -> tuple[ArrestReportSubmission, ...]:
+        """Resolve published structured roots in one bounded database query."""
+
+        unique_root_ids = tuple(dict.fromkeys(root_message_ids))
+        if not unique_root_ids:
+            return ()
+        async with self.client.connection() as connection:
+            rows = (
+                (
+                    await connection.execute(
+                        sa.select(arrest_report_submissions).where(
+                            arrest_report_submissions.c.guild_id == guild_id,
+                            arrest_report_submissions.c.root_message_id.in_(unique_root_ids),
+                            arrest_report_submissions.c.publication_status
+                            == PublicationStatus.PUBLISHED.value,
+                        )
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        return tuple(_submission(row) for row in rows)
+
     async def get_by_root(self, guild_id: int, root_message_id: int) -> ArrestReportSubmission | None:
         return await self._get(
             arrest_report_submissions.c.guild_id == guild_id,

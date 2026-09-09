@@ -465,7 +465,11 @@ class ReviewCog(commands.Cog):
                 self.bot,
                 self.structured_report_repository,
             ),  # type: ignore[arg-type]
-            personal_report_finder=DiscordPersonalReportFinder(self.bot, settings),  # type: ignore[arg-type]
+            personal_report_finder=DiscordPersonalReportFinder(
+                self.bot,
+                settings,  # type: ignore[arg-type]
+                self.structured_report_repository,
+            ),
         )
 
     async def _resolve_runtime(self, guild_id: int) -> ReviewCogRuntime:
