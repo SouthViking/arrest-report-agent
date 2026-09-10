@@ -1,3 +1,3 @@
 """Arrest report review agent package."""
 
-__version__ = "0.29.9"
+__version__ = "0.30.0"

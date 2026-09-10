@@ -194,6 +194,13 @@ class AppSettings(BaseSettings):
         default=None,
         alias="GITHUB_WEBHOOK_SECRET",
     )
+    buy_me_a_coffee_webhook_secret: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "BUY_ME_A_COFFEE_WEBHOOK_SECRET",
+            "BMC_WEBHOOK_SECRET",
+        ),
+    )
     openai_admin_key: SecretStr | None = Field(default=None, alias="OPENAI_ADMIN_KEY")
     openai_project_id: str | None = Field(default=None, alias="OPENAI_PROJECT_ID")
     railway_api_token: SecretStr | None = Field(default=None, alias="RAILWAY_API_TOKEN")
@@ -316,6 +323,17 @@ class AppSettings(BaseSettings):
             return None
         return SecretStr(value.get_secret_value().strip())
 
+    @field_validator("buy_me_a_coffee_webhook_secret")
+    @classmethod
+    def normalize_buy_me_a_coffee_webhook_secret(
+        cls,
+        value: SecretStr | None,
+    ) -> SecretStr | None:
+        if value is None:
+            return None
+        normalized = value.get_secret_value().strip()
+        return SecretStr(normalized) if normalized else None
+
     @field_validator("openai_admin_key", "railway_api_token", "sarp_api_token")
     @classmethod
     def normalize_optional_provider_secret(cls, value: SecretStr | None) -> SecretStr | None:
@@ -400,6 +418,13 @@ class AppSettings(BaseSettings):
             assert secret is not None
             if not 32 <= len(secret.get_secret_value()) <= 256:
                 raise ValueError("GITHUB_WEBHOOK_SECRET must contain 32-256 characters")
+        if self.buy_me_a_coffee_webhook_enabled:
+            secret = self.buy_me_a_coffee_webhook_secret
+            assert secret is not None
+            if not 16 <= len(secret.get_secret_value()) <= 512:
+                raise ValueError(
+                    "BUY_ME_A_COFFEE_WEBHOOK_SECRET must contain 16-512 characters"
+                )
         if self.openai_project_id and not self.openai_cost_monitoring_enabled:
             raise ValueError("OPENAI_ADMIN_KEY is required when OPENAI_PROJECT_ID is configured")
         railway_cost_values = (
@@ -423,6 +448,13 @@ class AppSettings(BaseSettings):
     @property
     def github_webhook_enabled(self) -> bool:
         return bool(self.github_webhook_secret and self.github_webhook_secret.get_secret_value().strip())
+
+    @property
+    def buy_me_a_coffee_webhook_enabled(self) -> bool:
+        return bool(
+            self.buy_me_a_coffee_webhook_secret
+            and self.buy_me_a_coffee_webhook_secret.get_secret_value().strip()
+        )
 
     @property
     def openai_cost_monitoring_enabled(self) -> bool:

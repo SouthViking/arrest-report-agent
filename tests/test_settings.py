@@ -28,7 +28,7 @@ def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings)
     assert settings.max_total_file_bytes == 52_428_800
     assert settings.channel_context_max_messages == 5
     assert settings.thread_context_max_historical_files == 2
-    assert settings.app_version == "0.29.9"
+    assert settings.app_version == "0.30.0"
     assert settings.sarp_online_players_cache_seconds == 30
     assert settings.online_inmates_page_size == 10
 
@@ -125,7 +125,7 @@ def test_railway_webhook_requires_complete_identity_and_url_safe_secret() -> Non
 
     assert settings.railway_webhook_enabled is True
     assert settings.railway_webhook_identity_is_complete is True
-    assert settings.app_version == "0.29.9"
+    assert settings.app_version == "0.30.0"
 
     with pytest.raises(ValidationError, match="RAILWAY_ENVIRONMENT_ID"):
         AppSettings(**{key: value for key, value in values.items() if key != "RAILWAY_ENVIRONMENT_ID"})
@@ -149,6 +149,34 @@ def test_github_webhook_requires_a_strong_shared_secret() -> None:
             DISCORD_TOKEN="discord",
             OPENAI_API_KEY="openai",
             GITHUB_WEBHOOK_SECRET="too-short",
+        )
+
+
+def test_buy_me_a_coffee_webhook_secret_is_optional_normalized_and_validated() -> None:
+    signing_secret = "buy-me-a-coffee-signing-secret"
+    disabled = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+    )
+    enabled = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+        BUY_ME_A_COFFEE_WEBHOOK_SECRET=f"  {signing_secret}  ",
+    )
+
+    assert disabled.buy_me_a_coffee_webhook_enabled is False
+    assert enabled.buy_me_a_coffee_webhook_enabled is True
+    assert enabled.buy_me_a_coffee_webhook_secret is not None
+    assert enabled.buy_me_a_coffee_webhook_secret.get_secret_value() == signing_secret
+
+    with pytest.raises(ValidationError, match="16-512"):
+        AppSettings(
+            _env_file=None,
+            DISCORD_TOKEN="discord",
+            OPENAI_API_KEY="openai",
+            BUY_ME_A_COFFEE_WEBHOOK_SECRET="short",
         )
 
 

@@ -136,6 +136,9 @@ modelo no puede escoger una guild ni un canal de publicación.
   changelog/alertas para Discord; no depende del runner ni de OpenAI.
 - `ci_notifications`: receptor firmado de GitHub Actions, inbox/outbox PostgreSQL y renderer de
   alertas internas de CI; usa una política de canales independiente y no depende de OpenAI.
+- `support_contributions`: receptor firmado y neutral de aportes, persistencia idempotente,
+  normalización histórica a USD, caché permanente de tasas y vínculos explícitos con Discord; no
+  depende del agente ni guarda correos o notas del proveedor.
 - `service_calls`: polling dinámico del endpoint de emergencias SARP, publicación segura en Discord
   y un cursor mínimo por guild/canal; no persiste el contenido de los llamados ni usa OpenAI.
 - `stolen_vehicles`: consulta determinista y feed dinámico de denuncias SARP; comparte servicio entre
@@ -258,6 +261,13 @@ empaquetados y acepta fallos desde cualquier rama. `X-GitHub-Delivery` se conser
 auditoría, mientras la ejecución, intento y repositorio forman la clave idempotente operacional. La
 política `ci_failure_notification_channels` resuelve los destinos sin reutilizar canales públicos de
 changelog o despliegue.
+
+Buy Me a Coffee entrega aportes y reembolsos en `/webhooks/support/buy-me-a-coffee`. El receptor
+verifica la firma HMAC sobre los bytes originales y confirma únicamente después de persistir el
+evento y la transacción en una misma operación. La conversión monetaria ocurre luego en un worker:
+consulta Frankfurter por la fecha del aporte, conserva la fecha efectiva de la tasa, la cachea en
+PostgreSQL y reintenta fallas transitorias. La identidad del donante permanece separada de su perfil
+opcional de Discord para impedir asociaciones heurísticas por nombre.
 
 Los despliegues exitosos resuelven la política `deployment_notification_channels` y luego la
 intersectan con `changelog_targets` del release. Los eventos `failed`, `crashed` y `oom_killed`

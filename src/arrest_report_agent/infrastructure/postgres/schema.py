@@ -1298,3 +1298,178 @@ agent_polls = sa.Table(
     sa.Index("ix_agent_poll_creator_created", "guild_id", "creator_user_id", "created_at"),
     sa.Index("ix_agent_poll_channel_created", "guild_id", "channel_id", "created_at"),
 )
+
+supporter_profiles = sa.Table(
+    "supporter_profiles",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column("discord_user_id", sa.BigInteger, nullable=False, unique=True),
+    sa.Column("display_name", sa.String(200)),
+    sa.Column("mention_enabled", sa.Boolean, nullable=False, server_default=sa.true()),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint("discord_user_id > 0", name="ck_supporter_profile_discord_user"),
+)
+
+supporter_provider_links = sa.Table(
+    "supporter_provider_links",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "profile_id",
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("supporter_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("provider", sa.String(50), nullable=False),
+    sa.Column("provider_supporter_id", sa.String(100), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.UniqueConstraint(
+        "provider", "provider_supporter_id", name="uq_supporter_provider_identity"
+    ),
+    sa.Index("ix_supporter_provider_link_profile", "profile_id"),
+)
+
+support_exchange_rates = sa.Table(
+    "support_exchange_rates",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column("source", sa.String(50), nullable=False),
+    sa.Column("requested_date", sa.Date, nullable=False),
+    sa.Column("effective_date", sa.Date, nullable=False),
+    sa.Column("base_currency", sa.String(3), nullable=False),
+    sa.Column("quote_currency", sa.String(3), nullable=False),
+    sa.Column("rate", sa.Numeric(24, 12), nullable=False),
+    sa.Column("fetched_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint("rate > 0", name="ck_support_exchange_rate_positive"),
+    sa.CheckConstraint(
+        "base_currency <> quote_currency",
+        name="ck_support_exchange_rate_distinct_currencies",
+    ),
+    sa.UniqueConstraint(
+        "source",
+        "requested_date",
+        "base_currency",
+        "quote_currency",
+        name="uq_support_exchange_rate_lookup",
+    ),
+)
+
+support_contributions = sa.Table(
+    "support_contributions",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column("provider", sa.String(50), nullable=False),
+    sa.Column("provider_contribution_id", sa.String(100), nullable=False),
+    sa.Column("transaction_id", sa.String(255)),
+    sa.Column("provider_supporter_id", sa.String(100)),
+    sa.Column(
+        "supporter_profile_id",
+        postgresql.UUID(as_uuid=True),
+        sa.ForeignKey("supporter_profiles.id", ondelete="SET NULL"),
+    ),
+    sa.Column("supporter_name", sa.String(200)),
+    sa.Column("supporter_name_type", sa.String(50)),
+    sa.Column("original_amount", sa.Numeric(18, 6), nullable=False),
+    sa.Column("original_currency", sa.String(3), nullable=False),
+    sa.Column("normalized_amount_usd", sa.Numeric(18, 6)),
+    sa.Column("exchange_rate_to_usd", sa.Numeric(24, 12)),
+    sa.Column("exchange_rate_source", sa.String(50)),
+    sa.Column("exchange_rate_date", sa.Date),
+    sa.Column("normalization_status", sa.String(20), nullable=False, server_default="pending"),
+    sa.Column("normalization_attempts", sa.Integer, nullable=False, server_default="0"),
+    sa.Column(
+        "normalization_next_attempt_at",
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now(),
+    ),
+    sa.Column("normalization_last_error", sa.String(500)),
+    sa.Column("normalized_at", sa.DateTime(timezone=True)),
+    sa.Column("coffee_count", sa.Integer),
+    sa.Column("coffee_price", sa.Numeric(18, 6)),
+    sa.Column("total_amount_charged", sa.Numeric(18, 6)),
+    sa.Column("application_fee", sa.Numeric(18, 6)),
+    sa.Column("status", sa.String(20), nullable=False),
+    sa.Column("contributed_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("refunded_at", sa.DateTime(timezone=True)),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint(
+        "original_amount >= 0", name="ck_support_contribution_original_amount"
+    ),
+    sa.CheckConstraint(
+        "normalized_amount_usd IS NULL OR normalized_amount_usd >= 0",
+        name="ck_support_contribution_normalized_amount",
+    ),
+    sa.CheckConstraint(
+        "exchange_rate_to_usd IS NULL OR exchange_rate_to_usd > 0",
+        name="ck_support_contribution_exchange_rate",
+    ),
+    sa.CheckConstraint(
+        "coffee_count IS NULL OR coffee_count >= 0",
+        name="ck_support_contribution_coffee_count",
+    ),
+    sa.CheckConstraint(
+        "status IN ('succeeded','refunded')",
+        name="ck_support_contribution_status",
+    ),
+    sa.CheckConstraint(
+        "normalization_status IN ('pending','completed','retry','failed')",
+        name="ck_support_contribution_normalization_status",
+    ),
+    sa.CheckConstraint(
+        "normalization_attempts >= 0",
+        name="ck_support_contribution_normalization_attempts",
+    ),
+    sa.CheckConstraint(
+        "normalization_status <> 'completed' OR "
+        "(normalized_amount_usd IS NOT NULL AND exchange_rate_to_usd IS NOT NULL "
+        "AND exchange_rate_source IS NOT NULL AND exchange_rate_date IS NOT NULL "
+        "AND normalized_at IS NOT NULL)",
+        name="ck_support_contribution_completed_normalization",
+    ),
+    sa.UniqueConstraint(
+        "provider",
+        "provider_contribution_id",
+        name="uq_support_contribution_provider_id",
+    ),
+    sa.Index("ix_support_contribution_status_date", "status", "contributed_at"),
+    sa.Index(
+        "ix_support_contribution_supporter",
+        "provider",
+        "provider_supporter_id",
+    ),
+    sa.Index("ix_support_contribution_profile", "supporter_profile_id"),
+    sa.Index(
+        "ix_support_contribution_normalization_due",
+        "normalization_status",
+        "normalization_next_attempt_at",
+    ),
+)
+
+support_webhook_events = sa.Table(
+    "support_webhook_events",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column("provider_event_key", sa.String(64), nullable=False, unique=True),
+    sa.Column("provider", sa.String(50), nullable=False),
+    sa.Column("provider_event_id", sa.String(100), nullable=False),
+    sa.Column("event_type", sa.String(30), nullable=False),
+    sa.Column("live_mode", sa.Boolean, nullable=False),
+    sa.Column("attempt", sa.Integer, nullable=False),
+    sa.Column("provider_contribution_id", sa.String(100), nullable=False),
+    sa.Column("payload_sha256", sa.String(64), nullable=False),
+    sa.Column("event_timestamp", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("status", sa.String(20), nullable=False),
+    sa.Column("ignored_reason", sa.String(100)),
+    sa.Column("received_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint("event_type IN ('created','refunded')", name="ck_support_event_type"),
+    sa.CheckConstraint("attempt > 0", name="ck_support_event_attempt"),
+    sa.CheckConstraint(
+        "status IN ('processed','ignored')",
+        name="ck_support_event_status",
+    ),
+    sa.Index("ix_support_webhook_event_received", "provider", "received_at"),
+)

@@ -1,14 +1,24 @@
 {
   "schema_version": 3,
-  "version": "0.29.9",
-  "title": "Rankings de reportes actualizados",
-  "summary": "/honor y /verguenza ahora incluyen correctamente los reportes publicados mediante /revisar-arresto.",
+  "version": "0.30.0",
+  "title": "Registro seguro de aportes",
+  "summary": "El bot ya puede recibir y conservar aportes y reembolsos de Buy Me a Coffee de forma segura.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Los reportes estructurados se atribuyen a su autor real y se contabilizan según su estado actual, manteniendo compatibilidad con las publicaciones anteriores."
+      "type": "added",
+      "text": "Se incorporó un webhook firmado e idempotente para registrar aportes y reembolsos sin guardar correos ni mensajes privados."
+    },
+    {
+      "type": "added",
+      "text": "Los importes se conservan en su moneda original y se normalizan a USD con tasas históricas cacheadas y reintentos automáticos."
+    },
+    {
+      "type": "added",
+      "text": "La persistencia permite vincular manualmente identidades verificadas con usuarios de Discord para futuros agradecimientos."
     }
   ],
   "acknowledgements": []

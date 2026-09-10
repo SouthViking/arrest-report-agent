@@ -133,6 +133,12 @@ from arrest_report_agent.structured_arrest_reports import (
 from arrest_report_agent.structured_arrest_reports.discord import StructuredArrestReportCog
 from arrest_report_agent.suggestions import SuggestionCog, SuggestionRepository
 from arrest_report_agent.support import SupportCog
+from arrest_report_agent.support_contributions import (
+    BuyMeACoffeeWebhookReceiver,
+    ContributionNormalizationWorker,
+    FrankfurterExchangeRateClient,
+    SupportContributionRepository,
+)
 from arrest_report_agent.warrant_notifications import (
     WarrantLookupService,
     WarrantNotificationCog,
@@ -162,6 +168,8 @@ class Runtime:
     railway_webhook_receiver: RailwayWebhookReceiver | None
     ci_notification_worker: CiNotificationWorker
     github_webhook_receiver: GitHubWebhookReceiver | None
+    buy_me_a_coffee_webhook_receiver: BuyMeACoffeeWebhookReceiver | None
+    contribution_normalization_worker: ContributionNormalizationWorker | None
     cost_monitoring: CostMonitoringService | None
     service_call_worker: ServiceCallFeedWorker | None
     stolen_vehicle_worker: StolenVehicleFeedWorker | None
@@ -204,6 +212,12 @@ class Runtime:
             "deployment_notifications": self.deployment_notifications_enabled,
             "railway_webhook": self.railway_webhook_receiver is not None,
             "github_webhook": self.github_webhook_receiver is not None,
+            "support_webhook": self.buy_me_a_coffee_webhook_receiver is not None,
+            "support_normalization": (
+                self.contribution_normalization_worker.running
+                if self.contribution_normalization_worker is not None
+                else False
+            ),
             "service_calls": (
                 self.service_call_worker.running if self.service_call_worker is not None else False
             ),
@@ -221,6 +235,8 @@ class Runtime:
             await self.service_call_worker.close()
         if self.stolen_vehicle_worker is not None:
             await self.stolen_vehicle_worker.close()
+        if self.contribution_normalization_worker is not None:
+            await self.contribution_normalization_worker.close()
         await self.config_provider.close()
         if self.sarp_penal_code_provider is not None:
             await self.sarp_penal_code_provider.close()
@@ -716,6 +732,26 @@ async def build_runtime(
         if settings.github_webhook_enabled
         else None
     )
+    support_contribution_repository = SupportContributionRepository(postgres)
+    contribution_normalization_worker = (
+        ContributionNormalizationWorker(
+            support_contribution_repository,
+            FrankfurterExchangeRateClient(),
+        )
+        if settings.buy_me_a_coffee_webhook_enabled
+        else None
+    )
+    if contribution_normalization_worker is not None:
+        contribution_normalization_worker.start()
+    buy_me_a_coffee_webhook_receiver = (
+        BuyMeACoffeeWebhookReceiver(
+            settings,
+            support_contribution_repository,
+            contribution_normalization_worker.wake,
+        )
+        if contribution_normalization_worker is not None
+        else None
+    )
     deployment_bundles = [
         bundle
         for bundle in all_bundles
@@ -731,6 +767,7 @@ async def build_runtime(
         webhook_enabled=railway_webhook_receiver is not None,
         release_version=release_manifest.version,
         github_webhook_enabled=github_webhook_receiver is not None,
+        support_webhook_enabled=buy_me_a_coffee_webhook_receiver is not None,
     )
     return Runtime(
         bot=bot,
@@ -749,6 +786,8 @@ async def build_runtime(
         railway_webhook_receiver=railway_webhook_receiver,
         ci_notification_worker=ci_notification_worker,
         github_webhook_receiver=github_webhook_receiver,
+        buy_me_a_coffee_webhook_receiver=buy_me_a_coffee_webhook_receiver,
+        contribution_normalization_worker=contribution_normalization_worker,
         cost_monitoring=cost_monitoring,
         service_call_worker=service_call_worker,
         stolen_vehicle_worker=stolen_vehicle_worker,

@@ -325,6 +325,26 @@ Cada alerta enlaza el commit y GitHub Actions, pero no copia logs, stacktraces n
 El evento y sus entregas quedan en PostgreSQL para deduplicar redeliveries y reintentar errores
 transitorios de Discord.
 
+### Aportes voluntarios
+
+El mismo servidor puede recibir eventos firmados de Buy Me a Coffee en:
+
+```text
+https://<dominio-publico>/webhooks/support/buy-me-a-coffee
+```
+
+Configura `BUY_ME_A_COFFEE_WEBHOOK_SECRET` en Railway con el secreto de firma entregado por el
+proveedor. El receptor valida `X-Signature-Sha256` sobre el cuerpo original, limita el tamaño,
+deduplica reintentos y admite aportes y reembolsos. Los eventos de prueba se conservan como
+auditoría, pero no alteran los aportes reales. No se guardan correos ni notas privadas.
+
+Cada transacción conserva el importe y moneda originales. Un worker independiente normaliza el
+importe a USD usando la tasa histórica de Frankfurter correspondiente a la fecha del aporte. Las
+tasas quedan cacheadas permanentemente en PostgreSQL y las fallas transitorias se reintentan con
+backoff, sin retrasar la respuesta al webhook. Los importes en USD no realizan solicitudes externas.
+También existe una capa explícita para vincular identidades estables del proveedor con usuarios de
+Discord; nunca se unen personas automáticamente por nombre.
+
 ### Buzón de sugerencias
 
 `/sugerencia` está disponible en cualquier canal o hilo de una guild configurada. El formulario
@@ -552,6 +572,7 @@ el contenido exacto del FAQ.
 | `RAILWAY_SERVICE_ID` | vacío | Servicio Railway autorizado; obligatorio al habilitar el webhook. |
 | `RAILWAY_GIT_COMMIT_SHA` | Railway | SHA inyectado por Railway para que solo la nueva revisión anuncie un despliegue exitoso. |
 | `GITHUB_WEBHOOK_SECRET` | vacío | Secreto compartido de 32 a 256 caracteres para validar con HMAC-SHA256 el webhook nativo de GitHub. Vacío deshabilita el receptor. |
+| `BUY_ME_A_COFFEE_WEBHOOK_SECRET` | vacío | Secreto de firma del webhook de Buy Me a Coffee. Vacío deshabilita tanto el receptor como la normalización de aportes. |
 | `OPENAI_ADMIN_KEY` | vacío | Admin API key separada y de solo backend para consultar costos y límites de OpenAI desde el panel owner-only. |
 | `OPENAI_PROJECT_ID` | vacío | Proyecto de OpenAI que acota el gasto y el límite; sin él se usa el alcance de organización. |
 | `RAILWAY_API_TOKEN` | vacío | Token de Railway limitado al workspace consultado por el monitor de consumo. |

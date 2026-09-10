@@ -20,10 +20,16 @@ from arrest_report_agent.deployments import (
     RailwayWebhookReceiver,
 )
 from arrest_report_agent.infrastructure.postgres import DatabaseUnavailableError
+from arrest_report_agent.support_contributions import (
+    BuyMeACoffeeWebhookAuthenticationError,
+    BuyMeACoffeeWebhookPayloadError,
+    BuyMeACoffeeWebhookReceiver,
+)
 
 HealthCheck = Callable[[], Awaitable[dict[str, object]]]
 MAX_RAILWAY_WEBHOOK_BYTES = 65_536
 MAX_GITHUB_WEBHOOK_BYTES = 1_048_576
+MAX_SUPPORT_WEBHOOK_BYTES = 262_144
 RAILWAY_BROWSER_ORIGINS = frozenset({"https://railway.com", "https://railway.app"})
 
 
@@ -47,8 +53,14 @@ async def serve_http(
     check: HealthCheck,
     webhook_receiver: RailwayWebhookReceiver | None = None,
     github_webhook_receiver: GitHubWebhookReceiver | None = None,
+    buy_me_a_coffee_webhook_receiver: BuyMeACoffeeWebhookReceiver | None = None,
 ) -> HttpServer:
-    app = create_http_application(check, webhook_receiver, github_webhook_receiver)
+    app = create_http_application(
+        check,
+        webhook_receiver,
+        github_webhook_receiver,
+        buy_me_a_coffee_webhook_receiver,
+    )
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
     site = web.TCPSite(runner, host, port)
@@ -66,6 +78,7 @@ def create_http_application(
     check: HealthCheck,
     webhook_receiver: RailwayWebhookReceiver | None = None,
     github_webhook_receiver: GitHubWebhookReceiver | None = None,
+    buy_me_a_coffee_webhook_receiver: BuyMeACoffeeWebhookReceiver | None = None,
 ) -> web.Application:
     app = web.Application(client_max_size=MAX_GITHUB_WEBHOOK_BYTES)
 
@@ -174,6 +187,48 @@ def create_http_application(
             return web.json_response({"status": acceptance.status}, status=202)
 
         app.router.add_post("/webhooks/github/actions", github_webhook)
+    if buy_me_a_coffee_webhook_receiver is not None:
+
+        async def buy_me_a_coffee_webhook(request: web.Request) -> web.Response:
+            if request.content_type != "application/json":
+                return web.json_response(
+                    {"status": "invalid", "error": "application_json_required"},
+                    status=415,
+                )
+            if (
+                request.content_length is not None
+                and request.content_length > MAX_SUPPORT_WEBHOOK_BYTES
+            ):
+                raise web.HTTPRequestEntityTooLarge(
+                    max_size=MAX_SUPPORT_WEBHOOK_BYTES,
+                    actual_size=request.content_length,
+                )
+            raw_body = await request.read()
+            if len(raw_body) > MAX_SUPPORT_WEBHOOK_BYTES:
+                raise web.HTTPRequestEntityTooLarge(
+                    max_size=MAX_SUPPORT_WEBHOOK_BYTES,
+                    actual_size=len(raw_body),
+                )
+            try:
+                acceptance = await buy_me_a_coffee_webhook_receiver.receive(
+                    raw_body,
+                    signature=request.headers.get("x-signature-sha256", ""),
+                )
+            except BuyMeACoffeeWebhookAuthenticationError:
+                return web.json_response({"status": "unauthorized"}, status=401)
+            except BuyMeACoffeeWebhookPayloadError:
+                return web.json_response(
+                    {"status": "invalid", "error": "unsupported_payload"},
+                    status=400,
+                )
+            except DatabaseUnavailableError:
+                return web.json_response({"status": "unavailable"}, status=503)
+            return web.json_response({"status": acceptance.status}, status=200)
+
+        app.router.add_post(
+            "/webhooks/support/buy-me-a-coffee",
+            buy_me_a_coffee_webhook,
+        )
     return app
 
 
