@@ -1161,7 +1161,8 @@ class ReviewCog(commands.Cog):
     async def review_help(self, ctx: discord.ApplicationContext) -> None:
         bot_user = self.bot.user
         extra_feature_lines: list[str] = [
-            "• `/support`: apoyo voluntario al desarrollo y mantenimiento del bot."
+            "• `/support`: apoyo voluntario al desarrollo y mantenimiento del bot.",
+            "• `/agradecimientos`: reconoce a quienes han apoyado el proyecto.",
         ]
         if self._config_provider is not None and ctx.guild is not None and ctx.channel is not None:
             with suppress(Exception):
@@ -1177,8 +1178,7 @@ class ReviewCog(commands.Cog):
                     and resources_feature.enabled
                     and isinstance(ctx.author, discord.Member)
                     and any(
-                        role.id in bundle.settings.operational_staff_role_ids
-                        for role in ctx.author.roles
+                        role.id in bundle.settings.operational_staff_role_ids for role in ctx.author.roles
                     )
                 ):
                     extra_feature_lines.append(
@@ -1190,7 +1190,8 @@ class ReviewCog(commands.Cog):
                     and evidence_feature.enabled
                     and isinstance(ctx.author, discord.Member)
                     and any(
-                        role.id in bundle.settings.operational_staff_role_ids for role in ctx.author.roles
+                        role.id in bundle.settings.operational_staff_role_ids
+                        for role in ctx.author.roles
                     )
                 ):
                     extra_feature_lines.extend(

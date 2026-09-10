@@ -537,7 +537,8 @@ async def build_runtime(
     )
     bot.add_cog(ForumShortcutsCog(config_provider))
     bot.add_cog(DedeoCog(persona.profile))
-    bot.add_cog(SupportCog())
+    support_contribution_repository = SupportContributionRepository(postgres)
+    bot.add_cog(SupportCog(support_contribution_repository))
     if sarp_client is not None:
         if evidence_bag_service is None:
             raise RuntimeError("Evidence-bag service was not initialized")
@@ -732,7 +733,6 @@ async def build_runtime(
         if settings.github_webhook_enabled
         else None
     )
-    support_contribution_repository = SupportContributionRepository(postgres)
     contribution_normalization_worker = (
         ContributionNormalizationWorker(
             support_contribution_repository,

@@ -89,3 +89,15 @@ class SupporterProfile:
     discord_user_id: int
     display_name: str | None
     mention_enabled: bool
+
+
+@dataclass(frozen=True, slots=True)
+class SupporterRanking:
+    """One aggregated supporter identity ordered by its normalized contribution total."""
+
+    display_name: str | None
+    discord_user_id: int | None
+    mention_enabled: bool
+    total_normalized_usd: Decimal
+    contribution_count: int
+    last_contributed_at: datetime

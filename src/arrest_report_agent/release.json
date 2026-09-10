@@ -1,24 +1,18 @@
 {
   "schema_version": 3,
-  "version": "0.30.0",
-  "title": "Registro seguro de aportes",
-  "summary": "El bot ya puede recibir y conservar aportes y reembolsos de Buy Me a Coffee de forma segura.",
+  "version": "0.31.0",
+  "title": "Agradecimientos a colaboradores",
+  "summary": "El nuevo comando /agradecimientos reconoce a quienes apoyan voluntariamente el desarrollo del bot.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
       "type": "added",
-      "text": "Se incorporó un webhook firmado e idempotente para registrar aportes y reembolsos sin guardar correos ni mensajes privados."
+      "text": "Se agregó /agradecimientos con medallas, paginación y acceso directo para realizar una donación."
     },
     {
-      "type": "added",
-      "text": "Los importes se conservan en su moneda original y se normalizan a USD con tasas históricas cacheadas y reintentos automáticos."
-    },
-    {
-      "type": "added",
-      "text": "La persistencia permite vincular manualmente identidades verificadas con usuarios de Discord para futuros agradecimientos."
+      "type": "improved",
+      "text": "Los colaboradores aparecen sin mostrar montos y sin recibir notificaciones por sus menciones."
     }
   ],
   "acknowledgements": []

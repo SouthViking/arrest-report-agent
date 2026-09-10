@@ -28,6 +28,7 @@ from .models import (
     ContributionToNormalize,
     ExchangeRate,
     SupporterProfile,
+    SupporterRanking,
 )
 
 USD = "USD"
@@ -394,6 +395,89 @@ class SupportContributionRepository:
             .values(supporter_profile_id=profile_id, updated_at=sa.func.now())
         )
         return bool(result.rowcount)
+
+    async def ranked_supporters(self) -> tuple[SupporterRanking, ...]:
+        """Aggregate completed, non-refunded contributions by their safest identity."""
+
+        identity = sa.case(
+            (
+                support_contributions.c.supporter_profile_id.is_not(None),
+                sa.func.concat(
+                    "profile:",
+                    sa.cast(support_contributions.c.supporter_profile_id, sa.String),
+                ),
+            ),
+            (
+                support_contributions.c.provider_supporter_id.is_not(None),
+                sa.func.concat(
+                    "provider:",
+                    support_contributions.c.provider,
+                    ":",
+                    support_contributions.c.provider_supporter_id,
+                ),
+            ),
+            else_=sa.func.concat(
+                "contribution:",
+                support_contributions.c.provider,
+                ":",
+                support_contributions.c.provider_contribution_id,
+            ),
+        )
+        display_name = sa.func.max(
+            sa.func.coalesce(
+                supporter_profiles.c.display_name,
+                support_contributions.c.supporter_name,
+            )
+        ).label("display_name")
+        discord_user_id = sa.func.max(supporter_profiles.c.discord_user_id).label("discord_user_id")
+        mention_enabled = sa.func.bool_or(
+            sa.func.coalesce(supporter_profiles.c.mention_enabled, sa.false())
+        ).label("mention_enabled")
+        total_normalized_usd = sa.func.sum(support_contributions.c.normalized_amount_usd).label(
+            "total_normalized_usd"
+        )
+        contribution_count = sa.func.count().label("contribution_count")
+        last_contributed_at = sa.func.max(support_contributions.c.contributed_at).label("last_contributed_at")
+        statement = (
+            sa.select(
+                display_name,
+                discord_user_id,
+                mention_enabled,
+                total_normalized_usd,
+                contribution_count,
+                last_contributed_at,
+            )
+            .select_from(
+                support_contributions.outerjoin(
+                    supporter_profiles,
+                    supporter_profiles.c.id == support_contributions.c.supporter_profile_id,
+                )
+            )
+            .where(
+                support_contributions.c.status == ContributionStatus.SUCCEEDED.value,
+                support_contributions.c.normalization_status
+                == ContributionNormalizationStatus.COMPLETED.value,
+                support_contributions.c.normalized_amount_usd.is_not(None),
+            )
+            .group_by(identity)
+            .order_by(
+                total_normalized_usd.desc(),
+                last_contributed_at.asc(),
+                display_name.asc(),
+            )
+        )
+        rows = await self.client.fetch_all(statement)
+        return tuple(
+            SupporterRanking(
+                display_name=(str(row["display_name"]) if row["display_name"] is not None else None),
+                discord_user_id=(int(row["discord_user_id"]) if row["discord_user_id"] is not None else None),
+                mention_enabled=bool(row["mention_enabled"]),
+                total_normalized_usd=Decimal(row["total_normalized_usd"]),
+                contribution_count=int(row["contribution_count"]),
+                last_contributed_at=row["last_contributed_at"],
+            )
+            for row in rows
+        )
 
     async def _linked_profile_id(
         self,

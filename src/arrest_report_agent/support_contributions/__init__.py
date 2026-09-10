@@ -15,6 +15,7 @@ from .models import (
     ContributionToNormalize,
     ExchangeRate,
     SupporterProfile,
+    SupporterRanking,
 )
 from .repository import ContributionIngestResult, SupportContributionRepository
 from .worker import ContributionNormalizationWorker
@@ -36,4 +37,5 @@ __all__ = [
     "FrankfurterExchangeRateClient",
     "SupportContributionRepository",
     "SupporterProfile",
+    "SupporterRanking",
 ]
