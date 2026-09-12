@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from enum import StrEnum
 
 import discord
 from discord.ext import commands
 
 from arrest_report_agent.config import BotPersona, PersonaMdcMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.infrastructure.discord.forms import (
+    ResultVisibility,
+    build_visibility_select,
+    selected_visibility,
+)
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
 from .models import (
@@ -36,9 +40,7 @@ SECTION_LABELS = {
 }
 
 
-class MdcVisibility(StrEnum):
-    PUBLIC = "public"
-    PRIVATE = "private"
+MdcVisibility = ResultVisibility
 
 
 class MdcCog(commands.Cog):
@@ -244,23 +246,9 @@ class MdcSearchModal(discord.ui.DesignerModal):
             min_length=3,
             max_length=100,
         )
-        self.visibility = discord.ui.StringSelect(  # type: ignore[type-var]
-            custom_id="mdc:v2:visibility",
-            options=[
-                discord.SelectOption(
-                    label="Visible para todos",
-                    value=MdcVisibility.PUBLIC.value,
-                    emoji="🌐",
-                    default=True,
-                ),
-                discord.SelectOption(
-                    label="Solo para mí",
-                    value=MdcVisibility.PRIVATE.value,
-                    emoji="🔒",
-                ),
-            ],
-            min_values=1,
-            max_values=1,
+        self.visibility = build_visibility_select(
+            "mdc:v2:visibility",
+            default=MdcVisibility.PUBLIC,
         )
         super().__init__(
             discord.ui.Label("Nombre exacto del personaje", self.name),
@@ -271,12 +259,11 @@ class MdcSearchModal(discord.ui.DesignerModal):
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        visibility = next(iter(self.visibility.values or ()), MdcVisibility.PUBLIC.value)
         await self.cog.search(
             interaction,
             self.requester_id,
             self.name.value or "",
-            MdcVisibility(visibility),
+            selected_visibility(self.visibility, default=MdcVisibility.PUBLIC),
         )
 
 

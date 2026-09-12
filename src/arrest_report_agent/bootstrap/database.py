@@ -730,6 +730,32 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         schema_version=1,
                         payload={},
                     ),
+                    GuildFeatureSnapshot(
+                        key="blacklists",
+                        enabled=(
+                            guild_id == LSSD_GUILD_ID
+                            and bool(supervisor_roles[guild_id])
+                        ),
+                        schema_version=1,
+                        payload=(
+                            {
+                                "manager_role_ids": list(
+                                    LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS
+                                ),
+                                "types": [
+                                    {
+                                        "key": "ccw",
+                                        "display_name": "CCW",
+                                        "reference_prefix": "CCW",
+                                        "channel_ids": [1530621801871441991],
+                                        "enabled": True,
+                                    }
+                                ]
+                            }
+                            if guild_id == LSSD_GUILD_ID
+                            else {"types": [], "manager_role_ids": []}
+                        ),
+                    ),
                 ),
                 persona_revision_id=placeholder_persona_revision,
             )

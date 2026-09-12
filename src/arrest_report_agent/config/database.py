@@ -347,6 +347,65 @@ class ForumShortcutsOptions(FrozenConfigModel):
         return self
 
 
+class BlacklistTypeOptions(FrozenConfigModel):
+    """One administrator-defined blacklist type and its registration channels."""
+
+    key: str = Field(pattern=r"^[a-z][a-z0-9_]{1,39}$")
+    display_name: str = Field(min_length=1, max_length=50)
+    reference_prefix: str = Field(pattern=r"^[A-Z][A-Z0-9-]{1,11}$")
+    channel_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
+    enabled: bool = True
+
+    @model_validator(mode="after")
+    def validate_channels(self) -> BlacklistTypeOptions:
+        if any(channel_id <= 0 for channel_id in self.channel_ids):
+            raise ValueError("blacklist channel IDs must be positive")
+        if len(self.channel_ids) != len(set(self.channel_ids)):
+            raise ValueError("blacklist channel IDs must be unique within a type")
+        if not self.display_name.strip():
+            raise ValueError("blacklist display name cannot be blank")
+        return self
+
+
+class BlacklistOptions(FrozenConfigModel):
+    """Versioned registry of blacklist types available in one guild."""
+
+    types: tuple[BlacklistTypeOptions, ...] = Field(default=(), max_length=25)
+    manager_role_ids: tuple[int, ...] = Field(default=(), max_length=10)
+
+    @model_validator(mode="after")
+    def validate_registry(self) -> BlacklistOptions:
+        if any(role_id <= 0 for role_id in self.manager_role_ids):
+            raise ValueError("blacklist manager role IDs must be positive")
+        if len(self.manager_role_ids) != len(set(self.manager_role_ids)):
+            raise ValueError("blacklist manager role IDs must be unique")
+        keys: set[str] = set()
+        prefixes: set[str] = set()
+        channels: set[int] = set()
+        for item in self.types:
+            if item.key in keys:
+                raise ValueError("blacklist type keys must be unique")
+            keys.add(item.key)
+            if item.reference_prefix in prefixes:
+                raise ValueError("blacklist reference prefixes must be unique")
+            prefixes.add(item.reference_prefix)
+            overlap = channels.intersection(item.channel_ids)
+            if overlap:
+                raise ValueError("a blacklist channel can belong to only one type")
+            channels.update(item.channel_ids)
+        return self
+
+    def type_for_channel(self, channel_id: int) -> BlacklistTypeOptions | None:
+        return next(
+            (
+                item
+                for item in self.types
+                if item.enabled and channel_id in item.channel_ids
+            ),
+            None,
+        )
+
+
 class GuildConfigSnapshot(FrozenConfigModel):
     guild_id: int = Field(gt=0)
     revision_id: UUID
@@ -548,6 +607,18 @@ class GuildConfigSnapshot(FrozenConfigModel):
             channels = self.policies[AccessPolicyKey.LOGBOOK_CHANNELS]
             if channels.mode is not AccessPolicyMode.RESTRICTED:
                 raise ValueError("enabled logbook requires restricted logbook channels")
+        blacklist_feature = self.features.get("blacklists")
+        if blacklist_feature is not None and blacklist_feature.enabled:
+            if blacklist_feature.schema_version != 1:
+                raise ValueError("blacklists requires feature schema version 1")
+            blacklist_options = BlacklistOptions.model_validate(blacklist_feature.payload)
+            if not any(item.enabled for item in blacklist_options.types):
+                raise ValueError("enabled blacklists requires at least one enabled type")
+            if not blacklist_options.manager_role_ids:
+                raise ValueError("enabled blacklists requires manager role IDs")
+            operational_roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
+            if operational_roles.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError("enabled blacklists requires restricted operational staff roles")
         radio_audit_feature = self.features.get("radio_audit")
         if radio_audit_feature is not None and radio_audit_feature.enabled:
             if radio_audit_feature.schema_version != 1:
@@ -709,6 +780,13 @@ class GuildRuntimeSettings:
     def logbook_channel_ids(self) -> tuple[int, ...]:
         policy = self.snapshot.policy(AccessPolicyKey.LOGBOOK_CHANNELS)
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
+    def blacklist_options(self) -> BlacklistOptions | None:
+        feature = self.snapshot.features.get("blacklists")
+        if feature is None or not feature.enabled:
+            return None
+        return BlacklistOptions.model_validate(feature.payload)
 
     @property
     def faction_status_faction_id(self) -> int | None:

@@ -243,6 +243,50 @@ def test_help_embed_is_a_compact_feature_directory(persona) -> None:
     assert persona.identity.default_form_of_address in embed.footer.text
 
 
+@pytest.mark.asyncio
+async def test_help_references_blacklist_info_when_the_module_is_enabled(
+    settings,
+    persona,
+) -> None:
+    responses: list[dict[str, object]] = []
+
+    async def cached(_guild_id: int) -> SimpleNamespace:
+        return SimpleNamespace(
+            snapshot=SimpleNamespace(
+                features={"blacklists": SimpleNamespace(enabled=True)}
+            ),
+            settings=SimpleNamespace(),
+        )
+
+    async def respond(**kwargs: object) -> None:
+        responses.append(kwargs)
+
+    bot = SimpleNamespace(
+        user=SimpleNamespace(
+            id=999,
+            display_avatar=SimpleNamespace(url="https://cdn.discordapp.com/bot.png"),
+        )
+    )
+    cog = ReviewCog(
+        bot,
+        settings,
+        UnexpectedReviewService(),
+        persona,
+        config_provider=SimpleNamespace(cached=cached),
+    )  # type: ignore[arg-type]
+    context = SimpleNamespace(
+        guild=SimpleNamespace(id=111),
+        channel=SimpleNamespace(id=222),
+        author=SimpleNamespace(id=123, roles=()),
+        respond=respond,
+    )
+
+    await ReviewCog.review_help.callback(cog, context)  # type: ignore[arg-type]
+
+    assert responses[0]["ephemeral"] is False
+    assert "/blacklist info" in responses[0]["embed"].fields[0].value
+
+
 def test_report_info_embed_is_public_facing_and_explains_owner_access(persona) -> None:
     embed = build_report_info_embed(
         persona=persona,

@@ -56,6 +56,13 @@ Messages` y `Embed Links`. El feed desactiva menciones y no necesita leer el his
 Los canales de `stolen_vehicle_channels` utilizan el mismo conjunto mínimo de permisos y tampoco
 requieren leer historial ni mencionar usuarios.
 
+Cada canal asociado a un tipo de blacklist requiere `View Channel`, `Send Messages` y `Embed
+Links`. El acceso de los usuarios se controla con los permisos y roles propios del canal; el bot no
+permite registrar ni consultar sin pertenecer a `operational_staff_roles`. Los comandos de edición
+y eliminación exigen además uno de los roles gestores de Command Staff o Executive Staff definidos
+en el módulo. `/blacklist consultar` puede ejecutarse desde cualquier canal visible donde el bot
+pueda responder. El bot elimina únicamente sus propios mensajes de blacklist.
+
 La biografía propia del bot se sincroniza mediante el perfil de miembro de cada servidor y no
 requiere agregar un permiso de Discord.
 

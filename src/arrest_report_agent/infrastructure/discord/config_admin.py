@@ -15,6 +15,8 @@ from arrest_report_agent.config import (
     AccessPolicyMode,
     AccessPolicySnapshot,
     AppSettings,
+    BlacklistOptions,
+    BlacklistTypeOptions,
     BotPersona,
     FactionMemberAnalysisOptions,
     ForumShortcutsOptions,
@@ -86,6 +88,7 @@ FEATURE_LABELS = {
     "arrest_report_lookup": "Consulta de reportes de arresto",
     "pending_arrest_reports": "Reportes de arresto pendientes",
     "logbook": "Bitácora",
+    "blacklists": "Blacklists",
     "radio_audit": "Consulta y auditoría de radios",
 }
 MODE_LABELS = {
@@ -594,6 +597,16 @@ class ConfigurationPanelView(discord.ui.View):
                 self.requester_id,
                 include_global_profile=interaction.user.id in self.cog.owner_ids,
             )
+        )
+
+    @discord.ui.button(label="Blacklists", emoji="🚫", style=discord.ButtonStyle.primary, row=2)
+    async def blacklists(
+        self,
+        _button: discord.ui.Button,
+        interaction: discord.Interaction,
+    ) -> None:
+        await interaction.response.send_modal(
+            BlacklistConfigurationModal(self.cog, self.requester_id)
         )
 
     @discord.ui.button(label="Rollback", emoji="↩️", style=discord.ButtonStyle.secondary, row=2)
@@ -1145,6 +1158,168 @@ class FeatureConfigurationModal(BaseConfigurationModal):
             )
 
         await self.run(interaction, "feature.update", mutation)
+
+
+class BlacklistConfigurationModal(BaseConfigurationModal):
+    """Register, update or disable one channel-derived blacklist type."""
+
+    def __init__(self, cog: ConfigurationAdminCog, requester_id: int) -> None:
+        self.action = discord.ui.StringSelect(
+            custom_id="config:v2:blacklists:action",
+            placeholder="Selecciona una acción",
+            options=[
+                discord.SelectOption(label="Registrar o actualizar", value="upsert", emoji="💾"),
+                discord.SelectOption(label="Deshabilitar tipo", value="disable", emoji="🚫"),
+                discord.SelectOption(
+                    label="Configurar roles de gestión",
+                    value="roles",
+                    emoji="🔐",
+                ),
+            ],
+        )
+        self.key = discord.ui.InputText(
+            custom_id="config:v2:blacklists:key",
+            placeholder="Ej.: ccw",
+            required=False,
+            min_length=2,
+            max_length=40,
+        )
+        self.display_name = discord.ui.InputText(
+            custom_id="config:v2:blacklists:name",
+            placeholder="Ej.: CCW",
+            required=False,
+            max_length=50,
+        )
+        self.reference_prefix = discord.ui.InputText(
+            custom_id="config:v2:blacklists:prefix",
+            placeholder="Ej.: CCW",
+            required=False,
+            max_length=12,
+        )
+        self.channel_ids = discord.ui.InputText(
+            custom_id="config:v2:blacklists:channels",
+            style=discord.InputTextStyle.long,
+            placeholder="Canales para tipos; roles para acceso de gestión",
+            required=False,
+            max_length=500,
+        )
+        super().__init__(
+            cog,
+            requester_id,
+            discord.ui.Label("Acción", self.action),
+            discord.ui.Label("Clave interna del tipo", self.key),
+            discord.ui.Label("Nombre visible", self.display_name),
+            discord.ui.Label("Prefijo de referencias", self.reference_prefix),
+            discord.ui.Label("IDs de canales o roles", self.channel_ids),
+            title="Configurar blacklists",
+            custom_id=f"config:v2:blacklists:{requester_id}",
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        action = self.action.values[0]
+
+        async def mutation() -> MutationResult:
+            if interaction.guild is None:
+                raise ValueError("Este panel solo funciona dentro de un servidor.")
+            draft_id = await self.cog.repository.draft_revision_id(interaction.guild.id)
+            if draft_id is None:
+                raise LookupError("Crea un borrador antes de configurar blacklists.")
+            snapshot = await self.cog.repository.snapshot_for_revision(
+                interaction.guild.id,
+                draft_id,
+            )
+            current = snapshot.features.get("blacklists")
+            options = (
+                BlacklistOptions.model_validate(current.payload)
+                if current is not None
+                else BlacklistOptions()
+            )
+            key = self.key.value.strip().casefold().replace("-", "_")
+            types = list(options.types)
+            existing_index = next(
+                (index for index, item in enumerate(types) if item.key == key),
+                None,
+            )
+            manager_role_ids = options.manager_role_ids
+            if action == "roles":
+                raw_roles = self.channel_ids.value.strip()
+                if not raw_roles:
+                    raise ValueError("Indica al menos un rol de gestión.")
+                manager_role_ids = _parse_snowflakes(raw_roles)
+                for role_id in manager_role_ids:
+                    if interaction.guild.get_role(role_id) is None:
+                        raise ValueError(
+                            f"El rol `{role_id}` no pertenece a este servidor."
+                        )
+            elif action == "disable":
+                if not key:
+                    raise ValueError("Indica la clave del tipo que quieres deshabilitar.")
+                if existing_index is None:
+                    raise LookupError(f"No existe un tipo de blacklist con clave `{key}`.")
+                types[existing_index] = types[existing_index].model_copy(update={"enabled": False})
+            else:
+                if not key:
+                    raise ValueError("Indica la clave interna del tipo.")
+                if not manager_role_ids:
+                    raise ValueError(
+                        "Configura primero los roles de gestión de blacklists."
+                    )
+                name = self.display_name.value.strip()
+                prefix = self.reference_prefix.value.strip().upper()
+                raw_channels = self.channel_ids.value.strip()
+                if not name or not prefix or not raw_channels:
+                    raise ValueError(
+                        "Para registrar un tipo indica nombre, prefijo y al menos un canal."
+                    )
+                channel_ids = _parse_snowflakes(raw_channels)
+                for channel_id in channel_ids:
+                    channel = interaction.guild.get_channel(channel_id)
+                    if not isinstance(channel, discord.TextChannel):
+                        raise ValueError(
+                            f"El canal `{channel_id}` no es un canal de texto válido de este servidor."
+                        )
+                updated_type = BlacklistTypeOptions(
+                    key=key,
+                    display_name=name,
+                    reference_prefix=prefix,
+                    channel_ids=channel_ids,
+                    enabled=True,
+                )
+                if existing_index is None:
+                    types.append(updated_type)
+                else:
+                    types[existing_index] = updated_type
+            updated_options = BlacklistOptions(
+                types=tuple(types),
+                manager_role_ids=manager_role_ids,
+            )
+            feature = GuildFeatureSnapshot(
+                key="blacklists",
+                enabled=any(item.enabled for item in updated_options.types),
+                schema_version=1,
+                payload=updated_options.model_dump(mode="json"),
+            )
+            await self.cog.repository.update_draft_feature(
+                interaction.guild.id,
+                feature,
+                actor_user_id=interaction.user.id,
+                interaction_id=interaction.id,
+            )
+            if action == "roles":
+                description = (
+                    f"Los roles de gestión quedaron actualizados ({len(manager_role_ids)}) "
+                    "en el borrador."
+                )
+            else:
+                verb = "deshabilitado" if action == "disable" else "registrado"
+                description = f"El tipo `{key}` quedó {verb} en el borrador."
+            return (
+                "🚫 Blacklist configurada",
+                description,
+                discord.Color.blurple(),
+            )
+
+        await self.run(interaction, f"blacklists.{action}", mutation)
 
 
 class PersonaConfigurationModal(BaseConfigurationModal):

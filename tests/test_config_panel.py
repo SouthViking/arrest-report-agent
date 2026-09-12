@@ -23,6 +23,7 @@ from arrest_report_agent.cost_monitoring import (
 from arrest_report_agent.infrastructure.discord.config_admin import (
     AccessPolicyModal,
     AgentConfigurationModal,
+    BlacklistConfigurationModal,
     ConfigurationAdminCog,
     ConfigurationPanelView,
     DraftConfigurationModal,
@@ -282,6 +283,7 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
         "Agente",
         "Módulos",
         "Personas",
+        "Blacklists",
         "Rollback",
     ]
     assert DraftConfigurationModal(cog, 42).title == "Administrar borrador"
@@ -332,6 +334,14 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
     assert "warrant_notifications" in {
         option.value for option in feature_modal.key.options
     }
+    blacklist_modal = BlacklistConfigurationModal(cog, 42)
+    assert blacklist_modal.title == "Configurar blacklists"
+    assert {option.value for option in blacklist_modal.action.options} == {
+        "upsert",
+        "disable",
+        "roles",
+    }
+    assert blacklist_modal.key.required is False
     persona_modal = PersonaConfigurationModal(cog, 42, include_global_profile=True)
     assert persona_modal.title == "Administrar personas"
     assert [option.value for option in persona_modal.action.options][-1] == "global"

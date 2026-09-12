@@ -1237,6 +1237,11 @@ class ReviewCog(commands.Cog):
                     extra_feature_lines.append(
                         "• `/resumen-bitacora`: resume registros por período, categoría y tipo."
                     )
+                blacklist_feature = bundle.snapshot.features.get("blacklists")
+                if blacklist_feature is not None and blacklist_feature.enabled:
+                    extra_feature_lines.append(
+                        "• `/blacklist info`: cómo registrar, consultar y administrar blacklists."
+                    )
                 radio_feature = bundle.snapshot.features.get("radio_audit")
                 if (
                     radio_feature is not None

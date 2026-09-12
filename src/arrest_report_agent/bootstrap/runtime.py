@@ -10,6 +10,7 @@ from agents import set_default_openai_key
 
 from arrest_report_agent.agent_sessions import AgentSessionManager
 from arrest_report_agent.arrest_statistics import ArrestStatisticsCog, ArrestStatisticsService
+from arrest_report_agent.blacklists import BlacklistCog, BlacklistRepository
 from arrest_report_agent.ci_notifications import (
     CiNotificationRepository,
     CiNotificationWorker,
@@ -163,6 +164,7 @@ class Runtime:
     pagers_enabled: bool
     suggestions_enabled: bool
     logbook_enabled: bool
+    blacklists_enabled: bool
     deployment_notifications_enabled: bool
     deployment_worker: DeploymentNotificationWorker
     railway_webhook_receiver: RailwayWebhookReceiver | None
@@ -209,6 +211,7 @@ class Runtime:
             "pagers": self.pagers_enabled,
             "suggestions": self.suggestions_enabled,
             "logbook": self.logbook_enabled,
+            "blacklists": self.blacklists_enabled,
             "deployment_notifications": self.deployment_notifications_enabled,
             "railway_webhook": self.railway_webhook_receiver is not None,
             "github_webhook": self.github_webhook_receiver is not None,
@@ -687,6 +690,22 @@ async def build_runtime(
             persona.profile,
         )
     )
+    blacklists_enabled = any(
+        (feature := bundle.snapshot.features.get("blacklists")) is not None and feature.enabled
+        for bundle in all_bundles
+    )
+    bot.add_cog(BlacklistCog(config_provider, BlacklistRepository(postgres)))
+    log_event(
+        LOGGER,
+        "info",
+        "blacklist_subsystem_registered",
+        configured_guilds=sum(
+            1
+            for bundle in all_bundles
+            if (feature := bundle.snapshot.features.get("blacklists")) is not None
+            and feature.enabled
+        ),
+    )
     log_event(
         LOGGER,
         "info",
@@ -781,6 +800,7 @@ async def build_runtime(
         pagers_enabled=pagers_enabled,
         suggestions_enabled=suggestions_enabled,
         logbook_enabled=logbook_enabled,
+        blacklists_enabled=blacklists_enabled,
         deployment_notifications_enabled=deployment_notifications_enabled,
         deployment_worker=deployment_worker,
         railway_webhook_receiver=railway_webhook_receiver,

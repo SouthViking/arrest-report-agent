@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from enum import StrEnum
 
 import discord
 
@@ -17,6 +18,49 @@ DATE_PERIOD_LABELS: dict[DateRangePeriod, str] = {
     DateRangePeriod.LAST_90_DAYS: "Últimos 90 días",
     DateRangePeriod.CUSTOM: "Rango personalizado",
 }
+
+
+class ResultVisibility(StrEnum):
+    """Shared visibility choice for deterministic command results."""
+
+    PUBLIC = "public"
+    PRIVATE = "private"
+
+
+def build_visibility_select(
+    custom_id: str,
+    *,
+    default: ResultVisibility = ResultVisibility.PUBLIC,
+) -> discord.ui.StringSelect:  # type: ignore[type-var]
+    """Build the common explicit public/private result selector."""
+
+    return discord.ui.StringSelect(
+        custom_id=custom_id,
+        options=[
+            discord.SelectOption(
+                label="Visible para todos",
+                value=ResultVisibility.PUBLIC.value,
+                emoji="🌐",
+                default=default is ResultVisibility.PUBLIC,
+            ),
+            discord.SelectOption(
+                label="Solo para mí",
+                value=ResultVisibility.PRIVATE.value,
+                emoji="🔒",
+                default=default is ResultVisibility.PRIVATE,
+            ),
+        ],
+        min_values=1,
+        max_values=1,
+    )
+
+
+def selected_visibility(
+    select: discord.ui.StringSelect,  # type: ignore[type-var]
+    *,
+    default: ResultVisibility = ResultVisibility.PUBLIC,
+) -> ResultVisibility:
+    return ResultVisibility(next(iter(select.values or ()), default.value))
 
 
 def build_date_period_select(

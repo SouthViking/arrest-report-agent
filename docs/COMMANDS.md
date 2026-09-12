@@ -59,14 +59,23 @@ El módulo **Consulta y auditoría de radios** recibe
 `operational_staff_roles`; `/auditar-radio` exige la política independiente `radio_audit_roles`.
 Ambos permisos se modifican y publican por `/config` sin redesplegar.
 
+El módulo **Blacklists** registra tipos con clave, nombre visible, prefijo y canales. El canal fija
+el tipo y el usuario nunca lo selecciona. `/blacklist registrar` y `/blacklist consultar` exigen
+`operational_staff_roles`; la consulta funciona desde cualquier canal. `/blacklist editar` y
+`/blacklist eliminar` exigen además uno de los roles gestores de Command Staff o Executive Staff y
+solo operan desde un canal del tipo afectado. La eliminación retira el mensaje, pero conserva la
+entrada revocada y su auditoría en PostgreSQL. `/blacklist info` es público y se anuncia en
+`/ayuda` cuando el módulo está activo.
+
 La acción **Publicar consumo** consulta los proveedores configurados, omite cualquier campo que no
 haya sido devuelto y envía un embed público en el canal donde se abrió `/config`. No usa IA. Los
 resultados se conservan en memoria por cinco minutos; las credenciales nunca se muestran ni se
 registran en logs.
 
 Los comandos se registran directamente en la raíz, sin depender del nombre o personalidad del bot.
-Salvo `/ayuda`, `/info-reportes`, `/revisar-arresto`, `/ts3`, `/info-roles`, los resultados de `/verguenza` y `/honor`, y el expediente publicado
-por `/solicitar-roles`, sus respuestas son efímeras: solo las ve quien ejecutó el comando. Los selectores
+Salvo `/ayuda`, `/info-reportes`, `/revisar-arresto`, `/ts3`, `/info-roles`, `/blacklist info`, los
+resultados de `/verguenza` y `/honor`, la entrada publicada por `/blacklist registrar` y el expediente
+publicado por `/solicitar-roles`, sus respuestas son efímeras: solo las ve quien ejecutó el comando. Los selectores
 de consultas quedan ligados a ese usuario, expiran a los 180 segundos y editan el mensaje existente
 en vez de publicar respuestas adicionales. Los tres botones de una solicitud de roles son la
 excepción: son persistentes, sobreviven reinicios y autorizan al supervisor en cada clic.
@@ -96,6 +105,11 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/radios-faccion` | `operational_staff_roles`; módulo `radio_audit` activo | Modal privado; resultado público o efímero | Registros de radio de la facción en SARP |
 | `/auditar-radio` | `radio_audit_roles`; módulo `radio_audit` activo | Modal privado; resultado público o efímero | Muestra fija de SARP, sección IV del manual y códigos radiales |
 | `/bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Selector privado, modal adaptado y entrada pública | PostgreSQL, Railway Bucket y Discord |
+| `/blacklist registrar` | `operational_staff_roles`; módulo activo; canal asociado a un tipo | Modal privado y registro público | PostgreSQL y Discord |
+| `/blacklist consultar` | `operational_staff_roles`; módulo activo; cualquier canal | Modal privado; resultado público por defecto o efímero | PostgreSQL |
+| `/blacklist editar` | `operational_staff_roles` y rol gestor Command/Executive; canal asociado al tipo | Modal y confirmación efímeros; edita el registro público | PostgreSQL y Discord |
+| `/blacklist eliminar` | `operational_staff_roles` y rol gestor Command/Executive; canal asociado al tipo | Modal y confirmación efímeros; retira el registro público | PostgreSQL y Discord |
+| `/blacklist info` | Todos; módulo activo | Pública | Configuración de PostgreSQL |
 | `/info-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Pública; rechazo efímero fuera de los canales | Persona activa y configuración de PostgreSQL |
 | `/guia-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Modal privado; resultado público o efímero | Catálogo central de categorías y subtipos |
 | `/resumen-bitacora` | `faction_report_roles`; módulo `logbook` activo | Selector y modal privados; resultado público o efímero | Registros estructurados publicados en PostgreSQL |

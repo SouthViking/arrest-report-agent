@@ -63,6 +63,7 @@ async def run() -> None:
         role_request_subsystem_enabled=runtime.role_requests_enabled,
         pager_subsystem_enabled=runtime.pagers_enabled,
         suggestion_subsystem_enabled=runtime.suggestions_enabled,
+        blacklist_subsystem_enabled=runtime.blacklists_enabled,
         deployment_notification_subsystem_enabled=(runtime.deployment_notifications_enabled),
         railway_webhook_enabled=runtime.railway_webhook_receiver is not None,
         github_webhook_enabled=runtime.github_webhook_receiver is not None,
