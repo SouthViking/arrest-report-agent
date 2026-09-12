@@ -298,7 +298,7 @@ def _update_payload(
     connection.execute(
         sa.text(
             "UPDATE guild_feature_settings "
-            "SET payload = CAST(:payload AS jsonb), updated_at = now() "
+            "SET payload = CAST(:payload AS jsonb) "
             "WHERE id = :setting_id"
         ),
         {
