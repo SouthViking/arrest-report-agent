@@ -1,20 +1,24 @@
 {
   "schema_version": 3,
-  "version": "0.32.1",
-  "title": "Uso más ágil de las blacklists",
-  "summary": "Simplificamos los formularios para que administrar una blacklist requiera menos pasos.",
+  "version": "0.33.0",
+  "title": "Blacklists generales de facción",
+  "summary": "El sistema de blacklists ahora permite registrar casos generales de la facción y asociar todas las cuentas de PCU relacionadas.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "El formulario de /blacklist registrar ahora muestra una URL de ejemplo completamente ficticia."
+      "type": "added",
+      "text": "Usa /blacklist registrar en #blacklist para crear registros generales de la facción con referencia FAC."
+    },
+    {
+      "type": "added",
+      "text": "Cada registro puede incluir hasta cinco cuentas de PCU, ingresadas una por línea y visibles directamente en el embed."
     },
     {
       "type": "improved",
-      "text": "Registrar, editar o eliminar una blacklist ya no muestra mensajes privados de confirmación adicionales: el cambio se refleja directamente en el canal."
+      "text": "/blacklist consultar ahora encuentra registros de CCW y Facción por ID de PCU, URL o nombre."
     }
   ],
   "acknowledgements": []

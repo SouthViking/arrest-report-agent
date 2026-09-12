@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from arrest_report_agent.config import BlacklistTypeOptions
+from arrest_report_agent.config import BlacklistTypeOptions, PcuProfileKind
 from arrest_report_agent.infrastructure.postgres import PostgresClient
 from arrest_report_agent.infrastructure.postgres.schema import (
     blacklist_counters,
@@ -18,11 +18,11 @@ from arrest_report_agent.infrastructure.postgres.schema import (
 from .models import (
     BlacklistEntry,
     BlacklistEntryStatus,
-    character_name_key,
-    normalize_character_name,
+    normalize_subject_name,
     parse_lookup,
-    parse_pcu_profile_url,
+    parse_pcu_profile_urls,
     parse_reference,
+    subject_name_key,
 )
 
 
@@ -40,13 +40,17 @@ class BlacklistRepository:
         interaction_id: int,
         author_user_id: int,
         type_definition: BlacklistTypeOptions,
-        raw_pcu_url: str,
-        raw_character_name: str,
+        raw_pcu_urls: str,
+        raw_subject_name: str,
         raw_reason: str,
     ) -> tuple[BlacklistEntry, bool]:
-        profile_id, pcu_url = parse_pcu_profile_url(raw_pcu_url)
-        character_name = normalize_character_name(raw_character_name)
-        name_key = character_name_key(character_name)
+        profile_ids, pcu_urls = parse_pcu_profile_urls(
+            raw_pcu_urls,
+            expected_kind=type_definition.profile_kind,
+            max_profiles=type_definition.max_profiles,
+        )
+        subject_name = normalize_subject_name(raw_subject_name)
+        name_key = subject_name_key(subject_name)
         reason = raw_reason.strip()
         if not 10 <= len(reason) <= 1_000:
             raise ValueError("La razón debe contener entre 10 y 1000 caracteres.")
@@ -106,10 +110,12 @@ class BlacklistRepository:
                             channel_id=channel_id,
                             interaction_id=interaction_id,
                             author_user_id=author_user_id,
-                            pcu_profile_id=profile_id,
-                            pcu_url=pcu_url,
-                            character_name=character_name,
-                            character_name_key=name_key,
+                            profile_kind=type_definition.profile_kind.value,
+                            pcu_profile_ids=list(profile_ids),
+                            pcu_urls=list(pcu_urls),
+                            subject_label=type_definition.subject_label.strip(),
+                            subject_name=subject_name,
+                            subject_name_key=name_key,
                             reason=reason,
                             status=BlacklistEntryStatus.PUBLISHING.value,
                             created_at=timestamp,
@@ -157,15 +163,19 @@ class BlacklistRepository:
         *,
         entry_id: uuid.UUID,
         guild_id: int,
-        type_key: str,
+        type_definition: BlacklistTypeOptions,
         actor_user_id: int,
-        raw_pcu_url: str,
-        raw_character_name: str,
+        raw_pcu_urls: str,
+        raw_subject_name: str,
         raw_reason: str,
     ) -> BlacklistEntry:
-        profile_id, pcu_url = parse_pcu_profile_url(raw_pcu_url)
-        character_name = normalize_character_name(raw_character_name)
-        name_key = character_name_key(character_name)
+        profile_ids, pcu_urls = parse_pcu_profile_urls(
+            raw_pcu_urls,
+            expected_kind=type_definition.profile_kind,
+            max_profiles=type_definition.max_profiles,
+        )
+        subject_name = normalize_subject_name(raw_subject_name)
+        name_key = subject_name_key(subject_name)
         reason = raw_reason.strip()
         if not 10 <= len(reason) <= 1_000:
             raise ValueError("La razón debe contener entre 10 y 1000 caracteres.")
@@ -178,14 +188,16 @@ class BlacklistRepository:
                         .where(
                             blacklist_entries.c.id == entry_id,
                             blacklist_entries.c.guild_id == guild_id,
-                            blacklist_entries.c.type_key == type_key,
+                            blacklist_entries.c.type_key == type_definition.key,
                             blacklist_entries.c.status == BlacklistEntryStatus.ACTIVE.value,
                         )
                         .values(
-                            pcu_profile_id=profile_id,
-                            pcu_url=pcu_url,
-                            character_name=character_name,
-                            character_name_key=name_key,
+                            profile_kind=type_definition.profile_kind.value,
+                            pcu_profile_ids=list(profile_ids),
+                            pcu_urls=list(pcu_urls),
+                            subject_label=type_definition.subject_label.strip(),
+                            subject_name=subject_name,
+                            subject_name_key=name_key,
                             reason=reason,
                             edited_by_user_id=actor_user_id,
                             edited_at=timestamp,
@@ -246,17 +258,19 @@ class BlacklistRepository:
     ) -> tuple[BlacklistEntry, ...]:
         if not 1 <= limit <= 25:
             raise ValueError("Blacklist search limit must be between 1 and 25")
-        profile_id, name_key = parse_lookup(raw_query)
+        profile_kind, profile_id, name_key = parse_lookup(raw_query)
         statement = sa.select(blacklist_entries).where(
             blacklist_entries.c.guild_id == guild_id,
             blacklist_entries.c.status == BlacklistEntryStatus.ACTIVE.value,
         )
         if profile_id is not None:
-            statement = statement.where(blacklist_entries.c.pcu_profile_id == profile_id)
+            statement = statement.where(blacklist_entries.c.pcu_profile_ids.contains([profile_id]))
+            if profile_kind is not None:
+                statement = statement.where(blacklist_entries.c.profile_kind == profile_kind.value)
+        elif name_key is not None:
+            statement = statement.where(blacklist_entries.c.subject_name_key.contains(name_key))
         else:
-            statement = statement.where(
-                blacklist_entries.c.character_name_key.contains(name_key)
-            )
+            raise AssertionError("validated blacklist lookup has no search value")
         rows = await self.client.fetch_all(
             statement.order_by(blacklist_entries.c.created_at.desc()).limit(limit)
         )
@@ -305,22 +319,20 @@ class BlacklistRepository:
             message_id=int(row["message_id"]) if row["message_id"] is not None else None,
             interaction_id=int(row["interaction_id"]),
             author_user_id=int(row["author_user_id"]),
-            pcu_profile_id=int(row["pcu_profile_id"]),
-            pcu_url=str(row["pcu_url"]),
-            character_name=str(row["character_name"]),
-            character_name_key=str(row["character_name_key"]),
+            profile_kind=PcuProfileKind(str(row["profile_kind"])),
+            pcu_profile_ids=tuple(int(value) for value in row["pcu_profile_ids"]),
+            pcu_urls=tuple(str(value) for value in row["pcu_urls"]),
+            subject_label=str(row["subject_label"]),
+            subject_name=str(row["subject_name"]),
+            subject_name_key=str(row["subject_name_key"]),
             reason=str(row["reason"]),
             status=BlacklistEntryStatus(str(row["status"])),
             edited_by_user_id=(
-                int(row["edited_by_user_id"])
-                if row["edited_by_user_id"] is not None
-                else None
+                int(row["edited_by_user_id"]) if row["edited_by_user_id"] is not None else None
             ),
             edited_at=row["edited_at"],
             revoked_by_user_id=(
-                int(row["revoked_by_user_id"])
-                if row["revoked_by_user_id"] is not None
-                else None
+                int(row["revoked_by_user_id"]) if row["revoked_by_user_id"] is not None else None
             ),
             revoked_at=row["revoked_at"],
             created_at=row["created_at"],

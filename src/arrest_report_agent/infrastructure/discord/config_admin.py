@@ -25,6 +25,7 @@ from arrest_report_agent.config import (
     GuildAgentConfig,
     GuildFeatureSnapshot,
     OperationalResourcesOptions,
+    PcuProfileKind,
     RadioAuditOptions,
     WarrantNotificationOptions,
 )
@@ -62,9 +63,7 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
     AccessPolicyKey.RADIO_AUDIT_ROLES: "Roles para auditoría radial con IA",
     AccessPolicyKey.FACTION_REPORT_ROLES: "Roles para informes de facción",
     AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: "Canales de despliegues",
-    AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: (
-        "Canales de incidentes de despliegue"
-    ),
+    AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: ("Canales de incidentes de despliegue"),
     AccessPolicyKey.CI_FAILURE_NOTIFICATION_CHANNELS: "Canales de errores de CI",
     AccessPolicyKey.SERVICE_CALL_CHANNELS: "Canales de llamadas de servicio",
     AccessPolicyKey.STOLEN_VEHICLE_CHANNELS: "Canales de vehículos robados",
@@ -605,9 +604,7 @@ class ConfigurationPanelView(discord.ui.View):
         _button: discord.ui.Button,
         interaction: discord.Interaction,
     ) -> None:
-        await interaction.response.send_modal(
-            BlacklistConfigurationModal(self.cog, self.requester_id)
-        )
+        await interaction.response.send_modal(BlacklistConfigurationModal(self.cog, self.requester_id))
 
     @discord.ui.button(label="Rollback", emoji="↩️", style=discord.ButtonStyle.secondary, row=2)
     async def rollback(
@@ -1064,11 +1061,7 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 raise ValueError("Este módulo no admite opciones JSON.")
             if key == "logbook" and payload:
                 raise ValueError("Este módulo no admite opciones JSON.")
-            if (
-                key == "faction_status"
-                and self.enabled.values[0] == "true"
-                and "faction_id" not in payload
-            ):
+            if key == "faction_status" and self.enabled.values[0] == "true" and "faction_id" not in payload:
                 raise ValueError("Estado de facción requiere `faction_id`.")
             if key == "ftp_status" and self.enabled.values[0] == "true":
                 try:
@@ -1248,9 +1241,7 @@ class BlacklistConfigurationModal(BaseConfigurationModal):
                 manager_role_ids = _parse_snowflakes(raw_roles)
                 for role_id in manager_role_ids:
                     if interaction.guild.get_role(role_id) is None:
-                        raise ValueError(
-                            f"El rol `{role_id}` no pertenece a este servidor."
-                        )
+                        raise ValueError(f"El rol `{role_id}` no pertenece a este servidor.")
             elif action == "disable":
                 if not key:
                     raise ValueError("Indica la clave del tipo que quieres deshabilitar.")
@@ -1261,16 +1252,12 @@ class BlacklistConfigurationModal(BaseConfigurationModal):
                 if not key:
                     raise ValueError("Indica la clave interna del tipo.")
                 if not manager_role_ids:
-                    raise ValueError(
-                        "Configura primero los roles de gestión de blacklists."
-                    )
+                    raise ValueError("Configura primero los roles de gestión de blacklists.")
                 name = self.display_name.value.strip()
                 prefix = self.reference_prefix.value.strip().upper()
                 raw_channels = self.channel_ids.value.strip()
                 if not name or not prefix or not raw_channels:
-                    raise ValueError(
-                        "Para registrar un tipo indica nombre, prefijo y al menos un canal."
-                    )
+                    raise ValueError("Para registrar un tipo indica nombre, prefijo y al menos un canal.")
                 channel_ids = _parse_snowflakes(raw_channels)
                 for channel_id in channel_ids:
                     channel = interaction.guild.get_channel(channel_id)
@@ -1283,6 +1270,15 @@ class BlacklistConfigurationModal(BaseConfigurationModal):
                     display_name=name,
                     reference_prefix=prefix,
                     channel_ids=channel_ids,
+                    profile_kind=(
+                        types[existing_index].profile_kind
+                        if existing_index is not None
+                        else PcuProfileKind.CHARACTER
+                    ),
+                    max_profiles=(types[existing_index].max_profiles if existing_index is not None else 1),
+                    subject_label=(
+                        types[existing_index].subject_label if existing_index is not None else "Personaje"
+                    ),
                     enabled=True,
                 )
                 if existing_index is None:
@@ -1307,8 +1303,7 @@ class BlacklistConfigurationModal(BaseConfigurationModal):
             )
             if action == "roles":
                 description = (
-                    f"Los roles de gestión quedaron actualizados ({len(manager_role_ids)}) "
-                    "en el borrador."
+                    f"Los roles de gestión quedaron actualizados ({len(manager_role_ids)}) en el borrador."
                 )
             else:
                 verb = "deshabilitado" if action == "disable" else "registrado"

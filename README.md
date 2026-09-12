@@ -446,16 +446,18 @@ Comandos disponibles:
   los datos en PostgreSQL y los archivos en el Bucket.
 - `/blacklist registrar`: abre un formulario únicamente en un canal asociado a un tipo de
   blacklist y exige pertenecer a `operational_staff_roles`. El canal determina internamente el
-  tipo; el usuario registra la URL del perfil PCU, el personaje y una razón de 10 a 1.000
-  caracteres. Publica un embed con una referencia correlativa propia del tipo y conserva el
-  registro en PostgreSQL.
+  tipo; el usuario registra los perfiles PCU admitidos, la persona o personaje y una razón de 10
+  a 1.000 caracteres. `CCW` (`CCW`, canal `1530621801871441991`) acepta un perfil de personaje;
+  `Facción` (`FAC`, canal `1383926305136971906`) acepta hasta cinco perfiles de cuenta, uno por
+  línea. Publica un embed con una referencia correlativa propia del tipo y conserva el registro en
+  PostgreSQL.
 - `/blacklist consultar`: funciona desde cualquier canal del servidor y busca registros activos de
-  todos los tipos por ID de PCU, URL completa o nombre de personaje. Exige
+  todos los tipos por ID de PCU, URL completa de cuenta o personaje, o nombre. Exige
   `operational_staff_roles`; el formulario permite publicar el resultado para todos —la opción
   predeterminada— o mostrarlo solo a quien consulta.
 - `/blacklist editar`: reservado a los roles gestores de Command Staff y Executive Staff. Desde el
-  canal asociado al tipo permite indicar una referencia y reemplazar selectivamente la URL, el
-  personaje o la razón; actualiza PostgreSQL y el embed original.
+  canal asociado al tipo permite indicar una referencia y reemplazar selectivamente los perfiles
+  PCU, el nombre o la razón; actualiza PostgreSQL y el embed original.
 - `/blacklist eliminar`: aplica el mismo acceso y asociación canal–tipo. Tras una confirmación,
   retira el mensaje de Discord y conserva la entrada revocada con su responsable y fecha para
   auditoría interna.
@@ -521,10 +523,11 @@ Comandos disponibles:
 - `/config`: abre un panel efímero sin argumentos, reservado a owners o roles `config_admin_roles`;
   permite inspeccionar la revisión activa y administrar borradores, accesos, agente, módulos,
   personas, tipos de blacklist, publicación y rollback mediante botones y formularios. Cada tipo
-  de blacklist define una clave, nombre visible, prefijo de referencia y uno o más canales de
-  registro; un canal no puede pertenecer a dos tipos. El mismo formulario administra los roles de
-  gestión para Command Staff y Executive Staff. Los intentos no autorizados reciben una alerta
-  efímera tomada del pool de la personalidad activa.
+  de blacklist define una clave, nombre visible, prefijo de referencia, clase de perfil PCU,
+  cantidad máxima de perfiles, etiqueta del sujeto y uno o más canales de registro; un canal no
+  puede pertenecer a dos tipos. El mismo formulario administra los roles de gestión para Command
+  Staff y Executive Staff. Los intentos no autorizados reciben una alerta efímera tomada del pool
+  de la personalidad activa.
 
 En `/config` → **Módulos**, `report_owner_access` acepta `{"max_rounds": 5}` con un valor entre 1 y
 20. Solo puede habilitarse cuando `report_channels` contiene IDs explícitos.

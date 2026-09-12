@@ -15,9 +15,13 @@ from .models import (
     BlacklistEntryStatus,
     character_name_key,
     normalize_character_name,
+    normalize_subject_name,
+    parse_any_pcu_profile_url,
     parse_lookup,
     parse_pcu_profile_url,
+    parse_pcu_profile_urls,
     parse_reference,
+    subject_name_key,
 )
 from .repository import BlacklistRepository
 
@@ -35,7 +39,11 @@ __all__ = [
     "build_lookup_results_embed",
     "character_name_key",
     "normalize_character_name",
+    "normalize_subject_name",
+    "parse_any_pcu_profile_url",
     "parse_lookup",
     "parse_pcu_profile_url",
+    "parse_pcu_profile_urls",
     "parse_reference",
+    "subject_name_key",
 ]

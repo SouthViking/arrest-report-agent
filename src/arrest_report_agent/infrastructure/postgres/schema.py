@@ -1325,9 +1325,7 @@ supporter_provider_links = sa.Table(
     sa.Column("provider_supporter_id", sa.String(100), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-    sa.UniqueConstraint(
-        "provider", "provider_supporter_id", name="uq_supporter_provider_identity"
-    ),
+    sa.UniqueConstraint("provider", "provider_supporter_id", name="uq_supporter_provider_identity"),
     sa.Index("ix_supporter_provider_link_profile", "profile_id"),
 )
 
@@ -1396,9 +1394,7 @@ support_contributions = sa.Table(
     sa.Column("refunded_at", sa.DateTime(timezone=True)),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-    sa.CheckConstraint(
-        "original_amount >= 0", name="ck_support_contribution_original_amount"
-    ),
+    sa.CheckConstraint("original_amount >= 0", name="ck_support_contribution_original_amount"),
     sa.CheckConstraint(
         "normalized_amount_usd IS NULL OR normalized_amount_usd >= 0",
         name="ck_support_contribution_normalized_amount",
@@ -1507,10 +1503,12 @@ blacklist_entries = sa.Table(
     sa.Column("message_id", sa.BigInteger),
     sa.Column("interaction_id", sa.BigInteger, nullable=False, unique=True),
     sa.Column("author_user_id", sa.BigInteger, nullable=False),
-    sa.Column("pcu_profile_id", sa.BigInteger, nullable=False),
-    sa.Column("pcu_url", sa.String(200), nullable=False),
-    sa.Column("character_name", sa.String(100), nullable=False),
-    sa.Column("character_name_key", sa.String(100), nullable=False),
+    sa.Column("profile_kind", sa.String(20), nullable=False),
+    sa.Column("pcu_profile_ids", postgresql.ARRAY(sa.BigInteger), nullable=False),
+    sa.Column("pcu_urls", postgresql.ARRAY(sa.String(200)), nullable=False),
+    sa.Column("subject_label", sa.String(30), nullable=False),
+    sa.Column("subject_name", sa.String(100), nullable=False),
+    sa.Column("subject_name_key", sa.String(100), nullable=False),
     sa.Column("reason", sa.Text, nullable=False),
     sa.Column("status", sa.String(20), nullable=False, server_default="publishing"),
     sa.Column("edited_by_user_id", sa.BigInteger),
@@ -1520,7 +1518,22 @@ blacklist_entries = sa.Table(
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     sa.CheckConstraint("number > 0", name="ck_blacklist_number_positive"),
-    sa.CheckConstraint("pcu_profile_id > 0", name="ck_blacklist_pcu_profile_positive"),
+    sa.CheckConstraint(
+        "profile_kind IN ('character','account')",
+        name="ck_blacklist_profile_kind",
+    ),
+    sa.CheckConstraint(
+        "cardinality(pcu_profile_ids) BETWEEN 1 AND 5",
+        name="ck_blacklist_profile_count",
+    ),
+    sa.CheckConstraint(
+        "0 < ALL(pcu_profile_ids)",
+        name="ck_blacklist_profile_ids_positive",
+    ),
+    sa.CheckConstraint(
+        "cardinality(pcu_urls) = cardinality(pcu_profile_ids)",
+        name="ck_blacklist_profile_cardinality",
+    ),
     sa.CheckConstraint(
         "status IN ('publishing','active','failed','revoked')",
         name="ck_blacklist_status",
@@ -1537,16 +1550,11 @@ blacklist_entries = sa.Table(
         "message_id",
         name="uq_blacklist_message",
     ),
+    sa.Index("ix_blacklist_profile_ids", "pcu_profile_ids", postgresql_using="gin"),
     sa.Index(
-        "ix_blacklist_guild_pcu",
+        "ix_blacklist_guild_subject",
         "guild_id",
-        "pcu_profile_id",
-        "status",
-    ),
-    sa.Index(
-        "ix_blacklist_guild_character",
-        "guild_id",
-        "character_name_key",
+        "subject_name_key",
         "status",
     ),
     sa.Index("ix_blacklist_guild_created", "guild_id", "created_at"),

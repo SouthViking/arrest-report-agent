@@ -21,14 +21,20 @@ from arrest_report_agent.blacklists import (
     character_name_key,
     parse_lookup,
     parse_pcu_profile_url,
+    parse_pcu_profile_urls,
     parse_reference,
 )
 from arrest_report_agent.blacklists import discord as blacklist_discord
-from arrest_report_agent.config import BlacklistOptions, BlacklistTypeOptions
+from arrest_report_agent.config import (
+    BlacklistOptions,
+    BlacklistTypeOptions,
+    PcuProfileKind,
+)
 from arrest_report_agent.infrastructure.discord.forms import ResultVisibility
 
 GUILD_ID = 1234674521416663070
 CCW_CHANNEL_ID = 1530621801871441991
+FACTION_CHANNEL_ID = 1383926305136971906
 OPERATIONAL_ROLE_ID = 111
 MANAGER_ROLE_ID = 222
 
@@ -42,8 +48,20 @@ def _options() -> BlacklistOptions:
                 display_name="CCW",
                 reference_prefix="CCW",
                 channel_ids=(CCW_CHANNEL_ID,),
+                profile_kind=PcuProfileKind.CHARACTER,
+                max_profiles=1,
+                subject_label="Personaje",
             ),
-        )
+            BlacklistTypeOptions(
+                key="faction",
+                display_name="Facción",
+                reference_prefix="FAC",
+                channel_ids=(FACTION_CHANNEL_ID,),
+                profile_kind=PcuProfileKind.ACCOUNT,
+                max_profiles=5,
+                subject_label="Persona",
+            ),
+        ),
     )
 
 
@@ -60,13 +78,42 @@ def _entry() -> BlacklistEntry:
         message_id=999,
         interaction_id=1000,
         author_user_id=42,
-        pcu_profile_id=542,
-        pcu_url="https://ucp.sarp.es/app/ucp/characters/overview/542",
-        character_name="Peter Kinsella",
-        character_name_key="peter kinsella",
-        reason=(
-            "Realizó un acto ilegal; intento de caza y portación de una escopeta sin licencia."
+        profile_kind=PcuProfileKind.CHARACTER,
+        pcu_profile_ids=(542,),
+        pcu_urls=("https://ucp.sarp.es/app/ucp/characters/overview/542",),
+        subject_label="Personaje",
+        subject_name="Peter Kinsella",
+        subject_name_key="peter kinsella",
+        reason=("Realizó un acto ilegal; intento de caza y portación de una escopeta sin licencia."),
+        status=BlacklistEntryStatus.ACTIVE,
+        created_at=timestamp,
+        updated_at=timestamp,
+    )
+
+
+def _faction_entry() -> BlacklistEntry:
+    timestamp = datetime(2026, 9, 12, 14, 30, tzinfo=UTC)
+    return BlacklistEntry(
+        id=UUID("00000000-0000-0000-0000-000000000002"),
+        guild_id=GUILD_ID,
+        type_key="faction",
+        type_name="Facción",
+        reference_prefix="FAC",
+        number=1,
+        channel_id=FACTION_CHANNEL_ID,
+        message_id=1_001,
+        interaction_id=1_002,
+        author_user_id=42,
+        profile_kind=PcuProfileKind.ACCOUNT,
+        pcu_profile_ids=(2906, 12705),
+        pcu_urls=(
+            "https://ucp.sarp.es/app/ucp/accounts/overview/2906",
+            "https://ucp.sarp.es/app/ucp/accounts/overview/12705",
         ),
+        subject_label="Persona",
+        subject_name="Marcos Esquivel (wieckedlmz)",
+        subject_name_key="marcos esquivel wieckedlmz",
+        reason="Corrupción siendo detective en LSPD.",
         status=BlacklistEntryStatus.ACTIVE,
         created_at=timestamp,
         updated_at=timestamp,
@@ -132,8 +179,8 @@ class FakeMutationRepository(FakeLookupRepository):
         timestamp = datetime(2026, 9, 12, 13, 0, tzinfo=UTC)
         return self.entry.model_copy(
             update={
-                "pcu_url": kwargs["raw_pcu_url"],
-                "character_name": kwargs["raw_character_name"],
+                "pcu_urls": tuple(str(kwargs["raw_pcu_urls"]).split()),
+                "subject_name": kwargs["raw_subject_name"],
                 "reason": kwargs["raw_reason"],
                 "edited_by_user_id": kwargs["actor_user_id"],
                 "edited_at": timestamp,
@@ -166,14 +213,43 @@ class FakeRegistrationRepository(FakeLookupRepository):
 
 
 def test_pcu_profile_parser_canonicalizes_the_supported_character_url() -> None:
-    profile_id, canonical = parse_pcu_profile_url(
-        " https://UCP.SARP.ES/app/ucp/characters/overview/542/ "
-    )
+    profile_id, canonical = parse_pcu_profile_url(" https://UCP.SARP.ES/app/ucp/characters/overview/542/ ")
 
     assert profile_id == 542
     assert canonical == "https://ucp.sarp.es/app/ucp/characters/overview/542"
-    assert parse_lookup("542") == (542, None)
-    assert parse_lookup(canonical) == (542, None)
+    assert parse_lookup("542") == (None, 542, None)
+    assert parse_lookup(canonical) == (PcuProfileKind.CHARACTER, 542, None)
+
+
+def test_account_profile_parser_supports_multiple_unique_urls() -> None:
+    profile_ids, urls = parse_pcu_profile_urls(
+        "https://ucp.sarp.es/app/ucp/accounts/overview/2906\n"
+        "https://ucp.sarp.es/app/ucp/accounts/overview/12705",
+        expected_kind=PcuProfileKind.ACCOUNT,
+        max_profiles=5,
+    )
+
+    assert profile_ids == (2906, 12705)
+    assert urls == (
+        "https://ucp.sarp.es/app/ucp/accounts/overview/2906",
+        "https://ucp.sarp.es/app/ucp/accounts/overview/12705",
+    )
+    assert parse_lookup(urls[1]) == (PcuProfileKind.ACCOUNT, 12705, None)
+
+
+def test_profile_parser_enforces_the_configured_kind_and_limit() -> None:
+    with pytest.raises(ValueError, match="accounts"):
+        parse_pcu_profile_url(
+            "https://ucp.sarp.es/app/ucp/characters/overview/542",
+            expected_kind=PcuProfileKind.ACCOUNT,
+        )
+    with pytest.raises(ValueError, match="máximo de 1"):
+        parse_pcu_profile_urls(
+            "https://ucp.sarp.es/app/ucp/accounts/overview/2906\n"
+            "https://ucp.sarp.es/app/ucp/accounts/overview/12705",
+            expected_kind=PcuProfileKind.ACCOUNT,
+            max_profiles=1,
+        )
 
 
 @pytest.mark.parametrize(
@@ -192,7 +268,7 @@ def test_pcu_profile_parser_rejects_urls_outside_the_exact_profile_route(url: st
 
 def test_character_search_key_is_case_accent_and_punctuation_insensitive() -> None:
     assert character_name_key("  PÉTER_Kinsella  ") == "peter kinsella"
-    assert parse_lookup("Péter-Kinsella") == (None, "peter kinsella")
+    assert parse_lookup("Péter-Kinsella") == (None, None, "peter kinsella")
 
 
 def test_blacklist_reference_parser_requires_a_full_typed_reference() -> None:
@@ -205,6 +281,7 @@ def test_blacklist_registry_maps_channels_and_rejects_ambiguous_ownership() -> N
     options = _options()
 
     assert options.type_for_channel(CCW_CHANNEL_ID) == options.types[0]
+    assert options.type_for_channel(FACTION_CHANNEL_ID) == options.types[1]
     assert options.type_for_channel(999) is None
 
     with pytest.raises(ValidationError, match="only one type"):
@@ -244,6 +321,20 @@ def test_entry_embed_contains_the_type_reference_and_structured_fields() -> None
     assert embed.fields[4].value == "<@42>"
 
 
+def test_faction_entry_embed_contains_all_account_profiles() -> None:
+    embed = build_entry_embed(_faction_entry())
+
+    assert embed.title == "🚫 FAC-00001 · Blacklist de Facción"
+    assert [field.name for field in embed.fields[:3]] == [
+        "Cuentas de PCU",
+        "Persona",
+        "Razón de la blacklist",
+    ]
+    assert "ID 2906" in embed.fields[0].value
+    assert "ID 12705" in embed.fields[0].value
+    assert embed.fields[1].value == "Marcos Esquivel (wieckedlmz)"
+
+
 @pytest.mark.asyncio
 async def test_blacklist_modals_have_the_requested_fields_and_public_default() -> None:
     cog = BlacklistCog(FakeProvider(_options()), FakeLookupRepository(()))  # type: ignore[arg-type]
@@ -252,8 +343,7 @@ async def test_blacklist_modals_have_the_requested_fields_and_public_default() -
         requester_id=42,
         guild_id=GUILD_ID,
         channel_id=CCW_CHANNEL_ID,
-        type_key="ccw",
-        type_name="CCW",
+        type_definition=_options().types[0],
     )
     lookup = BlacklistLookupModal(cog, requester_id=42)
     edit = BlacklistEditModal(
@@ -261,16 +351,14 @@ async def test_blacklist_modals_have_the_requested_fields_and_public_default() -
         requester_id=42,
         guild_id=GUILD_ID,
         channel_id=CCW_CHANNEL_ID,
-        type_key="ccw",
-        type_name="CCW",
+        type_definition=_options().types[0],
     )
     delete = BlacklistDeleteModal(
         cog,
         requester_id=42,
         guild_id=GUILD_ID,
         channel_id=CCW_CHANNEL_ID,
-        type_key="ccw",
-        type_name="CCW",
+        type_definition=_options().types[0],
     )
 
     assert registration.title == "Registrar blacklist · CCW"
@@ -287,30 +375,67 @@ async def test_blacklist_modals_have_the_requested_fields_and_public_default() -
         "Solo para mí",
     ]
     assert lookup.visibility.options[0].default is True
-    assert registration.pcu_url.placeholder.endswith("/1234")
+    assert registration.pcu_profiles.placeholder.endswith("/1234")
     assert [child.label for child in edit.children] == [
         "Referencia",
         "Nueva URL de la cuenta en PCU",
         "Nuevo personaje",
         "Nueva razón",
     ]
-    assert edit.pcu_url.required is False
-    assert edit.character_name.required is False
+    assert edit.pcu_profiles.required is False
+    assert edit.subject_name.required is False
     assert edit.reason.required is False
     assert [option.value for option in delete.confirmation.options] == ["confirm"]
+
+
+@pytest.mark.asyncio
+async def test_faction_modals_accept_multiple_account_urls() -> None:
+    cog = BlacklistCog(FakeProvider(_options()), FakeLookupRepository(()))  # type: ignore[arg-type]
+    registration = BlacklistRegistrationModal(
+        cog,
+        requester_id=42,
+        guild_id=GUILD_ID,
+        channel_id=FACTION_CHANNEL_ID,
+        type_definition=_options().types[1],
+    )
+    edit = BlacklistEditModal(
+        cog,
+        requester_id=42,
+        guild_id=GUILD_ID,
+        channel_id=FACTION_CHANNEL_ID,
+        type_definition=_options().types[1],
+    )
+
+    assert [child.label for child in registration.children] == [
+        "URLs de cuentas en PCU (una por línea)",
+        "Persona",
+        "Razón de la blacklist",
+    ]
+    assert "/accounts/overview/1234" in registration.pcu_profiles.placeholder
+    assert registration.pcu_profiles.style is blacklist_discord.discord.InputTextStyle.long
+    assert [child.label for child in edit.children] == [
+        "Referencia",
+        "Nuevas URLs de cuentas en PCU",
+        "Nueva persona",
+        "Nueva razón",
+    ]
 
 
 @pytest.mark.asyncio
 async def test_registration_command_only_opens_in_a_configured_blacklist_channel() -> None:
     cog = BlacklistCog(FakeProvider(_options()), FakeLookupRepository(()))  # type: ignore[arg-type]
     allowed = FakeContext(CCW_CHANNEL_ID)
+    faction = FakeContext(FACTION_CHANNEL_ID)
     refused = FakeContext(999)
 
     await BlacklistCog.register.callback(cog, allowed)  # type: ignore[arg-type]
+    await BlacklistCog.register.callback(cog, faction)  # type: ignore[arg-type]
     await BlacklistCog.register.callback(cog, refused)  # type: ignore[arg-type]
 
     assert isinstance(allowed.modals[0], BlacklistRegistrationModal)
     assert allowed.modals[0].type_key == "ccw"
+    assert isinstance(faction.modals[0], BlacklistRegistrationModal)
+    assert faction.modals[0].type_key == "faction"
     assert refused.modals == []
     assert refused.responses[0]["ephemeral"] is True
     assert "no está asociado" in refused.responses[0]["embed"].description
@@ -375,6 +500,8 @@ def test_info_embed_lists_enabled_types_without_exposing_a_type_selector() -> No
     embed = build_info_embed(_options())
 
     assert "CCW" in str(embed.to_dict())
+    assert "Facción" in str(embed.to_dict())
+    assert "hasta 5 perfiles de cuenta" in str(embed.to_dict())
     assert "Ningún usuario puede elegir" in (embed.description or "")
 
 
@@ -416,9 +543,7 @@ async def test_lookup_honors_visibility_and_searches_without_a_type_filter(
         visibility=visibility,
     )
 
-    assert repository.calls == [
-        {"guild_id": GUILD_ID, "raw_query": "542", "limit": 10}
-    ]
+    assert repository.calls == [{"guild_id": GUILD_ID, "raw_query": "542", "limit": 10}]
     assert "type_key" not in repository.calls[0]
     assert responses[0]["ephemeral"] is expected_ephemeral
     assert responses[0]["embed"].title == "🚫 CCW-00001 · Blacklist de CCW"
@@ -467,8 +592,8 @@ async def test_registration_publishes_without_an_ephemeral_confirmation() -> Non
         guild_id=GUILD_ID,
         channel_id=CCW_CHANNEL_ID,
         type_key="ccw",
-        raw_pcu_url="https://ucp.sarp.es/app/ucp/characters/overview/542",
-        raw_character_name="Peter Kinsella",
+        raw_pcu_urls="https://ucp.sarp.es/app/ucp/characters/overview/542",
+        raw_subject_name="Peter Kinsella",
         raw_reason="Razón válida para esta entrada de blacklist.",
     )
 
@@ -498,13 +623,14 @@ async def test_edit_updates_postgres_and_the_original_embed(
         channel_id=CCW_CHANNEL_ID,
         type_key="ccw",
         raw_reference="CCW-00001",
-        raw_pcu_url="",
-        raw_character_name="",
+        raw_pcu_urls="",
+        raw_subject_name="",
         raw_reason="Razón corregida para esta entrada de blacklist.",
     )
 
-    assert repository.update_calls[0]["raw_pcu_url"] == _entry().pcu_url
-    assert repository.update_calls[0]["raw_character_name"] == "Peter Kinsella"
+    assert repository.update_calls[0]["raw_pcu_urls"] == _entry().pcu_url
+    assert repository.update_calls[0]["raw_subject_name"] == "Peter Kinsella"
+    assert repository.update_calls[0]["type_definition"] == _options().types[0]
     assert repository.update_calls[0]["actor_user_id"] == 42
     edited_embed = message.edit.await_args.kwargs["embed"]
     assert edited_embed.title == "🚫 CCW-00001 · Blacklist de CCW"

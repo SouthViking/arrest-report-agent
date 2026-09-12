@@ -42,9 +42,7 @@ class AccessPolicyKey(StrEnum):
     RADIO_AUDIT_ROLES = "radio_audit_roles"
     FACTION_REPORT_ROLES = "faction_report_roles"
     DEPLOYMENT_NOTIFICATION_CHANNELS = "deployment_notification_channels"
-    DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS = (
-        "deployment_incident_notification_channels"
-    )
+    DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS = "deployment_incident_notification_channels"
     CI_FAILURE_NOTIFICATION_CHANNELS = "ci_failure_notification_channels"
     SERVICE_CALL_CHANNELS = "service_call_channels"
     STOLEN_VEHICLE_CHANNELS = "stolen_vehicle_channels"
@@ -331,9 +329,7 @@ class ForumShortcutsOptions(FrozenConfigModel):
             if normalized_title in section_titles:
                 raise ValueError("forum shortcut section titles must be unique")
             section_titles.add(normalized_title)
-            rendered = "\n".join(
-                f"└─ [{link.label}]({link.url})" for link in section.links
-            )
+            rendered = "\n".join(f"└─ [{link.label}]({link.url})" for link in section.links)
             if len(rendered) > 1_024:
                 raise ValueError("forum shortcut section exceeds Discord field limits")
             for link in section.links:
@@ -347,6 +343,11 @@ class ForumShortcutsOptions(FrozenConfigModel):
         return self
 
 
+class PcuProfileKind(StrEnum):
+    CHARACTER = "character"
+    ACCOUNT = "account"
+
+
 class BlacklistTypeOptions(FrozenConfigModel):
     """One administrator-defined blacklist type and its registration channels."""
 
@@ -354,6 +355,9 @@ class BlacklistTypeOptions(FrozenConfigModel):
     display_name: str = Field(min_length=1, max_length=50)
     reference_prefix: str = Field(pattern=r"^[A-Z][A-Z0-9-]{1,11}$")
     channel_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
+    profile_kind: PcuProfileKind = PcuProfileKind.CHARACTER
+    max_profiles: int = Field(default=1, ge=1, le=5)
+    subject_label: str = Field(default="Personaje", min_length=1, max_length=30)
     enabled: bool = True
 
     @model_validator(mode="after")
@@ -364,6 +368,8 @@ class BlacklistTypeOptions(FrozenConfigModel):
             raise ValueError("blacklist channel IDs must be unique within a type")
         if not self.display_name.strip():
             raise ValueError("blacklist display name cannot be blank")
+        if not self.subject_label.strip():
+            raise ValueError("blacklist subject label cannot be blank")
         return self
 
 
@@ -397,11 +403,7 @@ class BlacklistOptions(FrozenConfigModel):
 
     def type_for_channel(self, channel_id: int) -> BlacklistTypeOptions | None:
         return next(
-            (
-                item
-                for item in self.types
-                if item.enabled and channel_id in item.channel_ids
-            ),
+            (item for item in self.types if item.enabled and channel_id in item.channel_ids),
             None,
         )
 
@@ -433,13 +435,9 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if options.retired_role_id is not None:
                 allowed_roles = self.policies[AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]
                 if allowed_roles.mode is not AccessPolicyMode.RESTRICTED:
-                    raise ValueError(
-                        "role request retirement requires an explicit managed-role catalog"
-                    )
+                    raise ValueError("role request retirement requires an explicit managed-role catalog")
                 if options.retired_role_id not in allowed_roles.ids:
-                    raise ValueError(
-                        "role request retirement role must belong to the managed-role catalog"
-                    )
+                    raise ValueError("role request retirement role must belong to the managed-role catalog")
         feature = self.features.get("pagers")
         if feature is not None and feature.enabled:
             if feature.schema_version != 1:
@@ -466,16 +464,10 @@ class GuildConfigSnapshot(FrozenConfigModel):
                 )
             channels = self.policies[AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS]
             if channels.mode is not AccessPolicyMode.RESTRICTED:
-                raise ValueError(
-                    "enabled deployment_notifications requires restricted deployment channels"
-                )
-            incident_channels = self.policies[
-                AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS
-            ]
+                raise ValueError("enabled deployment_notifications requires restricted deployment channels")
+            incident_channels = self.policies[AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS]
             if incident_channels.mode is AccessPolicyMode.OPEN:
-                raise ValueError(
-                    "deployment incident notification channels cannot be open"
-                )
+                raise ValueError("deployment incident notification channels cannot be open")
         owner_feature = self.features.get("report_owner_access")
         if owner_feature is not None and owner_feature.enabled:
             if owner_feature.schema_version != 1:
@@ -483,34 +475,24 @@ class GuildConfigSnapshot(FrozenConfigModel):
             ReportOwnerAccessOptions.model_validate(owner_feature.payload)
             channels = self.policies[AccessPolicyKey.REPORT_CHANNELS]
             if channels.mode is not AccessPolicyMode.RESTRICTED:
-                raise ValueError(
-                    "enabled report_owner_access requires explicit restricted report channels"
-                )
+                raise ValueError("enabled report_owner_access requires explicit restricted report channels")
         service_calls_feature = self.features.get("service_calls")
         if service_calls_feature is not None and service_calls_feature.enabled:
             if service_calls_feature.schema_version != 1 or service_calls_feature.payload:
-                raise ValueError(
-                    "service_calls requires feature schema version 1 with empty options"
-                )
+                raise ValueError("service_calls requires feature schema version 1 with empty options")
             channels = self.policies[AccessPolicyKey.SERVICE_CALL_CHANNELS]
             if channels.mode is not AccessPolicyMode.RESTRICTED:
-                raise ValueError(
-                    "enabled service_calls requires restricted service-call channels"
-                )
+                raise ValueError("enabled service_calls requires restricted service-call channels")
         stolen_vehicles_feature = self.features.get("stolen_vehicles")
         if stolen_vehicles_feature is not None and stolen_vehicles_feature.enabled:
             if stolen_vehicles_feature.schema_version != 1 or stolen_vehicles_feature.payload:
-                raise ValueError(
-                    "stolen_vehicles requires feature schema version 1 with empty options"
-                )
+                raise ValueError("stolen_vehicles requires feature schema version 1 with empty options")
             channels = self.policies[AccessPolicyKey.STOLEN_VEHICLE_CHANNELS]
             if channels.mode is AccessPolicyMode.OPEN:
                 raise ValueError("stolen vehicle notification channels cannot be open")
             roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
             if roles.mode is not AccessPolicyMode.RESTRICTED:
-                raise ValueError(
-                    "enabled stolen_vehicles requires restricted operational staff roles"
-                )
+                raise ValueError("enabled stolen_vehicles requires restricted operational staff roles")
         faction_status_feature = self.features.get("faction_status")
         if faction_status_feature is not None and faction_status_feature.enabled:
             if faction_status_feature.schema_version != 1:
@@ -523,9 +505,7 @@ class GuildConfigSnapshot(FrozenConfigModel):
             FtpStatusOptions.model_validate(ftp_status_feature.payload)
             roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
             if roles.mode is not AccessPolicyMode.RESTRICTED:
-                raise ValueError(
-                    "enabled ftp_status requires restricted operational staff roles"
-                )
+                raise ValueError("enabled ftp_status requires restricted operational staff roles")
         ftp_requests_feature = self.features.get("ftp_requests")
         if ftp_requests_feature is not None and ftp_requests_feature.enabled:
             if ftp_requests_feature.schema_version != 1:
@@ -540,9 +520,7 @@ class GuildConfigSnapshot(FrozenConfigModel):
             WarrantNotificationOptions.model_validate(warrant_notifications_feature.payload)
             roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
             if roles.mode is not AccessPolicyMode.RESTRICTED:
-                raise ValueError(
-                    "enabled warrant_notifications requires restricted operational staff roles"
-                )
+                raise ValueError("enabled warrant_notifications requires restricted operational staff roles")
         member_analysis_feature = self.features.get("faction_member_analysis")
         if member_analysis_feature is not None and member_analysis_feature.enabled:
             if member_analysis_feature.schema_version != 1:
@@ -550,9 +528,7 @@ class GuildConfigSnapshot(FrozenConfigModel):
             FactionMemberAnalysisOptions.model_validate(member_analysis_feature.payload)
             roles = self.policies[AccessPolicyKey.SUPERVISOR_ROLES]
             if roles.mode is not AccessPolicyMode.RESTRICTED:
-                raise ValueError(
-                    "enabled faction_member_analysis requires restricted supervisor roles"
-                )
+                raise ValueError("enabled faction_member_analysis requires restricted supervisor roles")
         resources_feature = self.features.get("operational_resources")
         if resources_feature is not None and resources_feature.enabled:
             if resources_feature.schema_version != 1:
@@ -560,9 +536,7 @@ class GuildConfigSnapshot(FrozenConfigModel):
             OperationalResourcesOptions.model_validate(resources_feature.payload)
             roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
             if roles.mode is not AccessPolicyMode.RESTRICTED:
-                raise ValueError(
-                    "enabled operational_resources requires restricted operational staff roles"
-                )
+                raise ValueError("enabled operational_resources requires restricted operational staff roles")
         forum_feature = self.features.get("forum_shortcuts")
         if forum_feature is not None and forum_feature.enabled:
             if forum_feature.schema_version != 1:
@@ -593,13 +567,9 @@ class GuildConfigSnapshot(FrozenConfigModel):
             ArrestStatisticsOptions.model_validate(arrest_statistics_feature.payload)
             roles = self.policies[AccessPolicyKey.FACTION_REPORT_ROLES]
             if roles.mode is not AccessPolicyMode.RESTRICTED:
-                raise ValueError(
-                    "enabled arrest_statistics requires restricted faction report roles"
-                )
+                raise ValueError("enabled arrest_statistics requires restricted faction report roles")
             if arrest_lookup_feature is None or not arrest_lookup_feature.enabled:
-                raise ValueError(
-                    "enabled arrest_statistics requires enabled arrest_report_lookup"
-                )
+                raise ValueError("enabled arrest_statistics requires enabled arrest_report_lookup")
         logbook_feature = self.features.get("logbook")
         if logbook_feature is not None and logbook_feature.enabled:
             if logbook_feature.schema_version != 1 or logbook_feature.payload:
@@ -626,9 +596,7 @@ class GuildConfigSnapshot(FrozenConfigModel):
             RadioAuditOptions.model_validate(radio_audit_feature.payload)
             operational_roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
             if operational_roles.mode is not AccessPolicyMode.RESTRICTED:
-                raise ValueError(
-                    "enabled radio_audit requires restricted operational staff roles"
-                )
+                raise ValueError("enabled radio_audit requires restricted operational staff roles")
             audit_roles = self.policies[AccessPolicyKey.RADIO_AUDIT_ROLES]
             if audit_roles.mode is not AccessPolicyMode.RESTRICTED:
                 raise ValueError("enabled radio_audit requires restricted audit roles")
@@ -756,9 +724,7 @@ class GuildRuntimeSettings:
 
     @property
     def deployment_incident_notification_channel_ids(self) -> tuple[int, ...]:
-        policy = self.snapshot.policy(
-            AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS
-        )
+        policy = self.snapshot.policy(AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS)
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
 
     @property

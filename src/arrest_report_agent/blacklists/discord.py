@@ -8,7 +8,11 @@ from contextlib import suppress
 import discord
 from discord.ext import commands
 
-from arrest_report_agent.config import BlacklistOptions, BlacklistTypeOptions
+from arrest_report_agent.config import (
+    BlacklistOptions,
+    BlacklistTypeOptions,
+    PcuProfileKind,
+)
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.discord.forms import (
     ResultVisibility,
@@ -58,14 +62,13 @@ class BlacklistCog(commands.Cog):
                 requester_id=ctx.author.id,
                 guild_id=ctx.guild.id,
                 channel_id=ctx.channel.id,
-                type_key=type_definition.key,
-                type_name=type_definition.display_name,
+                type_definition=type_definition,
             )
         )
 
     @blacklist.command(
         name="consultar",
-        description="Consulta blacklists por ID de PCU, URL o personaje",
+        description="Consulta blacklists por ID de PCU, URL o nombre",
     )
     async def lookup(self, ctx: discord.ApplicationContext) -> None:
         resolved = await self._authorize_context(ctx, channel_scoped=False)
@@ -94,8 +97,7 @@ class BlacklistCog(commands.Cog):
                 requester_id=ctx.author.id,
                 guild_id=ctx.guild.id,
                 channel_id=ctx.channel.id,
-                type_key=type_definition.key,
-                type_name=type_definition.display_name,
+                type_definition=type_definition,
             )
         )
 
@@ -120,8 +122,7 @@ class BlacklistCog(commands.Cog):
                 requester_id=ctx.author.id,
                 guild_id=ctx.guild.id,
                 channel_id=ctx.channel.id,
-                type_key=type_definition.key,
-                type_name=type_definition.display_name,
+                type_definition=type_definition,
             )
         )
 
@@ -152,8 +153,8 @@ class BlacklistCog(commands.Cog):
         guild_id: int,
         channel_id: int,
         type_key: str,
-        raw_pcu_url: str,
-        raw_character_name: str,
+        raw_pcu_urls: str,
+        raw_subject_name: str,
         raw_reason: str,
     ) -> None:
         user = interaction.user
@@ -189,8 +190,8 @@ class BlacklistCog(commands.Cog):
                 interaction_id=interaction.id,
                 author_user_id=user.id,
                 type_definition=type_definition,
-                raw_pcu_url=raw_pcu_url,
-                raw_character_name=raw_character_name,
+                raw_pcu_urls=raw_pcu_urls,
+                raw_subject_name=raw_subject_name,
                 raw_reason=raw_reason,
             )
             if not created and entry.message_url is not None:
@@ -216,7 +217,7 @@ class BlacklistCog(commands.Cog):
                 user_id=user.id,
                 type_key=type_key,
                 reference=entry.reference,
-                pcu_profile_id=entry.pcu_profile_id,
+                pcu_profile_ids=list(entry.pcu_profile_ids),
             )
         except ValueError as error:
             await self._interaction_error(interaction, str(error))
@@ -237,12 +238,12 @@ class BlacklistCog(commands.Cog):
         channel_id: int,
         type_key: str,
         raw_reference: str,
-        raw_pcu_url: str,
-        raw_character_name: str,
+        raw_pcu_urls: str,
+        raw_subject_name: str,
         raw_reason: str,
     ) -> None:
         try:
-            await self._authorize_interaction(
+            type_definition = await self._authorize_interaction(
                 interaction,
                 requester_id=requester_id,
                 guild_id=guild_id,
@@ -250,6 +251,8 @@ class BlacklistCog(commands.Cog):
                 type_key=type_key,
                 managers_only=True,
             )
+            if type_definition is None:
+                raise ValueError("Este canal ya no tiene un tipo de blacklist habilitado.")
             await interaction.response.defer(ephemeral=True)
             entry = await self.repository.get_active_by_reference(
                 guild_id=guild_id,
@@ -257,22 +260,20 @@ class BlacklistCog(commands.Cog):
                 raw_reference=raw_reference,
             )
             if entry is None:
-                raise LookupError(
-                    "No encontré una entrada activa con esa referencia para este tipo."
-                )
-            pcu_url = raw_pcu_url.strip()
-            character_name = raw_character_name.strip()
+                raise LookupError("No encontré una entrada activa con esa referencia para este tipo.")
+            pcu_urls = raw_pcu_urls.strip()
+            subject_name = raw_subject_name.strip()
             reason = raw_reason.strip()
-            if not any((pcu_url, character_name, reason)):
+            if not any((pcu_urls, subject_name, reason)):
                 raise ValueError("Indica al menos un campo que quieras modificar.")
             message = await _fetch_entry_message(interaction.guild, entry)
             updated = await self.repository.update_active(
                 entry_id=entry.id,
                 guild_id=guild_id,
-                type_key=type_key,
+                type_definition=type_definition,
                 actor_user_id=requester_id,
-                raw_pcu_url=pcu_url or entry.pcu_url,
-                raw_character_name=character_name or entry.character_name,
+                raw_pcu_urls=pcu_urls or "\n".join(entry.pcu_urls),
+                raw_subject_name=subject_name or entry.subject_name,
                 raw_reason=reason or entry.reason,
             )
             await message.edit(
@@ -322,9 +323,7 @@ class BlacklistCog(commands.Cog):
                 raw_reference=raw_reference,
             )
             if entry is None:
-                raise LookupError(
-                    "No encontré una entrada activa con esa referencia para este tipo."
-                )
+                raise LookupError("No encontré una entrada activa con esa referencia para este tipo.")
             try:
                 message = await _fetch_entry_message(interaction.guild, entry)
                 await message.delete()
@@ -450,9 +449,7 @@ class BlacklistCog(commands.Cog):
                 bundle.settings.operational_staff_role_ids,
             ):
                 await ctx.respond(
-                    embed=_alert(
-                        "Solo el personal operativo de la facción puede usar este comando."
-                    ),
+                    embed=_alert("Solo el personal operativo de la facción puede usar este comando."),
                     ephemeral=True,
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
@@ -462,21 +459,15 @@ class BlacklistCog(commands.Cog):
                 options.manager_role_ids,
             ):
                 await ctx.respond(
-                    embed=_alert(
-                        "Solo Executive Staff o Command Staff puede usar este comando."
-                    ),
+                    embed=_alert("Solo Executive Staff o Command Staff puede usar este comando."),
                     ephemeral=True,
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
                 return None
-            type_definition = (
-                options.type_for_channel(ctx.channel.id) if channel_scoped else None
-            )
+            type_definition = options.type_for_channel(ctx.channel.id) if channel_scoped else None
             if channel_scoped and type_definition is None:
                 await ctx.respond(
-                    embed=_alert(
-                        "Este canal no está asociado a un tipo de blacklist habilitado."
-                    ),
+                    embed=_alert("Este canal no está asociado a un tipo de blacklist habilitado."),
                     ephemeral=True,
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
@@ -580,23 +571,29 @@ class BlacklistRegistrationModal(discord.ui.DesignerModal):
         requester_id: int,
         guild_id: int,
         channel_id: int,
-        type_key: str,
-        type_name: str,
+        type_definition: BlacklistTypeOptions,
     ) -> None:
         self.cog = cog
         self.requester_id = requester_id
         self.guild_id = guild_id
         self.channel_id = channel_id
-        self.type_key = type_key
-        self.pcu_url = discord.ui.InputText(
-            custom_id="blacklist:v1:register:pcu_url",
-            placeholder="https://ucp.sarp.es/app/ucp/characters/overview/1234",
+        self.type_key = type_definition.key
+        multi_profile = type_definition.max_profiles > 1
+        segment = _profile_segment(type_definition.profile_kind)
+        self.pcu_profiles = discord.ui.InputText(
+            custom_id="blacklist:v1:register:pcu_profiles",
+            style=(discord.InputTextStyle.long if multi_profile else discord.InputTextStyle.short),
+            placeholder=_registration_profile_placeholder(type_definition),
             min_length=45,
-            max_length=200,
+            max_length=1_000 if multi_profile else 200,
         )
-        self.character_name = discord.ui.InputText(
-            custom_id="blacklist:v1:register:character",
-            placeholder="Nombre Apellido",
+        self.subject_name = discord.ui.InputText(
+            custom_id="blacklist:v1:register:subject",
+            placeholder=(
+                "Nombre Apellido (usuario)"
+                if type_definition.profile_kind is PcuProfileKind.ACCOUNT
+                else "Nombre Apellido"
+            ),
             min_length=3,
             max_length=100,
         )
@@ -607,11 +604,19 @@ class BlacklistRegistrationModal(discord.ui.DesignerModal):
             min_length=10,
             max_length=1_000,
         )
+        profile_label = (
+            f"URLs de {segment} en PCU (una por línea)" if multi_profile else "URL de la cuenta en PCU"
+        )
+        subject_label = (
+            "Personaje con el que la solicitó"
+            if type_definition.subject_label == "Personaje"
+            else type_definition.subject_label
+        )
         super().__init__(
-            discord.ui.Label("URL de la cuenta en PCU", self.pcu_url),
-            discord.ui.Label("Personaje con el que la solicitó", self.character_name),
+            discord.ui.Label(profile_label[:45], self.pcu_profiles),
+            discord.ui.Label(subject_label[:45], self.subject_name),
             discord.ui.Label("Razón de la blacklist", self.reason),
-            title=f"Registrar blacklist · {type_name}"[:45],
+            title=f"Registrar blacklist · {type_definition.display_name}"[:45],
             custom_id=f"blacklist:v1:register:{requester_id}",
             timeout=MODAL_TIMEOUT_SECONDS,
         )
@@ -623,8 +628,8 @@ class BlacklistRegistrationModal(discord.ui.DesignerModal):
             guild_id=self.guild_id,
             channel_id=self.channel_id,
             type_key=self.type_key,
-            raw_pcu_url=self.pcu_url.value or "",
-            raw_character_name=self.character_name.value or "",
+            raw_pcu_urls=self.pcu_profiles.value or "",
+            raw_subject_name=self.subject_name.value or "",
             raw_reason=self.reason.value or "",
         )
 
@@ -635,7 +640,7 @@ class BlacklistLookupModal(discord.ui.DesignerModal):
         self.requester_id = requester_id
         self.query = discord.ui.InputText(
             custom_id="blacklist:v1:lookup:query",
-            placeholder="ID, URL de PCU o nombre del personaje",
+            placeholder="ID, URL de PCU o nombre de la persona/personaje",
             min_length=1,
             max_length=200,
         )
@@ -671,28 +676,34 @@ class BlacklistEditModal(discord.ui.DesignerModal):
         requester_id: int,
         guild_id: int,
         channel_id: int,
-        type_key: str,
-        type_name: str,
+        type_definition: BlacklistTypeOptions,
     ) -> None:
         self.cog = cog
         self.requester_id = requester_id
         self.guild_id = guild_id
         self.channel_id = channel_id
-        self.type_key = type_key
+        self.type_key = type_definition.key
         self.reference = discord.ui.InputText(
             custom_id="blacklist:v1:edit:reference",
-            placeholder="Ej.: CCW-00001",
+            placeholder=f"Ej.: {type_definition.reference_prefix}-00001",
             min_length=4,
             max_length=32,
         )
-        self.pcu_url = discord.ui.InputText(
-            custom_id="blacklist:v1:edit:pcu_url",
-            placeholder="Nueva URL de PCU; déjala vacía para conservarla",
+        multi_profile = type_definition.max_profiles > 1
+        segment = _profile_segment(type_definition.profile_kind)
+        self.pcu_profiles = discord.ui.InputText(
+            custom_id="blacklist:v1:edit:pcu_profiles",
+            style=(discord.InputTextStyle.long if multi_profile else discord.InputTextStyle.short),
+            placeholder=(
+                "Nuevas URLs, una por línea; vacío para conservar"
+                if multi_profile
+                else "Nueva URL de PCU; déjala vacía para conservarla"
+            ),
             required=False,
-            max_length=200,
+            max_length=1_000 if multi_profile else 200,
         )
-        self.character_name = discord.ui.InputText(
-            custom_id="blacklist:v1:edit:character",
+        self.subject_name = discord.ui.InputText(
+            custom_id="blacklist:v1:edit:subject",
             placeholder="Nuevo nombre; déjalo vacío para conservarlo",
             required=False,
             max_length=100,
@@ -704,12 +715,20 @@ class BlacklistEditModal(discord.ui.DesignerModal):
             required=False,
             max_length=1_000,
         )
+        profile_label = (
+            f"Nuevas URLs de {segment} en PCU" if multi_profile else "Nueva URL de la cuenta en PCU"
+        )
+        subject_label = (
+            "Nuevo personaje"
+            if type_definition.subject_label == "Personaje"
+            else f"Nueva {type_definition.subject_label.casefold()}"
+        )
         super().__init__(
             discord.ui.Label("Referencia", self.reference),
-            discord.ui.Label("Nueva URL de la cuenta en PCU", self.pcu_url),
-            discord.ui.Label("Nuevo personaje", self.character_name),
+            discord.ui.Label(profile_label[:45], self.pcu_profiles),
+            discord.ui.Label(subject_label[:45], self.subject_name),
             discord.ui.Label("Nueva razón", self.reason),
-            title=f"Editar blacklist · {type_name}"[:45],
+            title=f"Editar blacklist · {type_definition.display_name}"[:45],
             custom_id=f"blacklist:v1:edit:{requester_id}",
             timeout=MODAL_TIMEOUT_SECONDS,
         )
@@ -722,8 +741,8 @@ class BlacklistEditModal(discord.ui.DesignerModal):
             channel_id=self.channel_id,
             type_key=self.type_key,
             raw_reference=self.reference.value or "",
-            raw_pcu_url=self.pcu_url.value or "",
-            raw_character_name=self.character_name.value or "",
+            raw_pcu_urls=self.pcu_profiles.value or "",
+            raw_subject_name=self.subject_name.value or "",
             raw_reason=self.reason.value or "",
         )
 
@@ -736,17 +755,16 @@ class BlacklistDeleteModal(discord.ui.DesignerModal):
         requester_id: int,
         guild_id: int,
         channel_id: int,
-        type_key: str,
-        type_name: str,
+        type_definition: BlacklistTypeOptions,
     ) -> None:
         self.cog = cog
         self.requester_id = requester_id
         self.guild_id = guild_id
         self.channel_id = channel_id
-        self.type_key = type_key
+        self.type_key = type_definition.key
         self.reference = discord.ui.InputText(
             custom_id="blacklist:v1:delete:reference",
-            placeholder="Ej.: CCW-00001",
+            placeholder=f"Ej.: {type_definition.reference_prefix}-00001",
             min_length=4,
             max_length=32,
         )
@@ -764,7 +782,7 @@ class BlacklistDeleteModal(discord.ui.DesignerModal):
         super().__init__(
             discord.ui.Label("Referencia", self.reference),
             discord.ui.Label("Confirmación", self.confirmation),
-            title=f"Eliminar blacklist · {type_name}"[:45],
+            title=f"Eliminar blacklist · {type_definition.display_name}"[:45],
             custom_id=f"blacklist:v1:delete:{requester_id}",
             timeout=MODAL_TIMEOUT_SECONDS,
         )
@@ -796,13 +814,13 @@ def build_entry_embed(entry: BlacklistEntry) -> discord.Embed:
         timestamp=entry.created_at,
     )
     embed.add_field(
-        name="Cuenta de PCU",
-        value=f"[ID {entry.pcu_profile_id} · Abrir perfil]({entry.pcu_url})",
-        inline=True,
+        name=_profile_field_name(entry),
+        value=_profile_links(entry, compact=False),
+        inline=len(entry.pcu_profile_ids) == 1,
     )
     embed.add_field(
-        name="Personaje",
-        value=discord.utils.escape_markdown(entry.character_name),
+        name=entry.subject_label,
+        value=discord.utils.escape_markdown(entry.subject_name),
         inline=True,
     )
     embed.add_field(
@@ -844,7 +862,7 @@ def build_info_embed(options: BlacklistOptions) -> discord.Embed:
         name="Consultar",
         value=(
             "Usa `/blacklist consultar` desde cualquier canal y busca por ID de PCU, URL o "
-            "personaje. El resultado es público por defecto, con opción privada."
+            "nombre. El resultado es público por defecto, con opción privada."
         ),
         inline=False,
     )
@@ -857,10 +875,18 @@ def build_info_embed(options: BlacklistOptions) -> discord.Embed:
         inline=False,
     )
     enabled_types = [item for item in options.types if item.enabled]
-    type_lines = [
-        f"• **{discord.utils.escape_markdown(item.display_name)}** · `{item.reference_prefix}`"
-        for item in enabled_types
-    ]
+    type_lines = []
+    for item in enabled_types:
+        profile_name = "cuenta" if item.profile_kind is PcuProfileKind.ACCOUNT else "personaje"
+        quantity = (
+            f"hasta {item.max_profiles} perfiles de {profile_name}"
+            if item.max_profiles > 1
+            else f"1 perfil de {profile_name}"
+        )
+        type_lines.append(
+            f"• **{discord.utils.escape_markdown(item.display_name)}** · "
+            f"`{item.reference_prefix}` · {quantity}"
+        )
     for index, chunk in enumerate(_field_chunks(type_lines)):
         embed.add_field(
             name="Tipos habilitados" if index == 0 else "Tipos habilitados (continuación)",
@@ -891,14 +917,44 @@ def build_lookup_results_embed(
         embed.add_field(
             name=f"🚫 {entry.reference} · {discord.utils.escape_markdown(entry.type_name)}",
             value=(
-                f"**Personaje:** {discord.utils.escape_markdown(entry.character_name)}\n"
-                f"**PCU:** [ID {entry.pcu_profile_id}]({entry.pcu_url})\n"
+                f"**{entry.subject_label}:** "
+                f"{discord.utils.escape_markdown(entry.subject_name)}\n"
+                f"**PCU:** {_profile_links(entry, compact=True)}\n"
                 f"**Razón:** {reason}\n{link}"
             ),
             inline=False,
         )
     embed.set_footer(text=f"{len(entries)} coincidencia(s) · máximo {SEARCH_RESULT_LIMIT}")
     return embed
+
+
+def _profile_segment(kind: PcuProfileKind) -> str:
+    return "cuentas" if kind is PcuProfileKind.ACCOUNT else "personajes"
+
+
+def _registration_profile_placeholder(type_definition: BlacklistTypeOptions) -> str:
+    segment = "accounts" if type_definition.profile_kind is PcuProfileKind.ACCOUNT else "characters"
+    return f"https://ucp.sarp.es/app/ucp/{segment}/overview/1234"
+
+
+def _profile_field_name(entry: BlacklistEntry) -> str:
+    if entry.profile_kind is PcuProfileKind.ACCOUNT:
+        return "Cuentas de PCU" if len(entry.pcu_profile_ids) > 1 else "Cuenta de PCU"
+    return "Personajes de PCU" if len(entry.pcu_profile_ids) > 1 else "Cuenta de PCU"
+
+
+def _profile_links(entry: BlacklistEntry, *, compact: bool) -> str:
+    label = "Cuenta" if entry.profile_kind is PcuProfileKind.ACCOUNT else "Personaje"
+    links = [
+        f"[{label} {index} · ID {profile_id}]({url})"
+        for index, (profile_id, url) in enumerate(
+            zip(entry.pcu_profile_ids, entry.pcu_urls, strict=True),
+            start=1,
+        )
+    ]
+    if len(links) == 1:
+        return f"[ID {entry.pcu_profile_id} · Abrir perfil]({entry.pcu_url})"
+    return (" · " if compact else "\n").join(links)
 
 
 def _alert(description: str) -> discord.Embed:

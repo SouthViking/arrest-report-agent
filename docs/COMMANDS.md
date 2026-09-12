@@ -59,9 +59,12 @@ El módulo **Consulta y auditoría de radios** recibe
 `operational_staff_roles`; `/auditar-radio` exige la política independiente `radio_audit_roles`.
 Ambos permisos se modifican y publican por `/config` sin redesplegar.
 
-El módulo **Blacklists** registra tipos con clave, nombre visible, prefijo y canales. El canal fija
-el tipo y el usuario nunca lo selecciona. `/blacklist registrar` y `/blacklist consultar` exigen
-`operational_staff_roles`; la consulta funciona desde cualquier canal. `/blacklist editar` y
+El módulo **Blacklists** registra tipos con clave, nombre visible, prefijo, clase y cantidad máxima
+de perfiles PCU, etiqueta del sujeto y canales. El canal fija el tipo y el usuario nunca lo
+selecciona. `CCW` usa el canal `1530621801871441991`, referencias `CCW` y un perfil de personaje;
+`Facción` usa el canal `1383926305136971906`, referencias `FAC` y hasta cinco perfiles de cuenta.
+`/blacklist registrar` y `/blacklist consultar` exigen `operational_staff_roles`; la consulta
+funciona desde cualquier canal y reconoce IDs o URLs de ambos perfiles. `/blacklist editar` y
 `/blacklist eliminar` exigen además uno de los roles gestores de Command Staff o Executive Staff y
 solo operan desde un canal del tipo afectado. La eliminación retira el mensaje, pero conserva la
 entrada revocada y su auditoría en PostgreSQL. `/blacklist info` es público y se anuncia en

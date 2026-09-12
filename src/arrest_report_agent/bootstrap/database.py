@@ -273,9 +273,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
         configured_ftp = ftp_defaults(guild_id)
         ftp_enabled = configured_ftp is not None and bool(supervisor_roles[guild_id])
         reviewer_ids = (
-            review_defaults.reviewer_role_ids
-            if review_defaults is not None
-            else reviewer_roles[guild_id]
+            review_defaults.reviewer_role_ids if review_defaults is not None else reviewer_roles[guild_id]
         )
         review_channel_ids = review_defaults.channel_ids if review_defaults is not None else ()
         policies = (
@@ -329,11 +327,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
             AccessPolicySnapshot(
                 key=AccessPolicyKey.ROLE_REQUEST_REVIEW_CHANNELS,
                 subject_type="channel",
-                mode=(
-                    AccessPolicyMode.RESTRICTED
-                    if review_channel_ids
-                    else AccessPolicyMode.DISABLED
-                ),
+                mode=(AccessPolicyMode.RESTRICTED if review_channel_ids else AccessPolicyMode.DISABLED),
                 ids=review_channel_ids,
             ),
             policy(
@@ -385,15 +379,9 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 key=AccessPolicyKey.FACTION_REPORT_ROLES,
                 subject_type="role",
                 mode=(
-                    AccessPolicyMode.RESTRICTED
-                    if guild_id == LSSD_GUILD_ID
-                    else AccessPolicyMode.DISABLED
+                    AccessPolicyMode.RESTRICTED if guild_id == LSSD_GUILD_ID else AccessPolicyMode.DISABLED
                 ),
-                ids=(
-                    LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS
-                    if guild_id == LSSD_GUILD_ID
-                    else ()
-                ),
+                ids=(LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS if guild_id == LSSD_GUILD_ID else ()),
             ),
             AccessPolicySnapshot(
                 key=AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS,
@@ -423,11 +411,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                     if guild_id == 1234674521416663070
                     else AccessPolicyMode.DISABLED
                 ),
-                ids=(
-                    (1539037905014759485,)
-                    if guild_id == 1234674521416663070
-                    else ()
-                ),
+                ids=((1539037905014759485,) if guild_id == 1234674521416663070 else ()),
             ),
             AccessPolicySnapshot(
                 key=AccessPolicyKey.LOGBOOK_CHANNELS,
@@ -477,11 +461,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         key="report_owner_access",
                         enabled=guild_id == 1234674521416663070,
                         schema_version=1,
-                        payload=(
-                            {"max_rounds": 5}
-                            if guild_id == 1234674521416663070
-                            else {}
-                        ),
+                        payload=({"max_rounds": 5} if guild_id == 1234674521416663070 else {}),
                     ),
                     GuildFeatureSnapshot(
                         key="service_calls",
@@ -491,10 +471,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                     ),
                     GuildFeatureSnapshot(
                         key="stolen_vehicles",
-                        enabled=(
-                            guild_id == 1234674521416663070
-                            and bool(supervisor_roles[guild_id])
-                        ),
+                        enabled=(guild_id == 1234674521416663070 and bool(supervisor_roles[guild_id])),
                         schema_version=1,
                         payload={},
                     ),
@@ -511,9 +488,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         payload=(
                             {
                                 "faction_id": configured_ftp.faction_id,
-                                "supervisory_role_ids": list(
-                                    configured_ftp.supervisory_role_ids
-                                ),
+                                "supervisory_role_ids": list(configured_ftp.supervisory_role_ids),
                                 "mfto_role_ids": list(configured_ftp.mfto_role_ids),
                                 "fto_role_ids": list(configured_ftp.fto_role_ids),
                                 "ftt_role_ids": list(configured_ftp.ftt_role_ids),
@@ -530,9 +505,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                             {
                                 "channel_id": configured_ftp.request_channel_id,
                                 "command_role_ids": list(configured_ftp.command_role_ids),
-                                "executive_role_ids": list(
-                                    configured_ftp.executive_role_ids
-                                ),
+                                "executive_role_ids": list(configured_ftp.executive_role_ids),
                             }
                             if ftp_enabled and configured_ftp is not None
                             else {}
@@ -554,10 +527,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                     ),
                     GuildFeatureSnapshot(
                         key="faction_member_analysis",
-                        enabled=(
-                            guild_id == 1234674521416663070
-                            and bool(supervisor_roles[guild_id])
-                        ),
+                        enabled=(guild_id == 1234674521416663070 and bool(supervisor_roles[guild_id])),
                         schema_version=1,
                         payload=(
                             {
@@ -568,17 +538,13 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                                 "inactivity_warning_percentage": 20,
                                 "inactivity_critical_percentage": 30,
                             }
-                            if guild_id == 1234674521416663070
-                            and bool(supervisor_roles[guild_id])
+                            if guild_id == 1234674521416663070 and bool(supervisor_roles[guild_id])
                             else {}
                         ),
                     ),
                     GuildFeatureSnapshot(
                         key="operational_resources",
-                        enabled=(
-                            guild_id == 1234674521416663070
-                            and bool(supervisor_roles[guild_id])
-                        ),
+                        enabled=(guild_id == 1234674521416663070 and bool(supervisor_roles[guild_id])),
                         schema_version=1,
                         payload=(
                             {
@@ -596,8 +562,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                                 ),
                                 "penal_code_url": "https://ucp.sarp.es/app/ucp/penalcode",
                             }
-                            if guild_id == 1234674521416663070
-                            and bool(supervisor_roles[guild_id])
+                            if guild_id == 1234674521416663070 and bool(supervisor_roles[guild_id])
                             else {}
                         ),
                     ),
@@ -607,12 +572,9 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         schema_version=1,
                         payload=(
                             {
-                                "organization_name": (
-                                    "Los Santos Sheriff's Department"
-                                ),
+                                "organization_name": ("Los Santos Sheriff's Department"),
                                 "description": (
-                                    "Consulta rápidamente nuestros espacios y "
-                                    "procedimientos oficiales."
+                                    "Consulta rápidamente nuestros espacios y procedimientos oficiales."
                                 ),
                                 "banner_url": "https://i.imgur.com/gBxZZIT.gif",
                                 "sections": [
@@ -630,31 +592,19 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                                         "links": [
                                             {
                                                 "label": "Oportunidades de empleo",
-                                                "url": (
-                                                    "https://sheriff.sarp.es/"
-                                                    "viewforum.php?f=3"
-                                                ),
+                                                "url": ("https://sheriff.sarp.es/viewforum.php?f=3"),
                                             },
                                             {
                                                 "label": "Transferencias laterales",
-                                                "url": (
-                                                    "https://sheriff.sarp.es/"
-                                                    "viewtopic.php?t=162"
-                                                ),
+                                                "url": ("https://sheriff.sarp.es/viewtopic.php?t=162"),
                                             },
                                             {
                                                 "label": "Reincorporaciones",
-                                                "url": (
-                                                    "https://sheriff.sarp.es/"
-                                                    "viewtopic.php?t=104"
-                                                ),
+                                                "url": ("https://sheriff.sarp.es/viewtopic.php?t=104"),
                                             },
                                             {
                                                 "label": "Field Training Program",
-                                                "url": (
-                                                    "https://sheriff.sarp.es/"
-                                                    "viewforum.php?f=10"
-                                                ),
+                                                "url": ("https://sheriff.sarp.es/viewforum.php?f=10"),
                                             },
                                         ],
                                     },
@@ -663,17 +613,11 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                                         "links": [
                                             {
                                                 "label": "Quejas y elogios públicos",
-                                                "url": (
-                                                    "https://sheriff.sarp.es/"
-                                                    "viewtopic.php?t=497"
-                                                ),
+                                                "url": ("https://sheriff.sarp.es/viewtopic.php?t=497"),
                                             },
                                             {
                                                 "label": "Licencias CCW y de caza",
-                                                "url": (
-                                                    "https://sheriff.sarp.es/"
-                                                    "viewforum.php?f=135"
-                                                ),
+                                                "url": ("https://sheriff.sarp.es/viewforum.php?f=135"),
                                             },
                                         ],
                                     },
@@ -687,11 +631,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         key="arrest_report_lookup",
                         enabled=guild_id == 1234674521416663070,
                         schema_version=1,
-                        payload=(
-                            {"faction_id": 3}
-                            if guild_id == 1234674521416663070
-                            else {}
-                        ),
+                        payload=({"faction_id": 3} if guild_id == 1234674521416663070 else {}),
                     ),
                     GuildFeatureSnapshot(
                         key="pending_arrest_reports",
@@ -732,25 +672,33 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                     ),
                     GuildFeatureSnapshot(
                         key="blacklists",
-                        enabled=(
-                            guild_id == LSSD_GUILD_ID
-                            and bool(supervisor_roles[guild_id])
-                        ),
+                        enabled=(guild_id == LSSD_GUILD_ID and bool(supervisor_roles[guild_id])),
                         schema_version=1,
                         payload=(
                             {
-                                "manager_role_ids": list(
-                                    LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS
-                                ),
+                                "manager_role_ids": list(LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS),
                                 "types": [
                                     {
                                         "key": "ccw",
                                         "display_name": "CCW",
                                         "reference_prefix": "CCW",
                                         "channel_ids": [1530621801871441991],
+                                        "profile_kind": "character",
+                                        "max_profiles": 1,
+                                        "subject_label": "Personaje",
                                         "enabled": True,
-                                    }
-                                ]
+                                    },
+                                    {
+                                        "key": "faction",
+                                        "display_name": "Facción",
+                                        "reference_prefix": "FAC",
+                                        "channel_ids": [1383926305136971906],
+                                        "profile_kind": "account",
+                                        "max_profiles": 5,
+                                        "subject_label": "Persona",
+                                        "enabled": True,
+                                    },
+                                ],
                             }
                             if guild_id == LSSD_GUILD_ID
                             else {"types": [], "manager_role_ids": []}
