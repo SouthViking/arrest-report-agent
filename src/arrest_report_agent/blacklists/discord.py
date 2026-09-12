@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import suppress
 
 import discord
 from discord.ext import commands
@@ -193,15 +194,8 @@ class BlacklistCog(commands.Cog):
                 raw_reason=raw_reason,
             )
             if not created and entry.message_url is not None:
-                await interaction.followup.send(
-                    embed=discord.Embed(
-                        title="✅ Registro ya publicado",
-                        description=f"[{entry.reference}]({entry.message_url}) ya había sido registrado.",
-                        color=discord.Color.green(),
-                    ),
-                    ephemeral=True,
-                    allowed_mentions=discord.AllowedMentions.none(),
-                )
+                with suppress(discord.HTTPException):
+                    await interaction.delete_original_response()
                 return
             pending_embed = build_entry_embed(
                 entry.model_copy(update={"status": BlacklistEntryStatus.ACTIVE})
@@ -211,15 +205,8 @@ class BlacklistCog(commands.Cog):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             entry = await self.repository.mark_active(entry.id, message.id)
-            await interaction.followup.send(
-                embed=discord.Embed(
-                    title="✅ Blacklist registrada",
-                    description=f"[{entry.reference}]({entry.message_url}) quedó publicada correctamente.",
-                    color=discord.Color.green(),
-                ),
-                ephemeral=True,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            with suppress(discord.HTTPException):
+                await interaction.delete_original_response()
             log_event(
                 LOGGER,
                 "info",
@@ -292,15 +279,8 @@ class BlacklistCog(commands.Cog):
                 embed=build_entry_embed(updated),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
-            await interaction.followup.send(
-                embed=discord.Embed(
-                    title="✅ Blacklist actualizada",
-                    description=f"[{updated.reference}]({updated.message_url}) fue actualizada.",
-                    color=discord.Color.green(),
-                ),
-                ephemeral=True,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            with suppress(discord.HTTPException):
+                await interaction.delete_original_response()
             log_event(
                 LOGGER,
                 "info",
@@ -356,18 +336,8 @@ class BlacklistCog(commands.Cog):
                 type_key=type_key,
                 actor_user_id=requester_id,
             )
-            await interaction.followup.send(
-                embed=discord.Embed(
-                    title="🗑️ Blacklist eliminada",
-                    description=(
-                        f"`{revoked.reference}` fue retirada del canal y quedó revocada "
-                        "en el historial interno."
-                    ),
-                    color=discord.Color.orange(),
-                ),
-                ephemeral=True,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            with suppress(discord.HTTPException):
+                await interaction.delete_original_response()
             log_event(
                 LOGGER,
                 "info",
@@ -620,7 +590,7 @@ class BlacklistRegistrationModal(discord.ui.DesignerModal):
         self.type_key = type_key
         self.pcu_url = discord.ui.InputText(
             custom_id="blacklist:v1:register:pcu_url",
-            placeholder="https://ucp.sarp.es/app/ucp/characters/overview/542",
+            placeholder="https://ucp.sarp.es/app/ucp/characters/overview/1234",
             min_length=45,
             max_length=200,
         )

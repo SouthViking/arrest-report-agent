@@ -4,7 +4,9 @@
   "title": "Nuevo sistema de blacklists",
   "summary": "Registrar y consultar una blacklist ahora es más rápido, claro y seguro desde Discord.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
       "type": "added",

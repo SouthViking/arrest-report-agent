@@ -154,6 +154,17 @@ class FakeMutationRepository(FakeLookupRepository):
         )
 
 
+class FakeRegistrationRepository(FakeLookupRepository):
+    def __init__(self) -> None:
+        super().__init__(())
+        self.publishing = _entry().model_copy(
+            update={"message_id": None, "status": BlacklistEntryStatus.PUBLISHING}
+        )
+        self.reserve = AsyncMock(return_value=(self.publishing, True))
+        self.mark_active = AsyncMock(return_value=_entry())
+        self.mark_failed = AsyncMock()
+
+
 def test_pcu_profile_parser_canonicalizes_the_supported_character_url() -> None:
     profile_id, canonical = parse_pcu_profile_url(
         " https://UCP.SARP.ES/app/ucp/characters/overview/542/ "
@@ -276,6 +287,7 @@ async def test_blacklist_modals_have_the_requested_fields_and_public_default() -
         "Solo para mí",
     ]
     assert lookup.visibility.options[0].default is True
+    assert registration.pcu_url.placeholder.endswith("/1234")
     assert [child.label for child in edit.children] == [
         "Referencia",
         "Nueva URL de la cuenta en PCU",
@@ -426,8 +438,43 @@ def _manager_interaction() -> SimpleNamespace:
         ),
         response=SimpleNamespace(defer=AsyncMock(), is_done=lambda: True),
         followup=SimpleNamespace(send=AsyncMock()),
+        delete_original_response=AsyncMock(),
         id=654,
     )
+
+
+@pytest.mark.asyncio
+async def test_registration_publishes_without_an_ephemeral_confirmation() -> None:
+    repository = FakeRegistrationRepository()
+    cog = BlacklistCog(FakeProvider(_options()), repository)  # type: ignore[arg-type]
+    channel = SimpleNamespace(id=CCW_CHANNEL_ID, send=AsyncMock(return_value=SimpleNamespace(id=999)))
+    interaction = SimpleNamespace(
+        guild=SimpleNamespace(id=GUILD_ID),
+        channel=channel,
+        user=SimpleNamespace(
+            id=42,
+            roles=(SimpleNamespace(id=OPERATIONAL_ROLE_ID),),
+        ),
+        response=SimpleNamespace(defer=AsyncMock(), is_done=lambda: True),
+        followup=SimpleNamespace(send=AsyncMock()),
+        delete_original_response=AsyncMock(),
+        id=1000,
+    )
+
+    await cog.publish_registration(
+        interaction,
+        requester_id=42,
+        guild_id=GUILD_ID,
+        channel_id=CCW_CHANNEL_ID,
+        type_key="ccw",
+        raw_pcu_url="https://ucp.sarp.es/app/ucp/characters/overview/542",
+        raw_character_name="Peter Kinsella",
+        raw_reason="Razón válida para esta entrada de blacklist.",
+    )
+
+    channel.send.assert_awaited_once()
+    interaction.delete_original_response.assert_awaited_once_with()
+    interaction.followup.send.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -462,7 +509,8 @@ async def test_edit_updates_postgres_and_the_original_embed(
     edited_embed = message.edit.await_args.kwargs["embed"]
     assert edited_embed.title == "🚫 CCW-00001 · Blacklist de CCW"
     assert any(field.name == "Última edición" for field in edited_embed.fields)
-    assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
+    interaction.delete_original_response.assert_awaited_once_with()
+    interaction.followup.send.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -491,4 +539,5 @@ async def test_delete_removes_the_message_and_preserves_a_revoked_record(
     message.delete.assert_awaited_once_with()
     assert repository.revoke_calls[0]["actor_user_id"] == 42
     assert repository.revoke_calls[0]["type_key"] == "ccw"
-    assert "revocada" in interaction.followup.send.await_args.kwargs["embed"].description
+    interaction.delete_original_response.assert_awaited_once_with()
+    interaction.followup.send.assert_not_awaited()

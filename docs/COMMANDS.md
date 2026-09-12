@@ -107,8 +107,8 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Selector privado, modal adaptado y entrada pública | PostgreSQL, Railway Bucket y Discord |
 | `/blacklist registrar` | `operational_staff_roles`; módulo activo; canal asociado a un tipo | Modal privado y registro público | PostgreSQL y Discord |
 | `/blacklist consultar` | `operational_staff_roles`; módulo activo; cualquier canal | Modal privado; resultado público por defecto o efímero | PostgreSQL |
-| `/blacklist editar` | `operational_staff_roles` y rol gestor Command/Executive; canal asociado al tipo | Modal y confirmación efímeros; edita el registro público | PostgreSQL y Discord |
-| `/blacklist eliminar` | `operational_staff_roles` y rol gestor Command/Executive; canal asociado al tipo | Modal y confirmación efímeros; retira el registro público | PostgreSQL y Discord |
+| `/blacklist editar` | `operational_staff_roles` y rol gestor Command/Executive; canal asociado al tipo | Modal; edita el registro público sin confirmación adicional | PostgreSQL y Discord |
+| `/blacklist eliminar` | `operational_staff_roles` y rol gestor Command/Executive; canal asociado al tipo | Confirmación en el modal; retira el registro público sin mensaje adicional | PostgreSQL y Discord |
 | `/blacklist info` | Todos; módulo activo | Pública | Configuración de PostgreSQL |
 | `/info-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Pública; rechazo efímero fuera de los canales | Persona activa y configuración de PostgreSQL |
 | `/guia-bitacora` | Cualquier miembro en `logbook_channels`; módulo `logbook` activo | Modal privado; resultado público o efímero | Catálogo central de categorías y subtipos |
