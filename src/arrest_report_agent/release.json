@@ -1,24 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.32.0",
-  "title": "Nuevo sistema de blacklists",
-  "summary": "Registrar y consultar una blacklist ahora es más rápido, claro y seguro desde Discord.",
+  "version": "0.32.1",
+  "title": "Uso más ágil de las blacklists",
+  "summary": "Simplificamos los formularios para que administrar una blacklist requiera menos pasos.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "Usa /blacklist registrar en un canal autorizado para guardar la cuenta de PCU, el personaje y la razón mediante un formulario. El canal se encarga de asignar automáticamente la blacklist correcta."
-    },
-    {
-      "type": "added",
-      "text": "Usa /blacklist consultar desde cualquier canal para buscar por ID o URL de PCU, o por el nombre del personaje. El resultado será visible para todos por defecto, aunque puedes mostrarlo solo para ti."
+      "type": "improved",
+      "text": "El formulario de /blacklist registrar ahora muestra una URL de ejemplo completamente ficticia."
     },
     {
       "type": "improved",
-      "text": "El personal de Command Staff y Executive Staff puede corregir o retirar registros con /blacklist editar y /blacklist eliminar. Consulta /blacklist info o /ayuda para conocer todos los detalles."
+      "text": "Registrar, editar o eliminar una blacklist ya no muestra mensajes privados de confirmación adicionales: el cambio se refleja directamente en el canal."
     }
   ],
   "acknowledgements": []
