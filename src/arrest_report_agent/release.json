@@ -1,24 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.34.0",
-  "title": "Reportes pendientes más claros",
-  "summary": "La consulta ahora reúne en una sola vista los reportes que aún necesitan completar PCU o conseguir una revisión aprobada.",
+  "version": "0.34.1",
+  "title": "Ajustes en reportes pendientes",
+  "summary": "La consulta vuelve a mostrar cuándo se realizó cada arresto y facilita la navegación compartida de los resultados.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "/reportes-pendientes muestra únicamente los casos que todavía necesitan completar el PCU o conseguir una revisión aprobada."
+      "type": "fixed",
+      "text": "Cada reporte pendiente vuelve a mostrar cuándo se realizó el arresto, usando la fecha registrada en PCU."
     },
     {
-      "type": "improved",
-      "text": "Cada reporte indica su motivo en una sola línea: Sin PCU, Sin revisión o Revisión pendiente."
-    },
-    {
-      "type": "improved",
-      "text": "Los posts de revisión se reconocen en todos los canales configurados y se pueden abrir desde el enlace corto Post."
+      "type": "fixed",
+      "text": "En las consultas visibles para todos, cualquier miembro puede utilizar los botones para cambiar de página."
     }
   ],
   "acknowledgements": []

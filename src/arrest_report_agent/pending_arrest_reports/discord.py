@@ -172,7 +172,6 @@ class PendingArrestReportCog(commands.Cog):
                     ),
                 )
             view = PendingReportPaginationView(
-                requester_id=requester_id,
                 result=result,
                 ui=ui,
             )
@@ -311,12 +310,10 @@ class PendingReportPaginationView(discord.ui.View):
     def __init__(
         self,
         *,
-        requester_id: int,
         result: PendingArrestReportScan,
         ui: PersonaPendingArrestReportsMessages,
     ) -> None:
         super().__init__(timeout=VIEW_TIMEOUT_SECONDS, disable_on_timeout=True)
-        self.requester_id = requester_id
         self.result = result
         self.ui = ui
         self.page = 0
@@ -333,15 +330,6 @@ class PendingReportPaginationView(discord.ui.View):
             ui=self.ui,
             page=self.page,
         )
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id == self.requester_id:
-            return True
-        await interaction.response.send_message(
-            embed=_alert(self.ui.alert_title, self.ui.other_query),
-            ephemeral=True,
-        )
-        return False
 
     @discord.ui.button(label="Anterior", emoji="◀️", style=discord.ButtonStyle.secondary)
     async def previous_page(
@@ -466,6 +454,7 @@ def _format_grouped_report_entries(
 
 def _format_report_entry(report: PendingArrestReport) -> str:
     suspect = _compact_name(report.suspect_name)
+    arrest_date = f"<t:{int(report.created_at.timestamp())}:R>"
     reasons: list[str] = []
     if report.pcu_reason is not None:
         reasons.append("Sin PCU")
@@ -475,7 +464,10 @@ def _format_report_entry(report: PendingArrestReport) -> str:
         reasons.append("Revisión pendiente")
     if report.review_url is not None:
         reasons.append(f"[Post]({report.review_url})")
-    return f"• **#{report.report_id}** · {suspect} — {' · '.join(reasons)}"
+    return (
+        f"• **#{report.report_id}** · {suspect} · {arrest_date} — "
+        f"{' · '.join(reasons)}"
+    )
 
 
 def _officer_key(report: PendingArrestReport) -> str:

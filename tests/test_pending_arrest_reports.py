@@ -31,6 +31,7 @@ from arrest_report_agent.pending_arrest_reports import (
     unfinished_reason,
 )
 from arrest_report_agent.pending_arrest_reports.discord import (
+    PendingReportPaginationView,
     PendingReportPeriod,
     _resolve_date_range,
 )
@@ -617,6 +618,24 @@ async def test_modal_only_collects_period_dates_and_visibility() -> None:
 
 
 @pytest.mark.asyncio
+async def test_pagination_allows_interactions_from_any_user(persona) -> None:
+    result = PendingArrestReportScan(
+        faction_id=3,
+        date_from=date(2026, 8, 1),
+        date_to=date(2026, 8, 18),
+        total_reports=0,
+    )
+    view = PendingReportPaginationView(
+        result=result,
+        ui=persona.messages.interface.pending_arrest_reports,
+    )
+
+    interaction = SimpleNamespace(user=SimpleNamespace(id=999))
+
+    assert await view.interaction_check(interaction) is True  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
 async def test_private_single_page_result_passes_review_configuration_to_service(persona) -> None:
     member = _member(11, (200,))
     followups: list[dict[str, object]] = []
@@ -753,14 +772,24 @@ def test_embed_renders_every_reason_combination_inline(persona) -> None:
 
     assert embed.color == discord.Color.gold()
     assert "5 de 6 pendientes" in description
-    assert "• **#1** · Suspect 1 — Sin PCU · [Post](" in description
-    assert "• **#2** · Suspect 2 — Sin revisión" in description
-    assert "• **#3** · Suspect 3 — Revisión pendiente · [Post](" in description
-    assert "• **#4** · Suspect 4 — Sin PCU · Sin revisión" in description
-    assert "• **#5** · Suspect 5 — Sin PCU · Revisión pendiente · [Post](" in description
+    arrest_date = f"<t:{int(now.timestamp())}:R>"
+    assert f"• **#1** · Suspect 1 · {arrest_date} — Sin PCU · [Post](" in description
+    assert f"• **#2** · Suspect 2 · {arrest_date} — Sin revisión" in description
+    assert (
+        f"• **#3** · Suspect 3 · {arrest_date} — "
+        "Revisión pendiente · [Post]("
+    ) in description
+    assert (
+        f"• **#4** · Suspect 4 · {arrest_date} — Sin PCU · Sin revisión"
+        in description
+    )
+    assert (
+        f"• **#5** · Suspect 5 · {arrest_date} — "
+        "Sin PCU · Revisión pendiente · [Post]("
+    ) in description
     assert "https://discord.com/channels/99/100/1001" in description
     assert "[#1](" not in description
-    assert "<t:" not in description
+    assert description.count(arrest_date) == len(reports)
 
 
 def test_embed_without_pending_reports_is_green_and_concise(persona) -> None:
