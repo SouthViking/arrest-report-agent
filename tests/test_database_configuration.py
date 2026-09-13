@@ -640,7 +640,7 @@ def test_global_persona_repair_migration_updates_an_already_applied_revision() -
 
         command.upgrade(alembic, "head")
 
-        asyncio.run(_assert_global_persona_revision(database_url, "walter_vigil", 53, 46))
+        asyncio.run(_assert_global_persona_revision(database_url, "walter_vigil", 54, 46))
     finally:
         command.downgrade(alembic, "base")
         if previous is None:
