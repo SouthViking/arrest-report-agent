@@ -480,10 +480,23 @@ async def test_structured_service_rejects_non_images_and_invalid_group_sizes() -
     repository = FakeRepository(_submission())
     service = StructuredArrestReportService(repository, MemoryObjectStorage())  # type: ignore[arg-type]
 
-    with pytest.raises(ValueError, match="one or two"):
+    assets = await service.store_images(
+        repository.submission,
+        suspect_photos=(),
+        supporting_images=(StructuredReportFile("report.png", "image/png", b"x"),),
+        max_file_bytes=100,
+        max_total_bytes=1_000,
+    )
+    assert [asset.category for asset in assets] == [
+        ArrestReportAssetCategory.SUPPORTING_IMAGE
+    ]
+    assert [asset.position for asset in assets] == [0]
+
+    photo = StructuredReportFile("photo.png", "image/png", b"x")
+    with pytest.raises(ValueError, match="at most two"):
         await service.store_images(
             repository.submission,
-            suspect_photos=(),
+            suspect_photos=(photo, photo, photo),
             supporting_images=(StructuredReportFile("report.png", "image/png", b"x"),),
             max_file_bytes=100,
             max_total_bytes=1_000,
@@ -557,6 +570,8 @@ async def test_image_tools_are_categorized_idempotent_and_owner_scoped() -> None
     assert first_metadata["category"] == "suspect_photo"
     assert first_metadata["status"] == "images_loaded"
     assert first_metadata["image_presence"] == "present"
+    assert first_metadata["required_for_review"] is False
+    assert first_metadata["absence_affects_verdict"] is False
     assert [type(item) for item in second] == [ToolOutputText]
     assert json.loads(second[0].text)["skipped"][0]["reason"] == "already_loaded"
     assert [type(item) for item in current_report] == [ToolOutputText]
@@ -606,6 +621,8 @@ async def test_image_tool_errors_do_not_claim_images_are_absent(
     assert metadata["status"] == expected_status
     assert metadata["image_presence"] == "unknown"
     assert metadata["can_determine_image_presence"] is False
+    assert metadata["required_for_review"] is False
+    assert metadata["absence_affects_verdict"] is False
     assert "loaded" not in metadata
 
 
@@ -637,6 +654,8 @@ async def test_image_tool_reports_a_verified_empty_category() -> None:
     assert metadata["status"] == "no_images_in_category"
     assert metadata["image_presence"] == "absent"
     assert metadata["can_determine_image_presence"] is True
+    assert metadata["required_for_review"] is False
+    assert metadata["absence_affects_verdict"] is False
 
 
 @pytest.mark.asyncio
@@ -749,10 +768,12 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
         guild_id=2,
         channel_id=3,
     )
-    assert modal.suspect_photos.min_values == 1
+    assert modal.suspect_photos.min_values == 0
     assert modal.suspect_photos.max_values == 2
+    assert modal.suspect_photos.required is False
     assert modal.supporting_images.min_values == 1
     assert modal.supporting_images.max_values == 8
+    assert modal.supporting_images.required is True
     assert modal.report_id.required is True
 
     files, suspect_names, supporting_names = _discord_files(
@@ -793,6 +814,27 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
     assert header.content.startswith("## 📋 Reporte de arresto\n")
     assert "#None" not in header.content
 
+    files, suspect_names, supporting_names = _discord_files(
+        (),
+        (StructuredReportFile("report.png", "image/png", b"report"),),
+    )
+    without_suspect_photos = build_submission_view(
+        _submission(),
+        suspect_filenames=suspect_names,
+        supporting_filenames=supporting_names,
+    )
+    container = without_suspect_photos.children[0]
+    assert isinstance(container, discord.ui.Container)
+    assert len(files) == 1
+    assert suspect_names == ()
+    assert supporting_names == ("report.png",)
+    assert sum(isinstance(item, discord.ui.MediaGallery) for item in container.items) == 1
+    assert any(
+        isinstance(item, discord.ui.TextDisplay)
+        and "No se adjuntaron fotografías" in item.content
+        for item in container.items
+    )
+
 
 @pytest.mark.parametrize(
     (
@@ -801,13 +843,14 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
         "expected_detail_lookups",
         "expected_report_id",
         "expected_thread_name",
+        "suspect_photo_count",
     ),
     (
-        ("Andy Quintero", "", [], None, "Andy Quintero"),
-        ("Andy Quintero", "not-a-number", [], None, "Andy Quintero"),
-        ("Andy Quintero", "999", [999], None, "Andy Quintero"),
-        ("Andi Quintero", "321", [321], None, "Andi Quintero"),
-        ("Andy Quintero", "321", [321], 321, "Andy Quintero · #321"),
+        ("Andy Quintero", "", [], None, "Andy Quintero", 0),
+        ("Andy Quintero", "not-a-number", [], None, "Andy Quintero", 1),
+        ("Andy Quintero", "999", [999], None, "Andy Quintero", 1),
+        ("Andi Quintero", "321", [321], None, "Andi Quintero", 1),
+        ("Andy Quintero", "321", [321], 321, "Andy Quintero · #321", 1),
     ),
 )
 @pytest.mark.asyncio
@@ -818,6 +861,7 @@ async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discove
     expected_detail_lookups: list[int],
     expected_report_id: int | None,
     expected_thread_name: str,
+    suspect_photo_count: int,
 ) -> None:
     class Member:
         def __init__(self) -> None:
@@ -972,7 +1016,7 @@ async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discove
         channel_id=3,
         suspect_name=suspect_name,
         report_id_text=report_id_text,
-        suspect_photos=(Attachment(),),  # type: ignore[arg-type]
+        suspect_photos=tuple(Attachment() for _ in range(suspect_photo_count)),  # type: ignore[arg-type]
         supporting_images=(Attachment(),),  # type: ignore[arg-type]
     )
     await asyncio.sleep(0)
@@ -985,7 +1029,7 @@ async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discove
     assert repository.report_lookups == []
     assert len(edits) == 1
     assert isinstance(edits[0]["view"], discord.ui.DesignerView)
-    assert len(edits[0]["files"]) == 2
+    assert len(edits[0]["files"]) == suspect_photo_count + 1
     allowed_mentions = edits[0]["allowed_mentions"]
     assert allowed_mentions.everyone is False
     assert allowed_mentions.users is False

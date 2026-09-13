@@ -18,16 +18,23 @@ def build_submission_view(
     supporting_filenames: tuple[str, ...],
     color: discord.Color | None = None,
 ) -> discord.ui.DesignerView:
-    """Build the stable report card while preserving both categorized galleries."""
+    """Build the stable report card while preserving categorized attachments."""
 
-    suspect_gallery: discord.ui.MediaGallery[discord.ui.DesignerView] = discord.ui.MediaGallery(
-        *(
-            discord.MediaGalleryItem(  # type: ignore[no-untyped-call]
-                f"attachment://{filename}",
-                description=f"Fotografía del sospechoso {index}",
+    suspect_content: (
+        discord.ui.MediaGallery[discord.ui.DesignerView]
+        | discord.ui.TextDisplay[discord.ui.DesignerView, discord.ui.DesignerModal]
+    ) = (
+        discord.ui.MediaGallery(
+            *(
+                discord.MediaGalleryItem(  # type: ignore[no-untyped-call]
+                    f"attachment://{filename}",
+                    description=f"Fotografía del sospechoso {index}",
+                )
+                for index, filename in enumerate(suspect_filenames, start=1)
             )
-            for index, filename in enumerate(suspect_filenames, start=1)
         )
+        if suspect_filenames
+        else discord.ui.TextDisplay("_No se adjuntaron fotografías del sospechoso._")
     )
     supporting_gallery: discord.ui.MediaGallery[discord.ui.DesignerView] = discord.ui.MediaGallery(
         *(
@@ -52,7 +59,7 @@ def build_submission_view(
         discord.ui.TextDisplay(header_text),
         discord.ui.Separator(),
         discord.ui.TextDisplay("### 📸 Fotografías del sospechoso"),
-        suspect_gallery,
+        suspect_content,
         discord.ui.Separator(),
         discord.ui.TextDisplay("### 📎 Reporte y respaldos"),
         supporting_gallery,
@@ -124,5 +131,5 @@ def _has_submission_signature(
         and text_items[0].startswith("## 📋 Reporte de arresto")
         and "**Autor:**" in text_items[0]
         and "**Sospechoso:**" in text_items[0]
-        and gallery_count == 2
+        and gallery_count in {1, 2}
     )

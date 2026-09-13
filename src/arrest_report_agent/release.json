@@ -1,20 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.34.1",
-  "title": "Ajustes en reportes pendientes",
-  "summary": "La consulta vuelve a mostrar cuándo se realizó cada arresto y facilita la navegación compartida de los resultados.",
+  "version": "0.34.2",
+  "title": "Fotografías opcionales en revisiones",
+  "summary": "Los reportes de arresto ahora pueden enviarse a revisión aunque no se disponga de fotografías del sospechoso.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Cada reporte pendiente vuelve a mostrar cuándo se realizó el arresto, usando la fecha registrada en PCU."
+      "type": "improved",
+      "text": "/revisar-arresto permite continuar sin adjuntar fotografías del sospechoso; el reporte y sus demás respaldos mantienen sus requisitos habituales."
     },
     {
-      "type": "fixed",
-      "text": "En las consultas visibles para todos, cualquier miembro puede utilizar los botones para cambiar de página."
+      "type": "improved",
+      "text": "La revisión reconoce explícitamente que estas fotografías son opcionales y que su ausencia no afecta el resultado."
     }
   ],
   "acknowledgements": []

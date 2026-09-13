@@ -1665,6 +1665,13 @@ def build_agent_tools(
             "skipped": skipped,
             "remaining_image_capacity": max(0, max_images_per_review - run_context.loaded_image_count),
         }
+        if category == "suspect_photo":
+            metadata.update(
+                {
+                    "required_for_review": False,
+                    "absence_affects_verdict": False,
+                }
+            )
         return [ToolOutputText(text=_compact_json(metadata)), *outputs]
 
     @function_tool
@@ -1678,7 +1685,9 @@ def build_agent_tools(
         report owners remain limited to their current expediente. Use this only when identity,
         frontal/lateral photographs or another visual fact must actually be inspected. If the
         result says image_presence is unknown, the tool could not verify the category: never treat
-        that result as proof that photographs are missing.
+        that result as proof that photographs are missing. Suspect photographs are optional: when
+        image_presence is absent, continue the review and never treat that absence as a deficiency
+        or allow it to affect the verdict.
         """
 
         return await _get_structured_images(
@@ -2087,6 +2096,13 @@ def _structured_image_tool_error(
             "No se pudo comprobar esta categoría. Esto no demuestra que falten imágenes.",
         ),
     }
+    if category == "suspect_photo":
+        payload.update(
+            {
+                "required_for_review": False,
+                "absence_affects_verdict": False,
+            }
+        )
     return [ToolOutputText(text=_compact_json(payload))]
 
 

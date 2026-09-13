@@ -59,8 +59,8 @@ class StructuredArrestReportService:
         max_file_bytes: int,
         max_total_bytes: int,
     ) -> tuple[ArrestReportAsset, ...]:
-        if not 1 <= len(suspect_photos) <= 2:
-            raise ValueError("Suspect photographs must contain one or two images")
+        if len(suspect_photos) > 2:
+            raise ValueError("Suspect photographs must contain at most two images")
         if not 1 <= len(supporting_images) <= 8:
             raise ValueError("Supporting images must contain between one and eight images")
         all_files = (*suspect_photos, *supporting_images)
