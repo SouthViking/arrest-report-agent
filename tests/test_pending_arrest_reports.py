@@ -12,7 +12,10 @@ from arrest_report_agent.infrastructure.sarp import (
     SarpFactionArrestSummary,
 )
 from arrest_report_agent.pending_arrest_reports import (
-    ArrestReportDiscordReference,
+    ArrestReportReviewReference,
+    ArrestReviewSource,
+    ArrestReviewStatus,
+    DiscordLegacyArrestReviewLookup,
     PendingArrestReport,
     PendingArrestReportCog,
     PendingArrestReportModal,
@@ -23,9 +26,6 @@ from arrest_report_agent.pending_arrest_reports import (
     PendingReportScanTooLargeError,
     PendingReportStatus,
     PendingReportVisibility,
-    PendingReviewInclusion,
-    PublishedArrestReview,
-    UnapprovedArrestReport,
     build_pending_arrest_reports_embed,
     status_for_age,
     unfinished_reason,
@@ -50,6 +50,51 @@ def _summary(
         suspect_name=f"Suspect_{report_id}",
         description=description,
         created_at=created_at,
+    )
+
+
+def _reference(
+    report_id: int,
+    *,
+    approved: bool,
+    recorded_at: datetime,
+    channel_id: int = 100,
+    message_id: int | None = None,
+    source: ArrestReviewSource = ArrestReviewSource.STRUCTURED,
+) -> ArrestReportReviewReference:
+    return ArrestReportReviewReference(
+        report_id=report_id,
+        source=source,
+        approved=approved,
+        guild_id=99,
+        parent_channel_id=channel_id,
+        root_message_id=message_id or 1000 + report_id,
+        recorded_at=recorded_at,
+    )
+
+
+def _pending(
+    report_id: int,
+    *,
+    officer: str = "Officer One",
+    suspect: str | None = None,
+    created_at: datetime,
+    pcu_missing: bool,
+    review_status: ArrestReviewStatus,
+) -> PendingArrestReport:
+    return PendingArrestReport(
+        report_id=report_id,
+        officer_name=officer,
+        suspect_name=suspect or f"Suspect {report_id}",
+        created_at=created_at,
+        status=PendingReportStatus.ON_TIME,
+        pcu_reason=(PendingReportReason.PLACEHOLDER if pcu_missing else None),
+        review_status=review_status,
+        review_url=(
+            None
+            if review_status is ArrestReviewStatus.MISSING
+            else f"https://discord.com/channels/99/100/{1000 + report_id}"
+        ),
     )
 
 
@@ -113,7 +158,7 @@ def test_age_status_boundaries_are_deterministic() -> None:
 
 
 @pytest.mark.asyncio
-async def test_service_paginates_classifies_and_orders_oldest_first() -> None:
+async def test_service_paginates_and_keeps_incomplete_pcu_even_when_review_is_approved() -> None:
     now = datetime(2026, 8, 18, 12, tzinfo=UTC)
     reports = [
         _summary(
@@ -135,17 +180,26 @@ async def test_service_paginates_classifies_and_orders_oldest_first() -> None:
         start = (page - 1) * 50
         return SarpFactionArrestSearchPayload(data=reports[start : start + 50], total=51)
 
+    async def latest_reviews(**kwargs: object) -> dict[int, ArrestReportReviewReference]:
+        return {
+            report_id: _reference(report_id, approved=True, recorded_at=now)
+            for report_id in kwargs["report_ids"]
+        }
+
     service = PendingArrestReportService(
-        SimpleNamespace(search_faction_arrests=search)
+        SimpleNamespace(search_faction_arrests=search),
+        SimpleNamespace(latest_reviews=latest_reviews),
     )
     result = await service.scan(
         faction_id=3,
         date_from=date(2026, 8, 1),
         date_to=date(2026, 8, 18),
         now=now,
+        guild_id=99,
     )
 
     assert [report.report_id for report in result.pending_reports] == [51, 1]
+    assert all(report.review_status is ArrestReviewStatus.APPROVED for report in result.pending_reports)
     assert result.total_reports == 51
     assert len(calls) == 2
     assert calls[0]["date_to"] == date(2026, 8, 19)
@@ -153,71 +207,38 @@ async def test_service_paginates_classifies_and_orders_oldest_first() -> None:
 
 
 @pytest.mark.asyncio
-async def test_service_lists_reports_without_an_approved_formal_review() -> None:
+async def test_service_unifies_all_pending_reason_combinations() -> None:
     now = datetime(2026, 8, 18, 12, tzinfo=UTC)
     reports = [
         _summary(
             index,
-            description="Yo, Officer Example, redacté un informe completo.",
+            description=(
+                "pendiente"
+                if index in {4, 5, 6}
+                else "Yo, Officer Example, redacté un informe completo."
+            ),
             created_at=now - timedelta(hours=index),
         )
-        for index in range(1, 5)
+        for index in range(1, 7)
     ]
     lookup_calls: list[dict[str, object]] = []
-    reference_calls: list[dict[str, object]] = []
 
     async def search(_faction_id: int, **_kwargs: object) -> SarpFactionArrestSearchPayload:
         return SarpFactionArrestSearchPayload(data=reports, total=len(reports))
 
-    async def latest_published_full_reviews(**kwargs: object):
+    async def latest_reviews(**kwargs: object) -> dict[int, ArrestReportReviewReference]:
         lookup_calls.append(kwargs)
         return {
-            1: PublishedArrestReview(
-                report_id=1,
-                verdict=ReviewVerdict.APPROVED,
-                guild_id=99,
-                parent_channel_id=100,
-                root_message_id=1001,
-                published_at=now,
-            ),
-            2: PublishedArrestReview(
-                report_id=2,
-                verdict=ReviewVerdict.CORRECTIONS_REQUIRED,
-                guild_id=99,
-                parent_channel_id=100,
-                root_message_id=1002,
-                published_at=now,
-            ),
-            3: PublishedArrestReview(
-                report_id=3,
-                verdict=ReviewVerdict.INCONCLUSIVE,
-                guild_id=99,
-                parent_channel_id=100,
-                root_message_id=1003,
-                published_at=now,
-            ),
-        }
-
-    async def latest_report_references(**kwargs: object):
-        reference_calls.append(kwargs)
-        return {
-            4: ArrestReportDiscordReference(
-                report_id=4,
-                guild_id=99,
-                parent_channel_id=200,
-                root_message_id=1004,
-                recorded_at=now,
-            )
+            1: _reference(1, approved=True, recorded_at=now),
+            2: _reference(2, approved=False, recorded_at=now),
+            4: _reference(4, approved=True, recorded_at=now),
+            5: _reference(5, approved=False, recorded_at=now),
         }
 
     service = PendingArrestReportService(
         SimpleNamespace(search_faction_arrests=search),
-        SimpleNamespace(
-            latest_published_full_reviews=latest_published_full_reviews,
-            latest_report_references=latest_report_references,
-        ),
+        SimpleNamespace(latest_reviews=latest_reviews),
     )
-
     result = await service.scan(
         faction_id=3,
         date_from=date(2026, 8, 1),
@@ -225,80 +246,97 @@ async def test_service_lists_reports_without_an_approved_formal_review() -> None
         now=now,
         guild_id=99,
         report_channel_ids=frozenset({100, 200}),
-        include_unapproved_reviews=True,
     )
 
-    assert [report.report_id for report in result.unapproved_reports] == [4, 3, 2]
-    assert result.unapproved_reviews_included is True
-    assert result.unapproved_reports[0].review_verdict is None
-    assert result.unapproved_reports[0].review_url.endswith("/99/200/1004")
-    assert result.unapproved_reports[1].review_verdict is ReviewVerdict.INCONCLUSIVE
-    assert result.unapproved_reports[2].review_url.endswith("/99/100/1002")
+    by_id = {report.report_id: report for report in result.pending_reports}
+    assert set(by_id) == {2, 3, 4, 5, 6}
+    assert by_id[2].pcu_reason is None
+    assert by_id[2].review_status is ArrestReviewStatus.PENDING
+    assert by_id[3].review_status is ArrestReviewStatus.MISSING
+    assert by_id[4].pcu_reason is PendingReportReason.PLACEHOLDER
+    assert by_id[4].review_status is ArrestReviewStatus.APPROVED
+    assert by_id[5].review_status is ArrestReviewStatus.PENDING
+    assert by_id[6].review_status is ArrestReviewStatus.MISSING
+    assert result.completed_count == 1
     assert lookup_calls == [
         {
             "guild_id": 99,
-            "report_ids": (1, 2, 3, 4),
-            "channel_ids": frozenset({100, 200}),
-        }
-    ]
-    assert reference_calls == [
-        {
-            "guild_id": 99,
-            "report_ids": (4,),
+            "report_ids": (1, 2, 3, 4, 5, 6),
             "channel_ids": frozenset({100, 200}),
         }
     ]
 
 
 @pytest.mark.asyncio
-async def test_service_skips_unapproved_review_lookup_by_default() -> None:
+async def test_service_verifies_legacy_roots_and_treats_missing_posts_as_no_review() -> None:
     now = datetime(2026, 8, 18, 12, tzinfo=UTC)
-    lookup_calls: list[str] = []
+    reports = [
+        _summary(
+            report_id,
+            description="Yo, Officer Example, redacté un informe completo.",
+            created_at=now - timedelta(days=1),
+        )
+        for report_id in (1, 2, 3)
+    ]
+    legacy_calls: list[dict[str, object]] = []
 
     async def search(_faction_id: int, **_kwargs: object) -> SarpFactionArrestSearchPayload:
-        return SarpFactionArrestSearchPayload(
-            data=[
-                _summary(
-                    1,
-                    description="Yo, Officer Example, redacté un informe completo.",
-                    created_at=now,
-                )
-            ],
-            total=1,
-        )
+        return SarpFactionArrestSearchPayload(data=reports, total=3)
 
-    async def latest_published_full_reviews(**_kwargs: object):
-        lookup_calls.append("reviews")
-        return {}
+    async def structured(**_kwargs: object) -> dict[int, ArrestReportReviewReference]:
+        return {
+            1: _reference(
+                1,
+                approved=False,
+                recorded_at=now - timedelta(hours=2),
+                source=ArrestReviewSource.LEGACY,
+            ),
+            2: _reference(2, approved=False, recorded_at=now, message_id=2002),
+            3: _reference(
+                3,
+                approved=False,
+                recorded_at=now - timedelta(hours=1),
+                source=ArrestReviewSource.LEGACY,
+            ),
+        }
 
-    async def latest_report_references(**_kwargs: object):
-        lookup_calls.append("references")
-        return {}
+    async def legacy(**kwargs: object) -> dict[int, ArrestReportReviewReference]:
+        legacy_calls.append(kwargs)
+        return {
+            1: _reference(
+                1,
+                approved=True,
+                recorded_at=now - timedelta(hours=2),
+                source=ArrestReviewSource.LEGACY,
+            ),
+        }
 
     service = PendingArrestReportService(
         SimpleNamespace(search_faction_arrests=search),
-        SimpleNamespace(
-            latest_published_full_reviews=latest_published_full_reviews,
-            latest_report_references=latest_report_references,
-        ),
+        SimpleNamespace(latest_reviews=structured),
+        SimpleNamespace(resolve_approvals=legacy),
     )
-
     result = await service.scan(
         faction_id=3,
-        date_from=date(2026, 8, 18),
+        date_from=date(2026, 8, 1),
         date_to=date(2026, 8, 18),
         now=now,
         guild_id=99,
-        report_channel_ids=frozenset({100}),
+        report_channel_ids=frozenset({100, 200}),
+        authorized_reviewer_role_ids=frozenset({42}),
     )
 
-    assert result.unapproved_reviews_included is False
-    assert result.unapproved_reports == ()
-    assert lookup_calls == []
+    assert [report.report_id for report in result.pending_reports] == [2, 3]
+    assert result.pending_reports[0].review_url.endswith("/2002")
+    assert result.pending_reports[1].review_status is ArrestReviewStatus.MISSING
+    assert result.pending_reports[1].review_url is None
+    assert legacy_calls[0]["authorized_role_ids"] == frozenset({42})
+    assert legacy_calls[0]["after"] == now - timedelta(days=1)
+    assert [reference.report_id for reference in legacy_calls[0]["references"]] == [1, 3]
 
 
 @pytest.mark.asyncio
-async def test_review_repository_uses_latest_published_full_review_per_report() -> None:
+async def test_review_repository_uses_newest_bound_root_and_its_latest_full_review() -> None:
     now = datetime(2026, 8, 18, 12, tzinfo=UTC)
     statements: list[object] = []
 
@@ -307,11 +345,12 @@ async def test_review_repository_uses_latest_published_full_review_per_report() 
         return [
             {
                 "report_id": 10,
-                "verdict": ReviewVerdict.CORRECTIONS_REQUIRED.value,
+                "verdict": None,
                 "guild_id": 99,
-                "parent_channel_id": 100,
+                "parent_channel_id": 200,
                 "root_message_id": 1002,
-                "published_at": now,
+                "recorded_at": now,
+                "structured_submission_id": None,
             },
             {
                 "report_id": 10,
@@ -319,66 +358,179 @@ async def test_review_repository_uses_latest_published_full_review_per_report() 
                 "guild_id": 99,
                 "parent_channel_id": 100,
                 "root_message_id": 1001,
-                "published_at": now - timedelta(hours=1),
-            },
-        ]
-
-    repository = PendingArrestReviewRepository(SimpleNamespace(fetch_all=fetch_all))
-
-    result = await repository.latest_published_full_reviews(
-        guild_id=99,
-        report_ids=(10, 10),
-        channel_ids=(100,),
-    )
-
-    assert len(statements) == 1
-    assert result[10].verdict is ReviewVerdict.CORRECTIONS_REQUIRED
-    assert result[10].root_message_id == 1002
-    statement = str(statements[0])
-    assert "report_arrest_bindings" in statement
-    assert "report_reviews" in statement
-    assert "review_scope" in statement
-
-
-@pytest.mark.asyncio
-async def test_review_repository_uses_latest_bound_root_without_a_review() -> None:
-    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
-    statements: list[object] = []
-
-    async def fetch_all(statement: object):
-        statements.append(statement)
-        return [
-            {
-                "report_id": 10,
-                "guild_id": 99,
-                "parent_channel_id": 200,
-                "root_message_id": 1002,
-                "recorded_at": now,
+                "recorded_at": now - timedelta(hours=1),
+                "structured_submission_id": "submission-10",
             },
             {
-                "report_id": 10,
+                "report_id": 11,
+                "verdict": ReviewVerdict.APPROVED.value,
                 "guild_id": 99,
                 "parent_channel_id": 100,
-                "root_message_id": 1001,
-                "recorded_at": now - timedelta(hours=1),
+                "root_message_id": 1011,
+                "recorded_at": now,
+                "structured_submission_id": "submission-11",
             },
         ]
 
     repository = PendingArrestReviewRepository(SimpleNamespace(fetch_all=fetch_all))
-
-    result = await repository.latest_report_references(
+    result = await repository.latest_reviews(
         guild_id=99,
-        report_ids=(10, 10),
+        report_ids=(10, 10, 11),
         channel_ids=(100, 200),
     )
 
     assert len(statements) == 1
+    assert result[10].approved is False
+    assert result[10].source is ArrestReviewSource.LEGACY
     assert result[10].root_message_id == 1002
     assert result[10].jump_url == "https://discord.com/channels/99/200/1002"
+    assert result[11].approved is True
+    assert result[11].source is ArrestReviewSource.STRUCTURED
     statement = str(statements[0])
-    assert "report_arrest_bindings" in statement
+    assert "LEFT OUTER JOIN report_reviews" in statement
+    assert "arrest_report_submissions" in statement
+    assert "review_scope" in statement
     assert "parent_channel_id" in statement
-    assert "report_reviews" not in statement
+
+
+class FakePermissions:
+    view_channel = True
+    read_message_history = True
+
+
+class FakeHistoryChannel:
+    def __init__(self, channel_id: int, messages: list[object]) -> None:
+        self.id = channel_id
+        self.messages = messages
+        self.history_calls: list[dict[str, object]] = []
+
+    def permissions_for(self, _member: object) -> FakePermissions:
+        return FakePermissions()
+
+    async def history(self, **kwargs: object):
+        self.history_calls.append(kwargs)
+        for message in self.messages:
+            yield message
+
+
+class FakeReaction:
+    def __init__(self, emoji: str, *, mine: bool, reactors: tuple[object, ...] = ()) -> None:
+        self.emoji = emoji
+        self.me = mine
+        self.reactors = reactors
+
+    def users(self):
+        async def iterate():
+            for reactor in self.reactors:
+                yield reactor
+
+        return iterate()
+
+
+def _legacy_message(
+    message_id: int,
+    channel: FakeHistoryChannel,
+    *,
+    content: str,
+    reaction: FakeReaction | None = None,
+    bot: bool = False,
+    attachments: bool = True,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=message_id,
+        author=SimpleNamespace(id=500 + message_id, bot=bot),
+        webhook_id=None,
+        reference=None,
+        content=content,
+        reactions=[] if reaction is None else [reaction],
+        attachments=[SimpleNamespace(filename="report.png")] if attachments else [],
+        channel=channel,
+        created_at=datetime(2026, 8, 18, 10, message_id % 60, tzinfo=UTC),
+    )
+
+
+@pytest.mark.asyncio
+async def test_legacy_lookup_scans_all_configured_channels_and_trusts_only_authorized_checks(
+    monkeypatch,
+) -> None:
+    authorized = SimpleNamespace(id=700, bot=False, roles=[SimpleNamespace(id=42)])
+    unauthorized = SimpleNamespace(id=701, bot=False, roles=[SimpleNamespace(id=99)])
+    first = FakeHistoryChannel(100, [])
+    second = FakeHistoryChannel(200, [])
+    first.messages = [
+        _legacy_message(
+            10,
+            first,
+            content="<@999> Peter Kinsella - #10",
+            reaction=FakeReaction("✅", mine=False, reactors=(authorized,)),
+        ),
+        _legacy_message(
+            11,
+            first,
+            content="<@999> Robert Miller - #11",
+            reaction=FakeReaction("✅", mine=False, reactors=(unauthorized,)),
+        ),
+        _legacy_message(13, first, content="Reporte estructurado", bot=True),
+        _legacy_message(15, first, content="Sin ID visible", attachments=True),
+    ]
+    second.messages = [
+        _legacy_message(
+            12,
+            second,
+            content="<@999> Michael Carter - #12",
+            reaction=FakeReaction("✅", mine=True),
+        ),
+        _legacy_message(
+            14,
+            second,
+            content="<@999> Thomas Walker - #14",
+            reaction=FakeReaction("❌", mine=True),
+        ),
+    ]
+    channels = {channel.id: channel for channel in (first, second)}
+    guild = SimpleNamespace(
+        id=99,
+        text_channels=[first, second],
+        get_channel=channels.get,
+        get_member=lambda member_id: {700: authorized, 701: unauthorized}.get(member_id),
+        me=SimpleNamespace(id=999),
+    )
+    for channel in (first, second):
+        for message in channel.messages:
+            message.guild = guild
+    bot = SimpleNamespace(get_guild=lambda guild_id: guild if guild_id == 99 else None)
+    monkeypatch.setattr(
+        "arrest_report_agent.pending_arrest_reports.legacy.discord.TextChannel",
+        FakeHistoryChannel,
+    )
+
+    lookup = DiscordLegacyArrestReviewLookup(bot)
+    references = tuple(
+        _reference(
+            100 + message_id,
+            approved=False,
+            recorded_at=datetime(2026, 8, 18, 9, tzinfo=UTC),
+            channel_id=(100 if message_id in {10, 11, 13, 15} else 200),
+            message_id=message_id,
+            source=ArrestReviewSource.LEGACY,
+        )
+        for message_id in (10, 11, 12, 13, 14, 15)
+    )
+    result = await lookup.resolve_approvals(
+        guild_id=99,
+        references=references,
+        after=datetime(2026, 8, 1, tzinfo=UTC),
+        authorized_role_ids=(42,),
+    )
+
+    assert set(result) == {110, 111, 112, 114, 115}
+    assert result[110].approved is True
+    assert result[111].approved is False
+    assert result[112].approved is True
+    assert result[114].approved is False
+    assert result[115].approved is False
+    assert result[112].parent_channel_id == 200
+    assert all(channel.history_calls[0]["limit"] is None for channel in (first, second))
 
 
 @pytest.mark.asyncio
@@ -386,9 +538,7 @@ async def test_service_rejects_source_sets_above_configured_limit() -> None:
     async def search(_faction_id: int, **_kwargs: object) -> SarpFactionArrestSearchPayload:
         return SarpFactionArrestSearchPayload(data=[], total=1001)
 
-    service = PendingArrestReportService(
-        SimpleNamespace(search_faction_arrests=search)
-    )
+    service = PendingArrestReportService(SimpleNamespace(search_faction_arrests=search))
     with pytest.raises(PendingReportScanTooLargeError) as captured:
         await service.scan(
             faction_id=3,
@@ -417,17 +567,9 @@ async def test_command_rejects_members_outside_operational_staff(persona) -> Non
     async def respond(**kwargs: object) -> None:
         responses.append(kwargs)
 
-    cog = PendingArrestReportCog(
-        SimpleNamespace(cached=cached),
-        SimpleNamespace(),
-        persona,
-    )
+    cog = PendingArrestReportCog(SimpleNamespace(cached=cached), SimpleNamespace(), persona)
     context = SimpleNamespace(guild=member.guild, author=member, respond=respond)
-
-    await PendingArrestReportCog.pending_arrest_reports.callback(  # type: ignore[arg-type]
-        cog,
-        context,
-    )
+    await PendingArrestReportCog.pending_arrest_reports.callback(cog, context)  # type: ignore[arg-type]
 
     assert responses[0]["ephemeral"] is True
     assert responses[0]["embed"].description == (
@@ -452,28 +594,16 @@ async def test_command_opens_modal_for_operational_staff_in_any_channel(persona)
     async def send_modal(modal: PendingArrestReportModal) -> None:
         modals.append(modal)
 
-    cog = PendingArrestReportCog(
-        SimpleNamespace(cached=cached),
-        SimpleNamespace(),
-        persona,
-    )
-    context = SimpleNamespace(
-        guild=member.guild,
-        author=member,
-        send_modal=send_modal,
-    )
-
-    await PendingArrestReportCog.pending_arrest_reports.callback(  # type: ignore[arg-type]
-        cog,
-        context,
-    )
+    cog = PendingArrestReportCog(SimpleNamespace(cached=cached), SimpleNamespace(), persona)
+    context = SimpleNamespace(guild=member.guild, author=member, send_modal=send_modal)
+    await PendingArrestReportCog.pending_arrest_reports.callback(cog, context)  # type: ignore[arg-type]
 
     assert len(modals) == 1
     assert modals[0].requester_id == member.id
 
 
 @pytest.mark.asyncio
-async def test_modal_requires_visibility_choice_and_offers_both_scopes() -> None:
+async def test_modal_only_collects_period_dates_and_visibility() -> None:
     modal = PendingArrestReportModal(SimpleNamespace(), requester_id=42)
 
     assert modal.title == "Buscar reportes pendientes"
@@ -482,19 +612,12 @@ async def test_modal_requires_visibility_choice_and_offers_both_scopes() -> None
         PendingReportVisibility.PRIVATE.value,
     }
     assert next(option for option in modal.visibility.options if option.default).value == "public"
-    assert {option.value for option in modal.review_inclusion.options} == {
-        PendingReviewInclusion.OMIT.value,
-        PendingReviewInclusion.INCLUDE.value,
-    }
-    default_review_option = next(
-        option for option in modal.review_inclusion.options if option.default
-    )
-    assert default_review_option.value == PendingReviewInclusion.OMIT.value
-    assert "revisiones aún no aprobadas" in modal.children[3].label.lower()
+    assert len(modal.children) == 4
+    assert not hasattr(modal, "review_inclusion")
 
 
 @pytest.mark.asyncio
-async def test_private_single_page_result_omits_the_absent_pagination_view(persona) -> None:
+async def test_private_single_page_result_passes_review_configuration_to_service(persona) -> None:
     member = _member(11, (200,))
     followups: list[dict[str, object]] = []
     deferrals: list[dict[str, object]] = []
@@ -510,10 +633,11 @@ async def test_private_single_page_result_omits_the_absent_pagination_view(perso
         return SimpleNamespace(
             settings=SimpleNamespace(
                 operational_staff_role_ids=(200,),
+                supervisor_role_allowlist=SimpleNamespace(ids=frozenset({300, 400})),
                 pending_arrest_reports_faction_id=3,
                 pending_arrest_reports_max_range_days=90,
                 pending_arrest_reports_max_records=1000,
-                report_channel_allowlist=SimpleNamespace(ids=frozenset({456})),
+                report_channel_allowlist=SimpleNamespace(ids=frozenset({456, 789})),
             ),
             persona=SimpleNamespace(profile=persona),
         )
@@ -540,7 +664,6 @@ async def test_private_single_page_result_omits_the_absent_pagination_view(perso
         response=SimpleNamespace(defer=defer),
         followup=SimpleNamespace(send=send),
     )
-
     await cog.scan(  # type: ignore[arg-type]
         interaction,
         requester_id=member.id,
@@ -553,8 +676,8 @@ async def test_private_single_page_result_omits_the_absent_pagination_view(perso
     assert deferrals == [{"ephemeral": True}]
     assert followups[0]["ephemeral"] is True
     assert "view" not in followups[0]
-    assert followups[0]["embed"].title == "⏳ Reportes de arresto pendientes"
-    assert scan_calls[0]["include_unapproved_reviews"] is False
+    assert scan_calls[0]["report_channel_ids"] == frozenset({456, 789})
+    assert scan_calls[0]["authorized_reviewer_role_ids"] == frozenset({300, 400})
 
 
 def test_custom_range_validation_is_bounded() -> None:
@@ -580,28 +703,45 @@ def test_custom_range_validation_is_bounded() -> None:
         )
 
 
-def test_embed_is_single_compact_page_with_worst_status_color(persona) -> None:
-    created_at = datetime(2026, 8, 17, 10, tzinfo=UTC)
-    reports = tuple(
-        PendingArrestReport(
-            report_id=index,
-            officer_name=f"Officer {index}",
-            suspect_name=f"Suspect {index}",
-            created_at=created_at - timedelta(hours=index),
-            status=(
-                PendingReportStatus.OVER_MAXIMUM_LIMIT
-                if index == 1
-                else PendingReportStatus.ON_TIME
-            ),
-            reason=PendingReportReason.PLACEHOLDER,
-        )
-        for index in range(1, 17)
+def test_embed_renders_every_reason_combination_inline(persona) -> None:
+    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
+    reports = (
+        _pending(
+            1,
+            created_at=now,
+            pcu_missing=True,
+            review_status=ArrestReviewStatus.APPROVED,
+        ),
+        _pending(
+            2,
+            created_at=now,
+            pcu_missing=False,
+            review_status=ArrestReviewStatus.MISSING,
+        ),
+        _pending(
+            3,
+            created_at=now,
+            pcu_missing=False,
+            review_status=ArrestReviewStatus.PENDING,
+        ),
+        _pending(
+            4,
+            created_at=now,
+            pcu_missing=True,
+            review_status=ArrestReviewStatus.MISSING,
+        ),
+        _pending(
+            5,
+            created_at=now,
+            pcu_missing=True,
+            review_status=ArrestReviewStatus.PENDING,
+        ),
     )
     result = PendingArrestReportScan(
         faction_id=3,
         date_from=date(2026, 8, 1),
         date_to=date(2026, 8, 18),
-        total_reports=20,
+        total_reports=6,
         pending_reports=reports,
     )
 
@@ -609,23 +749,21 @@ def test_embed_is_single_compact_page_with_worst_status_color(persona) -> None:
         result,
         ui=persona.messages.interface.pending_arrest_reports,
     )
+    description = embed.description or ""
 
-    assert embed.color == discord.Color.red()
-    assert len(embed.fields) == 0
-    assert "📄 **Revisados:** 20" in embed.description
-    assert "⏳ **Pendientes:** 16" in embed.description
-    assert "✅ **Cumplimiento:** 20,0 %" in embed.description
-    assert "👮 **Agentes con pendientes:** 16" in embed.description
-    assert "🔴 **#1**" in embed.description
-    assert "### 👮 Officer 1 · 1 pendiente" in embed.description
-    assert "🔒 Suspect 1" in embed.description
-    assert "Agente:" not in embed.description
-    assert "Sospechoso:" not in embed.description
-    assert embed.footer.text == "Página 1 de 2"
-    assert "<t:" in embed.description
+    assert embed.color == discord.Color.gold()
+    assert "5 de 6 pendientes" in description
+    assert "• **#1** · Suspect 1 — Sin PCU · [Post](" in description
+    assert "• **#2** · Suspect 2 — Sin revisión" in description
+    assert "• **#3** · Suspect 3 — Revisión pendiente · [Post](" in description
+    assert "• **#4** · Suspect 4 — Sin PCU · Sin revisión" in description
+    assert "• **#5** · Suspect 5 — Sin PCU · Revisión pendiente · [Post](" in description
+    assert "https://discord.com/channels/99/100/1001" in description
+    assert "[#1](" not in description
+    assert "<t:" not in description
 
 
-def test_embed_without_pending_reports_is_green(persona) -> None:
+def test_embed_without_pending_reports_is_green_and_concise(persona) -> None:
     result = PendingArrestReportScan(
         faction_id=3,
         date_from=date(2026, 8, 1),
@@ -639,178 +777,33 @@ def test_embed_without_pending_reports_is_green(persona) -> None:
     )
 
     assert embed.color == discord.Color.green()
-    assert "⏳ **Pendientes:** 0" in embed.description
-    assert "✅ **Cumplimiento:** 100,0 %" in embed.description
-    assert "Sin aprobación" not in embed.description
-
-
-def test_embed_lists_unapproved_reviews_in_a_dedicated_compact_section(persona) -> None:
-    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
-    result = PendingArrestReportScan(
-        faction_id=3,
-        date_from=date(2026, 8, 1),
-        date_to=date(2026, 8, 18),
-        total_reports=3,
-        unapproved_reviews_included=True,
-        unapproved_reports=(
-            UnapprovedArrestReport(
-                report_id=10,
-                officer_name="Officer One",
-                suspect_name="Suspect One",
-                created_at=now,
-                review_url="https://discord.com/channels/99/100/1000",
-            ),
-            UnapprovedArrestReport(
-                report_id=11,
-                officer_name="Officer Two",
-                suspect_name="Suspect Two",
-                created_at=now,
-                review_verdict=ReviewVerdict.CORRECTIONS_REQUIRED,
-                review_url="https://discord.com/channels/99/100/1001",
-            ),
-            UnapprovedArrestReport(
-                report_id=12,
-                officer_name="Officer Three",
-                suspect_name="Suspect Three",
-                created_at=now,
-                review_verdict=ReviewVerdict.INCONCLUSIVE,
-                review_url="https://discord.com/channels/99/100/1002",
-            ),
-        ),
-    )
-
-    embed = build_pending_arrest_reports_embed(
-        result,
-        ui=persona.messages.interface.pending_arrest_reports,
-    )
-    description = embed.description or ""
-
-    assert embed.color == discord.Color.gold()
-    assert "La redacción está al día" in description
-    assert "🔎 **Sin aprobación:** 3" in description
-    assert "### 🔎 Revisiones aún no aprobadas" in description
-    assert "### 👮 Officer One · 1 sin aprobar" in description
-    assert "### 👮 Officer Three · 1 sin aprobar" in description
-    assert "### 👮 Officer Two · 1 sin aprobar" in description
-    assert (
-        "❌ **#10** · Suspect One · Sin revisión · "
-        "[Abrir](https://discord.com/channels/99/100/1000)" in description
-    )
-    assert "🟡 **#11** · Suspect Two · Correcciones pendientes" in description
-    assert "⚪ **#12** · Suspect Three · Revisión inconclusa" in description
-    assert "[Abrir](https://discord.com/channels/99/100/1001)" in description
-
-
-def test_embed_groups_unapproved_reports_by_api_officer_name(persona) -> None:
-    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
-    result = PendingArrestReportScan(
-        faction_id=3,
-        date_from=date(2026, 8, 1),
-        date_to=date(2026, 8, 18),
-        total_reports=3,
-        unapproved_reviews_included=True,
-        unapproved_reports=(
-            UnapprovedArrestReport(
-                report_id=20,
-                officer_name="Bravo Officer",
-                suspect_name="Suspect One",
-                created_at=now - timedelta(hours=1),
-            ),
-            UnapprovedArrestReport(
-                report_id=21,
-                officer_name="Alpha Officer",
-                suspect_name="Suspect Two",
-                created_at=now - timedelta(hours=2),
-            ),
-            UnapprovedArrestReport(
-                report_id=22,
-                officer_name="Alpha Officer",
-                suspect_name="Suspect Three",
-                created_at=now - timedelta(hours=3),
-            ),
-        ),
-    )
-
-    embed = build_pending_arrest_reports_embed(
-        result,
-        ui=persona.messages.interface.pending_arrest_reports,
-    )
-    description = embed.description or ""
-
-    assert description.count("### 👮 Alpha Officer · 2 sin aprobar") == 1
-    assert description.count("### 👮 Bravo Officer · 1 sin aprobar") == 1
-    assert description.index("Alpha Officer · 2 sin aprobar") < description.index(
-        "Bravo Officer · 1 sin aprobar"
-    )
-    assert description.index("**#22**") < description.index("**#21**")
-
-
-def test_combined_pending_and_unapproved_page_stays_within_discord_limit(persona) -> None:
-    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
-    pending = tuple(
-        PendingArrestReport(
-            report_id=index,
-            officer_name=f"Officer {'X' * 80} {index}",
-            suspect_name=f"Suspect {'Y' * 80} {index}",
-            created_at=now - timedelta(hours=index),
-            status=PendingReportStatus.ON_TIME,
-            reason=PendingReportReason.PLACEHOLDER,
-        )
-        for index in range(1, 9)
-    )
-    unapproved = tuple(
-        UnapprovedArrestReport(
-            report_id=100 + index,
-            officer_name=f"Officer {index}",
-            suspect_name=f"Suspect {'Z' * 80} {index}",
-            created_at=now - timedelta(hours=index),
-        )
-        for index in range(1, 9)
-    )
-    result = PendingArrestReportScan(
-        faction_id=3,
-        date_from=date(2026, 8, 1),
-        date_to=date(2026, 8, 18),
-        total_reports=16,
-        pending_reports=pending,
-        unapproved_reviews_included=True,
-        unapproved_reports=unapproved,
-    )
-
-    embed = build_pending_arrest_reports_embed(
-        result,
-        ui=persona.messages.interface.pending_arrest_reports,
-    )
-
-    assert len(embed.description or "") <= 4096
+    assert "0 de 4 pendientes" in (embed.description or "")
+    assert "PCU completo" in (embed.description or "")
 
 
 def test_embed_groups_officers_by_pending_count_and_reports_by_age(persona) -> None:
     now = datetime(2026, 8, 18, 12, tzinfo=UTC)
     reports = (
-        PendingArrestReport(
-            report_id=1,
-            officer_name="Bravo Officer",
-            suspect_name="Suspect One",
+        _pending(
+            1,
+            officer="Bravo Officer",
             created_at=now - timedelta(hours=3),
-            status=PendingReportStatus.ON_TIME,
-            reason=PendingReportReason.PLACEHOLDER,
+            pcu_missing=False,
+            review_status=ArrestReviewStatus.MISSING,
         ),
-        PendingArrestReport(
-            report_id=2,
-            officer_name="Alpha Officer",
-            suspect_name="Suspect Two",
+        _pending(
+            2,
+            officer="Alpha Officer",
             created_at=now - timedelta(hours=2),
-            status=PendingReportStatus.ON_TIME,
-            reason=PendingReportReason.PLACEHOLDER,
+            pcu_missing=False,
+            review_status=ArrestReviewStatus.MISSING,
         ),
-        PendingArrestReport(
-            report_id=3,
-            officer_name="Alpha Officer",
-            suspect_name="Suspect Three",
+        _pending(
+            3,
+            officer="Alpha Officer",
             created_at=now - timedelta(hours=5),
-            status=PendingReportStatus.ON_TIME,
-            reason=PendingReportReason.PLACEHOLDER,
+            pcu_missing=False,
+            review_status=ArrestReviewStatus.MISSING,
         ),
     )
     result = PendingArrestReportScan(
@@ -821,28 +814,24 @@ def test_embed_groups_officers_by_pending_count_and_reports_by_age(persona) -> N
         pending_reports=reports,
     )
 
-    embed = build_pending_arrest_reports_embed(
+    description = build_pending_arrest_reports_embed(
         result,
         ui=persona.messages.interface.pending_arrest_reports,
-    )
-    description = embed.description or ""
+    ).description or ""
 
-    assert description.index("Alpha Officer · 2 pendientes") < description.index(
-        "Bravo Officer · 1 pendiente"
-    )
+    assert description.index("Alpha Officer") < description.index("Bravo Officer")
     assert description.index("**#3**") < description.index("**#2**")
 
 
 def test_embed_repeats_officer_context_when_group_continues_on_next_page(persona) -> None:
     now = datetime(2026, 8, 18, 12, tzinfo=UTC)
     reports = tuple(
-        PendingArrestReport(
-            report_id=index,
-            officer_name="Michael Falcone",
-            suspect_name=f"Suspect {index}",
+        _pending(
+            index,
+            officer="Michael Falcone",
             created_at=now - timedelta(hours=index),
-            status=PendingReportStatus.ON_TIME,
-            reason=PendingReportReason.PLACEHOLDER,
+            pcu_missing=False,
+            review_status=ArrestReviewStatus.MISSING,
         )
         for index in range(1, 17)
     )
@@ -860,5 +849,6 @@ def test_embed_repeats_officer_context_when_group_continues_on_next_page(persona
         page=1,
     )
 
-    assert "### 👮 Michael Falcone · 16 pendientes · continuación" in embed.description
+    assert "### 👮 Michael Falcone · continuación" in (embed.description or "")
     assert embed.footer.text == "Página 2 de 2"
+    assert len(embed.description or "") <= 4096

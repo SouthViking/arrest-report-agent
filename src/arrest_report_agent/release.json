@@ -1,24 +1,24 @@
 {
   "schema_version": 3,
-  "version": "0.33.0",
-  "title": "Blacklists generales de facción",
-  "summary": "El sistema de blacklists ahora permite registrar casos generales de la facción y asociar todas las cuentas de PCU relacionadas.",
+  "version": "0.34.0",
+  "title": "Reportes pendientes más claros",
+  "summary": "La consulta ahora reúne en una sola vista los reportes que aún necesitan completar PCU o conseguir una revisión aprobada.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "Usa /blacklist registrar en #blacklist para crear registros generales de la facción con referencia FAC."
-    },
-    {
-      "type": "added",
-      "text": "Cada registro puede incluir hasta cinco cuentas de PCU, ingresadas una por línea y visibles directamente en el embed."
+      "type": "improved",
+      "text": "/reportes-pendientes muestra únicamente los casos que todavía necesitan completar el PCU o conseguir una revisión aprobada."
     },
     {
       "type": "improved",
-      "text": "/blacklist consultar ahora encuentra registros de CCW y Facción por ID de PCU, URL o nombre."
+      "text": "Cada reporte indica su motivo en una sola línea: Sin PCU, Sin revisión o Revisión pendiente."
+    },
+    {
+      "type": "improved",
+      "text": "Los posts de revisión se reconocen en todos los canales configurados y se pueden abrir desde el enlace corto Post."
     }
   ],
   "acknowledgements": []

@@ -99,6 +99,7 @@ from arrest_report_agent.pagers import (
     PagerServiceRegistry,
 )
 from arrest_report_agent.pending_arrest_reports import (
+    DiscordLegacyArrestReviewLookup,
     PendingArrestReportCog,
     PendingArrestReportService,
     PendingArrestReviewRepository,
@@ -613,6 +614,7 @@ async def build_runtime(
                 PendingArrestReportService(
                     sarp_client,
                     PendingArrestReviewRepository(postgres),
+                    DiscordLegacyArrestReviewLookup(bot),
                 ),
                 persona.profile,
             )

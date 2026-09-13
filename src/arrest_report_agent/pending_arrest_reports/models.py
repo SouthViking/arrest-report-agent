@@ -1,4 +1,4 @@
-"""Deterministic models for identifying unfinished SARP arrest reports."""
+"""Deterministic models for identifying incomplete arrest-report workflows."""
 
 from __future__ import annotations
 
@@ -7,11 +7,9 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
-from arrest_report_agent.domain import ReviewVerdict
-
 
 class PendingReportStatus(StrEnum):
-    """Age-based state of one unfinished report."""
+    """Age-based state of one pending report."""
 
     ON_TIME = "on_time"
     NEAR_DEADLINE = "near_deadline"
@@ -20,7 +18,7 @@ class PendingReportStatus(StrEnum):
 
 
 class PendingReportReason(StrEnum):
-    """Deterministic signal that made a report look unfinished."""
+    """Deterministic signal that made a PCU narrative look unfinished."""
 
     EMPTY = "empty"
     PLACEHOLDER = "placeholder"
@@ -28,41 +26,31 @@ class PendingReportReason(StrEnum):
     SHORT_NONSTANDARD = "short_nonstandard"
 
 
+class ArrestReviewStatus(StrEnum):
+    """Approval state of the newest Discord review post for one report."""
+
+    MISSING = "missing"
+    PENDING = "pending"
+    APPROVED = "approved"
+
+
+class ArrestReviewSource(StrEnum):
+    """Publication mechanism used by one Discord review root."""
+
+    STRUCTURED = "structured"
+    LEGACY = "legacy"
+
+
 class FrozenPendingReportModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class PendingArrestReport(FrozenPendingReportModel):
-    report_id: int = Field(gt=0)
-    officer_name: str = Field(min_length=1, max_length=100)
-    suspect_name: str = Field(min_length=1, max_length=100)
-    created_at: datetime
-    status: PendingReportStatus
-    reason: PendingReportReason
-
-
-class PublishedArrestReview(FrozenPendingReportModel):
-    """Latest published full review linked to one SARP arrest report."""
+class ArrestReportReviewReference(FrozenPendingReportModel):
+    """Newest structured or legacy Discord review post for one SARP report."""
 
     report_id: int = Field(gt=0)
-    verdict: ReviewVerdict
-    guild_id: int = Field(gt=0)
-    parent_channel_id: int = Field(gt=0)
-    root_message_id: int = Field(gt=0)
-    published_at: datetime
-
-    @property
-    def jump_url(self) -> str:
-        return (
-            f"https://discord.com/channels/{self.guild_id}/"
-            f"{self.parent_channel_id}/{self.root_message_id}"
-        )
-
-
-class ArrestReportDiscordReference(FrozenPendingReportModel):
-    """Most recent Discord root bound to one SARP arrest report."""
-
-    report_id: int = Field(gt=0)
+    source: ArrestReviewSource
+    approved: bool
     guild_id: int = Field(gt=0)
     parent_channel_id: int = Field(gt=0)
     root_message_id: int = Field(gt=0)
@@ -76,22 +64,24 @@ class ArrestReportDiscordReference(FrozenPendingReportModel):
         )
 
 
-class UnapprovedArrestReport(FrozenPendingReportModel):
-    """SARP report whose latest formal Discord review is not approved."""
-
+class PendingArrestReport(FrozenPendingReportModel):
     report_id: int = Field(gt=0)
     officer_name: str = Field(min_length=1, max_length=100)
     suspect_name: str = Field(min_length=1, max_length=100)
     created_at: datetime
-    review_verdict: ReviewVerdict | None = None
+    status: PendingReportStatus
+    pcu_reason: PendingReportReason | None = None
+    review_status: ArrestReviewStatus
     review_url: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
-    def validate_review_reference(self) -> UnapprovedArrestReport:
-        if self.review_verdict is ReviewVerdict.APPROVED:
-            raise ValueError("approved reports cannot be listed as unapproved")
-        if self.review_verdict is not None and self.review_url is None:
-            raise ValueError("a persisted review verdict requires its Discord URL")
+    def validate_pending_state(self) -> PendingArrestReport:
+        if self.pcu_reason is None and self.review_status is ArrestReviewStatus.APPROVED:
+            raise ValueError("a completed report cannot be listed as pending")
+        if self.review_status is ArrestReviewStatus.MISSING and self.review_url is not None:
+            raise ValueError("a missing review cannot have a Discord URL")
+        if self.review_status is not ArrestReviewStatus.MISSING and self.review_url is None:
+            raise ValueError("an existing review requires its Discord URL")
         return self
 
 
@@ -101,18 +91,11 @@ class PendingArrestReportScan(FrozenPendingReportModel):
     date_to: date
     total_reports: int = Field(ge=0)
     pending_reports: tuple[PendingArrestReport, ...] = ()
-    unapproved_reviews_included: bool = False
-    unapproved_reports: tuple[UnapprovedArrestReport, ...] = ()
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def pending_count(self) -> int:
         return len(self.pending_reports)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def unapproved_count(self) -> int:
-        return len(self.unapproved_reports)
 
     @computed_field  # type: ignore[prop-decorator]
     @property

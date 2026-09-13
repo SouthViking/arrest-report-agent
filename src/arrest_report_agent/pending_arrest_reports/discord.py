@@ -14,34 +14,27 @@ from discord.ext import commands
 from arrest_report_agent.application.date_ranges import DateRangePeriod, resolve_date_range
 from arrest_report_agent.config import BotPersona, PersonaPendingArrestReportsMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
-from arrest_report_agent.domain import ReviewVerdict
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
 from .models import (
+    ArrestReviewStatus,
     PendingArrestReport,
     PendingArrestReportScan,
     PendingReportScanTooLargeError,
     PendingReportStatus,
-    UnapprovedArrestReport,
 )
 from .service import PendingArrestReportService
 
 LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
 VIEW_TIMEOUT_SECONDS = 300
-# One page can contain both the narrative and approval lists. Keep each slice
-# bounded so worst-case names and officer headings remain below Discord's limit.
+# Keep each slice bounded so worst-case names and headings remain below Discord's limit.
 REPORTS_PER_PAGE = 8
 
 
 class PendingReportVisibility(StrEnum):
     PUBLIC = "public"
     PRIVATE = "private"
-
-
-class PendingReviewInclusion(StrEnum):
-    OMIT = "omit"
-    INCLUDE = "include"
 
 
 PendingReportPeriod = DateRangePeriod
@@ -66,7 +59,7 @@ class PendingArrestReportCog(commands.Cog):
 
     @discord.slash_command(
         name="reportes-pendientes",
-        description="Detecta reportes de arresto que parecen incompletos",
+        description="Detecta reportes sin PCU completo o revisión aprobada",
     )
     async def pending_arrest_reports(self, ctx: discord.ApplicationContext) -> None:
         if ctx.guild is None or not isinstance(ctx.author, discord.Member):
@@ -110,7 +103,6 @@ class PendingArrestReportCog(commands.Cog):
         raw_date_from: str,
         raw_date_to: str,
         visibility: PendingReportVisibility,
-        review_inclusion: PendingReviewInclusion = PendingReviewInclusion.OMIT,
     ) -> None:
         if (
             interaction.guild is None
@@ -175,8 +167,8 @@ class PendingArrestReportCog(commands.Cog):
                     max_records=bundle.settings.pending_arrest_reports_max_records,
                     guild_id=guild_id,
                     report_channel_ids=bundle.settings.report_channel_allowlist.ids,
-                    include_unapproved_reviews=(
-                        review_inclusion is PendingReviewInclusion.INCLUDE
+                    authorized_reviewer_role_ids=(
+                        bundle.settings.supervisor_role_allowlist.ids
                     ),
                 )
             view = PendingReportPaginationView(
@@ -211,10 +203,6 @@ class PendingArrestReportCog(commands.Cog):
                 date_to=date_to.isoformat(),
                 total_reports=result.total_reports,
                 pending_reports=result.pending_count,
-                unapproved_reviews_included=(
-                    review_inclusion is PendingReviewInclusion.INCLUDE
-                ),
-                unapproved_reports=result.unapproved_count,
             )
         except PendingReportScanTooLargeError as error:
             await interaction.followup.send(
@@ -244,7 +232,7 @@ class PendingArrestReportCog(commands.Cog):
 
 
 class PendingArrestReportModal(discord.ui.DesignerModal):
-    """Collect a bounded date range, optional review status and visibility."""
+    """Collect a bounded date range and result visibility."""
 
     def __init__(self, cog: PendingArrestReportCog, requester_id: int) -> None:
         self.cog = cog
@@ -293,34 +281,10 @@ class PendingArrestReportModal(discord.ui.DesignerModal):
             min_values=1,
             max_values=1,
         )
-        self.review_inclusion = discord.ui.StringSelect(  # type: ignore[type-var]
-            custom_id="pending_arrests:v1:review_inclusion",
-            options=[
-                discord.SelectOption(
-                    label="No incluir",
-                    value=PendingReviewInclusion.OMIT.value,
-                    description="Muestra solo reportes que parecen incompletos",
-                    emoji="➖",
-                    default=True,
-                ),
-                discord.SelectOption(
-                    label="Incluir",
-                    value=PendingReviewInclusion.INCLUDE.value,
-                    description="Agrega revisiones que todavía no están aprobadas",
-                    emoji="🔎",
-                ),
-            ],
-            min_values=1,
-            max_values=1,
-        )
         super().__init__(
             discord.ui.Label("Período", self.period),
             discord.ui.Label("Desde · solo para rango personalizado", self.date_from),
             discord.ui.Label("Hasta · solo para rango personalizado", self.date_to),
-            discord.ui.Label(
-                "Agregar revisiones aún no aprobadas",
-                self.review_inclusion,
-            ),
             discord.ui.Label("Quién puede ver el resultado", self.visibility),
             title="Buscar reportes pendientes",
             custom_id=f"pending_arrests:v1:scan:{requester_id}",
@@ -333,10 +297,6 @@ class PendingArrestReportModal(discord.ui.DesignerModal):
             iter(self.visibility.values or ()),
             PendingReportVisibility.PUBLIC.value,
         )
-        review_inclusion = next(
-            iter(self.review_inclusion.values or ()),
-            PendingReviewInclusion.OMIT.value,
-        )
         await self.cog.scan(
             interaction,
             requester_id=self.requester_id,
@@ -344,7 +304,6 @@ class PendingArrestReportModal(discord.ui.DesignerModal):
             raw_date_from=self.date_from.value or "",
             raw_date_to=self.date_to.value or "",
             visibility=PendingReportVisibility(visibility),
-            review_inclusion=PendingReviewInclusion(review_inclusion),
         )
 
 
@@ -365,11 +324,7 @@ class PendingReportPaginationView(discord.ui.View):
 
     @property
     def page_count(self) -> int:
-        return max(
-            1,
-            ceil(self.result.pending_count / REPORTS_PER_PAGE),
-            ceil(self.result.unapproved_count / REPORTS_PER_PAGE),
-        )
+        return max(1, ceil(self.result.pending_count / REPORTS_PER_PAGE))
 
     @property
     def current_embed(self) -> discord.Embed:
@@ -419,78 +374,38 @@ def build_pending_arrest_reports_embed(
     ui: PersonaPendingArrestReportsMessages,
     page: int = 0,
 ) -> discord.Embed:
-    """Render one compact embed as a mobile-friendly chronological list."""
+    """Render one compact, single-list embed for every incomplete workflow."""
 
-    ordered_reports, group_counts = _group_reports_by_officer(result.pending_reports)
-    ordered_unapproved, unapproved_group_counts = _group_reports_by_officer(
-        result.unapproved_reports
-    )
-    page_count = max(
-        1,
-        ceil(len(ordered_reports) / REPORTS_PER_PAGE),
-        ceil(len(ordered_unapproved) / REPORTS_PER_PAGE),
-    )
+    ordered_reports = _group_reports_by_officer(result.pending_reports)
+    page_count = max(1, ceil(len(ordered_reports) / REPORTS_PER_PAGE))
     bounded_page = min(max(page, 0), page_count - 1)
     start = bounded_page * REPORTS_PER_PAGE
     reports = ordered_reports[start : start + REPORTS_PER_PAGE]
-    unapproved_reports = ordered_unapproved[start : start + REPORTS_PER_PAGE]
-    compliance = (
-        "—"
-        if result.compliance_percentage is None
-        else f"{str(result.compliance_percentage).replace('.', ',')} %"
-    )
-    if result.pending_reports:
-        intro = ui.result_intro
-    elif result.unapproved_reports:
-        intro = "La redacción está al día, pero todavía hay revisiones sin aprobar."
-    else:
-        intro = ui.no_pending
     summary = (
-        f"**Período:** {_format_date(result.date_from)} — {_format_date(result.date_to)}\n"
-        f"📄 **Revisados:** {result.total_reports} · "
-        f"⏳ **Pendientes:** {result.pending_count} · "
-        f"✅ **Cumplimiento:** {compliance}\n"
-        f"👮 **Agentes con pendientes:** {len(group_counts)}"
+        f"**{_format_date(result.date_from)} — {_format_date(result.date_to)}** · "
+        f"{result.pending_count} de {result.total_reports} pendientes"
     )
-    if result.unapproved_reviews_included:
-        summary = f"{summary} · 🔎 **Sin aprobación:** {result.unapproved_count}"
-    description_parts = [
-        intro,
-        summary,
-    ]
+    description_parts = [summary]
     if reports:
-        description_parts.extend(
-            (
-                "🟢 <18 h · 🟡 18–24 h · 🟠 24–48 h · 🔴 >48 h",
-                _format_grouped_report_entries(
-                    reports,
-                    ordered_reports=ordered_reports,
-                    page_start=start,
-                    group_counts=group_counts,
-                ),
+        description_parts.append(
+            _format_grouped_report_entries(
+                reports,
+                ordered_reports=ordered_reports,
+                page_start=start,
             )
         )
-    if unapproved_reports:
-        description_parts.extend(
-            (
-                "### 🔎 Revisiones aún no aprobadas",
-                _format_grouped_unapproved_report_entries(
-                    unapproved_reports,
-                    ordered_reports=ordered_unapproved,
-                    page_start=start,
-                    group_counts=unapproved_group_counts,
-                ),
-            )
-        )
+    else:
+        description_parts.append(ui.no_pending)
     description = "\n\n".join(description_parts)
     embed = discord.Embed(
         title="⏳ Reportes de arresto pendientes",
         description=description,
-        color=_embed_color(result.pending_reports, result.unapproved_reports),
+        color=_embed_color(result.pending_reports),
         timestamp=datetime.now(UTC),
     )
     if any(
-        report.status is PendingReportStatus.OVER_NORMAL_LIMIT
+        report.pcu_reason is not None
+        and report.status is PendingReportStatus.OVER_NORMAL_LIMIT
         for report in result.pending_reports
     ):
         embed.description = (
@@ -501,12 +416,10 @@ def build_pending_arrest_reports_embed(
     return embed
 
 
-def _group_reports_by_officer[
-    ReportWithOfficer: (PendingArrestReport, UnapprovedArrestReport)
-](
-    reports: tuple[ReportWithOfficer, ...],
-) -> tuple[tuple[ReportWithOfficer, ...], dict[str, int]]:
-    grouped: dict[str, list[ReportWithOfficer]] = {}
+def _group_reports_by_officer(
+    reports: tuple[PendingArrestReport, ...],
+) -> tuple[PendingArrestReport, ...]:
+    grouped: dict[str, list[PendingArrestReport]] = {}
     for report in reports:
         grouped.setdefault(_officer_key(report), []).append(report)
     ordered_groups = sorted(
@@ -518,7 +431,7 @@ def _group_reports_by_officer[
         for _, group in ordered_groups
         for report in sorted(group, key=lambda item: (item.created_at, item.report_id))
     )
-    return ordered, {key: len(group) for key, group in ordered_groups}
+    return ordered
 
 
 def _format_grouped_report_entries(
@@ -526,7 +439,6 @@ def _format_grouped_report_entries(
     *,
     ordered_reports: tuple[PendingArrestReport, ...],
     page_start: int,
-    group_counts: dict[str, int],
 ) -> str:
     previous_key = (
         _officer_key(ordered_reports[page_start - 1])
@@ -542,11 +454,8 @@ def _format_grouped_report_entries(
             if current_lines:
                 sections.append("\n".join(current_lines))
             suffix = " · continuación" if not sections and key == previous_key else ""
-            count = group_counts[key]
-            label = "pendiente" if count == 1 else "pendientes"
             current_lines = [
-                f"### 👮 {_compact_name(report.officer_name, limit=55)} · "
-                f"{count} {label}{suffix}"
+                f"### 👮 {_compact_name(report.officer_name, limit=70)}{suffix}"
             ]
             current_key = key
         current_lines.append(_format_report_entry(report))
@@ -557,64 +466,19 @@ def _format_grouped_report_entries(
 
 def _format_report_entry(report: PendingArrestReport) -> str:
     suspect = _compact_name(report.suspect_name)
-    return (
-        f"{_status_emoji(report.status)} **#{report.report_id}** · "
-        f"🔒 {suspect} · <t:{int(report.created_at.timestamp())}:R>"
-    )
+    reasons: list[str] = []
+    if report.pcu_reason is not None:
+        reasons.append("Sin PCU")
+    if report.review_status is ArrestReviewStatus.MISSING:
+        reasons.append("Sin revisión")
+    elif report.review_status is ArrestReviewStatus.PENDING:
+        reasons.append("Revisión pendiente")
+    if report.review_url is not None:
+        reasons.append(f"[Post]({report.review_url})")
+    return f"• **#{report.report_id}** · {suspect} — {' · '.join(reasons)}"
 
 
-def _format_grouped_unapproved_report_entries(
-    reports: tuple[UnapprovedArrestReport, ...],
-    *,
-    ordered_reports: tuple[UnapprovedArrestReport, ...],
-    page_start: int,
-    group_counts: dict[str, int],
-) -> str:
-    previous_key = (
-        _officer_key(ordered_reports[page_start - 1])
-        if page_start > 0 and ordered_reports
-        else None
-    )
-    sections: list[str] = []
-    current_key: str | None = None
-    current_lines: list[str] = []
-    for report in reports:
-        key = _officer_key(report)
-        if key != current_key:
-            if current_lines:
-                sections.append("\n".join(current_lines))
-            suffix = " · continuación" if not sections and key == previous_key else ""
-            count = group_counts[key]
-            current_lines = [
-                f"### 👮 {_compact_name(report.officer_name, limit=55)} · "
-                f"{count} sin aprobar{suffix}"
-            ]
-            current_key = key
-        current_lines.append(_format_unapproved_report_entry(report))
-    if current_lines:
-        sections.append("\n".join(current_lines))
-    return "\n\n".join(sections)
-
-
-def _format_unapproved_report_entry(report: UnapprovedArrestReport) -> str:
-    suspect = _compact_name(report.suspect_name)
-    if report.review_verdict is ReviewVerdict.CORRECTIONS_REQUIRED:
-        state = f"Correcciones pendientes · [Abrir]({report.review_url})"
-        emoji = "🟡"
-    elif report.review_verdict is ReviewVerdict.INCONCLUSIVE:
-        state = f"Revisión inconclusa · [Abrir]({report.review_url})"
-        emoji = "⚪"
-    else:
-        state = (
-            f"Sin revisión · [Abrir]({report.review_url})"
-            if report.review_url is not None
-            else "Sin revisión"
-        )
-        emoji = "❌"
-    return f"{emoji} **#{report.report_id}** · {suspect} · {state}"
-
-
-def _officer_key(report: PendingArrestReport | UnapprovedArrestReport) -> str:
+def _officer_key(report: PendingArrestReport) -> str:
     return " ".join(report.officer_name.split()).casefold()
 
 
@@ -640,7 +504,6 @@ def _resolve_date_range(
 
 def _embed_color(
     reports: tuple[PendingArrestReport, ...],
-    unapproved_reports: tuple[UnapprovedArrestReport, ...],
 ) -> discord.Color:
     statuses = {report.status for report in reports}
     if PendingReportStatus.OVER_MAXIMUM_LIMIT in statuses:
@@ -649,18 +512,9 @@ def _embed_color(
         return discord.Color.orange()
     if PendingReportStatus.NEAR_DEADLINE in statuses:
         return discord.Color.gold()
-    if unapproved_reports:
+    if reports:
         return discord.Color.gold()
     return discord.Color.green()
-
-
-def _status_emoji(status: PendingReportStatus) -> str:
-    return {
-        PendingReportStatus.ON_TIME: "🟢",
-        PendingReportStatus.NEAR_DEADLINE: "🟡",
-        PendingReportStatus.OVER_NORMAL_LIMIT: "🟠",
-        PendingReportStatus.OVER_MAXIMUM_LIMIT: "🔴",
-    }[status]
 
 
 def _format_date(value: date) -> str:

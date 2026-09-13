@@ -167,7 +167,7 @@ class DiscordPersonalReportFinder:
                     oldest_first=False,
                 ):
                     scanned += 1
-                    status = await _status_from_trusted_reactions(
+                    status = await status_from_trusted_reactions(
                         message,
                         self.supervisor_policy,
                         supervisor_member_cache,
@@ -620,11 +620,13 @@ def _can_read_history(channel: discord.TextChannel, member: discord.Member) -> b
     return permissions.view_channel and permissions.read_message_history
 
 
-async def _status_from_trusted_reactions(
+async def status_from_trusted_reactions(
     message: discord.Message,
     supervisor_policy: SupervisorRolePolicy,
     member_cache: dict[int, discord.Member | None],
 ) -> PersonalReportStatus:
+    """Resolve report status from bot or authorized-supervisor reactions."""
+
     detected: set[PersonalReportStatus] = set()
     for reaction in message.reactions:
         emoji = str(reaction.emoji)

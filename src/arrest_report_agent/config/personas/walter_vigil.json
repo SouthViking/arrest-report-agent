@@ -1,7 +1,7 @@
 {
   "schema_version": 46,
   "id": "walter_vigil",
-  "revision": 53,
+  "revision": 54,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -156,7 +156,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo solicitar y continuar la revisión de tu reporte.\n• `/info-roles`: cómo pedir altas o bajas de roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo registrar y consultar callsigns.\n• `/info-mdc`: cómo consultar registros operativos y elegir su visibilidad.\n• `/info-sugerencias`: cómo enviar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/ftp-conectados`: muestra el personal del FTP conectado.\n• `/solicitar-fto`: solicita asistencia de un instructor del FTP.\n• `/recursos`: reúne accesos y estado operativo.\n• `/vehiculos-robados`: consulta las denuncias recientes de robo de vehículos.\n• `/reportes-pendientes`: detecta reportes de arresto que parecen incompletos.\n• `/informe-faccion`: genera el informe restringido de banco y miembros activos.",
+      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/ftp-conectados`: muestra el personal del FTP conectado.\n• `/solicitar-fto`: solicita asistencia de un instructor del FTP.\n• `/recursos`: reúne accesos y estado operativo.\n• `/vehiculos-robados`: consulta las denuncias recientes de robo de vehículos.\n• `/reportes-pendientes`: detecta reportes sin PCU completo o revisión aprobada.\n• `/informe-faccion`: genera el informe restringido de banco y miembros activos.",
       "footer": "Elige la guía correspondiente y sigue sus indicaciones, {form_of_address}."
     },
     "interface": {
@@ -489,8 +489,8 @@
         "invalid_range": "Seleccione fechas válidas en formato AAAA-MM-DD, sin superar el período máximo permitido.",
         "busy": "Ya hay una consulta de reportes pendientes en curso para este servidor.",
         "too_many_reports": "El período contiene más de {limit} reportes. Seleccione un rango más acotado.",
-        "result_intro": "Estado de los reportes que todavía parecen incompletos.",
-        "no_pending": "No detecté reportes incompletos dentro del período seleccionado.",
+        "result_intro": "Reportes sin PCU completo o revisión aprobada.",
+        "no_pending": "Todos los reportes tienen el PCU completo y una revisión aprobada.",
         "extension_warning": "Los casos entre 24 y 48 horas pueden contar con una prórroga informada por otras vías.",
         "other_query": "Solo quien inició la consulta puede cambiar esta página."
       },
@@ -579,7 +579,7 @@
         "ftp_request_description": "Solicita la asistencia de un instructor del FTP",
         "faction_member_analysis_description": "Analiza actividad y distribución de los miembros",
         "stolen_vehicles_description": "Muestra las denuncias recientes de vehículos robados",
-        "pending_arrest_reports_description": "Detecta reportes de arresto que parecen incompletos",
+        "pending_arrest_reports_description": "Detecta reportes sin PCU completo o revisión aprobada",
         "faction_report_description": "Genera el informe restringido de banco y miembros",
         "resources_description": "Muestra accesos y estado operativo de la facción",
         "logbook_description": "Registra una novedad estructurada en la bitácora",

@@ -5,29 +5,33 @@ from .discord import (
     PendingArrestReportModal,
     PendingReportPaginationView,
     PendingReportVisibility,
-    PendingReviewInclusion,
     build_pending_arrest_reports_embed,
 )
+from .legacy import DiscordLegacyArrestReviewLookup
 from .models import (
-    ArrestReportDiscordReference,
+    ArrestReportReviewReference,
+    ArrestReviewSource,
+    ArrestReviewStatus,
     PendingArrestReport,
     PendingArrestReportScan,
     PendingReportReason,
     PendingReportScanTooLargeError,
     PendingReportStatus,
-    PublishedArrestReview,
-    UnapprovedArrestReport,
 )
 from .repository import PendingArrestReviewRepository
 from .service import (
     PendingArrestReportService,
     PendingArrestReviewLookup,
+    PendingLegacyArrestReviewLookup,
     status_for_age,
     unfinished_reason,
 )
 
 __all__ = [
-    "ArrestReportDiscordReference",
+    "ArrestReportReviewReference",
+    "ArrestReviewSource",
+    "ArrestReviewStatus",
+    "DiscordLegacyArrestReviewLookup",
     "PendingArrestReport",
     "PendingArrestReportCog",
     "PendingArrestReportModal",
@@ -40,9 +44,7 @@ __all__ = [
     "PendingReportScanTooLargeError",
     "PendingReportStatus",
     "PendingReportVisibility",
-    "PendingReviewInclusion",
-    "PublishedArrestReview",
-    "UnapprovedArrestReport",
+    "PendingLegacyArrestReviewLookup",
     "build_pending_arrest_reports_embed",
     "status_for_age",
     "unfinished_reason",

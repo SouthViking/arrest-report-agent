@@ -1611,7 +1611,7 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 53
+        assert persona["revision"] == 54
         assert persona["schema_version"] == 46
         global_persona = await client.fetch_one(
             sa.text(
@@ -1624,7 +1624,7 @@ async def _assert_callsign_migration(
         )
         assert global_persona is not None
         assert global_persona["slug"] == "walter_vigil"
-        assert global_persona["revision"] == 53
+        assert global_persona["revision"] == 54
         assert global_persona["schema_version"] == 46
         assert set(persona["payload"]["presence"]) == {
             "idle",
@@ -1682,12 +1682,12 @@ async def _assert_callsign_migration(
         assert "/conectados" in persona["payload"]["messages"]["help"][
             "quick_references"
         ]
-        assert persona["payload"]["messages"]["interface"]["pending_arrest_reports"][
-            "result_intro"
-        ]
-        assert persona["payload"]["messages"]["interface"]["commands"][
-            "pending_arrest_reports_description"
-        ]
+        assert "sin PCU completo" in persona["payload"]["messages"]["interface"][
+            "pending_arrest_reports"
+        ]["result_intro"]
+        assert "revisión aprobada" in persona["payload"]["messages"]["interface"][
+            "commands"
+        ]["pending_arrest_reports_description"]
         assert "/reportes-pendientes" in persona["payload"]["messages"]["help"][
             "quick_references"
         ]
