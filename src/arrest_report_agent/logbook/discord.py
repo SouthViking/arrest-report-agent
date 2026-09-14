@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
-from typing import cast
+from typing import Any, cast
 
 import discord
 from discord.ext import commands
@@ -439,8 +439,21 @@ class LogbookCog(commands.Cog):
                 embed=_alert(ui.alert_title, ui.invalid_files), ephemeral=True
             )
             return
+        diagnostics = _publication_diagnostics(interaction, attachments)
+        log_event(
+            LOGGER,
+            "info",
+            "logbook_publish_started",
+            guild_id=guild_id,
+            channel_id=channel_id,
+            user_id=requester_id,
+            category=category.value,
+            subtype=subtype,
+            **diagnostics,
+        )
         await interaction.response.defer(ephemeral=True)
         entry: LogbookEntry | None = None
+        publish_stage = "reserve"
         try:
             entry, created = await self.service.repository.reserve(
                 guild_id=guild_id,
@@ -460,6 +473,7 @@ class LogbookCog(commands.Cog):
                     embed=_alert(ui.alert_title, "Esta novedad ya fue procesada."),
                 )
                 return
+            publish_stage = "read_attachments"
             loaded_files: list[LogbookFile] = []
             for attachment in attachments:
                 loaded_files.append(
@@ -470,6 +484,7 @@ class LogbookCog(commands.Cog):
                     )
                 )
             files = tuple(loaded_files)
+            publish_stage = "store_attachments"
             stored_assets = await self.service.store_files(
                 entry,
                 files,
@@ -478,6 +493,7 @@ class LogbookCog(commands.Cog):
             )
             output_files = _discord_files(files)
             image_indexes = _image_file_indexes(files)
+            publish_stage = "send_message"
             if len(image_indexes) >= 2:
                 message = await interaction.channel.send(
                     view=build_entry_gallery_view(
@@ -499,6 +515,7 @@ class LogbookCog(commands.Cog):
                     files=list(output_files),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
+            publish_stage = "mark_published"
             await self.service.repository.mark_published(entry.id, message.id)
             with suppress(discord.HTTPException):
                 await interaction.delete_original_response()
@@ -521,20 +538,34 @@ class LogbookCog(commands.Cog):
             if entry is not None:
                 with suppress(Exception):
                     await self.service.repository.mark_failed(entry.id)
-            await interaction.edit_original_response(embed=_alert(ui.alert_title, ui.invalid_files))
             log_event(
                 LOGGER,
                 "warning",
                 "logbook_files_rejected",
                 guild_id=guild_id,
+                channel_id=channel_id,
                 user_id=requester_id,
+                entry_id=str(entry.id) if entry is not None else None,
+                failure_stage=publish_stage,
+                **diagnostics,
                 error_type=type(error).__name__,
+            )
+            await _notify_deferred_failure(
+                interaction,
+                embed=_alert(ui.alert_title, ui.invalid_files),
+                diagnostics={
+                    "guild_id": guild_id,
+                    "channel_id": channel_id,
+                    "user_id": requester_id,
+                    "entry_id": str(entry.id) if entry is not None else None,
+                    "failure_stage": publish_stage,
+                    **diagnostics,
+                },
             )
         except Exception as error:
             if entry is not None:
                 with suppress(Exception):
                     await self.service.repository.mark_failed(entry.id)
-            await interaction.edit_original_response(embed=_alert(ui.alert_title, ui.operation_failed))
             log_event(
                 LOGGER,
                 "error",
@@ -543,8 +574,22 @@ class LogbookCog(commands.Cog):
                 channel_id=channel_id,
                 user_id=requester_id,
                 entry_id=str(entry.id) if entry is not None else None,
+                failure_stage=publish_stage,
+                **diagnostics,
                 exc_info=error,
-                **exception_fields(error),
+                **_discord_exception_fields(error),
+            )
+            await _notify_deferred_failure(
+                interaction,
+                embed=_alert(ui.alert_title, ui.operation_failed),
+                diagnostics={
+                    "guild_id": guild_id,
+                    "channel_id": channel_id,
+                    "user_id": requester_id,
+                    "entry_id": str(entry.id) if entry is not None else None,
+                    "failure_stage": publish_stage,
+                    **diagnostics,
+                },
             )
 
     async def _command_failure(
@@ -1386,6 +1431,96 @@ def _discord_files(files: tuple[LogbookFile, ...]) -> tuple[discord.File, ...]:
         used.add(filename.casefold())
         result.append(discord.File(io.BytesIO(item.payload), filename=filename))
     return tuple(result)
+
+
+def _publication_diagnostics(
+    interaction: discord.Interaction,
+    attachments: tuple[discord.Attachment, ...],
+) -> dict[str, Any]:
+    channel = interaction.channel
+    channel_type = getattr(channel, "type", None)
+    channel_type_name = getattr(channel_type, "name", None) or str(
+        channel_type or type(channel).__name__
+    )
+    permissions = interaction.app_permissions
+    content_types = (
+        ",".join(
+            (item.content_type or "unknown").partition(";")[0].strip().casefold() or "unknown"
+            for item in attachments
+        )
+        or "none"
+    )
+    extensions = (
+        ",".join(
+            (item.filename.rpartition(".")[2].strip().casefold() or "none")
+            for item in attachments
+        )
+        or "none"
+    )
+    return {
+        "interaction_id": interaction.id,
+        "channel_type": channel_type_name,
+        "parent_channel_id": getattr(channel, "parent_id", None),
+        "attachment_count": len(attachments),
+        "attachment_total_bytes": sum(item.size for item in attachments),
+        "attachment_sizes": ",".join(str(item.size) for item in attachments) or "none",
+        "attachment_content_types": content_types,
+        "attachment_extensions": extensions,
+        "attachment_ids": ",".join(str(item.id) for item in attachments) or "none",
+        "app_permissions": permissions.value,
+        "can_view_channel": permissions.view_channel,
+        "can_send_messages": permissions.send_messages,
+        "can_embed_links": permissions.embed_links,
+        "can_attach_files": permissions.attach_files,
+        "can_send_messages_in_threads": permissions.send_messages_in_threads,
+    }
+
+
+def _discord_exception_fields(error: BaseException) -> dict[str, object]:
+    fields: dict[str, object] = exception_fields(error)
+    status = getattr(error, "status", None)
+    if status is not None:
+        fields["error_status"] = status
+    return fields
+
+
+async def _notify_deferred_failure(
+    interaction: discord.Interaction,
+    *,
+    embed: discord.Embed,
+    diagnostics: dict[str, Any],
+) -> None:
+    try:
+        await interaction.edit_original_response(embed=embed)
+        return
+    except Exception as error:
+        log_event(
+            LOGGER,
+            "warning",
+            "logbook_failure_notice_edit_failed",
+            **diagnostics,
+            exc_info=error,
+            **_discord_exception_fields(error),
+        )
+    try:
+        await interaction.followup.send(embed=embed, ephemeral=True)
+    except Exception as error:
+        log_event(
+            LOGGER,
+            "error",
+            "logbook_failure_notice_failed",
+            **diagnostics,
+            exc_info=error,
+            **_discord_exception_fields(error),
+        )
+        return
+    log_event(
+        LOGGER,
+        "info",
+        "logbook_failure_notice_recovered",
+        **diagnostics,
+        delivery="followup",
+    )
 
 
 def _alert(title: str, description: str) -> discord.Embed:

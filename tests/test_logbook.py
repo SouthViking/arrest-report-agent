@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import discord
 import pytest
@@ -359,6 +361,126 @@ async def test_service_enforces_attachment_limits_before_upload() -> None:
             max_file_bytes=2,
             max_total_bytes=10,
         )
+
+
+@pytest.mark.asyncio
+async def test_publish_failure_logs_discord_context_and_recovers_private_notice(
+    persona,
+    caplog,
+) -> None:
+    entry = _entry().model_copy(
+        update={
+            "category": LogbookCategory.EQUIPMENT,
+            "subtype": "license_revocation",
+        }
+    )
+    repository = SimpleNamespace(
+        reserve=AsyncMock(return_value=(entry, True)),
+        mark_failed=AsyncMock(),
+        mark_published=AsyncMock(),
+    )
+    service = SimpleNamespace(
+        repository=repository,
+        store_files=AsyncMock(return_value=(SimpleNamespace(),)),
+    )
+
+    async def cached(_guild_id: int):
+        return SimpleNamespace(
+            snapshot=SimpleNamespace(features={"logbook": SimpleNamespace(enabled=True)}),
+            settings=SimpleNamespace(
+                logbook_channel_ids=(456,),
+                max_file_bytes=10_000,
+                max_total_file_bytes=20_000,
+            ),
+            persona=SimpleNamespace(profile=persona),
+        )
+
+    forbidden = discord.Forbidden(
+        SimpleNamespace(status=403, reason="Forbidden"),
+        {"code": 50013, "message": "Missing Permissions"},
+    )
+    missing_response = discord.NotFound(
+        SimpleNamespace(status=404, reason="Not Found"),
+        {"code": 10008, "message": "Unknown Message"},
+    )
+    channel = SimpleNamespace(
+        id=456,
+        type=SimpleNamespace(name="text"),
+        parent_id=654,
+        send=AsyncMock(side_effect=forbidden),
+    )
+    permissions = discord.Permissions.none()
+    permissions.update(
+        view_channel=True,
+        send_messages=True,
+        embed_links=True,
+        attach_files=True,
+    )
+    attachment = SimpleNamespace(
+        id=987,
+        filename="respaldo.PNG",
+        content_type="image/png",
+        size=5,
+        read=AsyncMock(return_value=b"image"),
+    )
+    interaction = SimpleNamespace(
+        id=789,
+        user=SimpleNamespace(id=321),
+        guild=SimpleNamespace(id=123),
+        channel=channel,
+        app_permissions=permissions,
+        response=SimpleNamespace(defer=AsyncMock()),
+        edit_original_response=AsyncMock(side_effect=missing_response),
+        followup=SimpleNamespace(send=AsyncMock()),
+    )
+    cog = LogbookCog(SimpleNamespace(cached=cached), service, persona)  # type: ignore[arg-type]
+
+    with caplog.at_level(logging.INFO, logger="arrest_report_agent.logbook.discord"):
+        await cog.publish(  # type: ignore[arg-type]
+            interaction,
+            requester_id=321,
+            guild_id=123,
+            channel_id=456,
+            category=LogbookCategory.EQUIPMENT,
+            money_direction=None,
+            subtype="license_revocation",
+            subject="Licencia CCW",
+            description="Revocación de licencia.",
+            amount_text="",
+            attachments=(attachment,),
+        )
+
+    repository.mark_failed.assert_awaited_once_with(entry.id)
+    interaction.followup.send.assert_awaited_once()
+    assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
+    events = {
+        record.structured_event["event"]: record.structured_event
+        for record in caplog.records
+        if hasattr(record, "structured_event")
+    }
+    started = events["logbook_publish_started"]
+    assert started["interaction_id"] == 789
+    assert started["channel_id"] == 456
+    assert started["parent_channel_id"] == 654
+    assert started["channel_type"] == "text"
+    assert started["attachment_count"] == 1
+    assert started["attachment_total_bytes"] == 5
+    assert started["attachment_sizes"] == "5"
+    assert started["attachment_content_types"] == "image/png"
+    assert started["attachment_extensions"] == "png"
+    assert started["attachment_ids"] == "987"
+    assert started["can_send_messages"] is True
+    assert started["can_embed_links"] is True
+    assert started["can_attach_files"] is True
+    failed = events["logbook_publish_failed"]
+    assert failed["entry_id"] == str(entry.id)
+    assert failed["failure_stage"] == "send_message"
+    assert failed["error_status"] == 403
+    assert failed["error_code"] == 50013
+    notice_failure = events["logbook_failure_notice_edit_failed"]
+    assert notice_failure["error_status"] == 404
+    assert notice_failure["error_code"] == 10008
+    assert events["logbook_failure_notice_recovered"]["delivery"] == "followup"
 
 
 @pytest.mark.asyncio
