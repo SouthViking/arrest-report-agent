@@ -91,17 +91,22 @@ class StructuredArrestReportCog(commands.Cog):
             return
         normalized_name = " ".join(suspect_name.split())
         raw_report_id = report_id_text.strip()
-        submitted_report_id: int | None = None
-        if raw_report_id:
-            try:
-                submitted_report_id = int(raw_report_id)
-            except ValueError:
-                submitted_report_id = None
-            if submitted_report_id is not None and submitted_report_id <= 0:
-                submitted_report_id = None
         if not normalized_name:
             await interaction.response.send_message(
                 embed=_alert("Indica el nombre completo del sospechoso."),
+                ephemeral=True,
+            )
+            return
+        if not raw_report_id.isascii() or not raw_report_id.isdecimal():
+            await interaction.response.send_message(
+                embed=_alert("Indica un ID de arresto válido usando solo números."),
+                ephemeral=True,
+            )
+            return
+        report_id = int(raw_report_id)
+        if report_id <= 0:
+            await interaction.response.send_message(
+                embed=_alert("Indica un ID de arresto válido mayor que cero."),
                 ephemeral=True,
             )
             return
@@ -136,6 +141,34 @@ class StructuredArrestReportCog(commands.Cog):
                 ephemeral=True,
             )
             return
+        detail_result = await lookup.get(report_id)
+        detail = detail_result.report
+        if detail_result.error == "not_found" or (
+            detail_result.error is None and detail is None
+        ):
+            await interaction.response.send_message(
+                embed=_alert(f"No existe un reporte de arresto en PCU con el ID #{report_id}."),
+                ephemeral=True,
+            )
+            return
+        if detail_result.error is not None or detail is None:
+            await interaction.response.send_message(
+                embed=_alert(
+                    "No pude comprobar el ID de arresto en PCU en este momento. "
+                    "Inténtalo nuevamente más tarde."
+                ),
+                ephemeral=True,
+            )
+            return
+        if normalize_person_name(normalized_name) != normalize_person_name(detail.suspect_name):
+            await interaction.response.send_message(
+                embed=_alert(
+                    f"El reporte #{report_id} corresponde a "
+                    f"{detail.suspect_name.replace('_', ' ')}, no al sospechoso indicado."
+                ),
+                ephemeral=True,
+            )
+            return
         # The final report card replaces this public acknowledgement so Discord
         # keeps the publication associated with the slash command invocation.
         await interaction.response.defer(ephemeral=False, invisible=False)
@@ -148,34 +181,7 @@ class StructuredArrestReportCog(commands.Cog):
                 user_id=requester_id,
             )
             return
-        detail = None
-        report_id: int | None = None
-        submission_suspect_name = normalized_name
-        if submitted_report_id is not None:
-            detail_result = await lookup.get(submitted_report_id)
-            candidate = detail_result.report
-            if (
-                detail_result.error is None
-                and candidate is not None
-                and normalize_person_name(normalized_name) == normalize_person_name(candidate.suspect_name)
-            ):
-                report_id = submitted_report_id
-                detail = candidate
-                submission_suspect_name = candidate.suspect_name.replace("_", " ")
-            else:
-                log_event(
-                    LOGGER,
-                    "info",
-                    "structured_arrest_report_id_fallback",
-                    guild_id=guild_id,
-                    user_id=requester_id,
-                    submitted_sarp_arrest_id=submitted_report_id,
-                    fallback_reason=(
-                        "suspect_name_mismatch"
-                        if candidate is not None and detail_result.error is None
-                        else detail_result.error or "invalid_detail"
-                    ),
-                )
+        submission_suspect_name = detail.suspect_name.replace("_", " ")
         submission, created = await self.service.repository.reserve(
             guild_id=guild_id,
             interaction_id=interaction.id,

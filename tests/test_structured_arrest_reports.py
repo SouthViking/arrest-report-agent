@@ -830,25 +830,26 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
         "expected_detail_lookups",
         "expected_report_id",
         "expected_thread_name",
-        "suspect_photo_count",
+        "expected_error",
     ),
     (
-        ("Andy Quintero", "", [], None, "Andy Quintero", 1),
-        ("Andy Quintero", "not-a-number", [], None, "Andy Quintero", 1),
-        ("Andy Quintero", "999", [999], None, "Andy Quintero", 1),
-        ("Andi Quintero", "321", [321], None, "Andi Quintero", 1),
-        ("Andy Quintero", "321", [321], 321, "Andy Quintero · #321", 1),
+        ("Andy Quintero", "", [], None, None, "usando solo números"),
+        ("Andy Quintero", "not-a-number", [], None, None, "usando solo números"),
+        ("Andy Quintero", "0", [], None, None, "mayor que cero"),
+        ("Andy Quintero", "999", [999], None, None, "No existe un reporte"),
+        ("Andi Quintero", "321", [321], None, None, "corresponde a Andy Quintero"),
+        ("Andy Quintero", "321", [321], 321, "Andy Quintero · #321", None),
     ),
 )
 @pytest.mark.asyncio
-async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discovery(
+async def test_submission_requires_an_existing_matching_arrest_id(
     monkeypatch,
     suspect_name: str,
     report_id_text: str,
     expected_detail_lookups: list[int],
     expected_report_id: int | None,
-    expected_thread_name: str,
-    suspect_photo_count: int,
+    expected_thread_name: str | None,
+    expected_error: str | None,
 ) -> None:
     class Member:
         def __init__(self) -> None:
@@ -921,6 +922,7 @@ async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discove
         jump_url = "https://discord.test/report"
 
         async def create_thread(self, **values: Any) -> SimpleNamespace:
+            assert expected_thread_name is not None
             assert values["name"] == expected_thread_name
             return SimpleNamespace(id=4, parent=channel)
 
@@ -930,6 +932,10 @@ async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discove
     class Response:
         def __init__(self) -> None:
             self.deferred = False
+            self.messages: list[dict[str, Any]] = []
+
+        async def send_message(self, **values: Any) -> None:
+            self.messages.append(values)
 
         async def defer(self, *, ephemeral: bool, invisible: bool) -> None:
             assert ephemeral is False
@@ -1003,25 +1009,38 @@ async def test_submission_uses_valid_matching_id_and_falls_back_to_agent_discove
         channel_id=3,
         suspect_name=suspect_name,
         report_id_text=report_id_text,
-        suspect_photos=tuple(Attachment() for _ in range(suspect_photo_count)),  # type: ignore[arg-type]
+        suspect_photos=(Attachment(),),  # type: ignore[arg-type]
         supporting_images=(Attachment(),),  # type: ignore[arg-type]
     )
     await asyncio.sleep(0)
 
+    assert lookup.details == expected_detail_lookups
+    if expected_error is not None:
+        assert response.deferred is False
+        assert len(response.messages) == 1
+        assert response.messages[0]["ephemeral"] is True
+        error_embed = response.messages[0]["embed"]
+        assert isinstance(error_embed, discord.Embed)
+        assert expected_error in (error_embed.description or "")
+        assert lookup.binds == []
+        assert edits == []
+        assert review_cog.calls == []
+        return
+
     assert response.deferred is True
+    assert response.messages == []
     assert cleanup_calls == 0
     assert followup.messages == []
-    assert lookup.details == expected_detail_lookups
-    assert len(lookup.binds) == (1 if expected_report_id is not None else 0)
+    assert len(lookup.binds) == 1
     assert repository.report_lookups == []
     assert len(edits) == 1
     assert isinstance(edits[0]["view"], discord.ui.DesignerView)
-    assert len(edits[0]["files"]) == suspect_photo_count + 1
+    assert len(edits[0]["files"]) == 2
     allowed_mentions = edits[0]["allowed_mentions"]
     assert allowed_mentions.everyone is False
     assert allowed_mentions.users is False
     assert allowed_mentions.roles is False
-    assert (review_cog.calls[0]["arrest_report"] is not None) == (expected_report_id is not None)
+    assert review_cog.calls[0]["arrest_report"] is not None
 
 
 def test_submission_schema_allows_reusing_a_sarp_report_id() -> None:
