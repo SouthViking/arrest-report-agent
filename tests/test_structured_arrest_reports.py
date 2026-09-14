@@ -480,23 +480,10 @@ async def test_structured_service_rejects_non_images_and_invalid_group_sizes() -
     repository = FakeRepository(_submission())
     service = StructuredArrestReportService(repository, MemoryObjectStorage())  # type: ignore[arg-type]
 
-    assets = await service.store_images(
-        repository.submission,
-        suspect_photos=(),
-        supporting_images=(StructuredReportFile("report.png", "image/png", b"x"),),
-        max_file_bytes=100,
-        max_total_bytes=1_000,
-    )
-    assert [asset.category for asset in assets] == [
-        ArrestReportAssetCategory.SUPPORTING_IMAGE
-    ]
-    assert [asset.position for asset in assets] == [0]
-
-    photo = StructuredReportFile("photo.png", "image/png", b"x")
-    with pytest.raises(ValueError, match="at most two"):
+    with pytest.raises(ValueError, match="one or two"):
         await service.store_images(
             repository.submission,
-            suspect_photos=(photo, photo, photo),
+            suspect_photos=(),
             supporting_images=(StructuredReportFile("report.png", "image/png", b"x"),),
             max_file_bytes=100,
             max_total_bytes=1_000,
@@ -768,9 +755,9 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
         guild_id=2,
         channel_id=3,
     )
-    assert modal.suspect_photos.min_values == 0
+    assert modal.suspect_photos.min_values == 1
     assert modal.suspect_photos.max_values == 2
-    assert modal.suspect_photos.required is False
+    assert modal.suspect_photos.required is True
     assert modal.supporting_images.min_values == 1
     assert modal.supporting_images.max_values == 8
     assert modal.supporting_images.required is True
@@ -846,7 +833,7 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
         "suspect_photo_count",
     ),
     (
-        ("Andy Quintero", "", [], None, "Andy Quintero", 0),
+        ("Andy Quintero", "", [], None, "Andy Quintero", 1),
         ("Andy Quintero", "not-a-number", [], None, "Andy Quintero", 1),
         ("Andy Quintero", "999", [999], None, "Andy Quintero", 1),
         ("Andi Quintero", "321", [321], None, "Andi Quintero", 1),

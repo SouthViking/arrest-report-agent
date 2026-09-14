@@ -105,11 +105,10 @@ class StructuredArrestReportCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        if len(suspect_photos) > 2 or not 1 <= len(supporting_images) <= 8:
+        if not 1 <= len(suspect_photos) <= 2 or not 1 <= len(supporting_images) <= 8:
             await interaction.response.send_message(
                 embed=_alert(
-                    "Adjunta como máximo 2 fotografías opcionales del sospechoso "
-                    "y entre 1 y 8 respaldos."
+                    "Adjunta entre 1 y 2 fotografías del sospechoso y entre 1 y 8 respaldos."
                 ),
                 ephemeral=True,
             )
@@ -333,9 +332,9 @@ class StructuredArrestReportModal(discord.ui.DesignerModal):
         )
         self.suspect_photos = discord.ui.FileUpload(
             custom_id="arrest-report:v1:suspect-photos",
-            min_values=0,
+            min_values=1,
             max_values=2,
-            required=False,
+            required=True,
         )
         self.supporting_images = discord.ui.FileUpload(
             custom_id="arrest-report:v1:supporting",
@@ -349,7 +348,7 @@ class StructuredArrestReportModal(discord.ui.DesignerModal):
             discord.ui.Label(
                 "Fotografías del sospechoso",
                 self.suspect_photos,
-                description="Opcional · frontal y lateral · hasta 2 imágenes",
+                description="Frontal y lateral · 1 o 2 imágenes",
             ),
             discord.ui.Label(
                 "Reporte y respaldos",

@@ -1,20 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.34.2",
-  "title": "Fotografías opcionales en revisiones",
-  "summary": "Los reportes de arresto ahora pueden enviarse a revisión aunque no se disponga de fotografías del sospechoso.",
+  "version": "0.34.3",
+  "title": "Fotografías requeridas en revisiones",
+  "summary": "Los reportes de arresto vuelven a requerir fotografías del sospechoso antes de iniciar su revisión.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "/revisar-arresto permite continuar sin adjuntar fotografías del sospechoso; el reporte y sus demás respaldos mantienen sus requisitos habituales."
+      "type": "fixed",
+      "text": "/revisar-arresto vuelve a requerir entre una y dos fotografías del sospechoso."
     },
     {
       "type": "improved",
-      "text": "La revisión reconoce explícitamente que estas fotografías son opcionales y que su ausencia no afecta el resultado."
+      "text": "Los expedientes existentes sin fotografías conservan compatibilidad para visualizarse y revisarse correctamente."
     }
   ],
   "acknowledgements": []
