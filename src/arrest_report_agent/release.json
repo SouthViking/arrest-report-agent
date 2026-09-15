@@ -1,20 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.34.4",
-  "title": "Validación del ID de arresto",
-  "summary": "El ID de arresto ahora se comprueba en PCU antes de publicar una revisión.",
+  "version": "0.34.5",
+  "title": "Graduación del FTP",
+  "summary": "La bitácora identifica con mayor claridad cuando un integrante completa el Field Training Program.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "/revisar-arresto comprueba que el ID se haya ingresado en formato numérico y que exista en PCU antes de publicar."
-    },
-    {
-      "type": "fixed",
-      "text": "Si el ID es inválido o corresponde a otro sospechoso, la persona recibe el motivo de forma privada y el reporte no se publica."
+      "type": "improved",
+      "text": "En /bitacora, el tipo «Término de FTP» ahora se presenta como «Graduación del FTP» en el formulario, las publicaciones y la guía."
     }
   ],
   "acknowledgements": []

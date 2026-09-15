@@ -154,7 +154,7 @@ CATEGORY_SUBTYPES: dict[LogbookCategory, tuple[tuple[str, str], ...]] = {
         ("unit_join", "Ingreso a unidad"),
         ("unit_leave", "Salida de unidad"),
         ("ftp_start", "Inicio de FTP"),
-        ("ftp_end", "Término de FTP"),
+        ("ftp_end", "Graduación del FTP"),
         ("special_assignment", "Asignación especial"),
         ("other", "Otro"),
     ),

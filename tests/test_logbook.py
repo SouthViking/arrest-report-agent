@@ -218,6 +218,12 @@ def test_personnel_supports_a_general_disciplinary_action() -> None:
     assert personnel_subtypes["disciplinary_action"] == "Acción disciplinaria"
 
 
+def test_assignments_use_graduation_for_completed_ftp() -> None:
+    assignment_subtypes = dict(CATEGORY_SUBTYPES[LogbookCategory.ASSIGNMENTS])
+
+    assert assignment_subtypes["ftp_end"] == "Graduación del FTP"
+
+
 def test_finance_subtypes_follow_the_selected_money_direction() -> None:
     income = dict(available_subtypes(LogbookCategory.FINANCE, MoneyDirection.INCOME))
     withdrawal = dict(available_subtypes(LogbookCategory.FINANCE, MoneyDirection.WITHDRAWAL))
