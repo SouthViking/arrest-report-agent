@@ -768,6 +768,114 @@ def test_arrest_lookup_migration_enables_only_lssd_and_creates_bindings() -> Non
             os.environ["DATABASE_URL"] = previous
 
 
+def test_cobra_pager_recipient_migration_appends_only_to_lssd() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = database_url
+    alembic = Config("alembic.ini")
+    try:
+        command.downgrade(alembic, "base")
+        command.upgrade(alembic, "20260913_0065")
+        asyncio.run(_seed_pager_recipient_configuration(database_url))
+
+        command.upgrade(alembic, "head")
+
+        asyncio.run(_assert_cobra_pager_recipient_configuration(database_url))
+    finally:
+        command.downgrade(alembic, "base")
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
+
+
+async def _seed_pager_recipient_configuration(database_url: str) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        async with client.transaction() as tx:
+            for guild_id, role_ids in (
+                (1234674521416663070, (111, 222)),
+                (999, (333,)),
+            ):
+                revision_id = uuid.uuid4()
+                policy_id = uuid.uuid4()
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO discord_guilds (discord_id, name) "
+                        "VALUES (:guild_id, 'Pager QA')"
+                    ),
+                    {"guild_id": guild_id},
+                )
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO guild_config_revisions "
+                        "(id, guild_id, revision, status, published_at) "
+                        "VALUES (:id, :guild_id, 1, 'published', now())"
+                    ),
+                    {"id": revision_id, "guild_id": guild_id},
+                )
+                await tx.execute(
+                    sa.text(
+                        "UPDATE discord_guilds SET active_config_revision_id = :revision_id "
+                        "WHERE discord_id = :guild_id"
+                    ),
+                    {"revision_id": revision_id, "guild_id": guild_id},
+                )
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO guild_access_policies "
+                        "(id, config_revision_id, policy_key, subject_type, mode) "
+                        "VALUES (:id, :revision_id, 'pager_recipient_roles', "
+                        "'role', 'restricted')"
+                    ),
+                    {"id": policy_id, "revision_id": revision_id},
+                )
+                for position, role_id in enumerate(role_ids):
+                    await tx.execute(
+                        sa.text(
+                            "INSERT INTO guild_access_policy_members "
+                            "(id, policy_id, snowflake_id, position) "
+                            "VALUES (:id, :policy_id, :role_id, :position)"
+                        ),
+                        {
+                            "id": uuid.uuid4(),
+                            "policy_id": policy_id,
+                            "role_id": role_id,
+                            "position": position,
+                        },
+                    )
+    finally:
+        await client.close()
+
+
+async def _assert_cobra_pager_recipient_configuration(database_url: str) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(
+            sa.text(
+                "SELECT guild.discord_id, member.snowflake_id, member.position "
+                "FROM discord_guilds AS guild "
+                "JOIN guild_access_policies AS policy "
+                "ON policy.config_revision_id = guild.active_config_revision_id "
+                "AND policy.policy_key = 'pager_recipient_roles' "
+                "JOIN guild_access_policy_members AS member ON member.policy_id = policy.id "
+                "ORDER BY guild.discord_id, member.position"
+            )
+        )
+        by_guild: dict[int, list[int]] = {}
+        for row in rows:
+            by_guild.setdefault(int(row["discord_id"]), []).append(int(row["snowflake_id"]))
+        assert by_guild[1234674521416663070] == [111, 222, 1326740806656069737]
+        assert by_guild[999] == [333]
+    finally:
+        await client.close()
+
+
 async def _seed_service_call_configuration_targets(database_url: str) -> None:
     client = PostgresClient(PostgresClientConfig(url=database_url))
     await client.open()

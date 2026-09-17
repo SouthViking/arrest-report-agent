@@ -1,16 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.34.5",
-  "title": "Graduación del FTP",
-  "summary": "La bitácora identifica con mayor claridad cuando un integrante completa el Field Training Program.",
+  "version": "0.34.6",
+  "title": "Más destinatarios para pagers",
+  "summary": "Los pagers ahora también pueden dirigirse al equipo COBRA de DLM.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
-      "type": "improved",
-      "text": "En /bitacora, el tipo «Término de FTP» ahora se presenta como «Graduación del FTP» en el formulario, las publicaciones y la guía."
+      "type": "added",
+      "text": "Al crear o editar un pager, «NPD: DLM COBRA Team» aparece como una opción adicional entre los grupos destinatarios."
     }
   ],
   "acknowledgements": []

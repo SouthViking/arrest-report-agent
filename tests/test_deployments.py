@@ -61,14 +61,13 @@ def test_railway_payload_normalizes_supported_events_and_identity() -> None:
 def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     manifest = ReleaseManifest.load_packaged()
 
-    assert manifest.version == "0.34.5"
+    assert manifest.version == "0.34.6"
     assert manifest.repository_url == "https://github.com/SouthViking/arrest-report-agent"
-    assert manifest.changelog_targets == (1241206587079524442,)
+    assert manifest.changelog_targets == "all"
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "/bitacora" in rendered_changes
-    assert "Graduación del FTP" in rendered_changes
-    assert "formulario, las publicaciones y la guía" in rendered_changes
+    assert "NPD: DLM COBRA Team" in rendered_changes
+    assert "pager" in rendered_changes
     assert manifest.acknowledgements == ()
 
 
@@ -126,7 +125,7 @@ def test_deployment_embeds_keep_operational_data_and_persona_framing(persona) ->
 
     embed = build_deployment_embed(event, manifest, persona)
 
-    assert embed.title == "🚀 Graduación del FTP · v0.34.5"
+    assert embed.title == "🚀 Más destinatarios para pagers · v0.34.6"
     assert persona.messages.interface.deployments.release_intro in (embed.description or "")
     assert any(field.name == "Cambios" for field in embed.fields)
     assert all(field.name != "Agradecimientos" for field in embed.fields)
@@ -245,7 +244,7 @@ async def test_success_event_waits_for_the_matching_runtime_and_then_targets_cha
 
     assert repository.processed == [event.id]
     assert [target.channel_id for target in repository.targets] == [456, 789]
-    assert all(target.notification_key.endswith(":0.34.5") for target in repository.targets)
+    assert all(target.notification_key.endswith(":0.34.6") for target in repository.targets)
 
 
 @pytest.mark.asyncio
