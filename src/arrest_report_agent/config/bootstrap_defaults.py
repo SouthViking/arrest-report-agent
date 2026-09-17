@@ -33,7 +33,10 @@ _ROLE_REQUEST_REVIEW_DEFAULTS: Mapping[int, RoleRequestReviewDefaults] = Mapping
     {
         1234674521416663070: RoleRequestReviewDefaults(
             channel_ids=(1261076248541532240,),
-            reviewer_role_ids=(1234678029662294047,),
+            reviewer_role_ids=(
+                1234678029662294047,
+                1234678238182244414,
+            ),
         ),
     }
 )

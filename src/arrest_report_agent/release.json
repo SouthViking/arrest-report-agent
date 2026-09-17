@@ -1,14 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.34.6",
-  "title": "Más destinatarios para pagers",
-  "summary": "Los pagers ahora también pueden dirigirse al equipo COBRA de DLM.",
+  "version": "0.34.7",
+  "title": "Aprobaciones de roles para Executive Staff",
+  "summary": "Executive Staff ahora puede revisar y resolver solicitudes de roles junto a Command Staff.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
-      "type": "added",
-      "text": "Al crear o editar un pager, «NPD: DLM COBRA Team» aparece como una opción adicional entre los grupos destinatarios."
+      "type": "fixed",
+      "text": "Los integrantes de Executive Staff ya pueden usar los botones para aprobar o rechazar solicitudes de roles enviadas a Command Staff."
     }
   ],
   "acknowledgements": []

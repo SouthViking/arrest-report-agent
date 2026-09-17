@@ -518,7 +518,7 @@ async def test_legacy_import_partitions_ids_and_disables_empty_restricted_scopes
 
 
 @pytest.mark.asyncio
-async def test_lssd_legacy_import_forces_command_staff_role_request_review_scope(
+async def test_lssd_legacy_import_uses_command_and_executive_role_request_review_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     guild_id = 1234674521416663070
@@ -553,6 +553,7 @@ async def test_lssd_legacy_import_forces_command_staff_role_request_review_scope
     )
     assert policies[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].ids == (
         1234678029662294047,
+        1234678238182244414,
     )
     assert plan.guilds[0].features[0].enabled is True
 
@@ -790,6 +791,117 @@ def test_cobra_pager_recipient_migration_appends_only_to_lssd() -> None:
             os.environ.pop("DATABASE_URL", None)
         else:
             os.environ["DATABASE_URL"] = previous
+
+
+def test_executive_role_request_reviewer_migration_appends_only_to_lssd() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = database_url
+    alembic = Config("alembic.ini")
+    try:
+        command.downgrade(alembic, "base")
+        command.upgrade(alembic, "20260916_0066")
+        asyncio.run(_seed_role_request_reviewer_configuration(database_url))
+
+        command.upgrade(alembic, "head")
+
+        asyncio.run(_assert_executive_role_request_reviewer_configuration(database_url))
+    finally:
+        command.downgrade(alembic, "base")
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
+
+
+async def _seed_role_request_reviewer_configuration(database_url: str) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        async with client.transaction() as tx:
+            for guild_id, role_ids in (
+                (1234674521416663070, (1234678029662294047,)),
+                (999, (444,)),
+            ):
+                revision_id = uuid.uuid4()
+                policy_id = uuid.uuid4()
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO discord_guilds (discord_id, name) "
+                        "VALUES (:guild_id, 'Role request QA')"
+                    ),
+                    {"guild_id": guild_id},
+                )
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO guild_config_revisions "
+                        "(id, guild_id, revision, status, published_at) "
+                        "VALUES (:id, :guild_id, 1, 'published', now())"
+                    ),
+                    {"id": revision_id, "guild_id": guild_id},
+                )
+                await tx.execute(
+                    sa.text(
+                        "UPDATE discord_guilds SET active_config_revision_id = :revision_id "
+                        "WHERE discord_id = :guild_id"
+                    ),
+                    {"revision_id": revision_id, "guild_id": guild_id},
+                )
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO guild_access_policies "
+                        "(id, config_revision_id, policy_key, subject_type, mode) "
+                        "VALUES (:id, :revision_id, 'role_request_reviewer_roles', "
+                        "'role', 'restricted')"
+                    ),
+                    {"id": policy_id, "revision_id": revision_id},
+                )
+                for position, role_id in enumerate(role_ids):
+                    await tx.execute(
+                        sa.text(
+                            "INSERT INTO guild_access_policy_members "
+                            "(id, policy_id, snowflake_id, position) "
+                            "VALUES (:id, :policy_id, :role_id, :position)"
+                        ),
+                        {
+                            "id": uuid.uuid4(),
+                            "policy_id": policy_id,
+                            "role_id": role_id,
+                            "position": position,
+                        },
+                    )
+    finally:
+        await client.close()
+
+
+async def _assert_executive_role_request_reviewer_configuration(database_url: str) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(
+            sa.text(
+                "SELECT guild.discord_id, member.snowflake_id, member.position "
+                "FROM discord_guilds AS guild "
+                "JOIN guild_access_policies AS policy "
+                "ON policy.config_revision_id = guild.active_config_revision_id "
+                "AND policy.policy_key = 'role_request_reviewer_roles' "
+                "JOIN guild_access_policy_members AS member ON member.policy_id = policy.id "
+                "ORDER BY guild.discord_id, member.position"
+            )
+        )
+        by_guild: dict[int, list[int]] = {}
+        for row in rows:
+            by_guild.setdefault(int(row["discord_id"]), []).append(int(row["snowflake_id"]))
+        assert by_guild[1234674521416663070] == [
+            1234678029662294047,
+            1234678238182244414,
+        ]
+        assert by_guild[999] == [444]
+    finally:
+        await client.close()
 
 
 async def _seed_pager_recipient_configuration(database_url: str) -> None:
@@ -1344,6 +1456,7 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         assert lssd_reviewers[0]["mode"] == "restricted"
         assert [int(row["snowflake_id"]) for row in lssd_reviewers] == [
             1234678029662294047,
+            1234678238182244414,
         ]
         stolen_rows = await client.fetch_all(
             sa.text(
