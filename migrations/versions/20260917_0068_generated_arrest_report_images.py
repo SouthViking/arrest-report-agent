@@ -24,7 +24,8 @@ def upgrade() -> None:
         sa.text(
             """
             UPDATE guild_feature_settings AS feature
-            SET payload = feature.payload || jsonb_build_object(:option_key, 'generated')
+            SET payload = feature.payload
+                || jsonb_build_object(CAST(:option_key AS text), 'generated')
             FROM guild_config_revisions AS revision
             WHERE revision.id = feature.config_revision_id
               AND revision.guild_id = :guild_id
@@ -46,7 +47,7 @@ def downgrade() -> None:
         sa.text(
             """
             UPDATE guild_feature_settings AS feature
-            SET payload = feature.payload - :option_key
+            SET payload = feature.payload - CAST(:option_key AS text)
             FROM guild_config_revisions AS revision
             WHERE revision.id = feature.config_revision_id
               AND revision.guild_id = :guild_id
