@@ -21,6 +21,13 @@ class AccessPolicyMode(StrEnum):
     DISABLED = "disabled"
 
 
+class ArrestReportAttachmentMode(StrEnum):
+    """How structured submissions provide the visible arrest-report copy."""
+
+    MANUAL = "manual"
+    GENERATED = "generated"
+
+
 class AccessPolicyKey(StrEnum):
     REPORT_CHANNELS = "report_channels"
     AGENT_USERS = "agent_users"
@@ -244,6 +251,7 @@ class FactionMemberAnalysisOptions(FrozenConfigModel):
 
 class ArrestReportLookupOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
+    report_attachment_mode: ArrestReportAttachmentMode = ArrestReportAttachmentMode.GENERATED
 
 
 class PendingArrestReportsOptions(FrozenConfigModel):
@@ -809,6 +817,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return ArrestReportLookupOptions.model_validate(feature.payload).faction_id
+
+    @property
+    def arrest_report_attachment_mode(self) -> ArrestReportAttachmentMode:
+        feature = self.snapshot.features.get("arrest_report_lookup")
+        if feature is None or not feature.enabled:
+            return ArrestReportAttachmentMode.GENERATED
+        return ArrestReportLookupOptions.model_validate(feature.payload).report_attachment_mode
 
     @property
     def pending_arrest_reports_options(self) -> PendingArrestReportsOptions | None:

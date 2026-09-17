@@ -1300,6 +1300,15 @@ def build_agent_tools(
                 )
         await _set_activity(run_context, AgentActivity.RESPONSE)
         await run_context.publisher.publish(publication)
+        if (
+            publication.review_scope is ReviewScope.FULL
+            and run_context.report_snapshot_refresher is not None
+            and not run_context.report_snapshot_current
+        ):
+            run_context.report_snapshot_current = await run_context.report_snapshot_refresher(
+                run_context.latest_arrest_report,
+                publication.verdict,
+            )
         run_context.published = True
         run_context.publication = publication
         return {
@@ -1518,6 +1527,7 @@ def build_agent_tools(
             if result.retry_after_seconds is not None:
                 payload["retry_after_seconds"] = result.retry_after_seconds
             return payload
+        run_context.latest_arrest_report = result.report
         bound = False
         if bind_to_current_thread or owner_discovery:
             binding_thread_id = _report_binding_thread_id(run_context, report_channel_ids)
@@ -1562,6 +1572,7 @@ def build_agent_tools(
         await _set_activity(run_context, AgentActivity.RECORDS)
         preloaded = run_context.preloaded_arrest_report
         if preloaded is not None and run_context.case.structured_report_id == preloaded.report_id:
+            run_context.latest_arrest_report = preloaded
             return arrest_detail_payload(preloaded, bound=True)
         result = await arrest_report_lookup.get_current(
             guild_id=run_context.case.guild_id,
@@ -1575,6 +1586,7 @@ def build_agent_tools(
             if result.retry_after_seconds is not None:
                 payload["retry_after_seconds"] = result.retry_after_seconds
             return payload
+        run_context.latest_arrest_report = result.report
         return arrest_detail_payload(result.report, bound=True)
 
     async def _get_structured_images(

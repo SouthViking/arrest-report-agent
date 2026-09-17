@@ -10,6 +10,7 @@ from .models import (
 )
 from .repository import StructuredArrestReportRepository
 from .service import StructuredArrestReportService
+from .snapshot import StructuredReportSnapshotManager
 
 __all__ = [
     "ArrestReportAsset",
@@ -20,4 +21,5 @@ __all__ = [
     "PublicationStatus",
     "StructuredArrestReportRepository",
     "StructuredArrestReportService",
+    "StructuredReportSnapshotManager",
 ]

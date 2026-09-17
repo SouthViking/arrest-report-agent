@@ -26,6 +26,7 @@ from arrest_report_agent.config import (
     AccessPolicyMode,
     AccessPolicySnapshot,
     AppSettings,
+    ArrestReportAttachmentMode,
     ArrestReportLookupOptions,
     ArrestStatisticsOptions,
     BotPersona,
@@ -65,7 +66,14 @@ def test_agent_user_blacklist_requires_explicit_ids_or_disabled_mode() -> None:
 
 
 def test_arrest_lookup_configuration_requires_positive_faction_id() -> None:
-    assert ArrestReportLookupOptions(faction_id=3).faction_id == 3
+    defaults = ArrestReportLookupOptions(faction_id=3)
+    assert defaults.faction_id == 3
+    assert defaults.report_attachment_mode is ArrestReportAttachmentMode.GENERATED
+    manual = ArrestReportLookupOptions(
+        faction_id=3,
+        report_attachment_mode="manual",
+    )
+    assert manual.report_attachment_mode is ArrestReportAttachmentMode.MANUAL
     with pytest.raises(ValueError, match="greater than 0"):
         ArrestReportLookupOptions(faction_id=0)
 
@@ -320,6 +328,21 @@ def test_arrest_lookup_runtime_requires_valid_enabled_payload(settings) -> None:
 
     snapshot = GuildConfigSnapshot.model_validate(values)
     assert GuildRuntimeSettings(settings, snapshot).arrest_report_lookup_faction_id == 3
+    assert (
+        GuildRuntimeSettings(settings, snapshot).arrest_report_attachment_mode
+        is ArrestReportAttachmentMode.GENERATED
+    )
+    values["features"]["arrest_report_lookup"] = GuildFeatureSnapshot(
+        key="arrest_report_lookup",
+        enabled=True,
+        schema_version=1,
+        payload={"faction_id": 3, "report_attachment_mode": "generated"},
+    )
+    generated_snapshot = GuildConfigSnapshot.model_validate(values)
+    assert (
+        GuildRuntimeSettings(settings, generated_snapshot).arrest_report_attachment_mode
+        is ArrestReportAttachmentMode.GENERATED
+    )
     values["features"] = {
         "arrest_report_lookup": GuildFeatureSnapshot(
             key="arrest_report_lookup",
@@ -1246,7 +1269,10 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         )
         resolved = {int(row["guild_id"]): row for row in rows}
         assert resolved[1234674521416663070]["enabled"] is True
-        assert resolved[1234674521416663070]["payload"] == {"faction_id": 3}
+        assert resolved[1234674521416663070]["payload"] == {
+            "faction_id": 3,
+            "report_attachment_mode": "generated",
+        }
         assert resolved[999]["enabled"] is False
         assert resolved[999]["payload"] == {}
         binding_table = await client.fetch_one(

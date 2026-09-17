@@ -91,7 +91,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 |---|---|---|---|
 | `/ayuda` | Todos | Pública | Persona seleccionada y configuración del bot |
 | `/info-reportes` | Acceso completo o acceso del propietario habilitado | Pública; rechazo efímero | Persona, canales y configuración de acceso del propietario |
-| `/revisar-arresto` | `operational_staff_roles`; módulo `arrest_report_lookup` activo; solo en `report_channels` | Formulario; expediente e hilo públicos; errores efímeros | Reporte vigente de SARP cuando se indica ID, PostgreSQL, Railway Bucket y Discord |
+| `/revisar-arresto` | `operational_staff_roles`; módulo `arrest_report_lookup` activo; solo en `report_channels` | Formulario; expediente e hilo públicos; errores efímeros | Reporte vigente de SARP, fotografías en Railway Bucket y tarjeta de Discord; el reporte puede adjuntarse manualmente o generarse según la configuración de la guild |
 | `/guia` | Todos | Efímera | `report_guide.json` |
 | `/cargos` | Todos | Efímera | Catálogo SARP con fallback `delitos.json` |
 | `/mdc` | `operational_staff_roles`; solo si SARP está activo | Modal privado; resultado público o efímero | API SARP en vivo |

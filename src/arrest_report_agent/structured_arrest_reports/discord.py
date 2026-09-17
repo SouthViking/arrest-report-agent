@@ -5,18 +5,21 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
 
 import discord
 from discord.ext import commands
 
 from arrest_report_agent.application.member_names import normalize_person_name
+from arrest_report_agent.config import ArrestReportAttachmentMode
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.assets import AssetLimitError, safe_filename
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
 from .card import build_submission_view
 from .models import ArrestReportSubmission, PublicationStatus
+from .render import RenderedArrestReport, render_arrest_report_image
 from .service import StructuredArrestReportService, StructuredReportFile
 
 if TYPE_CHECKING:
@@ -51,12 +54,16 @@ class StructuredArrestReportCog(commands.Cog):
             await ctx.respond(embed=denial, ephemeral=True)
             return
         assert ctx.guild is not None and ctx.channel is not None
+        bundle = await self.provider.cached(ctx.guild.id)
         await ctx.send_modal(
             StructuredArrestReportModal(
                 cog=self,
                 requester_id=ctx.author.id,
                 guild_id=ctx.guild.id,
                 channel_id=ctx.channel.id,
+                generated_report_image=(
+                    bundle.settings.arrest_report_attachment_mode is ArrestReportAttachmentMode.GENERATED
+                ),
             )
         )
 
@@ -71,6 +78,7 @@ class StructuredArrestReportCog(commands.Cog):
         report_id_text: str,
         suspect_photos: tuple[discord.Attachment, ...],
         supporting_images: tuple[discord.Attachment, ...],
+        generated_report_image: bool = False,
     ) -> None:
         if not _same_interaction_context(
             interaction,
@@ -110,10 +118,15 @@ class StructuredArrestReportCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        if not 1 <= len(suspect_photos) <= 2 or not 1 <= len(supporting_images) <= 8:
+        valid_supporting_count = (
+            0 <= len(supporting_images) <= 7 if generated_report_image else 1 <= len(supporting_images) <= 8
+        )
+        if not 1 <= len(suspect_photos) <= 2 or not valid_supporting_count:
             await interaction.response.send_message(
                 embed=_alert(
-                    "Adjunta entre 1 y 2 fotografías del sospechoso y entre 1 y 8 respaldos."
+                    "Adjunta entre 1 y 2 fotografías del sospechoso y hasta 7 respaldos adicionales."
+                    if generated_report_image
+                    else "Adjunta entre 1 y 2 fotografías del sospechoso y entre 1 y 8 respaldos."
                 ),
                 ephemeral=True,
             )
@@ -143,9 +156,7 @@ class StructuredArrestReportCog(commands.Cog):
             return
         detail_result = await lookup.get(report_id)
         detail = detail_result.report
-        if detail_result.error == "not_found" or (
-            detail_result.error is None and detail is None
-        ):
+        if detail_result.error == "not_found" or (detail_result.error is None and detail is None):
             await interaction.response.send_message(
                 embed=_alert(f"No existe un reporte de arresto en PCU con el ID #{report_id}."),
                 ephemeral=True,
@@ -201,6 +212,15 @@ class StructuredArrestReportCog(commands.Cog):
         try:
             suspect_files = await _download_files(suspect_photos)
             supporting_files = await _download_files(supporting_images)
+            rendered_report: RenderedArrestReport | None = None
+            if generated_report_image:
+                rendered_report = await asyncio.to_thread(render_arrest_report_image, detail)
+                if (
+                    len(rendered_report.payload) > bundle.settings.max_file_bytes
+                    or sum(file.size for file in all_attachments) + len(rendered_report.payload)
+                    > bundle.settings.max_total_file_bytes
+                ):
+                    raise AssetLimitError("El reporte generado supera el límite permitido")
             assets = await self.service.store_images(
                 submission,
                 suspect_photos=suspect_files,
@@ -211,12 +231,26 @@ class StructuredArrestReportCog(commands.Cog):
             output_files, suspect_names, supporting_names = _discord_files(
                 suspect_files,
                 supporting_files,
+                reserved_names=(
+                    frozenset({rendered_report.filename}) if rendered_report is not None else frozenset()
+                ),
             )
+            if rendered_report is not None:
+                output_files = (
+                    *output_files,
+                    discord.File(
+                        io.BytesIO(rendered_report.payload),
+                        filename=rendered_report.filename,
+                    ),
+                )
+            refreshed_at = datetime.now(UTC) if rendered_report is not None else None
             root = await interaction.edit_original_response(
                 view=build_submission_view(
                     submission,
                     suspect_filenames=suspect_names,
                     supporting_filenames=supporting_names,
+                    report_filename=(rendered_report.filename if rendered_report is not None else None),
+                    report_refreshed_at=refreshed_at,
                 ),
                 files=list(output_files),
                 allowed_mentions=discord.AllowedMentions.none(),
@@ -258,6 +292,7 @@ class StructuredArrestReportCog(commands.Cog):
                     requester=interaction.user,
                     submission=published,
                     arrest_report=detail,
+                    report_snapshot_current=rendered_report is not None,
                 ),
                 name=f"structured-arrest-review-{submission.id}",
             )
@@ -318,11 +353,13 @@ class StructuredArrestReportModal(discord.ui.DesignerModal):
         requester_id: int,
         guild_id: int,
         channel_id: int,
+        generated_report_image: bool = False,
     ) -> None:
         self.cog = cog
         self.requester_id = requester_id
         self.guild_id = guild_id
         self.channel_id = channel_id
+        self.generated_report_image = generated_report_image
         self.suspect_name = discord.ui.InputText(
             custom_id="arrest-report:v1:suspect",
             placeholder="Nombre Apellido",
@@ -344,9 +381,9 @@ class StructuredArrestReportModal(discord.ui.DesignerModal):
         )
         self.supporting_images = discord.ui.FileUpload(
             custom_id="arrest-report:v1:supporting",
-            min_values=1,
-            max_values=8,
-            required=True,
+            min_values=0 if generated_report_image else 1,
+            max_values=7 if generated_report_image else 8,
+            required=not generated_report_image,
         )
         super().__init__(
             discord.ui.Label("Sospechoso", self.suspect_name),
@@ -357,9 +394,13 @@ class StructuredArrestReportModal(discord.ui.DesignerModal):
                 description="Frontal y lateral · 1 o 2 imágenes",
             ),
             discord.ui.Label(
-                "Reporte y respaldos",
+                "Respaldos adicionales" if generated_report_image else "Reporte y respaldos",
                 self.supporting_images,
-                description="Cargos, narrativa y otros respaldos · 1 a 8 imágenes",
+                description=(
+                    "Evidencia u otros antecedentes · opcional, hasta 7 imágenes"
+                    if generated_report_image
+                    else "Cargos, narrativa y otros respaldos · 1 a 8 imágenes"
+                ),
             ),
             title="Revisar reporte de arresto",
             custom_id=f"arrest-report:v1:{requester_id}",
@@ -376,6 +417,7 @@ class StructuredArrestReportModal(discord.ui.DesignerModal):
             report_id_text=self.report_id.value or "",
             suspect_photos=tuple(cast(list[discord.Attachment], self.suspect_photos.values or [])),
             supporting_images=tuple(cast(list[discord.Attachment], self.supporting_images.values or [])),
+            generated_report_image=self.generated_report_image,
         )
 
 
@@ -436,8 +478,10 @@ async def _download_files(
 def _discord_files(
     suspect: tuple[StructuredReportFile, ...],
     supporting: tuple[StructuredReportFile, ...],
+    *,
+    reserved_names: frozenset[str] = frozenset(),
 ) -> tuple[tuple[discord.File, ...], tuple[str, ...], tuple[str, ...]]:
-    used: set[str] = set()
+    used: set[str] = {name.casefold() for name in reserved_names}
     files: list[discord.File] = []
     names: list[str] = []
     for index, item in enumerate((*suspect, *supporting), start=1):

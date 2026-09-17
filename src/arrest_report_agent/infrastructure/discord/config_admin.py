@@ -15,6 +15,7 @@ from arrest_report_agent.config import (
     AccessPolicyMode,
     AccessPolicySnapshot,
     AppSettings,
+    ArrestReportLookupOptions,
     BlacklistOptions,
     BlacklistTypeOptions,
     BotPersona,
@@ -1119,12 +1120,13 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                         "Consulta y auditoría de radios requiere `faction_id` y límites "
                         "válidos de período y registros."
                     ) from error
-            if (
-                key == "arrest_report_lookup"
-                and self.enabled.values[0] == "true"
-                and "faction_id" not in payload
-            ):
-                raise ValueError("Consulta de arrestos requiere `faction_id`.")
+            if key == "arrest_report_lookup" and self.enabled.values[0] == "true":
+                try:
+                    ArrestReportLookupOptions.model_validate(payload)
+                except ValueError as error:
+                    raise ValueError(
+                        "Consulta de arrestos requiere `faction_id` y un modo de adjunto válido."
+                    ) from error
             if key == "pending_arrest_reports":
                 payload.setdefault("max_range_days", 90)
                 payload.setdefault("max_records", 1000)

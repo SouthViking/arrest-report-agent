@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import cast
 
 import discord
@@ -16,6 +17,8 @@ def build_submission_view(
     *,
     suspect_filenames: tuple[str, ...],
     supporting_filenames: tuple[str, ...],
+    report_filename: str | None = None,
+    report_refreshed_at: datetime | None = None,
     color: discord.Color | None = None,
 ) -> discord.ui.DesignerView:
     """Build the stable report card while preserving categorized attachments."""
@@ -36,20 +39,7 @@ def build_submission_view(
         if suspect_filenames
         else discord.ui.TextDisplay("_No se adjuntaron fotografías del sospechoso._")
     )
-    supporting_gallery: discord.ui.MediaGallery[discord.ui.DesignerView] = discord.ui.MediaGallery(
-        *(
-            discord.MediaGalleryItem(  # type: ignore[no-untyped-call]
-                f"attachment://{filename}",
-                description=f"Respaldo del reporte {index}",
-            )
-            for index, filename in enumerate(supporting_filenames, start=1)
-        )
-    )
-    report_suffix = (
-        f" · #{submission.sarp_arrest_id}"
-        if submission.sarp_arrest_id is not None
-        else ""
-    )
+    report_suffix = f" · #{submission.sarp_arrest_id}" if submission.sarp_arrest_id is not None else ""
     header_text = (
         f"## 📋 Reporte de arresto{report_suffix}\n"
         f"**Autor:** <@{submission.owner_user_id}>\n"
@@ -60,11 +50,44 @@ def build_submission_view(
         discord.ui.Separator(),
         discord.ui.TextDisplay("### 📸 Fotografías del sospechoso"),
         suspect_content,
-        discord.ui.Separator(),
-        discord.ui.TextDisplay("### 📎 Reporte y respaldos"),
-        supporting_gallery,
         color=color or discord.Color.gold(),
     )
+    if report_filename is not None:
+        container.add_item(discord.ui.Separator())
+        container.add_item(discord.ui.TextDisplay("### 📄 Reporte de arresto"))
+        container.add_item(
+            discord.ui.MediaGallery(
+                discord.MediaGalleryItem(  # type: ignore[no-untyped-call]
+                    f"attachment://{report_filename}",
+                    description=f"Reporte de arresto #{submission.sarp_arrest_id}",
+                )
+            )
+        )
+        if report_refreshed_at is not None:
+            timestamp = int(report_refreshed_at.timestamp())
+            container.add_item(
+                discord.ui.TextDisplay(f"Actualizado durante la última revisión · <t:{timestamp}:R>")
+            )
+    if supporting_filenames:
+        container.add_item(discord.ui.Separator())
+        container.add_item(
+            discord.ui.TextDisplay(
+                "### 📎 Respaldos adicionales"
+                if report_filename is not None
+                else "### 📎 Reporte y respaldos"
+            )
+        )
+        container.add_item(
+            discord.ui.MediaGallery(
+                *(
+                    discord.MediaGalleryItem(  # type: ignore[no-untyped-call]
+                        f"attachment://{filename}",
+                        description=f"Respaldo del reporte {index}",
+                    )
+                    for index, filename in enumerate(supporting_filenames, start=1)
+                )
+            )
+        )
     return discord.ui.DesignerView(container, timeout=None, store=False)
 
 
@@ -88,9 +111,7 @@ def recolor_submission_view(
         discord.ui.DesignerView,
         discord.ui.DesignerView.from_message(message, timeout=None),
     )
-    containers = [
-        item for item in view.children if isinstance(item, discord.ui.Container)
-    ]
+    containers = [item for item in view.children if isinstance(item, discord.ui.Container)]
     if len(containers) != 1:
         raise ValueError("Structured report root does not contain exactly one container")
     if not _has_submission_signature(containers[0]):
@@ -109,27 +130,19 @@ def is_submission_card(message: discord.Message) -> bool:
         )
     except (TypeError, ValueError):
         return False
-    containers = [
-        item for item in view.children if isinstance(item, discord.ui.Container)
-    ]
+    containers = [item for item in view.children if isinstance(item, discord.ui.Container)]
     return len(containers) == 1 and _has_submission_signature(containers[0])
 
 
 def _has_submission_signature(
     container: discord.ui.Container[discord.ui.DesignerView],
 ) -> bool:
-    text_items = [
-        item.content
-        for item in container.items
-        if isinstance(item, discord.ui.TextDisplay)
-    ]
-    gallery_count = sum(
-        isinstance(item, discord.ui.MediaGallery) for item in container.items
-    )
+    text_items = [item.content for item in container.items if isinstance(item, discord.ui.TextDisplay)]
+    gallery_count = sum(isinstance(item, discord.ui.MediaGallery) for item in container.items)
     return (
         bool(text_items)
         and text_items[0].startswith("## 📋 Reporte de arresto")
         and "**Autor:**" in text_items[0]
         and "**Sospechoso:**" in text_items[0]
-        and gallery_count in {1, 2}
+        and gallery_count in {1, 2, 3}
     )

@@ -8,6 +8,7 @@ from agents import ToolOutputFileContent, ToolOutputImage, ToolOutputText
 from agents.tool_context import ToolContext
 
 from arrest_report_agent.application.ports import (
+    ArrestReportDetail,
     ChannelMemberSearchQuery,
     GuildMemberLookupResult,
     GuildMemberNameMatchStrategy,
@@ -1614,11 +1615,21 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
         attachments=[],
     )
     activity = ActivityRecorder()
+    snapshot_refreshes: list[tuple[ArrestReportDetail | None, ReviewVerdict]] = []
+
+    async def refresh_snapshot(
+        report: ArrestReportDetail | None,
+        verdict: ReviewVerdict,
+    ) -> bool:
+        snapshot_refreshes.append((report, verdict))
+        return True
+
     run_context = ReviewRunContext(
         case=case,
         publisher=publisher,
         attempt=1,
         activity=activity,
+        report_snapshot_refresher=refresh_snapshot,
     )
     tools = {
         tool.name: tool
@@ -1655,6 +1666,69 @@ async def test_discord_tools_execute_side_effects_immediately() -> None:
         "verdict": "approved",
     }
     assert activity.activities == [AgentActivity.REVIEW, AgentActivity.RESPONSE]
+    assert snapshot_refreshes == [(None, ReviewVerdict.APPROVED)]
+    assert run_context.report_snapshot_current is True
+
+
+@pytest.mark.asyncio
+async def test_partial_review_does_not_refresh_generated_report_snapshot() -> None:
+    publisher = FakePublisher()
+    case = ReviewCase(
+        guild_id=1,
+        parent_channel_id=2,
+        channel_id=2,
+        root_message_id=3,
+        trigger_message_id=4,
+        requester_user_id=5,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[],
+        attachments=[],
+    )
+
+    async def unexpected_refresh(
+        _report: ArrestReportDetail | None,
+        _verdict: ReviewVerdict,
+    ) -> bool:
+        raise AssertionError("partial reviews must not refresh the report image")
+
+    run_context = ReviewRunContext(
+        case=case,
+        publisher=publisher,
+        attempt=2,
+        report_snapshot_refresher=unexpected_refresh,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(ChargeCatalog.load_default(), ReportGuide.load_default())
+    }
+    arguments = json.dumps(
+        {
+            "publication": {
+                "review_scope": "charges",
+                "verdict": "approved",
+                "summary": "Los cargos consultados son coherentes.",
+                "findings": [],
+                "charges": [],
+            }
+        }
+    )
+
+    result = await tools["execute_arrest_report_review"].on_invoke_tool(
+        ToolContext(
+            context=run_context,
+            tool_name="execute_arrest_report_review",
+            tool_call_id="call-partial-review",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
+
+    assert result == {
+        "ok": True,
+        "review_scope": "charges",
+        "verdict": "approved",
+    }
+    assert run_context.report_snapshot_current is False
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import uuid
 from contextlib import asynccontextmanager
@@ -12,6 +13,7 @@ import discord
 import pytest
 from agents import ToolOutputImage, ToolOutputText
 from agents.tool_context import ToolContext
+from PIL import Image
 
 from arrest_report_agent.application.ports import (
     ArrestReportCharge,
@@ -24,7 +26,13 @@ from arrest_report_agent.application.ports import (
 )
 from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.application.tools import build_agent_tools
-from arrest_report_agent.domain import AgentAccessLevel, InteractionMode, ReviewCase
+from arrest_report_agent.config import ArrestReportAttachmentMode
+from arrest_report_agent.domain import (
+    AgentAccessLevel,
+    InteractionMode,
+    ReviewCase,
+    ReviewVerdict,
+)
 from arrest_report_agent.infrastructure.postgres.schema import arrest_report_submissions
 from arrest_report_agent.infrastructure.storage import MemoryObjectStorage
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
@@ -36,6 +44,7 @@ from arrest_report_agent.structured_arrest_reports import (
     PublicationStatus,
     StructuredArrestReportRepository,
     StructuredArrestReportService,
+    StructuredReportSnapshotManager,
 )
 from arrest_report_agent.structured_arrest_reports.discord import (
     StructuredArrestReportCog,
@@ -45,6 +54,11 @@ from arrest_report_agent.structured_arrest_reports.discord import (
     _replace_deferred_with_ephemeral_error,
     _thread_name,
     build_submission_view,
+)
+from arrest_report_agent.structured_arrest_reports.render import (
+    _charge_badge,
+    _description_paragraphs,
+    render_arrest_report_image,
 )
 from arrest_report_agent.structured_arrest_reports.service import StructuredReportFile
 
@@ -498,6 +512,43 @@ async def test_structured_service_rejects_non_images_and_invalid_group_sizes() -
         )
 
 
+def test_generated_report_renderer_is_single_readable_png_with_semantic_styles() -> None:
+    report = FakeArrestLookup().report
+    report = report.__class__(
+        report_id=8078,
+        suspect_name="Dyson Sharpe",
+        officer_name="Malcolm Crawford",
+        description=(
+            "Primera línea cortada por PCU cerca del límite\n"
+            "pero perteneciente al mismo párrafo.\n\n"
+            "Segundo párrafo.\n\n"
+            "(( Primera referencia ))\n(( Segunda referencia ))"
+        ),
+        created_at=datetime(2026, 9, 15, 2, 42, tzinfo=UTC),
+        updated_at=None,
+        charges=(
+            ArrestReportCharge(1, "CP-1", "Cargo grave", "GRAVE", 1, 100),
+            ArrestReportCharge(2, "CP-2", "Cargo menor", "MENOR", 1, 100),
+        ),
+    )
+
+    rendered = render_arrest_report_image(report)
+
+    image = Image.open(io.BytesIO(rendered.payload))
+    assert image.format == "PNG"
+    assert image.width == 1000
+    assert image.height > 700
+    assert rendered.filename == "reporte-pcu-actual-8078.png"
+    assert _description_paragraphs(report.description) == (
+        "Primera línea cortada por PCU cerca del límite pero perteneciente al mismo párrafo.",
+        "Segundo párrafo.",
+        "(( Primera referencia ))",
+        "(( Segunda referencia ))",
+    )
+    assert _charge_badge("GRAVE") == ("Grave", "#C93B3B")
+    assert _charge_badge("MENOR") == ("Menor", "#536B86")
+
+
 @pytest.mark.asyncio
 async def test_image_tools_are_categorized_idempotent_and_owner_scoped() -> None:
     lookup = FakeImageLookup()
@@ -763,6 +814,17 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
     assert modal.supporting_images.required is True
     assert modal.report_id.required is True
 
+    generated_modal = StructuredArrestReportModal(
+        cog=SimpleNamespace(),  # type: ignore[arg-type]
+        requester_id=1,
+        guild_id=2,
+        channel_id=3,
+        generated_report_image=True,
+    )
+    assert generated_modal.supporting_images.min_values == 0
+    assert generated_modal.supporting_images.max_values == 7
+    assert generated_modal.supporting_images.required is False
+
     files, suspect_names, supporting_names = _discord_files(
         (StructuredReportFile("photo.png", "image/png", b"a"),),
         (StructuredReportFile("photo.png", "image/png", b"b"),),
@@ -788,6 +850,23 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
     assert "Presentado por" not in author_header.content
     assert _thread_name("Andy Quintero", 321) == "Andy Quintero · #321"
     assert _thread_name("Andy Quintero", None) == "Andy Quintero"
+
+    generated = build_submission_view(
+        _submission(),
+        suspect_filenames=suspect_names,
+        supporting_filenames=supporting_names,
+        report_filename="reporte-pcu-actual-321.png",
+        report_refreshed_at=datetime(2026, 9, 17, tzinfo=UTC),
+    )
+    generated_container = generated.children[0]
+    assert isinstance(generated_container, discord.ui.Container)
+    generated_text = [
+        item.content for item in generated_container.items if isinstance(item, discord.ui.TextDisplay)
+    ]
+    assert "### 📄 Reporte de arresto" in generated_text
+    assert "### 📎 Respaldos adicionales" in generated_text
+    assert any("Actualizado durante la última revisión" in item for item in generated_text)
+    assert sum(isinstance(item, discord.ui.MediaGallery) for item in generated_container.items) == 3
 
     without_id = build_submission_view(
         _submission(None),
@@ -817,10 +896,104 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
     assert supporting_names == ("report.png",)
     assert sum(isinstance(item, discord.ui.MediaGallery) for item in container.items) == 1
     assert any(
-        isinstance(item, discord.ui.TextDisplay)
-        and "No se adjuntaron fotografías" in item.content
+        isinstance(item, discord.ui.TextDisplay) and "No se adjuntaron fotografías" in item.content
         for item in container.items
     )
+
+
+@pytest.mark.asyncio
+async def test_snapshot_manager_replaces_only_generated_attachment_and_preserves_verdict_color() -> None:
+    submission = _submission().model_copy(
+        update={
+            "assets": (
+                ArrestReportAsset(
+                    id=uuid.uuid4(),
+                    submission_id=_SUBMISSION_ID,
+                    category=ArrestReportAssetCategory.SUSPECT_PHOTO,
+                    position=0,
+                    object_key="suspect",
+                    sha256="a" * 64,
+                    filename="suspect.png",
+                    content_type="image/png",
+                    size_bytes=10,
+                    created_at=datetime.now(UTC),
+                ),
+                ArrestReportAsset(
+                    id=uuid.uuid4(),
+                    submission_id=_SUBMISSION_ID,
+                    category=ArrestReportAssetCategory.SUPPORTING_IMAGE,
+                    position=0,
+                    object_key="support",
+                    sha256="b" * 64,
+                    filename="support.png",
+                    content_type="image/png",
+                    size_bytes=10,
+                    created_at=datetime.now(UTC),
+                ),
+            )
+        }
+    )
+
+    class Repository:
+        async def get_by_root(self, guild_id: int, root_message_id: int) -> ArrestReportSubmission:
+            assert (guild_id, root_message_id) == (1, 4)
+            return submission
+
+    class Provider:
+        async def cached(self, guild_id: int) -> SimpleNamespace:
+            assert guild_id == 1
+            return SimpleNamespace(
+                settings=SimpleNamespace(
+                    arrest_report_attachment_mode=ArrestReportAttachmentMode.GENERATED,
+                    max_file_bytes=10_000_000,
+                ),
+                service=SimpleNamespace(arrest_report_lookup=None),
+            )
+
+    class Attachment:
+        def __init__(self, filename: str) -> None:
+            self.filename = filename
+
+    class Root:
+        id = 4
+        guild = SimpleNamespace(id=1)
+        attachments = [
+            Attachment("suspect.png"),
+            Attachment("support.png"),
+            Attachment("reporte-pcu-actual-321.png"),
+        ]
+
+        def __init__(self) -> None:
+            self.edits: list[dict[str, Any]] = []
+
+        async def edit(self, **values: Any) -> None:
+            self.edits.append(values)
+
+    report = FakeArrestLookup().report
+    root = Root()
+    manager = StructuredReportSnapshotManager(  # type: ignore[arg-type]
+        Provider(),
+        SimpleNamespace(repository=Repository()),
+    )
+
+    refreshed = await manager.refresh(  # type: ignore[arg-type]
+        root,
+        report,
+        ReviewVerdict.APPROVED,
+    )
+
+    assert refreshed is True
+    assert len(root.edits) == 1
+    edit = root.edits[0]
+    assert [attachment.filename for attachment in edit["attachments"]] == [
+        "suspect.png",
+        "support.png",
+    ]
+    assert edit["files"][0].filename == "reporte-pcu-actual-321.png"
+    container = edit["view"].children[0]
+    assert isinstance(container, discord.ui.Container)
+    assert container.color == discord.Color.green()
+    assert sum(isinstance(item, discord.ui.MediaGallery) for item in container.items) == 3
 
 
 @pytest.mark.parametrize(
@@ -961,8 +1134,8 @@ async def test_submission_requires_an_existing_matching_arrest_id(
     service = Service(repository)
     review_cog = ReviewCog()
     bundle = _bundle()
-    bundle.settings.max_file_bytes = 100
-    bundle.settings.max_total_file_bytes = 1_000
+    bundle.settings.max_file_bytes = 10_000_000
+    bundle.settings.max_total_file_bytes = 20_000_000
     bundle.settings.thread_auto_archive_minutes = 1440
     bundle.service = SimpleNamespace(arrest_report_lookup=lookup)
 
@@ -1010,7 +1183,10 @@ async def test_submission_requires_an_existing_matching_arrest_id(
         suspect_name=suspect_name,
         report_id_text=report_id_text,
         suspect_photos=(Attachment(),),  # type: ignore[arg-type]
-        supporting_images=(Attachment(),),  # type: ignore[arg-type]
+        supporting_images=(
+            () if expected_error is None else (Attachment(),)  # type: ignore[arg-type]
+        ),
+        generated_report_image=expected_error is None,
     )
     await asyncio.sleep(0)
 
@@ -1036,11 +1212,18 @@ async def test_submission_requires_an_existing_matching_arrest_id(
     assert len(edits) == 1
     assert isinstance(edits[0]["view"], discord.ui.DesignerView)
     assert len(edits[0]["files"]) == 2
+    container = edits[0]["view"].children[0]
+    assert isinstance(container, discord.ui.Container)
+    assert any(
+        isinstance(item, discord.ui.TextDisplay) and item.content == "### 📄 Reporte de arresto"
+        for item in container.items
+    )
     allowed_mentions = edits[0]["allowed_mentions"]
     assert allowed_mentions.everyone is False
     assert allowed_mentions.users is False
     assert allowed_mentions.roles is False
     assert review_cog.calls[0]["arrest_report"] is not None
+    assert review_cog.calls[0]["report_snapshot_current"] is True
 
 
 def test_submission_schema_allows_reusing_a_sarp_report_id() -> None:

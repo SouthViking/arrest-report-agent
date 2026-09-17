@@ -9,6 +9,7 @@ from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, replace
+from functools import partial
 from time import monotonic
 from typing import TYPE_CHECKING
 
@@ -30,6 +31,7 @@ from arrest_report_agent.application import (
 from arrest_report_agent.application.errors import public_error_message
 from arrest_report_agent.config import (
     AppSettings,
+    ArrestReportAttachmentMode,
     BotPersona,
     GuildRuntimeSettings,
     PersonaAccessMessages,
@@ -83,6 +85,7 @@ if TYPE_CHECKING:
     from arrest_report_agent.structured_arrest_reports import (
         ArrestReportSubmission,
         StructuredArrestReportRepository,
+        StructuredReportSnapshotManager,
     )
 
 LOGGER = logging.getLogger(__name__)
@@ -175,6 +178,7 @@ def build_report_info_embed(
     bot_mention: str,
     report_channel_ids: frozenset[int] | None,
     report_owner_max_rounds: int | None = None,
+    report_attachment_mode: ArrestReportAttachmentMode = ArrestReportAttachmentMode.GENERATED,
     avatar_url: str | None = None,
 ) -> discord.Embed:
     """Explain the bounded self-review workflow for report authors."""
@@ -204,8 +208,17 @@ def build_report_info_embed(
         embed.add_field(
             name="2️⃣ Qué debes adjuntar",
             value=(
-                "Incluye una o dos imágenes con las fotografías frontal y lateral del sospechoso "
-                "—pueden venir juntas— y entre una y ocho imágenes del reporte o sus respaldos."
+                (
+                    "Incluye una o dos imágenes con las fotografías frontal y lateral del "
+                    "sospechoso —pueden venir juntas—. El reporte se incorporará automáticamente; "
+                    "los demás respaldos son opcionales."
+                )
+                if report_attachment_mode is ArrestReportAttachmentMode.GENERATED
+                else (
+                    "Incluye una o dos imágenes con las fotografías frontal y lateral del "
+                    "sospechoso —pueden venir juntas— y entre una y ocho imágenes del reporte "
+                    "o sus respaldos."
+                )
             ),
             inline=False,
         )
@@ -343,6 +356,7 @@ class ReviewCog(commands.Cog):
         poll_manager: PollManager | None = None,
         agent_session_manager: AgentSessionManager | None = None,
         structured_report_repository: StructuredArrestReportRepository | None = None,
+        structured_report_snapshot_manager: StructuredReportSnapshotManager | None = None,
     ) -> None:
         self.bot = bot
         self._config_provider = config_provider
@@ -352,6 +366,7 @@ class ReviewCog(commands.Cog):
         self.poll_manager = poll_manager
         self.agent_session_manager = agent_session_manager
         self.structured_report_repository = structured_report_repository
+        self.structured_report_snapshot_manager = structured_report_snapshot_manager
         self._runtime_context: contextvars.ContextVar[ReviewCogRuntime | None] = contextvars.ContextVar(
             "review_cog_runtime", default=None
         )
@@ -619,6 +634,7 @@ class ReviewCog(commands.Cog):
         access_level: AgentAccessLevel,
         consume_owner_round: bool = True,
         preloaded_arrest_report: ArrestReportDetail | None = None,
+        report_snapshot_current: bool = False,
     ) -> bool:
         """Run the shared bounded review workflow for listener and structured submissions."""
 
@@ -771,6 +787,13 @@ class ReviewCog(commands.Cog):
                     message_directory=self.message_directory,
                     poll_manager=self.poll_manager,
                     preloaded_arrest_report=preloaded_arrest_report,
+                    report_snapshot_refresher=(
+                        partial(self.structured_report_snapshot_manager.refresh_safely, target.root)
+                        if self.structured_report_snapshot_manager is not None
+                        and target.structured_submission_id is not None
+                        else None
+                    ),
+                    report_snapshot_current=report_snapshot_current,
                 )
                 prepared_session = await self._prepare_agent_session(case, access_level)
                 source_cursor = self._source_cursor_as_message_id(prepared_session)
@@ -836,6 +859,7 @@ class ReviewCog(commands.Cog):
         requester: discord.Member,
         submission: ArrestReportSubmission,
         arrest_report: ArrestReportDetail | None,
+        report_snapshot_current: bool = False,
     ) -> None:
         """Start exactly one free owner review for a validated structured submission."""
 
@@ -879,6 +903,7 @@ class ReviewCog(commands.Cog):
                     access_level=AgentAccessLevel.REPORT_OWNER,
                     consume_owner_round=False,
                     preloaded_arrest_report=arrest_report,
+                    report_snapshot_current=report_snapshot_current,
                 )
         except Exception as error:
             log_event(
@@ -1336,6 +1361,7 @@ class ReviewCog(commands.Cog):
                     "report_owner_access_max_rounds",
                     None,
                 ),
+                report_attachment_mode=self.settings.arrest_report_attachment_mode,
                 avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
             ),
             ephemeral=False,

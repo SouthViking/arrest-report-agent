@@ -61,8 +61,8 @@ class StructuredArrestReportService:
     ) -> tuple[ArrestReportAsset, ...]:
         if not 1 <= len(suspect_photos) <= 2:
             raise ValueError("Suspect photographs must contain one or two images")
-        if not 1 <= len(supporting_images) <= 8:
-            raise ValueError("Supporting images must contain between one and eight images")
+        if len(supporting_images) > 8:
+            raise ValueError("Supporting images cannot contain more than eight images")
         all_files = (*suspect_photos, *supporting_images)
         stored = await self.asset_store.store(
             tuple(UploadedAsset(item.filename, item.content_type, item.payload) for item in all_files),

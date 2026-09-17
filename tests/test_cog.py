@@ -8,6 +8,7 @@ import pytest
 
 from arrest_report_agent.agent_sessions import PreparedAgentSession
 from arrest_report_agent.config import (
+    ArrestReportAttachmentMode,
     OperationalResourcesOptions,
     PackagedPersonaProvider,
     SnowflakeAllowlist,
@@ -308,12 +309,25 @@ def test_report_info_embed_is_public_facing_and_explains_owner_access(persona) -
     ]
     assert "/revisar-arresto" in embed.fields[0].value
     assert "una o dos imágenes" in embed.fields[1].value
-    assert "una y ocho imágenes" in embed.fields[1].value
+    assert "reporte se incorporará automáticamente" in embed.fields[1].value
+    assert "respaldos son opcionales" in embed.fields[1].value
     assert "primera revisión" in embed.fields[2].value
     assert "5" in embed.fields[3].value
     assert "<@999>" in embed.fields[4].value
     assert embed.fields[5].value == "• <#111>\n• <#222>"
     assert embed.thumbnail.url == "https://cdn.discordapp.com/avatar.png"
+
+
+def test_report_info_embed_explains_explicit_manual_report_image_mode(persona) -> None:
+    embed = build_report_info_embed(
+        persona=persona,
+        bot_mention="<@999>",
+        report_channel_ids=frozenset({111}),
+        report_owner_max_rounds=5,
+        report_attachment_mode=ArrestReportAttachmentMode.MANUAL,
+    )
+
+    assert "una y ocho imágenes" in embed.fields[1].value
 
 
 def test_report_info_embed_does_not_advertise_disabled_owner_access(persona) -> None:

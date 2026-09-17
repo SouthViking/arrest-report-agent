@@ -1,16 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.34.7",
-  "title": "Aprobaciones de roles para Executive Staff",
-  "summary": "Executive Staff ahora puede revisar y resolver solicitudes de roles junto a Command Staff.",
+  "version": "0.35.0",
+  "title": "Reportes de arresto más simples",
+  "summary": "El bot ahora incorpora y mantiene actualizado el reporte de PCU en cada expediente publicado con /revisar-arresto.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
-      "type": "fixed",
-      "text": "Los integrantes de Executive Staff ya pueden usar los botones para aprobar o rechazar solicitudes de roles enviadas a Command Staff."
+      "type": "added",
+      "text": "Al usar /revisar-arresto, la copia vigente del reporte de PCU se adjunta automáticamente al expediente."
+    },
+    {
+      "type": "improved",
+      "text": "Solo es necesario cargar las fotografías del sospechoso; los demás respaldos pasan a ser opcionales."
+    },
+    {
+      "type": "improved",
+      "text": "El reporte adjunto se actualiza después de cada revisión completa para mantener disponible su versión vigente."
     }
   ],
   "acknowledgements": []

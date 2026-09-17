@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from arrest_report_agent.domain import (
@@ -9,6 +10,7 @@ from arrest_report_agent.domain import (
     ConversationResponseRoute,
     ReviewCase,
     ReviewPublication,
+    ReviewVerdict,
 )
 from arrest_report_agent.knowledge import ChargeCatalogSnapshot
 
@@ -20,6 +22,11 @@ from .ports import (
     PollManager,
     ReviewPublisher,
 )
+
+ReportSnapshotRefresher = Callable[
+    [ArrestReportDetail | None, ReviewVerdict],
+    Awaitable[bool],
+]
 
 
 @dataclass
@@ -45,6 +52,9 @@ class ReviewRunContext:
     loaded_attachment_ids: set[int] = field(default_factory=set)
     loaded_report_asset_ids: set[str] = field(default_factory=set)
     preloaded_arrest_report: ArrestReportDetail | None = None
+    latest_arrest_report: ArrestReportDetail | None = None
+    report_snapshot_refresher: ReportSnapshotRefresher | None = None
+    report_snapshot_current: bool = False
     loaded_image_count: int = 0
     loaded_historical_image_count: int = 0
     loaded_file_count: int = 0
@@ -66,6 +76,8 @@ class ReviewRunContext:
     def __post_init__(self) -> None:
         """Seed multimodal budgets with attachments already present in the runner input."""
 
+        if self.latest_arrest_report is None:
+            self.latest_arrest_report = self.preloaded_arrest_report
         if self.loaded_attachment_ids:
             return
         self.loaded_attachment_ids = {

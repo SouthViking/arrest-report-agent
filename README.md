@@ -531,8 +531,13 @@ Comandos disponibles:
 
 En `/config` → **Módulos**, `report_owner_access` acepta `{"max_rounds": 5}` con un valor entre 1 y
 20. Solo puede habilitarse cuando `report_channels` contiene IDs explícitos.
-`arrest_report_lookup` acepta `{"faction_id": 3}` y habilita las tools SARP del agente para esa
-guild. El interruptor global `SARP_API_ENABLED` debe estar activo; no requiere variables nuevas.
+`arrest_report_lookup` acepta
+`{"faction_id": 3, "report_attachment_mode": "generated"}` y habilita las tools SARP del agente
+para esa guild. `report_attachment_mode` usa `generated` por defecto y puede cambiarse a `manual`;
+el modo generado crea una imagen vigente del reporte SARP al publicarlo y la reemplaza después de
+cada revisión completa. El modo se resuelve desde PostgreSQL en cada revisión, sin agregar variables
+de entorno ni conservar versiones anteriores de la imagen. El interruptor global `SARP_API_ENABLED`
+debe estar activo.
 `pending_arrest_reports` acepta
 `{"faction_id": 3, "max_range_days": 90, "max_records": 1000}` y habilita la consulta manual
 determinista. Reutiliza `operational_staff_roles`, funciona en cualquier canal y tampoco agrega

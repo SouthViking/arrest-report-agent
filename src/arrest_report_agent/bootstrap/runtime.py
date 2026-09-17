@@ -131,6 +131,7 @@ from arrest_report_agent.stolen_vehicles import (
 from arrest_report_agent.structured_arrest_reports import (
     StructuredArrestReportRepository,
     StructuredArrestReportService,
+    StructuredReportSnapshotManager,
 )
 from arrest_report_agent.structured_arrest_reports.discord import StructuredArrestReportCog
 from arrest_report_agent.suggestions import SuggestionCog, SuggestionRepository
@@ -344,6 +345,10 @@ async def build_runtime(
     poll_repository = PollRepository(postgres)
     poll_service = DiscordPollService(bot, poll_repository)
     agent_session_manager = AgentSessionManager(postgres)
+    structured_report_snapshot_manager = StructuredReportSnapshotManager(
+        config_provider,
+        structured_report_service,
+    )
     review_cog = ReviewCog(
         bot,
         initial_bundle.settings,  # type: ignore[arg-type]
@@ -357,6 +362,7 @@ async def build_runtime(
         poll_manager=poll_service,
         agent_session_manager=agent_session_manager,
         structured_report_repository=structured_report_repository,
+        structured_report_snapshot_manager=structured_report_snapshot_manager,
     )
     bot.add_cog(review_cog)
     bot.add_cog(
