@@ -46,11 +46,11 @@ from arrest_report_agent.structured_arrest_reports import (
     StructuredArrestReportService,
     StructuredReportSnapshotManager,
 )
+from arrest_report_agent.structured_arrest_reports.attachments import build_discord_files
 from arrest_report_agent.structured_arrest_reports.discord import (
     StructuredArrestReportCog,
     StructuredArrestReportModal,
     _availability_denial,
-    _discord_files,
     _replace_deferred_with_ephemeral_error,
     _thread_name,
     build_submission_view,
@@ -825,7 +825,7 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
     assert generated_modal.supporting_images.max_values == 7
     assert generated_modal.supporting_images.required is False
 
-    files, suspect_names, supporting_names = _discord_files(
+    files, suspect_names, supporting_names = build_discord_files(
         (StructuredReportFile("photo.png", "image/png", b"a"),),
         (StructuredReportFile("photo.png", "image/png", b"b"),),
     )
@@ -880,7 +880,7 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
     assert header.content.startswith("## 📋 Reporte de arresto\n")
     assert "#None" not in header.content
 
-    files, suspect_names, supporting_names = _discord_files(
+    files, suspect_names, supporting_names = build_discord_files(
         (),
         (StructuredReportFile("report.png", "image/png", b"report"),),
     )
@@ -902,7 +902,7 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
 
 
 @pytest.mark.asyncio
-async def test_snapshot_manager_replaces_only_generated_attachment_and_preserves_verdict_color() -> None:
+async def test_snapshot_manager_restores_persisted_assets_and_preserves_verdict_color() -> None:
     submission = _submission().model_copy(
         update={
             "assets": (
@@ -950,18 +950,14 @@ async def test_snapshot_manager_replaces_only_generated_attachment_and_preserves
                 service=SimpleNamespace(arrest_report_lookup=None),
             )
 
-    class Attachment:
-        def __init__(self, filename: str) -> None:
-            self.filename = filename
+    class Storage:
+        async def get(self, object_key: str) -> bytes:
+            return {"suspect": b"suspect", "support": b"support"}[object_key]
 
     class Root:
         id = 4
         guild = SimpleNamespace(id=1)
-        attachments = [
-            Attachment("suspect.png"),
-            Attachment("support.png"),
-            Attachment("reporte-pcu-actual-321.png"),
-        ]
+        attachments: list[object] = []
 
         def __init__(self) -> None:
             self.edits: list[dict[str, Any]] = []
@@ -973,7 +969,7 @@ async def test_snapshot_manager_replaces_only_generated_attachment_and_preserves
     root = Root()
     manager = StructuredReportSnapshotManager(  # type: ignore[arg-type]
         Provider(),
-        SimpleNamespace(repository=Repository()),
+        SimpleNamespace(repository=Repository(), storage=Storage()),
     )
 
     refreshed = await manager.refresh(  # type: ignore[arg-type]
@@ -985,11 +981,12 @@ async def test_snapshot_manager_replaces_only_generated_attachment_and_preserves
     assert refreshed is True
     assert len(root.edits) == 1
     edit = root.edits[0]
-    assert [attachment.filename for attachment in edit["attachments"]] == [
+    assert edit["attachments"] == []
+    assert [file.filename for file in edit["files"]] == [
         "suspect.png",
         "support.png",
+        "reporte-pcu-actual-321.png",
     ]
-    assert edit["files"][0].filename == "reporte-pcu-actual-321.png"
     container = edit["view"].children[0]
     assert isinstance(container, discord.ui.Container)
     assert container.color == discord.Color.green()

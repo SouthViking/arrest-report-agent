@@ -1,22 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.35.0",
-  "title": "Reportes de arresto más simples",
-  "summary": "El bot ahora incorpora y mantiene actualizado el reporte de PCU en cada expediente publicado con /revisar-arresto.",
+  "version": "0.35.1",
+  "title": "Fotografías preservadas en los reportes",
+  "summary": "Las fotografías originales permanecen disponibles cuando el bot actualiza el reporte adjunto de PCU.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
-      "type": "added",
-      "text": "Al usar /revisar-arresto, la copia vigente del reporte de PCU se adjunta automáticamente al expediente."
-    },
-    {
-      "type": "improved",
-      "text": "Solo es necesario cargar las fotografías del sospechoso; los demás respaldos pasan a ser opcionales."
-    },
-    {
-      "type": "improved",
-      "text": "El reporte adjunto se actualiza después de cada revisión completa para mantener disponible su versión vigente."
+      "type": "fixed",
+      "text": "Al completar una revisión, la actualización del reporte de PCU ya no retira las fotografías originales del expediente y puede recuperarlas desde la copia guardada."
     }
   ],
   "acknowledgements": []

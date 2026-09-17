@@ -14,9 +14,10 @@ from discord.ext import commands
 from arrest_report_agent.application.member_names import normalize_person_name
 from arrest_report_agent.config import ArrestReportAttachmentMode
 from arrest_report_agent.config.logging import exception_fields, log_event
-from arrest_report_agent.infrastructure.assets import AssetLimitError, safe_filename
+from arrest_report_agent.infrastructure.assets import AssetLimitError
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
+from .attachments import build_discord_files
 from .card import build_submission_view
 from .models import ArrestReportSubmission, PublicationStatus
 from .render import RenderedArrestReport, render_arrest_report_image
@@ -228,7 +229,7 @@ class StructuredArrestReportCog(commands.Cog):
                 max_file_bytes=bundle.settings.max_file_bytes,
                 max_total_bytes=bundle.settings.max_total_file_bytes,
             )
-            output_files, suspect_names, supporting_names = _discord_files(
+            output_files, suspect_names, supporting_names = build_discord_files(
                 suspect_files,
                 supporting_files,
                 reserved_names=(
@@ -473,26 +474,6 @@ async def _download_files(
             )
         )
     return tuple(files)
-
-
-def _discord_files(
-    suspect: tuple[StructuredReportFile, ...],
-    supporting: tuple[StructuredReportFile, ...],
-    *,
-    reserved_names: frozenset[str] = frozenset(),
-) -> tuple[tuple[discord.File, ...], tuple[str, ...], tuple[str, ...]]:
-    used: set[str] = {name.casefold() for name in reserved_names}
-    files: list[discord.File] = []
-    names: list[str] = []
-    for index, item in enumerate((*suspect, *supporting), start=1):
-        filename = safe_filename(item.filename)
-        if filename.casefold() in used:
-            filename = f"{index}-{filename}"[:255]
-        used.add(filename.casefold())
-        names.append(filename)
-        files.append(discord.File(io.BytesIO(item.payload), filename=filename))
-    split = len(suspect)
-    return tuple(files), tuple(names[:split]), tuple(names[split:])
 
 
 def _is_supported_image(attachment: discord.Attachment) -> bool:

@@ -16,10 +16,11 @@ from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import ReviewVerdict
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
+from .attachments import build_discord_files
 from .card import build_submission_view, review_card_color
 from .models import ArrestReportAssetCategory
-from .render import is_generated_report_filename, render_arrest_report_image
-from .service import StructuredArrestReportService
+from .render import render_arrest_report_image
+from .service import StructuredArrestReportService, StructuredReportFile
 
 if TYPE_CHECKING:
     from arrest_report_agent.arrest_reports import SarpArrestReportLookup
@@ -88,12 +89,7 @@ class StructuredReportSnapshotManager:
             )
             return False
 
-        retained = tuple(
-            attachment
-            for attachment in root.attachments
-            if not is_generated_report_filename(attachment.filename)
-        )
-        if len(retained) >= MAX_DISCORD_ATTACHMENTS:
+        if len(submission.assets) >= MAX_DISCORD_ATTACHMENTS:
             log_event(
                 LOGGER,
                 "warning",
@@ -101,19 +97,60 @@ class StructuredReportSnapshotManager:
                 guild_id=guild.id,
                 root_message_id=root.id,
                 sarp_arrest_id=submission.sarp_arrest_id,
-                retained_attachment_count=len(retained),
+                retained_attachment_count=len(submission.assets),
             )
             return False
 
-        suspect_count = sum(
-            asset.category is ArrestReportAssetCategory.SUSPECT_PHOTO for asset in submission.assets
+        suspect_assets = tuple(
+            sorted(
+                (
+                    asset
+                    for asset in submission.assets
+                    if asset.category is ArrestReportAssetCategory.SUSPECT_PHOTO
+                ),
+                key=lambda asset: asset.position,
+            )
         )
-        suspect_names = tuple(attachment.filename for attachment in retained[:suspect_count])
-        supporting_names = tuple(attachment.filename for attachment in retained[suspect_count:])
+        supporting_assets = tuple(
+            sorted(
+                (
+                    asset
+                    for asset in submission.assets
+                    if asset.category is ArrestReportAssetCategory.SUPPORTING_IMAGE
+                ),
+                key=lambda asset: asset.position,
+            )
+        )
+        suspect_files: list[StructuredReportFile] = []
+        for asset in suspect_assets:
+            suspect_files.append(
+                StructuredReportFile(
+                    filename=asset.filename,
+                    content_type=asset.content_type,
+                    payload=await self.service.storage.get(asset.object_key),
+                )
+            )
+        supporting_files: list[StructuredReportFile] = []
+        for asset in supporting_assets:
+            supporting_files.append(
+                StructuredReportFile(
+                    filename=asset.filename,
+                    content_type=asset.content_type,
+                    payload=await self.service.storage.get(asset.object_key),
+                )
+            )
+        original_files, suspect_names, supporting_names = build_discord_files(
+            tuple(suspect_files),
+            tuple(supporting_files),
+            reserved_names=frozenset({rendered.filename}),
+        )
         refreshed_at = datetime.now(UTC)
         await root.edit(
-            attachments=list(retained),
-            files=[discord.File(io.BytesIO(rendered.payload), filename=rendered.filename)],
+            attachments=[],
+            files=[
+                *original_files,
+                discord.File(io.BytesIO(rendered.payload), filename=rendered.filename),
+            ],
             view=build_submission_view(
                 submission,
                 suspect_filenames=suspect_names,
@@ -131,7 +168,7 @@ class StructuredReportSnapshotManager:
             guild_id=guild.id,
             root_message_id=root.id,
             sarp_arrest_id=submission.sarp_arrest_id,
-            retained_attachment_count=len(retained),
+            retained_attachment_count=len(original_files),
             generated_size_bytes=len(rendered.payload),
             verdict=verdict.value,
         )
