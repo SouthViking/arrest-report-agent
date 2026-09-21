@@ -1,16 +1,18 @@
 {
   "schema_version": 3,
-  "version": "0.35.1",
-  "title": "Fotografías preservadas en los reportes",
-  "summary": "Las fotografías originales permanecen disponibles cuando el bot actualiza el reporte adjunto de PCU.",
+  "version": "0.36.0",
+  "title": "Ingreso FTT simplificado",
+  "summary": "Los nuevos miembros pueden solicitar sus roles iniciales eligiendo solamente su estación de destino.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
-      "type": "fixed",
-      "text": "Al completar una revisión, la actualización del reporte de PCU ya no retira las fotografías originales del expediente y puede recuperarlas desde la copia guardada."
+      "type": "added",
+      "text": "El nuevo botón Ingreso FTT prepara automáticamente los roles iniciales para Ganton o Dillimore."
+    },
+    {
+      "type": "improved",
+      "text": "El rol CSD: TTCF también está disponible en la solicitud tradicional de roles."
     }
   ],
   "acknowledgements": []

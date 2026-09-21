@@ -100,6 +100,19 @@ async def test_role_request_repository_is_idempotent_concurrent_and_mirrored(
         assert restored is not None
         assert restored.reviewer_id == 701
         assert restored.decision_comment is None
+
+        ftt_entry, ftt_created = await repository.reserve(
+            guild_id=guild_id,
+            interaction_id=303,
+            requester_id=requester_id,
+            kind=RoleRequestKind.FTT_ENTRY,
+            add_role_ids=(101, 103, 104, 105, 106),
+            remove_role_ids=(),
+            reason="Ganton · <@&106>",
+            public_channel_id=201,
+        )
+        assert ftt_created is True
+        assert ftt_entry.kind is RoleRequestKind.FTT_ENTRY
     finally:
         await client.execute(discord_guilds.delete().where(discord_guilds.c.discord_id == guild_id))
         await client.close()

@@ -20,6 +20,9 @@ DECISION_CUSTOM_IDS = frozenset({APPROVE_ALL_CUSTOM_ID, APPROVE_PARTIAL_CUSTOM_I
 EMPTY_VALUE = "—"
 REQUEST_KIND_FIELD_TITLE = "📤 Tipo de solicitud"
 RETIREMENT_REQUEST_VALUE = "Retiro de la facción · se retirarán los roles gestionados actuales."
+FTT_ENTRY_REQUEST_VALUE = "Ingreso a la facción · Field Training Trainee"
+FTT_ENTRY_PENDING_TITLE = "📋 Solicitud de ingreso FTT"
+STATION_FIELD_TITLE = "📍 Estación de destino"
 ADD_FIELD_TITLE = "➕ Roles para agregar"
 REMOVE_FIELD_TITLE = "➖ Roles para retirar"
 REASON_FIELD_TITLE = "📝 Motivo"
@@ -33,6 +36,7 @@ ADD_CHANGE_PREFIX = "Agregar"
 REMOVE_CHANGE_PREFIX = "Retirar"
 PENDING_FIELD_ORDER = (
     REQUEST_KIND_FIELD_TITLE,
+    STATION_FIELD_TITLE,
     ADD_FIELD_TITLE,
     REMOVE_FIELD_TITLE,
     REASON_FIELD_TITLE,
@@ -61,7 +65,7 @@ def build_pending_embed(
     """Build the polished pending request; the draft intentionally has no valid footer."""
 
     embed = discord.Embed(
-        title=ui.pending_title,
+        title=(FTT_ENTRY_PENDING_TITLE if kind is RoleRequestKind.FTT_ENTRY else ui.pending_title),
         description=ui.pending_description,
         color=discord.Color.gold(),
         timestamp=created_at,
@@ -78,6 +82,18 @@ def build_pending_embed(
             value=RETIREMENT_REQUEST_VALUE,
             inline=False,
         )
+    elif kind is RoleRequestKind.FTT_ENTRY:
+        embed.add_field(
+            name=REQUEST_KIND_FIELD_TITLE,
+            value=FTT_ENTRY_REQUEST_VALUE,
+            inline=False,
+        )
+        if reason:
+            embed.add_field(
+                name=STATION_FIELD_TITLE,
+                value=reason,
+                inline=False,
+            )
     additions = tuple(add_role_ids)
     removals = tuple(remove_role_ids)
     if additions:
@@ -92,7 +108,7 @@ def build_pending_embed(
             value=_render_role_mentions(removals),
             inline=True,
         )
-    if reason:
+    if reason and kind is not RoleRequestKind.FTT_ENTRY:
         embed.add_field(name=REASON_FIELD_TITLE, value=reason, inline=False)
     embed.add_field(
         name=STATUS_FIELD_TITLE,
@@ -112,6 +128,7 @@ def build_public_pending_embed(
     ui: PersonaRoleRequestMessages,
     created_at: datetime,
     kind: RoleRequestKind,
+    reason: str | None = None,
 ) -> discord.Embed:
     """Render the public audit card without the requester's private reason."""
 
@@ -119,14 +136,12 @@ def build_public_pending_embed(
         requester=requester,
         add_role_ids=add_role_ids,
         remove_role_ids=remove_role_ids,
-        reason=None,
+        reason=(reason if kind is RoleRequestKind.FTT_ENTRY else None),
         ui=ui,
         created_at=created_at,
         kind=kind,
     )
-    embed.description = (
-        "La solicitud quedó registrada y este mensaje se actualizará cuando sea resuelta."
-    )
+    embed.description = "La solicitud quedó registrada y este mensaje se actualizará cuando sea resuelta."
     return embed
 
 
@@ -188,6 +203,18 @@ def build_decision_embed(
             value=RETIREMENT_REQUEST_VALUE,
             inline=False,
         )
+    elif request.kind is RoleRequestKind.FTT_ENTRY:
+        embed.add_field(
+            name=REQUEST_KIND_FIELD_TITLE,
+            value=FTT_ENTRY_REQUEST_VALUE,
+            inline=False,
+        )
+        if request.reason:
+            embed.add_field(
+                name=STATION_FIELD_TITLE,
+                value=request.reason,
+                inline=False,
+            )
     if request.add_role_ids:
         embed.add_field(
             name=ADD_FIELD_TITLE,
@@ -200,7 +227,7 @@ def build_decision_embed(
             value=_render_role_mentions(request.remove_role_ids),
             inline=True,
         )
-    if request.reason:
+    if request.reason and request.kind is not RoleRequestKind.FTT_ENTRY:
         embed.add_field(name=REASON_FIELD_TITLE, value=request.reason, inline=False)
     embed.add_field(name=STATUS_FIELD_TITLE, value=status, inline=False)
 
@@ -258,7 +285,9 @@ def build_public_decision_embed(
 ) -> discord.Embed:
     """Render a terminal public card without reasons or supervisor details."""
 
-    sanitized_request = request.model_copy(update={"reason": None})
+    sanitized_request = request.model_copy(
+        update={"reason": (request.reason if request.kind is RoleRequestKind.FTT_ENTRY else None)}
+    )
     embed = build_decision_embed(
         sanitized_request,
         decision,
@@ -347,12 +376,21 @@ def decode_pending_message(
         raise RoleRequestCodecError("role request embed field layout is invalid")
     fields = {field.name: field.value for field in embed.fields}
     request_kind = _parse_request_kind(fields.get(REQUEST_KIND_FIELD_TITLE))
+    if request_kind is RoleRequestKind.FTT_ENTRY:
+        if STATION_FIELD_TITLE not in fields or REASON_FIELD_TITLE in fields:
+            raise RoleRequestCodecError("FTT entry request station is invalid")
+    elif STATION_FIELD_TITLE in fields:
+        raise RoleRequestCodecError("role request station is unexpected")
     _validate_pending_components(message, kind=request_kind)
     add_role_ids = _parse_role_mentions(fields.get(ADD_FIELD_TITLE, ""))
     remove_role_ids = _parse_role_mentions(fields.get(REMOVE_FIELD_TITLE, ""))
     if not add_role_ids and not remove_role_ids:
         raise RoleRequestCodecError("role request must contain at least one role change")
-    reason_value = fields.get(REASON_FIELD_TITLE, "").strip()
+    reason_value = (
+        fields.get(STATION_FIELD_TITLE, "").strip()
+        if request_kind is RoleRequestKind.FTT_ENTRY
+        else fields.get(REASON_FIELD_TITLE, "").strip()
+    )
     created_at = embed.timestamp or message.created_at
     if created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=UTC)
@@ -405,6 +443,8 @@ def _parse_request_kind(value: str | None) -> RoleRequestKind:
         return RoleRequestKind.NORMAL
     if value.strip() == RETIREMENT_REQUEST_VALUE:
         return RoleRequestKind.RETIREMENT
+    if value.strip() == FTT_ENTRY_REQUEST_VALUE:
+        return RoleRequestKind.FTT_ENTRY
     raise RoleRequestCodecError("role request type is invalid")
 
 

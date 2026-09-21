@@ -25,6 +25,7 @@ class RoleRequestStatus(StrEnum):
 class RoleRequestKind(StrEnum):
     NORMAL = "normal"
     RETIREMENT = "retirement"
+    FTT_ENTRY = "ftt_entry"
 
 
 class StoredRoleRequestStatus(StrEnum):
@@ -84,6 +85,14 @@ class StoredRoleRequest(BaseModel):
     updated_at: datetime
     decided_at: datetime | None = None
 
+    @model_validator(mode="after")
+    def validate_guided_entry(self) -> StoredRoleRequest:
+        if self.kind is RoleRequestKind.FTT_ENTRY and (
+            self.remove_role_ids or not self.reason
+        ):
+            raise ValueError("an FTT entry request requires a station and cannot remove roles")
+        return self
+
     def as_legacy_request(self, *, source_channel_id: int, source_message_id: int) -> RoleRequest:
         """Adapt persisted state to the validated role-change engine."""
 
@@ -131,6 +140,10 @@ class RoleRequest(BaseModel):
             raise ValueError("role request must contain at least one role change")
         if self.kind is RoleRequestKind.RETIREMENT and len(self.add_role_ids) != 1:
             raise ValueError("a retirement request must add exactly one role")
+        if self.kind is RoleRequestKind.FTT_ENTRY and self.remove_role_ids:
+            raise ValueError("an FTT entry request cannot remove roles")
+        if self.kind is RoleRequestKind.FTT_ENTRY and not self.reason:
+            raise ValueError("an FTT entry request must identify its station")
         if len(set(self.add_role_ids)) != len(self.add_role_ids):
             raise ValueError("roles to add must be unique")
         if len(set(self.remove_role_ids)) != len(self.remove_role_ids):

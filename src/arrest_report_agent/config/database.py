@@ -142,8 +142,35 @@ class ReportOwnerAccessOptions(FrozenConfigModel):
     max_rounds: int = Field(ge=1, le=20)
 
 
+class RoleRequestStationOption(FrozenConfigModel):
+    key: str = Field(pattern=r"^[a-z][a-z0-9_]{1,39}$")
+    label: str = Field(min_length=1, max_length=100)
+    role_id: int = Field(gt=0)
+    emoji: str | None = Field(default=None, min_length=1, max_length=20)
+
+
+class RoleRequestFttEntryOptions(FrozenConfigModel):
+    base_role_ids: tuple[int, ...] = Field(min_length=1, max_length=9)
+    stations: tuple[RoleRequestStationOption, ...] = Field(min_length=1, max_length=10)
+
+    @model_validator(mode="after")
+    def validate_role_catalog(self) -> RoleRequestFttEntryOptions:
+        station_keys = tuple(station.key for station in self.stations)
+        station_role_ids = tuple(station.role_id for station in self.stations)
+        if len(set(self.base_role_ids)) != len(self.base_role_ids):
+            raise ValueError("FTT entry base roles must be unique")
+        if len(set(station_keys)) != len(station_keys):
+            raise ValueError("FTT entry station keys must be unique")
+        if len(set(station_role_ids)) != len(station_role_ids):
+            raise ValueError("FTT entry station roles must be unique")
+        if set(self.base_role_ids) & set(station_role_ids):
+            raise ValueError("FTT entry base and station roles must be distinct")
+        return self
+
+
 class RoleRequestOptions(FrozenConfigModel):
     retired_role_id: int | None = Field(default=None, gt=0)
+    ftt_entry: RoleRequestFttEntryOptions | None = None
 
 
 class PagerOptions(FrozenConfigModel):
@@ -446,6 +473,16 @@ class GuildConfigSnapshot(FrozenConfigModel):
                     raise ValueError("role request retirement requires an explicit managed-role catalog")
                 if options.retired_role_id not in allowed_roles.ids:
                     raise ValueError("role request retirement role must belong to the managed-role catalog")
+            if options.ftt_entry is not None:
+                allowed_roles = self.policies[AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]
+                if allowed_roles.mode is not AccessPolicyMode.RESTRICTED:
+                    raise ValueError("FTT entry requests require an explicit managed-role catalog")
+                entry_role_ids = {
+                    *options.ftt_entry.base_role_ids,
+                    *(station.role_id for station in options.ftt_entry.stations),
+                }
+                if not entry_role_ids <= set(allowed_roles.ids):
+                    raise ValueError("FTT entry roles must belong to the managed-role catalog")
         feature = self.features.get("pagers")
         if feature is not None and feature.enabled:
             if feature.schema_version != 1:
@@ -693,6 +730,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return RoleRequestOptions.model_validate(feature.payload).retired_role_id
+
+    @property
+    def role_request_ftt_entry(self) -> RoleRequestFttEntryOptions | None:
+        feature = self.snapshot.features.get("role_requests")
+        if feature is None or not feature.enabled:
+            return None
+        return RoleRequestOptions.model_validate(feature.payload).ftt_entry
 
     @property
     def pager_channel_allowlist(self) -> SnowflakeAllowlist:

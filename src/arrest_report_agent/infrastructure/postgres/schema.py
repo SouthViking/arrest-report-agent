@@ -1236,7 +1236,10 @@ role_requests = sa.Table(
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     sa.Column("decided_at", sa.DateTime(timezone=True)),
-    sa.CheckConstraint("kind IN ('normal','retirement')", name="ck_role_request_kind"),
+    sa.CheckConstraint(
+        "kind IN ('normal','retirement','ftt_entry')",
+        name="ck_role_request_kind",
+    ),
     sa.CheckConstraint(
         "status IN ('publishing','pending','processing','approved','partially_approved','rejected','failed')",
         name="ck_role_request_status",

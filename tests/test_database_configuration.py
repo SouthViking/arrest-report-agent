@@ -41,6 +41,7 @@ from arrest_report_agent.config import (
     PackagedPersonaProvider,
     PendingArrestReportsOptions,
     RadioAuditOptions,
+    RoleRequestFttEntryOptions,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
 from arrest_report_agent.deployments import DeploymentRepository, RailwayDeploymentEvent
@@ -278,6 +279,34 @@ def test_role_request_retirement_requires_explicit_managed_catalog(settings) -> 
     invalid["features"]["role_requests"]["payload"]["retired_role_id"] = 999
     with pytest.raises(ValueError, match="must belong to the managed-role catalog"):
         GuildConfigSnapshot.model_validate(invalid)
+
+
+def test_role_request_ftt_entry_requires_managed_unique_roles() -> None:
+    options = RoleRequestFttEntryOptions.model_validate(
+        {
+            "base_role_ids": [10, 11, 12, 13],
+            "stations": [
+                {"key": "ganton", "label": "Ganton", "role_id": 14, "emoji": "🏙️"},
+                {
+                    "key": "dillimore",
+                    "label": "Dillimore",
+                    "role_id": 15,
+                    "emoji": "🌲",
+                },
+            ],
+        }
+    )
+
+    assert options.base_role_ids == (10, 11, 12, 13)
+    assert [station.key for station in options.stations] == ["ganton", "dillimore"]
+
+    with pytest.raises(ValueError, match="base and station roles must be distinct"):
+        RoleRequestFttEntryOptions.model_validate(
+            {
+                "base_role_ids": [10, 11],
+                "stations": [{"key": "ganton", "label": "Ganton", "role_id": 10}],
+            }
+        )
 
 
 def test_arrest_lookup_runtime_requires_valid_enabled_payload(settings) -> None:

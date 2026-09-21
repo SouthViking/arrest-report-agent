@@ -28,7 +28,9 @@ from .database import (
     PendingArrestReportsOptions,
     RadioAuditOptions,
     ReportOwnerAccessOptions,
+    RoleRequestFttEntryOptions,
     RoleRequestOptions,
+    RoleRequestStationOption,
     WarrantNotificationOptions,
 )
 from .model_catalog import ModelCatalog, ResolvedModel
@@ -106,7 +108,9 @@ __all__ = [
     "PcuProfileKind",
     "RadioAuditOptions",
     "ReportOwnerAccessOptions",
+    "RoleRequestFttEntryOptions",
     "RoleRequestOptions",
+    "RoleRequestStationOption",
     "WarrantNotificationOptions",
     "LoadedPersona",
     "ModelCatalog",

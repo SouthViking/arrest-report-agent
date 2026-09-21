@@ -563,8 +563,11 @@ Sus títulos, etiquetas y ayudas son neutrales y comunes a todas las personalida
 Las validaciones esperables —como solicitar un rol ya asignado o retirar uno que no se posee— se
 presentan como alertas rojas y efímeras, con textos adaptados a la personalidad activa.
 
-Si el módulo configura un rol de retiro, el comando muestra primero dos opciones privadas:
-**Cambiar roles** y **Solicitar retiro**. El retiro usa un formulario reducido con motivo opcional
+Si el módulo configura el ingreso FTT o un rol de retiro, el comando muestra primero opciones privadas
+para elegir el flujo. **Ingreso FTT** solicita únicamente la estación de destino y prepara el paquete
+de roles iniciales configurado, omitiendo los que el miembro ya posea. La solicitud queda identificada
+como ingreso en sus tarjetas pública y privada, y solo admite aprobación o rechazo completos.
+**Solicitar retiro** usa un formulario reducido con motivo opcional
 y confirmación explícita; no presenta selectores de altas o bajas. La solicitud agrega el rol de
 retiro y muestra los roles gestionados actuales que se retirarán. Al aprobarla, el bot recalcula
 ese conjunto para incluir cambios posteriores, conserva los roles ajenos al catálogo y ejecuta una
@@ -591,7 +594,8 @@ confirmación. Los clics repetidos no vuelven a ejecutar cambios.
 ## `/info-roles`
 
 Explica públicamente y de forma breve cómo presentar una solicitud, dónde utilizar el comando y sus
-posibles resultados. Puede ejecutarse en cualquier canal o hilo de una guild habilitada.
+posibles resultados, incluido el ingreso guiado FTT cuando está disponible. Puede ejecutarse en
+cualquier canal o hilo de una guild habilitada.
 
 ## Errores y observabilidad
 

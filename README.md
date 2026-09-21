@@ -133,7 +133,9 @@ visibles para él y para el solicitante, evitando referencias `#desconocido` ent
 El subsistema de solicitudes de roles se habilita al configurar uno o más IDs explícitos en
 `ROLE_REQUEST_REVIEWER_ROLE_IDS`. `ROLE_REQUEST_ALLOWED_ROLE_IDS` sigue la regla uniforme de las
 allowlists: ausente, vacío o `*` permite todos los roles seguros; un CSV define un catálogo cerrado.
-`/solicitar-roles` publica un estado saneado en el mismo canal de texto donde se ejecuta;
+`/solicitar-roles` publica un estado saneado en el mismo canal de texto donde se ejecuta. Cuando la
+guild configura un ingreso FTT, ofrece un flujo guiado que solo solicita la estación y prepara el
+paquete completo de roles iniciales;
 `ROLE_REQUEST_ALLOWED_CHANNEL_IDS` puede abrir todos esos canales con `*` o restringirlos mediante
 CSV. El motivo y los controles se replican únicamente en los canales privados de la política
 `role_request_review_channels`. No aplica `AUTHORIZED_USER_IDS`, no funciona dentro de hilos, no usa

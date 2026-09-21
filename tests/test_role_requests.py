@@ -8,17 +8,23 @@ from uuid import uuid4
 import discord
 import pytest
 
+from arrest_report_agent.config import (
+    RoleRequestFttEntryOptions,
+    RoleRequestStationOption,
+)
 from arrest_report_agent.role_requests.codec import (
     ADD_FIELD_TITLE,
     APPROVE_ALL_CUSTOM_ID,
     APPROVE_PARTIAL_CUSTOM_ID,
     APPROVED_CHANGES_TITLE,
     EMPTY_VALUE,
+    FTT_ENTRY_PENDING_TITLE,
     REASON_FIELD_TITLE,
     REJECT_CUSTOM_ID,
     REMOVE_FIELD_TITLE,
     REQUEST_KIND_FIELD_TITLE,
     REVIEWER_FIELD_TITLE,
+    STATION_FIELD_TITLE,
     STATUS_FIELD_TITLE,
     UNAPPROVED_CHANGES_TITLE,
     RoleRequestCodecError,
@@ -31,6 +37,7 @@ from arrest_report_agent.role_requests.codec import (
 from arrest_report_agent.role_requests.discord import (
     ROLE_REQUEST_MODAL_COPY,
     CreateRoleRequestModal,
+    FttEntryRoleRequestModal,
     PartialApprovalModal,
     RejectRoleRequestModal,
     RetirementRoleRequestModal,
@@ -356,9 +363,7 @@ class FakeRoleRequestRepository:
 
     async def mark_failed(self, _request_id) -> None:
         if self.request is not None:
-            self.request = self.request.model_copy(
-                update={"status": StoredRoleRequestStatus.FAILED}
-            )
+            self.request = self.request.model_copy(update={"status": StoredRoleRequestStatus.FAILED})
 
     async def get_by_review_message(self, guild_id: int, channel_id: int, message_id: int):
         if self.request is None or self.request.guild_id != guild_id:
@@ -366,8 +371,7 @@ class FakeRoleRequestRepository:
         return (
             self.request
             if any(
-                mirror.channel_id == channel_id and mirror.message_id == message_id
-                for mirror in self.mirrors
+                mirror.channel_id == channel_id and mirror.message_id == message_id for mirror in self.mirrors
             )
             else None
         )
@@ -390,16 +394,12 @@ class FakeRoleRequestRepository:
             or self.request.status is not StoredRoleRequestStatus.PENDING
         ):
             return None
-        self.request = self.request.model_copy(
-            update={"status": StoredRoleRequestStatus.PROCESSING}
-        )
+        self.request = self.request.model_copy(update={"status": StoredRoleRequestStatus.PROCESSING})
         return self.request
 
     async def release_decision(self, request_id) -> None:
         if self.request is not None and self.request.id == request_id:
-            self.request = self.request.model_copy(
-                update={"status": StoredRoleRequestStatus.PENDING}
-            )
+            self.request = self.request.model_copy(update={"status": StoredRoleRequestStatus.PENDING})
 
     async def finalize(self, request_id, decision: RoleRequestDecision):
         assert self.request is not None and self.request.id == request_id
@@ -561,6 +561,45 @@ def _retirement_service(env, retired_role_id: int = 704) -> tuple[RoleRequestSer
     return RoleRequestService(env.service.bot, configured, env.service.persona), retired
 
 
+def _ftt_entry_service(env) -> tuple[RoleRequestService, tuple[FakeRole, ...]]:
+    roles = (
+        FakeRole(710, name="Field Training Trainee", position=2),
+        FakeRole(711, name="Deputy Sheriff", position=3),
+        FakeRole(712, name="Field Staff", position=4),
+        FakeRole(713, name="CSD: TTCF", position=5),
+        FakeRole(714, name="CPD: GNT", position=6),
+        FakeRole(715, name="NPD: DLM", position=6),
+    )
+    for role in roles:
+        role.guild = env.guild
+        env.guild.roles.append(role)
+        env.guild._roles[role.id] = role
+    configured = env.service.settings.model_copy(
+        update={
+            "role_request_allowed_role_ids_csv": ",".join(str(role.id) for role in roles),
+        }
+    )
+    service = RoleRequestService(env.service.bot, configured, env.service.persona)
+    service.ftt_entry_options = RoleRequestFttEntryOptions(
+        base_role_ids=(710, 711, 712, 713),
+        stations=(
+            RoleRequestStationOption(
+                key="ganton",
+                label="Ganton",
+                role_id=714,
+                emoji="🏙️",
+            ),
+            RoleRequestStationOption(
+                key="dillimore",
+                label="Dillimore",
+                role_id=715,
+                emoji="🌲",
+            ),
+        ),
+    )
+    return service, roles
+
+
 def test_role_request_commands_are_root_commands() -> None:
     assert RoleRequestCog.request_roles.name == "solicitar-roles"
     assert RoleRequestCog.info_roles.name == "info-roles"
@@ -644,6 +683,25 @@ def test_v2_public_embed_hides_sensitive_fields_and_private_embed_keeps_them(
     assert REASON_FIELD_TITLE not in terminal_names
     assert REVIEWER_FIELD_TITLE not in terminal_names
     assert "Comentario privado" not in str(terminal.to_dict())
+
+
+def test_v2_public_ftt_entry_embed_keeps_station_but_has_no_private_reason(
+    role_request_env,
+) -> None:
+    embed = build_public_pending_embed(
+        requester=role_request_env.requester,
+        add_role_ids=(710, 711, 712, 713, 714),
+        remove_role_ids=(),
+        ui=role_request_env.service.ui,
+        created_at=datetime(2026, 9, 21, 12, tzinfo=UTC),
+        kind=RoleRequestKind.FTT_ENTRY,
+        reason="Ganton · <@&714>",
+    )
+
+    fields = {field.name: field.value for field in embed.fields}
+    assert embed.title == FTT_ENTRY_PENDING_TITLE
+    assert fields[STATION_FIELD_TITLE] == "Ganton · <@&714>"
+    assert REASON_FIELD_TITLE not in fields
 
 
 @pytest.mark.asyncio
@@ -814,6 +872,36 @@ def test_retirement_codec_accepts_legacy_disabled_partial_button(role_request_en
         allowed_channel_ids=frozenset({CHANNEL_ID}),
     )
     assert request.kind is RoleRequestKind.RETIREMENT
+
+
+def test_pending_codec_round_trip_supports_ftt_entry(role_request_env) -> None:
+    service, roles = _ftt_entry_service(role_request_env)
+    embed = build_pending_embed(
+        requester=role_request_env.requester,
+        add_role_ids=tuple(role.id for role in roles[:5]),
+        remove_role_ids=(),
+        reason="Ganton · <@&714>",
+        ui=service.ui,
+        created_at=datetime(2026, 9, 21, 12, tzinfo=UTC),
+        message_id=852,
+        kind=RoleRequestKind.FTT_ENTRY,
+    )
+    message = FakeMessage(message_id=852, channel=role_request_env.channel, embed=embed)
+    message.components[0].children[1].disabled = True
+
+    request = decode_pending_message(
+        message,
+        bot_user_id=BOT_ID,
+        allowed_channel_ids=frozenset({CHANNEL_ID}),
+    )
+
+    assert request.kind is RoleRequestKind.FTT_ENTRY
+    assert request.reason == "Ganton · <@&714>"
+    assert message.embeds[0].title == FTT_ENTRY_PENDING_TITLE
+    assert [field.name for field in message.embeds[0].fields[:2]] == [
+        REQUEST_KIND_FIELD_TITLE,
+        STATION_FIELD_TITLE,
+    ]
 
 
 def test_pending_codec_accepts_legacy_empty_fields(role_request_env) -> None:
@@ -1068,10 +1156,7 @@ async def test_retirement_approval_recalculates_managed_roles_and_preserves_exte
     final_ids = {role.id for role in role_request_env.requester.roles}
     assert final_ids == {role_request_env.requester.top_role.id, retired.id}
     assert len(role_request_env.requester.edit_calls) == 1
-    approved = {
-        field.name: field.value
-        for field in message.embeds[0].fields
-    }[APPROVED_CHANGES_TITLE]
+    approved = {field.name: field.value for field in message.embeds[0].fields}[APPROVED_CHANGES_TITLE]
     assert role_request_env.add_two.mention in approved
 
 
@@ -1100,6 +1185,91 @@ async def test_retirement_cannot_be_partially_approved(role_request_env) -> None
 
     assert not role_request_env.requester.edit_calls
     assert ROLE_REQUEST_MODAL_COPY.retirement_partial_blocked in (
+        interaction.followup.messages[-1]["embed"].description
+    )
+
+
+@pytest.mark.asyncio
+async def test_ftt_entry_requests_only_station_and_applies_complete_package(
+    role_request_env,
+) -> None:
+    service, roles = _ftt_entry_service(role_request_env)
+    role_request_env.requester.roles.append(roles[1])
+    modal = FttEntryRoleRequestModal(
+        service,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+    )
+
+    assert modal.title == ROLE_REQUEST_MODAL_COPY.ftt_entry_title
+    assert [option.value for option in modal.station_select.options] == [
+        "ganton",
+        "dillimore",
+    ]
+    station, additions = service.ftt_entry_changes(role_request_env.requester, "ganton")
+    assert station == "Ganton · <@&714>"
+    assert tuple(role.id for role in additions) == (710, 712, 713, 714)
+
+    creation = _interaction(
+        role_request_env,
+        SimpleNamespace(id=0),
+        user=role_request_env.requester,
+    )
+    await service.create_ftt_entry_request(
+        creation,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+        station_key="ganton",
+    )
+
+    message = next(iter(role_request_env.channel.messages.values()))
+    request = decode_pending_message(
+        message,
+        bot_user_id=BOT_ID,
+        allowed_channel_ids=frozenset({CHANNEL_ID}),
+    )
+    assert request.kind is RoleRequestKind.FTT_ENTRY
+    assert request.add_role_ids == (710, 712, 713, 714)
+    assert [child.custom_id for child in message.components[0].children] == [
+        APPROVE_ALL_CUSTOM_ID,
+        REJECT_CUSTOM_ID,
+    ]
+
+    await service.approve_all(_interaction(role_request_env, message))
+
+    final_ids = {role.id for role in role_request_env.requester.roles}
+    assert {710, 711, 712, 713, 714} <= final_ids
+
+
+@pytest.mark.asyncio
+async def test_ftt_entry_cannot_be_partially_approved(role_request_env) -> None:
+    service, _roles = _ftt_entry_service(role_request_env)
+    creation = _interaction(
+        role_request_env,
+        SimpleNamespace(id=0),
+        user=role_request_env.requester,
+    )
+    await service.create_ftt_entry_request(
+        creation,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+        station_key="dillimore",
+    )
+    message = next(iter(role_request_env.channel.messages.values()))
+    interaction = _interaction(role_request_env, message)
+
+    await service.approve_partial(
+        interaction,
+        guild_id=GUILD_ID,
+        channel_id=CHANNEL_ID,
+        message_id=message.id,
+        selected_add=(710,),
+        selected_remove=(),
+        comment="Solo una parte",
+    )
+
+    assert not role_request_env.requester.edit_calls
+    assert ROLE_REQUEST_MODAL_COPY.ftt_entry_partial_blocked in (
         interaction.followup.messages[-1]["embed"].description
     )
 
@@ -1489,6 +1659,39 @@ async def test_request_command_offers_private_retirement_choice_when_configured(
     assert not modals
     assert responses[-1]["ephemeral"] is True
     assert isinstance(responses[-1]["view"], RoleRequestStartView)
+
+
+@pytest.mark.asyncio
+async def test_request_command_offers_guided_ftt_entry_when_configured(
+    role_request_env,
+) -> None:
+    service, _roles = _ftt_entry_service(role_request_env)
+    responses: list[dict[str, object]] = []
+
+    async def respond(content=None, **kwargs) -> None:
+        responses.append({"content": content, **kwargs})
+
+    async def unexpected_modal(_modal) -> None:
+        raise AssertionError("the guided start view must be shown first")
+
+    ctx = SimpleNamespace(
+        guild=role_request_env.guild,
+        author=role_request_env.requester,
+        channel=role_request_env.channel,
+        respond=respond,
+        send_modal=unexpected_modal,
+    )
+    cog = RoleRequestCog(service)
+
+    await cog.request_roles.callback(cog, ctx)
+
+    view = responses[-1]["view"]
+    assert responses[-1]["ephemeral"] is True
+    assert isinstance(view, RoleRequestStartView)
+    assert [child.label for child in view.children] == [
+        ROLE_REQUEST_MODAL_COPY.normal_button,
+        ROLE_REQUEST_MODAL_COPY.ftt_entry_button,
+    ]
 
 
 @pytest.mark.asyncio
