@@ -1238,6 +1238,11 @@ class ReviewCog(commands.Cog):
                     extra_feature_lines.append(
                         "• `/info-ordenes`: cómo notificar una orden a los encargados."
                     )
+                ftp_feature = bundle.snapshot.features.get("ftp_requests")
+                if ftp_feature is not None and ftp_feature.enabled:
+                    extra_feature_lines.append(
+                        "• `/info-ftp`: cómo programar y seguir una ficha del FTP."
+                    )
                 feature = bundle.snapshot.features.get("logbook")
                 if (
                     feature is not None

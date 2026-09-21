@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 from contextlib import suppress
+from datetime import UTC, datetime, timedelta
 from typing import cast
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import discord
 from discord.ext import commands
@@ -14,11 +16,18 @@ from arrest_report_agent.config import BotPersona, FtpRequestOptions, GuildRunti
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
-from .models import FtpRequestStatus, FtpTrainingRequest
+from .models import (
+    FtpInstructorLevel,
+    FtpRequestStatus,
+    FtpTrainingPhase,
+    FtpTrainingRequest,
+)
 from .repository import ActiveFtpRequestError, FtpRequestRepository
 
 LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
+FTP_TIMEZONE = ZoneInfo("America/Santiago")
+MAX_SCHEDULE_DAYS = 180
 
 
 class FtpRequestServiceRegistry:
@@ -88,25 +97,27 @@ class FtpRequestService:
 
     def can_request(self, member: discord.Member) -> bool:
         ftp = self.settings.ftp_status_options
-        options = self.request_options
-        if ftp is None or options is None:
+        if ftp is None or self.request_options is None:
             return False
-        return _has_any_role(member, (*ftp.all_role_ids, *options.management_role_ids))
+        return _has_any_role(member, ftp.ftt_role_ids)
 
-    def can_claim(self, member: discord.Member) -> bool:
+    def can_claim(self, member: discord.Member, request: FtpTrainingRequest) -> bool:
         ftp = self.settings.ftp_status_options
         options = self.request_options
         if ftp is None or options is None:
             return False
-        return _has_any_role(
-            member,
-            (
+        level = request.requested_instructor_level
+        if level is FtpInstructorLevel.SUPERVISOR:
+            eligible = (*ftp.supervisory_role_ids, *options.management_role_ids)
+        else:
+            # Legacy and general requests can be claimed by any qualified instructor.
+            eligible = (
                 *ftp.supervisory_role_ids,
                 *ftp.mfto_role_ids,
                 *ftp.fto_role_ids,
                 *options.management_role_ids,
-            ),
-        )
+            )
+        return _has_any_role(member, eligible)
 
     def can_cancel(self, member: discord.Member, request: FtpTrainingRequest) -> bool:
         options = self.request_options
@@ -131,11 +142,19 @@ class FtpRequestService:
             raise PermissionError("Bot cannot publish FTP requests in the configured channel")
         return resolved_channel
 
-    def notification_roles(self, guild: discord.Guild) -> tuple[discord.Role, ...]:
+    def notification_roles(
+        self,
+        guild: discord.Guild,
+        level: FtpInstructorLevel,
+    ) -> tuple[discord.Role, ...]:
         ftp = self.settings.ftp_status_options
         if ftp is None:
             return ()
-        role_ids = (*ftp.supervisory_role_ids, *ftp.mfto_role_ids, *ftp.fto_role_ids)
+        role_ids = (
+            ftp.supervisory_role_ids
+            if level is FtpInstructorLevel.SUPERVISOR
+            else (*ftp.fto_role_ids, *ftp.mfto_role_ids, *ftp.supervisory_role_ids)
+        )
         return tuple(role for role_id in role_ids if (role := guild.get_role(role_id)) is not None)
 
     async def create(
@@ -143,12 +162,18 @@ class FtpRequestService:
         interaction: discord.Interaction,
         *,
         member: discord.Member,
-        reason: str,
+        training_phase: FtpTrainingPhase,
+        requested_instructor_level: FtpInstructorLevel,
+        scheduled_for: datetime,
     ) -> None:
-        normalized_reason = reason.strip()
-        if not 10 <= len(normalized_reason) <= 500:
+        now = datetime.now(UTC)
+        if (
+            scheduled_for.tzinfo is None
+            or scheduled_for <= now
+            or scheduled_for > now + timedelta(days=MAX_SCHEDULE_DAYS)
+        ):
             await interaction.response.send_message(
-                embed=self.alert(self.ui.invalid_reason),
+                embed=self.alert(self.ui.invalid_schedule),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -158,18 +183,20 @@ class FtpRequestService:
         message: discord.Message | None = None
         try:
             channel = await self.destination_channel(member.guild)
-            roles = self.notification_roles(member.guild)
+            roles = self.notification_roles(member.guild, requested_instructor_level)
             if not roles:
                 raise LookupError("No FTP notification roles are available")
             request = await self.repository.create_publishing(
                 guild_id=member.guild.id,
                 channel_id=channel.id,
                 requester_user_id=member.id,
-                reason=normalized_reason,
+                training_phase=training_phase,
+                requested_instructor_level=requested_instructor_level,
+                scheduled_for=scheduled_for,
             )
             message = await channel.send(
                 content=" ".join(role.mention for role in roles),
-                embed=build_ftp_request_embed(request),
+                embed=build_ftp_request_embed(request, requester=member),
                 view=FtpRequestControlsView(),
                 allowed_mentions=discord.AllowedMentions(
                     everyone=False,
@@ -180,7 +207,7 @@ class FtpRequestService:
             )
             request = await self.repository.publish(request.id, message.id)
             await message.edit(
-                embed=build_ftp_request_embed(request),
+                embed=build_ftp_request_embed(request, requester=member),
                 view=FtpRequestControlsView(),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -242,7 +269,7 @@ class FtpRequestService:
         except LookupError:
             await interaction.response.send_message(embed=self.alert(self.ui.stale), ephemeral=True)
             return
-        if not isinstance(member, discord.Member) or not self.can_claim(member):
+        if not isinstance(member, discord.Member) or not self.can_claim(member, request):
             await interaction.response.send_message(
                 embed=self.alert(self.ui.unauthorized_acceptor), ephemeral=True
             )
@@ -255,7 +282,7 @@ class FtpRequestService:
         if request.status is not FtpRequestStatus.PENDING:
             await interaction.response.send_message(embed=self.alert(self.ui.stale), ephemeral=True)
             return
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         changed = False
         try:
             request, changed = await self.repository.claim(request.id, actor_user_id=member.id)
@@ -273,6 +300,17 @@ class FtpRequestService:
                     )
             await interaction.followup.send(embed=self.alert(self.ui.operation_failed), ephemeral=True)
             self._log_error("ftp_request_claim_failed", error, interaction)
+            return
+        await self._notify_requester(interaction, request, member)
+        await interaction.followup.send(
+            embed=discord.Embed(
+                title="✅ Ficha asignada",
+                description=self.ui.claim_success,
+                color=discord.Color.green(),
+            ),
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
     async def cancel(self, interaction: discord.Interaction) -> None:
         member = interaction.user
@@ -289,7 +327,7 @@ class FtpRequestService:
         if request.status is not FtpRequestStatus.PENDING:
             await interaction.response.send_message(embed=self.alert(self.ui.stale), ephemeral=True)
             return
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         changed = False
         try:
             request, changed = await self.repository.cancel(request.id, actor_user_id=member.id)
@@ -307,20 +345,84 @@ class FtpRequestService:
                     )
             await interaction.followup.send(embed=self.alert(self.ui.operation_failed), ephemeral=True)
             self._log_error("ftp_request_cancel_failed", error, interaction)
+            return
+        await interaction.followup.send(
+            embed=discord.Embed(
+                title="✖️ Solicitud cancelada",
+                description=self.ui.cancel_success,
+                color=discord.Color.red(),
+            ),
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
-    @staticmethod
     async def _edit_interaction_message(
+        self,
         interaction: discord.Interaction,
         request: FtpTrainingRequest,
     ) -> None:
         if interaction.message is None:
             raise LookupError("FTP request Discord message is unavailable")
+        requester = await self._requester_member(interaction, request.requester_user_id)
         await interaction.message.edit(
             content=None,
-            embed=build_ftp_request_embed(request),
+            embed=build_ftp_request_embed(request, requester=requester),
             view=FtpRequestControlsView(disabled=True),
             allowed_mentions=discord.AllowedMentions.none(),
         )
+
+    async def _notify_requester(
+        self,
+        interaction: discord.Interaction,
+        request: FtpTrainingRequest,
+        instructor: discord.Member,
+    ) -> None:
+        if interaction.message is None:
+            return
+        phase = request.training_phase.label if request.training_phase else "la ficha solicitada"
+        requester = discord.Object(id=request.requester_user_id)
+        try:
+            await interaction.message.reply(
+                content=(
+                    f"<@{request.requester_user_id}>, <@{instructor.id}> tomó tu solicitud "
+                    f"para **{phase}**. Ya pueden coordinar los detalles. 🚓"
+                ),
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=False,
+                    users=[requester],
+                    roles=False,
+                    replied_user=False,
+                ),
+            )
+        except (discord.Forbidden, discord.HTTPException) as error:
+            log_event(
+                LOGGER,
+                "warning",
+                "ftp_request_requester_notification_failed",
+                exc_info=error,
+                guild_id=request.guild_id,
+                channel_id=request.channel_id,
+                message_id=request.message_id,
+                requester_user_id=request.requester_user_id,
+                actor_user_id=instructor.id,
+                **exception_fields(error),
+            )
+
+    @staticmethod
+    async def _requester_member(
+        interaction: discord.Interaction,
+        requester_user_id: int,
+    ) -> discord.Member | None:
+        guild = interaction.guild
+        if guild is None:
+            return None
+        member = guild.get_member(requester_user_id)
+        if member is not None:
+            return member
+        try:
+            return await guild.fetch_member(requester_user_id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            return None
 
     @staticmethod
     def _log_transition(event: str, request: FtpTrainingRequest, actor_user_id: int) -> None:
@@ -367,7 +469,7 @@ class FtpRequestControlsView(discord.ui.View):
             return None
 
     @discord.ui.button(
-        label="Tomar solicitud",
+        label="Tomar ficha",
         emoji="🙋",
         style=discord.ButtonStyle.success,
         custom_id="ftp-request:v1:claim",
@@ -379,9 +481,7 @@ class FtpRequestControlsView(discord.ui.View):
     ) -> None:
         service = await self._service(interaction)
         if service is None or not service.enabled:
-            await interaction.response.send_message(
-                embed=_unavailable_embed(service), ephemeral=True
-            )
+            await interaction.response.send_message(embed=_unavailable_embed(service), ephemeral=True)
             return
         await service.claim(interaction)
 
@@ -398,9 +498,7 @@ class FtpRequestControlsView(discord.ui.View):
     ) -> None:
         service = await self._service(interaction)
         if service is None or not service.enabled:
-            await interaction.response.send_message(
-                embed=_unavailable_embed(service), ephemeral=True
-            )
+            await interaction.response.send_message(embed=_unavailable_embed(service), ephemeral=True)
             return
         await service.cancel(interaction)
 
@@ -409,17 +507,56 @@ class FtpRequestModal(discord.ui.DesignerModal):
     def __init__(self, service: FtpRequestService, member: discord.Member) -> None:
         self.service = service
         self.member_id = member.id
-        self.reason = discord.ui.InputText(
-            custom_id="ftp-request:v1:create:reason",
-            style=discord.InputTextStyle.long,
-            placeholder="Explique brevemente qué entrenamiento o apoyo necesita.",
+        self.training_phase = discord.ui.StringSelect(  # type: ignore[type-var]
+            custom_id="ftp-request:v2:create:phase",
+            placeholder="Seleccione la ficha que realizará",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(label="Fase 1", value=FtpTrainingPhase.PHASE_1.value, emoji="1️⃣"),
+                discord.SelectOption(label="Fase 2", value=FtpTrainingPhase.PHASE_2.value, emoji="2️⃣"),
+                discord.SelectOption(label="Fase 3", value=FtpTrainingPhase.PHASE_3.value, emoji="3️⃣"),
+            ],
+        )
+        self.instructor_level = discord.ui.StringSelect(  # type: ignore[type-var]
+            custom_id="ftp-request:v2:create:instructor",
+            placeholder="Seleccione el tipo de evaluador",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(
+                    label="General",
+                    value=FtpInstructorLevel.GENERAL.value,
+                    description="Cualquier instructor disponible",
+                    emoji="👨‍🏫",
+                ),
+                discord.SelectOption(
+                    label="Supervisor",
+                    value=FtpInstructorLevel.SUPERVISOR.value,
+                    description="Supervisory, Command o Executive",
+                    emoji="⭐",
+                ),
+            ],
+        )
+        self.date = discord.ui.InputText(
+            custom_id="ftp-request:v2:create:date",
+            placeholder="DD/MM/AAAA",
             min_length=10,
-            max_length=500,
+            max_length=10,
+        )
+        self.time = discord.ui.InputText(
+            custom_id="ftp-request:v2:create:time",
+            placeholder="HH:MM",
+            min_length=4,
+            max_length=5,
         )
         super().__init__(
-            discord.ui.Label("Motivo de la solicitud", self.reason),
-            title="Solicitar un instructor FTP",
-            custom_id=f"ftp-request:v1:create:{member.id}",
+            discord.ui.Label("Ficha a realizar", self.training_phase),
+            discord.ui.Label("Tipo de evaluador", self.instructor_level),
+            discord.ui.Label("Fecha", self.date),
+            discord.ui.Label("Hora", self.time),
+            title="Solicitar una ficha FTP",
+            custom_id=f"ftp-request:v2:create:{member.id}",
             timeout=MODAL_TIMEOUT_SECONDS,
         )
 
@@ -431,13 +568,34 @@ class FtpRequestModal(discord.ui.DesignerModal):
                 ephemeral=True,
             )
             return
-        await self.service.create(interaction, member=member, reason=self.reason.value or "")
+        try:
+            training_phase = FtpTrainingPhase(next(iter(self.training_phase.values or ())))
+            instructor_level = FtpInstructorLevel(next(iter(self.instructor_level.values or ())))
+            scheduled_for = parse_ftp_schedule(
+                self.date.value or "",
+                self.time.value or "",
+            )
+        except (StopIteration, ValueError):
+            await interaction.response.send_message(
+                embed=self.service.alert(self.service.ui.invalid_schedule),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await self.service.create(
+            interaction,
+            member=member,
+            training_phase=training_phase,
+            requested_instructor_level=instructor_level,
+            scheduled_for=scheduled_for,
+        )
 
 
 class FtpRequestCog(commands.Cog):
     def __init__(self, registry: FtpRequestServiceRegistry, persona: BotPersona) -> None:
         self.registry = registry
         self.request_fto.description = persona.messages.interface.commands.ftp_request_description
+        self.info_ftp.description = persona.messages.interface.commands.info_ftp_description
 
     @discord.slash_command(name="solicitar-fto", description="Solicita un instructor del FTP")
     async def request_fto(self, ctx: discord.ApplicationContext) -> None:
@@ -464,6 +622,14 @@ class FtpRequestCog(commands.Cog):
                 ephemeral=True,
             )
             return
+        if ctx.channel is None or ctx.channel.id != service.request_options.channel_id:
+            channel_mention = f"<#{service.request_options.channel_id}>"
+            await ctx.respond(
+                embed=service.alert(service.ui.wrong_channel.format(channel=channel_mention)),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
         try:
             await service.destination_channel(ctx.guild)
         except Exception as error:
@@ -472,8 +638,37 @@ class FtpRequestCog(commands.Cog):
             return
         await ctx.send_modal(FtpRequestModal(service, ctx.author))
 
+    @discord.slash_command(name="info-ftp", description="Explica cómo solicitar una ficha FTP")
+    async def info_ftp(self, ctx: discord.ApplicationContext) -> None:
+        if ctx.guild is None:
+            await ctx.respond(
+                embed=discord.Embed(
+                    title="⚠️ Información FTP no disponible",
+                    description="Este comando solo funciona dentro de un servidor.",
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return
+        try:
+            service = await self.registry.get(ctx.guild.id, require_enabled=False)
+        except LookupError:
+            service = None
+        if service is None or not service.enabled or service.request_options is None:
+            await ctx.respond(embed=_unavailable_embed(service), ephemeral=True)
+            return
+        await ctx.respond(
+            embed=build_ftp_info_embed(service),
+            ephemeral=False,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
-def build_ftp_request_embed(request: FtpTrainingRequest) -> discord.Embed:
+
+def build_ftp_request_embed(
+    request: FtpTrainingRequest,
+    *,
+    requester: discord.Member | None = None,
+) -> discord.Embed:
     status, color = {
         FtpRequestStatus.PUBLISHING: ("Preparando publicación", discord.Color.gold()),
         FtpRequestStatus.PENDING: ("Esperando instructor", discord.Color.gold()),
@@ -482,12 +677,34 @@ def build_ftp_request_embed(request: FtpTrainingRequest) -> discord.Embed:
         FtpRequestStatus.FAILED: ("No publicada", discord.Color.red()),
     }[request.status]
     embed = discord.Embed(
-        title="🎓 Solicitud de instrucción FTP",
-        description=_safe_user_text(request.reason),
+        title="🎓 Solicitud de ficha FTP",
+        description=_safe_user_text(request.reason) or None,
         color=color,
         timestamp=request.created_at,
     )
-    embed.add_field(name="Solicitante", value=f"<@{request.requester_user_id}>", inline=True)
+    if requester is not None:
+        embed.set_author(
+            name=requester.display_name,
+            icon_url=str(requester.display_avatar.url),
+        )
+    else:
+        embed.set_author(name="Field Training Trainee")
+    embed.add_field(name="Trainee", value=f"<@{request.requester_user_id}>", inline=True)
+    if request.training_phase is not None:
+        embed.add_field(name="Ficha", value=request.training_phase.label, inline=True)
+    if request.requested_instructor_level is not None:
+        embed.add_field(
+            name="Tipo de evaluador",
+            value=request.requested_instructor_level.label,
+            inline=True,
+        )
+    if request.scheduled_for is not None:
+        timestamp = int(request.scheduled_for.timestamp())
+        embed.add_field(
+            name="Fecha",
+            value=f"<t:{timestamp}:F>\n<t:{timestamp}:R>",
+            inline=False,
+        )
     embed.add_field(name="Estado", value=status, inline=True)
     if request.status is FtpRequestStatus.CLAIMED and request.claimed_by_user_id is not None:
         embed.add_field(
@@ -503,6 +720,73 @@ def build_ftp_request_embed(request: FtpTrainingRequest) -> discord.Embed:
         )
     embed.set_footer(text="Field Training Program")
     return embed
+
+
+def build_ftp_info_embed(service: FtpRequestService) -> discord.Embed:
+    options = service.request_options
+    if options is None:
+        raise LookupError("FTP request destination is not configured")
+    embed = discord.Embed(
+        title="🎓 Fichas del Field Training Program",
+        description=service.ui.info_intro,
+        color=discord.Color.gold(),
+    )
+    embed.add_field(
+        name="1️⃣ Solicitar una ficha",
+        value=(
+            f"Ve a <#{options.channel_id}> y utiliza `/solicitar-fto`. "
+            "Selecciona la fase, la fecha, la hora y si necesitas una evaluación general o de supervisor."
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="2️⃣ Publicación",
+        value=(
+            "Roy publicará la solicitud y avisará al grupo correspondiente. "
+            "La fecha se mostrará en la hora local de cada persona."
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="3️⃣ Cuando la tomen",
+        value=(
+            "La tarjeta mostrará al instructor asignado y recibirás una mención para que puedan coordinarse."
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="4️⃣ Cancelación",
+        value="Mientras siga pendiente, puedes cancelarla desde la propia solicitud.",
+        inline=False,
+    )
+    embed.add_field(name="Importante", value=service.ui.info_closing, inline=False)
+    embed.set_footer(text="Field Training Program")
+    return embed
+
+
+def parse_ftp_schedule(
+    raw_date: str,
+    raw_time: str,
+    *,
+    now: datetime | None = None,
+) -> datetime:
+    try:
+        local = datetime.strptime(
+            f"{raw_date.strip()} {raw_time.strip()}",
+            "%d/%m/%Y %H:%M",
+        ).replace(tzinfo=FTP_TIMEZONE)
+    except ValueError as error:
+        raise ValueError("Invalid FTP request schedule") from error
+    scheduled_for = local.astimezone(UTC)
+    reference = now or datetime.now(UTC)
+    if reference.tzinfo is None:
+        raise ValueError("Reference time must include timezone information")
+    reference = reference.astimezone(UTC)
+    if scheduled_for <= reference:
+        raise ValueError("FTP request schedule must be in the future")
+    if scheduled_for > reference + timedelta(days=MAX_SCHEDULE_DAYS):
+        raise ValueError("FTP request schedule is too far in the future")
+    return scheduled_for
 
 
 def _has_any_role(member: discord.Member, role_ids: tuple[int, ...]) -> bool:

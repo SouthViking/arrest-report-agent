@@ -49,7 +49,7 @@ _FTP_DEFAULTS: Mapping[int, FtpDefaults] = MappingProxyType(
             mfto_role_ids=(1234691474055233607,),
             fto_role_ids=(1234675643959083021,),
             ftt_role_ids=(1234675742013390849,),
-            request_channel_id=1234749125820420139,
+            request_channel_id=1551692208929906701,
             command_role_ids=(1234678029662294047,),
             executive_role_ids=(1234678238182244414,),
         ),

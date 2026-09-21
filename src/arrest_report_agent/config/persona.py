@@ -13,7 +13,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-PERSONA_SCHEMA_VERSION = 46
+PERSONA_SCHEMA_VERSION = 47
 PERSONA_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 MAX_PROFILE_ASSET_BYTES = 10_485_760
 SUPPORTED_PROFILE_ASSET_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif"})
@@ -857,14 +857,28 @@ class PersonaFtpRequestMessages(FrozenPersonaModel):
     alert_title: str = Field(min_length=1, max_length=256)
     unavailable: str = Field(min_length=1, max_length=400)
     unauthorized_requester: str = Field(min_length=1, max_length=400)
-    invalid_reason: str = Field(min_length=1, max_length=400)
+    wrong_channel: str = Field(min_length=1, max_length=400)
+    invalid_schedule: str = Field(min_length=1, max_length=400)
     active_request: str = Field(min_length=1, max_length=400)
     published: str = Field(min_length=1, max_length=400)
     unauthorized_acceptor: str = Field(min_length=1, max_length=400)
     requester_cannot_accept: str = Field(min_length=1, max_length=400)
     unauthorized_canceller: str = Field(min_length=1, max_length=400)
     stale: str = Field(min_length=1, max_length=400)
+    claim_success: str = Field(min_length=1, max_length=400)
+    cancel_success: str = Field(min_length=1, max_length=400)
+    info_intro: str = Field(min_length=1, max_length=500)
+    info_closing: str = Field(min_length=1, max_length=500)
     operation_failed: str = Field(min_length=1, max_length=400)
+
+    @model_validator(mode="after")
+    def validate_templates(self) -> PersonaFtpRequestMessages:
+        _require_template_fields(
+            self.wrong_channel,
+            {"channel"},
+            "interface.ftp_requests.wrong_channel",
+        )
+        return self
 
 
 class PersonaFactionMemberAnalysisMessages(FrozenPersonaModel):
@@ -1062,6 +1076,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     info_mdc_description: str = Field(min_length=1, max_length=100)
     connected_members_description: str = Field(min_length=1, max_length=100)
     ftp_request_description: str = Field(min_length=1, max_length=100)
+    info_ftp_description: str = Field(min_length=1, max_length=100)
     faction_member_analysis_description: str = Field(min_length=1, max_length=100)
     stolen_vehicles_description: str = Field(min_length=1, max_length=100)
     pending_arrest_reports_description: str = Field(min_length=1, max_length=100)

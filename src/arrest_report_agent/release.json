@@ -1,16 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.37.2",
-  "title": "Gravedad más clara en reportes",
-  "summary": "El listado de reportes pendientes ahora diferencia mejor los casos dentro del plazo y muestra solo lo que falta.",
+  "version": "0.38.0",
+  "title": "Coordinación de fichas FTP",
+  "summary": "Los trainees ahora pueden programar sus fichas y recibir una bienvenida guiada al ingresar al programa.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "Los casos dentro del plazo se muestran en verde y las filas omiten estados ya completados para facilitar la lectura."
+      "type": "added",
+      "text": "El nuevo /solicitar-fto permite indicar fase, horario y si se necesita un evaluador general o supervisor."
+    },
+    {
+      "type": "added",
+      "text": "Al aprobar un ingreso FTT, el trainee recibe una bienvenida en ftp-chat con el reglamento y el acceso al canal de fichas."
     }
   ],
   "acknowledgements": []

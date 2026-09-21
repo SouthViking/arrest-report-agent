@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -14,14 +14,19 @@ from alembic.config import Config
 from arrest_report_agent.config import FtpRequestOptions, FtpStatusOptions
 from arrest_report_agent.ftp_requests import (
     ActiveFtpRequestError,
+    FtpInstructorLevel,
     FtpRequestRepository,
     FtpRequestStatus,
+    FtpTrainingPhase,
     FtpTrainingRequest,
 )
 from arrest_report_agent.ftp_requests.discord import (
     FtpRequestControlsView,
+    FtpRequestModal,
     FtpRequestService,
+    build_ftp_info_embed,
     build_ftp_request_embed,
+    parse_ftp_schedule,
 )
 from arrest_report_agent.infrastructure.postgres import PostgresClient, PostgresClientConfig
 from arrest_report_agent.infrastructure.postgres.schema import discord_guilds
@@ -62,14 +67,21 @@ def _service(persona) -> FtpRequestService:
     )
 
 
-def _request(status: FtpRequestStatus = FtpRequestStatus.PENDING) -> FtpTrainingRequest:
+def _request(
+    status: FtpRequestStatus = FtpRequestStatus.PENDING,
+    *,
+    level: FtpInstructorLevel = FtpInstructorLevel.GENERAL,
+) -> FtpTrainingRequest:
     return FtpTrainingRequest(
         id=uuid4(),
         guild_id=1,
         channel_id=50,
         message_id=100,
         requester_user_id=200,
-        reason="Necesito practicar una detención vehicular completa.",
+        reason="",
+        training_phase=FtpTrainingPhase.PHASE_2,
+        requested_instructor_level=level,
+        scheduled_for=datetime.now(UTC) + timedelta(days=2),
         status=status,
         claimed_by_user_id=300 if status is FtpRequestStatus.CLAIMED else None,
         resolved_by_user_id=300 if status.terminal else None,
@@ -83,14 +95,23 @@ def test_ftp_request_permissions_follow_the_role_matrix(persona) -> None:
     service = _service(persona)
 
     assert service.can_request(_member(1, (40,)))  # FTT
-    assert service.can_request(_member(1, (30,)))  # FTO
-    assert service.can_request(_member(1, (60,)))  # Command
+    assert not service.can_request(_member(1, (30,)))  # FTO
+    assert not service.can_request(_member(1, (60,)))  # Command
     assert not service.can_request(_member(1, (999,)))
 
-    assert service.can_claim(_member(1, (30,)))  # FTO
-    assert service.can_claim(_member(1, (10,)))  # Supervisory
-    assert service.can_claim(_member(1, (70,)))  # Executive
-    assert not service.can_claim(_member(1, (40,)))  # FTT
+    general_request = _request()
+    supervisor_request = _request(level=FtpInstructorLevel.SUPERVISOR)
+    assert service.can_claim(_member(1, (30,)), general_request)  # FTO
+    assert service.can_claim(_member(1, (20,)), general_request)  # MFTO
+    assert service.can_claim(_member(1, (10,)), general_request)  # Supervisory
+    assert service.can_claim(_member(1, (60,)), general_request)  # Command
+    assert service.can_claim(_member(1, (70,)), general_request)  # Executive
+    assert not service.can_claim(_member(1, (30,)), supervisor_request)
+    assert not service.can_claim(_member(1, (20,)), supervisor_request)
+    assert service.can_claim(_member(1, (10,)), supervisor_request)  # Supervisory
+    assert service.can_claim(_member(1, (60,)), supervisor_request)  # Command
+    assert service.can_claim(_member(1, (70,)), supervisor_request)  # Executive
+    assert not service.can_claim(_member(1, (40,)), general_request)  # FTT
 
     request = _request()
     assert service.can_cancel(_member(200, (40,)), request)
@@ -99,17 +120,28 @@ def test_ftp_request_permissions_follow_the_role_matrix(persona) -> None:
     assert not service.can_cancel(_member(1, (30,)), request)
 
 
-def test_ftp_request_notifies_only_supervisory_mfto_and_fto(persona) -> None:
-    service = _service(persona)
-    roles = {
-        role_id: SimpleNamespace(id=role_id)
-        for role_id in (10, 20, 30, 40, 60, 70)
-    }
+@pytest.mark.asyncio
+async def test_ftp_request_modal_exposes_only_general_and_supervisor(persona) -> None:
+    modal = FtpRequestModal(_service(persona), _member(1, (40,)))
 
-    assert [role.id for role in service.notification_roles(SimpleNamespace(get_role=roles.get))] == [
-        10,
-        20,
+    assert [(option.label, option.value) for option in modal.instructor_level.options] == [
+        ("General", FtpInstructorLevel.GENERAL.value),
+        ("Supervisor", FtpInstructorLevel.SUPERVISOR.value),
+    ]
+
+
+def test_ftp_request_notifies_the_selected_evaluator_group(persona) -> None:
+    service = _service(persona)
+    roles = {role_id: SimpleNamespace(id=role_id) for role_id in (10, 20, 30, 40, 60, 70)}
+
+    guild = SimpleNamespace(get_role=roles.get)
+    assert [role.id for role in service.notification_roles(guild, FtpInstructorLevel.GENERAL)] == [
         30,
+        20,
+        10,
+    ]
+    assert [role.id for role in service.notification_roles(guild, FtpInstructorLevel.SUPERVISOR)] == [
+        10
     ]
 
 
@@ -122,14 +154,50 @@ async def test_terminal_ftp_request_view_disables_both_actions() -> None:
 
 
 def test_ftp_request_embed_is_neutral_and_disables_technical_ids() -> None:
-    pending = build_ftp_request_embed(_request())
+    requester = SimpleNamespace(
+        display_name="C. Harrington",
+        display_avatar=SimpleNamespace(url="https://cdn.example/avatar.png"),
+    )
+    pending = build_ftp_request_embed(_request(), requester=requester)
     claimed = build_ftp_request_embed(_request(FtpRequestStatus.CLAIMED))
 
-    assert pending.title == "🎓 Solicitud de instrucción FTP"
-    assert pending.description == "Necesito practicar una detención vehicular completa."
-    assert "100" not in str(pending.to_dict())
+    assert pending.title == "🎓 Solicitud de ficha FTP"
+    assert pending.author.name == "C. Harrington"
+    assert pending.author.icon_url == "https://cdn.example/avatar.png"
+    assert all(field.value != "100" for field in pending.fields)
+    assert any(field.name == "Ficha" and field.value == "Fase 2" for field in pending.fields)
+    assert any(
+        field.name == "Tipo de evaluador" and field.value == "General"
+        for field in pending.fields
+    )
+    assert any(field.name == "Fecha" and "<t:" in field.value for field in pending.fields)
     assert any(field.name == "Estado" and field.value == "Esperando instructor" for field in pending.fields)
     assert any(field.name == "Instructor asignado" and field.value == "<@300>" for field in claimed.fields)
+
+
+def test_parse_ftp_schedule_uses_chile_and_rejects_invalid_ranges() -> None:
+    now = datetime(2026, 9, 21, 15, 0, tzinfo=UTC)
+
+    assert parse_ftp_schedule("26/09/2026", "20:00", now=now) == datetime(
+        2026,
+        9,
+        26,
+        23,
+        0,
+        tzinfo=UTC,
+    )
+    with pytest.raises(ValueError, match="future"):
+        parse_ftp_schedule("20/09/2026", "20:00", now=now)
+    with pytest.raises(ValueError, match="Invalid"):
+        parse_ftp_schedule("mañana", "después", now=now)
+
+
+def test_ftp_info_embed_points_to_the_configured_channel(persona) -> None:
+    embed = build_ftp_info_embed(_service(persona))
+
+    assert embed.title == "🎓 Fichas del Field Training Program"
+    assert any("<#50>" in field.value for field in embed.fields)
+    assert "superior" not in str(embed.to_dict()).lower()
 
 
 def test_ftp_request_options_reject_overlap_between_management_roles() -> None:
@@ -156,9 +224,7 @@ async def test_ftp_request_repository_serializes_creation_and_transitions(
     requester_id = 975432101234567801
     try:
         await client.execute(discord_guilds.delete().where(discord_guilds.c.discord_id == guild_id))
-        await client.execute(
-            discord_guilds.insert().values(discord_id=guild_id, name="FTP requests QA")
-        )
+        await client.execute(discord_guilds.insert().values(discord_id=guild_id, name="FTP requests QA"))
         repository = FtpRequestRepository(client)
 
         async def reserve():
@@ -166,7 +232,9 @@ async def test_ftp_request_repository_serializes_creation_and_transitions(
                 guild_id=guild_id,
                 channel_id=975432101234567802,
                 requester_user_id=requester_id,
-                reason="Necesito practicar una detención vehicular completa.",
+                training_phase=FtpTrainingPhase.PHASE_2,
+                requested_instructor_level=FtpInstructorLevel.SUPERVISOR,
+                scheduled_for=datetime.now(UTC) + timedelta(days=2),
             )
 
         outcomes = await asyncio.gather(reserve(), reserve(), return_exceptions=True)
@@ -177,6 +245,9 @@ async def test_ftp_request_repository_serializes_creation_and_transitions(
 
         request = await repository.publish(created[0].id, 975432101234567803)
         assert request.status is FtpRequestStatus.PENDING
+        assert request.training_phase is FtpTrainingPhase.PHASE_2
+        assert request.requested_instructor_level is FtpInstructorLevel.SUPERVISOR
+        assert request.scheduled_for is not None
         restored = await FtpRequestRepository(client).get_by_message(
             guild_id,
             request.channel_id,

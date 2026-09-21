@@ -378,6 +378,9 @@ ftp_training_requests = sa.Table(
     sa.Column("message_id", sa.BigInteger),
     sa.Column("requester_user_id", sa.BigInteger, nullable=False),
     sa.Column("reason", sa.String(500), nullable=False),
+    sa.Column("training_phase", sa.String(20)),
+    sa.Column("requested_instructor_level", sa.String(20)),
+    sa.Column("scheduled_for", sa.DateTime(timezone=True)),
     sa.Column("status", sa.String(20), nullable=False),
     sa.Column("claimed_by_user_id", sa.BigInteger),
     sa.Column("resolved_by_user_id", sa.BigInteger),
@@ -389,8 +392,17 @@ ftp_training_requests = sa.Table(
         name="ck_ftp_training_request_status",
     ),
     sa.CheckConstraint(
-        "char_length(reason) BETWEEN 10 AND 500",
+        "char_length(reason) <= 500",
         name="ck_ftp_training_request_reason_length",
+    ),
+    sa.CheckConstraint(
+        "training_phase IS NULL OR training_phase IN ('phase_1','phase_2','phase_3')",
+        name="ck_ftp_training_request_phase",
+    ),
+    sa.CheckConstraint(
+        "requested_instructor_level IS NULL OR "
+        "requested_instructor_level IN ('general','supervisor')",
+        name="ck_ftp_training_request_instructor_level",
     ),
     sa.UniqueConstraint(
         "guild_id",

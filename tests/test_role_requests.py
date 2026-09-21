@@ -10,6 +10,7 @@ import pytest
 
 from arrest_report_agent.config import (
     RoleRequestFttEntryOptions,
+    RoleRequestFttWelcomeOptions,
     RoleRequestStationOption,
 )
 from arrest_report_agent.role_requests.codec import (
@@ -64,6 +65,9 @@ BOT_ID = 300
 REQUESTER_ID = 400
 REVIEWER_ID = 500
 REVIEWER_ROLE_ID = 600
+WELCOME_CHANNEL_ID = 201
+ANNOUNCEMENTS_CHANNEL_ID = 202
+BIG_BROTHER_CHANNEL_ID = 203
 
 
 class FakePermissions:
@@ -126,6 +130,10 @@ class FakeMember:
         self.edit_calls: list[dict[str, object]] = []
         self.dm_calls: list[dict[str, object]] = []
         self.dm_blocked = False
+
+    @property
+    def mention(self) -> str:
+        return f"<@{self.id}>"
 
     async def edit(self, **kwargs) -> None:
         self.edit_calls.append(kwargs)
@@ -218,6 +226,11 @@ class FakeGuild:
         if member_id not in self._members:
             raise _not_found()
         return self._members[member_id]
+
+    async def fetch_channel(self, channel_id: int):
+        if channel_id not in self._channels:
+            raise _not_found()
+        return self._channels[channel_id]
 
 
 class FakeBot:
@@ -579,7 +592,12 @@ def _ftt_entry_service(env) -> tuple[RoleRequestService, tuple[FakeRole, ...]]:
             "role_request_allowed_role_ids_csv": ",".join(str(role.id) for role in roles),
         }
     )
+    welcome_channel = FakeChannel(WELCOME_CHANNEL_ID)
+    welcome_channel.guild = env.guild
+    env.guild._channels[WELCOME_CHANNEL_ID] = welcome_channel
+    env.guild.text_channels.append(welcome_channel)
     service = RoleRequestService(env.service.bot, configured, env.service.persona)
+    service.ftp_request_channel_id = 1551692208929906701
     service.ftt_entry_options = RoleRequestFttEntryOptions(
         base_role_ids=(710, 711, 712, 713),
         stations=(
@@ -595,6 +613,11 @@ def _ftt_entry_service(env) -> tuple[RoleRequestService, tuple[FakeRole, ...]]:
                 role_id=715,
                 emoji="🌲",
             ),
+        ),
+        welcome=RoleRequestFttWelcomeOptions(
+            channel_id=WELCOME_CHANNEL_ID,
+            rules_url="https://sheriff.sarp.es/viewtopic.php?t=37",
+            reference_channel_ids=(ANNOUNCEMENTS_CHANNEL_ID, BIG_BROTHER_CHANNEL_ID),
         ),
     )
     return service, roles
@@ -1239,6 +1262,20 @@ async def test_ftt_entry_requests_only_station_and_applies_complete_package(
 
     final_ids = {role.id for role in role_request_env.requester.roles}
     assert {710, 711, 712, 713, 714} <= final_ids
+    welcome_channel = role_request_env.guild.get_channel(WELCOME_CHANNEL_ID)
+    assert welcome_channel is not None
+    assert len(welcome_channel.send_calls) == 1
+    welcome = welcome_channel.send_calls[0]
+    assert welcome["content"] == f"<@{REQUESTER_ID}>"
+    welcome_embed = welcome["embed"]
+    assert welcome_embed.title == "🎓 ¡Bienvenido al Field Training Program!"
+    assert welcome_embed.author.name == role_request_env.requester.display_name
+    assert welcome_embed.author.icon_url == "https://cdn.example/avatar.png"
+    assert "/solicitar-fto" in welcome_embed.description
+    assert "<#1551692208929906701>" in welcome_embed.description
+    assert "viewtopic.php?t=37" in welcome_embed.fields[0].value
+    assert f"<#{ANNOUNCEMENTS_CHANNEL_ID}>" in welcome_embed.fields[1].value
+    assert f"<#{BIG_BROTHER_CHANNEL_ID}>" in welcome_embed.fields[1].value
 
 
 @pytest.mark.asyncio

@@ -149,9 +149,24 @@ class RoleRequestStationOption(FrozenConfigModel):
     emoji: str | None = Field(default=None, min_length=1, max_length=20)
 
 
+class RoleRequestFttWelcomeOptions(FrozenConfigModel):
+    channel_id: int = Field(gt=0)
+    rules_url: HttpUrl
+    reference_channel_ids: tuple[int, ...] = Field(min_length=1, max_length=5)
+
+    @model_validator(mode="after")
+    def validate_channels(self) -> RoleRequestFttWelcomeOptions:
+        if len(set(self.reference_channel_ids)) != len(self.reference_channel_ids):
+            raise ValueError("FTT welcome reference channels must be unique")
+        if self.channel_id in self.reference_channel_ids:
+            raise ValueError("FTT welcome channel cannot also be a reference channel")
+        return self
+
+
 class RoleRequestFttEntryOptions(FrozenConfigModel):
     base_role_ids: tuple[int, ...] = Field(min_length=1, max_length=9)
     stations: tuple[RoleRequestStationOption, ...] = Field(min_length=1, max_length=10)
+    welcome: RoleRequestFttWelcomeOptions | None = None
 
     @model_validator(mode="after")
     def validate_role_catalog(self) -> RoleRequestFttEntryOptions:

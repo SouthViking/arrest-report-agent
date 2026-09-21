@@ -189,9 +189,7 @@ def test_forum_shortcut_options_are_typed_and_bounded() -> None:
             "sections": [
                 {
                     "title": "Foro",
-                    "links": [
-                        {"label": "Inicio", "url": "https://example.com/forum"}
-                    ],
+                    "links": [{"label": "Inicio", "url": "https://example.com/forum"}],
                 }
             ],
         }
@@ -268,9 +266,7 @@ def test_role_request_retirement_requires_explicit_managed_catalog(settings) -> 
     )
 
     invalid = snapshot.model_dump()
-    invalid["policies"][AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]["mode"] = (
-        AccessPolicyMode.OPEN
-    )
+    invalid["policies"][AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]["mode"] = AccessPolicyMode.OPEN
     invalid["policies"][AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]["ids"] = ()
     with pytest.raises(ValueError, match="explicit managed-role catalog"):
         GuildConfigSnapshot.model_validate(invalid)
@@ -294,11 +290,19 @@ def test_role_request_ftt_entry_requires_managed_unique_roles() -> None:
                     "emoji": "🌲",
                 },
             ],
+            "welcome": {
+                "channel_id": 20,
+                "rules_url": "https://sheriff.example/ftp",
+                "reference_channel_ids": [21, 22],
+            },
         }
     )
 
     assert options.base_role_ids == (10, 11, 12, 13)
     assert [station.key for station in options.stations] == ["ganton", "dillimore"]
+    assert options.welcome is not None
+    assert options.welcome.channel_id == 20
+    assert options.welcome.reference_channel_ids == (21, 22)
 
     with pytest.raises(ValueError, match="base and station roles must be distinct"):
         RoleRequestFttEntryOptions.model_validate(
@@ -600,9 +604,7 @@ async def test_lssd_legacy_import_uses_command_and_executive_role_request_review
     plan = await plan_environment_import(settings)
     policies = {policy.key: policy for policy in plan.guilds[0].policies}
 
-    assert policies[AccessPolicyKey.ROLE_REQUEST_REVIEW_CHANNELS].ids == (
-        1261076248541532240,
-    )
+    assert policies[AccessPolicyKey.ROLE_REQUEST_REVIEW_CHANNELS].ids == (1261076248541532240,)
     assert policies[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].ids == (
         1234678029662294047,
         1234678238182244414,
@@ -693,7 +695,7 @@ def test_global_persona_repair_migration_updates_an_already_applied_revision() -
 
         command.upgrade(alembic, "head")
 
-        asyncio.run(_assert_global_persona_revision(database_url, "walter_vigil", 54, 46))
+        asyncio.run(_assert_global_persona_revision(database_url, "walter_vigil", 55, 47))
     finally:
         command.downgrade(alembic, "base")
         if previous is None:
@@ -721,9 +723,7 @@ def test_callsign_alphabet_migration_adds_chat_without_replacing_deployment_chan
                 (1234675609536430152, 1241206587079524442),
             )
         )
-        asyncio.run(
-            _assert_ci_failure_channels(database_url, (1241206587079524442,))
-        )
+        asyncio.run(_assert_ci_failure_channels(database_url, (1241206587079524442,)))
         asyncio.run(
             _assert_deployment_incident_channels(
                 database_url,
@@ -882,8 +882,7 @@ async def _seed_role_request_reviewer_configuration(database_url: str) -> None:
                 policy_id = uuid.uuid4()
                 await tx.execute(
                     sa.text(
-                        "INSERT INTO discord_guilds (discord_id, name) "
-                        "VALUES (:guild_id, 'Role request QA')"
+                        "INSERT INTO discord_guilds (discord_id, name) VALUES (:guild_id, 'Role request QA')"
                     ),
                     {"guild_id": guild_id},
                 )
@@ -968,10 +967,7 @@ async def _seed_pager_recipient_configuration(database_url: str) -> None:
                 revision_id = uuid.uuid4()
                 policy_id = uuid.uuid4()
                 await tx.execute(
-                    sa.text(
-                        "INSERT INTO discord_guilds (discord_id, name) "
-                        "VALUES (:guild_id, 'Pager QA')"
-                    ),
+                    sa.text("INSERT INTO discord_guilds (discord_id, name) VALUES (:guild_id, 'Pager QA')"),
                     {"guild_id": guild_id},
                 )
                 await tx.execute(
@@ -1048,10 +1044,7 @@ async def _seed_service_call_configuration_targets(database_url: str) -> None:
             for guild_id in (1234674521416663070, 999):
                 revision_id = uuid.uuid4()
                 await tx.execute(
-                    sa.text(
-                        "INSERT INTO discord_guilds (discord_id, name) "
-                        "VALUES (:guild_id, 'QA')"
-                    ),
+                    sa.text("INSERT INTO discord_guilds (discord_id, name) VALUES (:guild_id, 'QA')"),
                     {"guild_id": guild_id},
                 )
                 await tx.execute(
@@ -1097,8 +1090,7 @@ async def _seed_service_call_configuration_targets(database_url: str) -> None:
                     else:
                         await tx.execute(
                             sa.text(
-                                "UPDATE guild_access_policies SET mode = 'restricted' "
-                                "WHERE id = :policy_id"
+                                "UPDATE guild_access_policies SET mode = 'restricted' WHERE id = :policy_id"
                             ),
                             {"policy_id": supervisor_policy_id},
                         )
@@ -1147,8 +1139,7 @@ async def _seed_legacy_scope_refusals(database_url: str) -> int:
     try:
         packaged = PackagedPersonaProvider()
         profiles = [
-            (await packaged.load(persona_id)).profile
-            for persona_id in ("roy_velazco", "walter_vigil")
+            (await packaged.load(persona_id)).profile for persona_id in ("roy_velazco", "walter_vigil")
         ]
         async with client.transaction() as tx:
             for profile in profiles:
@@ -1161,9 +1152,7 @@ async def _seed_legacy_scope_refusals(database_url: str) -> int:
                 messages["access"] = access
                 payload["messages"] = messages
                 await tx.execute(
-                    sa.text(
-                        "INSERT INTO personas (id, slug) VALUES (:persona_id, :slug)"
-                    ),
+                    sa.text("INSERT INTO personas (id, slug) VALUES (:persona_id, :slug)"),
                     {"persona_id": persona_id, "slug": profile.id},
                 )
                 await tx.execute(
@@ -1192,9 +1181,7 @@ async def _assert_scope_refusals_removed(database_url: str, expected_count: int)
     client = PostgresClient(PostgresClientConfig(url=database_url))
     await client.open()
     try:
-        rows = await client.fetch_all(
-            sa.text("SELECT payload, checksum FROM persona_revisions ORDER BY id")
-        )
+        rows = await client.fetch_all(sa.text("SELECT payload, checksum FROM persona_revisions ORDER BY id"))
         assert len(rows) == expected_count
         for row in rows:
             payload = dict(row["payload"])
@@ -1373,12 +1360,32 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         ftp_requests = {int(row["guild_id"]): row for row in ftp_request_rows}
         assert ftp_requests[1234674521416663070]["enabled"] is True
         assert ftp_requests[1234674521416663070]["payload"] == {
-            "channel_id": 1234749125820420139,
+            "channel_id": 1551692208929906701,
             "command_role_ids": [1234678029662294047],
             "executive_role_ids": [1234678238182244414],
         }
         assert ftp_requests[999]["enabled"] is False
         assert ftp_requests[999]["payload"] == {}
+        role_request_rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.payload "
+                "FROM guild_config_revisions revision "
+                "JOIN guild_feature_settings feature "
+                "ON feature.config_revision_id = revision.id "
+                "AND feature.feature_key = 'role_requests' "
+                "ORDER BY revision.guild_id"
+            )
+        )
+        role_requests = {int(row["guild_id"]): row for row in role_request_rows}
+        ftt_welcome = role_requests[1234674521416663070]["payload"]["ftt_entry"]["welcome"]
+        assert ftt_welcome == {
+            "channel_id": 1234749125820420139,
+            "rules_url": "https://sheriff.sarp.es/viewtopic.php?t=37",
+            "reference_channel_ids": [
+                1234675521560772628,
+                1467761647551774852,
+            ],
+        }
         warrant_notification_rows = await client.fetch_all(
             sa.text(
                 "SELECT revision.guild_id, feature.enabled, feature.payload "
@@ -1389,9 +1396,7 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
                 "ORDER BY revision.guild_id"
             )
         )
-        warrant_notifications = {
-            int(row["guild_id"]): row for row in warrant_notification_rows
-        }
+        warrant_notifications = {int(row["guild_id"]): row for row in warrant_notification_rows}
         assert warrant_notifications[1234674521416663070]["enabled"] is True
         assert warrant_notifications[1234674521416663070]["payload"] == {
             "channel_id": 1261076248541532240,
@@ -1405,6 +1410,17 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         )
         assert ftp_request_table is not None
         assert ftp_request_table["name"] == "ftp_training_requests"
+        ftp_request_columns = await client.fetch_all(
+            sa.text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'ftp_training_requests'"
+            )
+        )
+        assert {
+            "training_phase",
+            "requested_instructor_level",
+            "scheduled_for",
+        }.issubset({str(row["column_name"]) for row in ftp_request_columns})
         report_rows = await client.fetch_all(
             sa.text(
                 "SELECT revision.guild_id, feature.enabled, feature.payload, policy.mode, "
@@ -1450,9 +1466,7 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         resources = {int(row["guild_id"]): row for row in resource_rows}
         assert resources[1234674521416663070]["enabled"] is True
         assert resources[1234674521416663070]["payload"]["faction_id"] == 3
-        assert resources[1234674521416663070]["payload"]["game_server_address"] == (
-            "play.sarp.es:7777"
-        )
+        assert resources[1234674521416663070]["payload"]["game_server_address"] == ("play.sarp.es:7777")
         assert resources[999]["enabled"] is False
         assert resources[999]["payload"] == {}
         forum_rows = await client.fetch_all(
@@ -1467,9 +1481,7 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         )
         forums = {int(row["guild_id"]): row for row in forum_rows}
         assert forums[1234674521416663070]["enabled"] is True
-        assert forums[1234674521416663070]["payload"]["banner_url"] == (
-            "https://i.imgur.com/gBxZZIT.gif"
-        )
+        assert forums[1234674521416663070]["payload"]["banner_url"] == ("https://i.imgur.com/gBxZZIT.gif")
         assert len(forums[1234674521416663070]["payload"]["sections"]) == 3
         assert forums[999]["enabled"] is False
         assert forums[999]["payload"] == {}
@@ -1484,9 +1496,7 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
                 "ORDER BY revision.guild_id, member.position"
             )
         )
-        lssd_review = [
-            row for row in review_rows if int(row["guild_id"]) == 1234674521416663070
-        ]
+        lssd_review = [row for row in review_rows if int(row["guild_id"]) == 1234674521416663070]
         assert lssd_review[0]["mode"] == "restricted"
         assert [int(row["snowflake_id"]) for row in lssd_review] == [
             1261076248541532240,
@@ -1505,9 +1515,7 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
                 "ORDER BY revision.guild_id, member.position"
             )
         )
-        lssd_reviewers = [
-            row for row in reviewer_rows if int(row["guild_id"]) == 1234674521416663070
-        ]
+        lssd_reviewers = [row for row in reviewer_rows if int(row["guild_id"]) == 1234674521416663070]
         assert lssd_reviewers[0]["mode"] == "restricted"
         assert [int(row["snowflake_id"]) for row in lssd_reviewers] == [
             1234678029662294047,
@@ -1546,11 +1554,7 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
                 "ORDER BY revision.guild_id"
             )
         )
-        lssd_analysis = [
-            row
-            for row in analysis_rows
-            if int(row["guild_id"]) == 1234674521416663070
-        ]
+        lssd_analysis = [row for row in analysis_rows if int(row["guild_id"]) == 1234674521416663070]
         assert lssd_analysis[0]["enabled"] is True
         assert lssd_analysis[0]["payload"] == {
             "faction_id": 3,
@@ -1578,8 +1582,7 @@ async def _seed_pager_forward_configuration(database_url: str) -> None:
     try:
         revisions = await client.fetch_all(
             sa.text(
-                "SELECT id, guild_id FROM guild_config_revisions "
-                "WHERE guild_id IN (1234674521416663070, 999)"
+                "SELECT id, guild_id FROM guild_config_revisions WHERE guild_id IN (1234674521416663070, 999)"
             )
         )
         async with client.transaction() as tx:
@@ -1638,10 +1641,7 @@ async def _seed_deployment_channel_configuration(database_url: str) -> None:
         policy_id = uuid.uuid4()
         async with client.transaction() as tx:
             await tx.execute(
-                sa.text(
-                    "INSERT INTO discord_guilds (discord_id, name) "
-                    "VALUES (1234674521416663070, 'LSSD')"
-                )
+                sa.text("INSERT INTO discord_guilds (discord_id, name) VALUES (1234674521416663070, 'LSSD')")
             )
             await tx.execute(
                 sa.text(
@@ -1887,8 +1887,8 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 54
-        assert persona["schema_version"] == 46
+        assert persona["revision"] == 55
+        assert persona["schema_version"] == 47
         global_persona = await client.fetch_one(
             sa.text(
                 "SELECT persona.slug, revision.revision, revision.schema_version "
@@ -1900,8 +1900,8 @@ async def _assert_callsign_migration(
         )
         assert global_persona is not None
         assert global_persona["slug"] == "walter_vigil"
-        assert global_persona["revision"] == 54
-        assert global_persona["schema_version"] == 46
+        assert global_persona["revision"] == 55
+        assert global_persona["schema_version"] == 47
         assert set(persona["payload"]["presence"]) == {
             "idle",
             "conversation",
@@ -1924,9 +1924,7 @@ async def _assert_callsign_migration(
         assert "/info-sugerencias" in persona["payload"]["messages"]["help"]["feature_guides"]
         assert "/guia" in persona["payload"]["messages"]["help"]["quick_references"]
         assert "general_commands" not in persona["payload"]["messages"]["help"]
-        assert persona["payload"]["messages"]["interface"]["commands"][
-            "info_reports_description"
-        ]
+        assert persona["payload"]["messages"]["interface"]["commands"]["info_reports_description"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["saved_title"]
         assert persona["payload"]["messages"]["interface"]["callsigns"]["removed_title"]
         assert "60F1" in persona["payload"]["messages"]["interface"]["callsigns"]["invalid_format"]
@@ -1946,72 +1944,39 @@ async def _assert_callsign_migration(
         assert persona["payload"]["messages"]["interface"]["mdc"]["result_intro"]
         assert persona["payload"]["messages"]["interface"]["mdc"]["info_visibility"]
         assert persona["payload"]["messages"]["interface"]["commands"]["mdc_description"]
-        assert persona["payload"]["messages"]["interface"]["commands"][
-            "info_mdc_description"
-        ]
-        assert persona["payload"]["messages"]["interface"]["faction_status"][
-            "connected_intro"
-        ]
-        assert persona["payload"]["messages"]["interface"]["commands"][
-            "connected_members_description"
-        ]
-        assert "/conectados" in persona["payload"]["messages"]["help"][
-            "quick_references"
-        ]
-        assert "sin PCU completo" in persona["payload"]["messages"]["interface"][
-            "pending_arrest_reports"
-        ]["result_intro"]
-        assert "revisión aprobada" in persona["payload"]["messages"]["interface"][
-            "commands"
-        ]["pending_arrest_reports_description"]
-        assert "/reportes-pendientes" in persona["payload"]["messages"]["help"][
-            "quick_references"
-        ]
-        assert persona["payload"]["messages"]["interface"]["faction_reports"][
-            "ready_title"
-        ]
-        assert "únicamente" not in persona["payload"]["messages"]["interface"][
-            "faction_reports"
-        ]["ready_description"]
-        assert persona["payload"]["messages"]["interface"]["commands"][
-            "faction_report_description"
-        ]
-        assert "/informe-faccion" in persona["payload"]["messages"]["help"][
-            "quick_references"
-        ]
-        assert persona["payload"]["messages"]["interface"]["operational_resources"][
-            "connected_reference"
-        ]
-        assert persona["payload"]["messages"]["interface"]["commands"][
-            "resources_description"
-        ]
-        assert "/recursos" in persona["payload"]["messages"]["help"][
-            "quick_references"
-        ]
-        assert persona["payload"]["messages"]["interface"]["stolen_vehicles"][
-            "no_results"
-        ]
-        assert persona["payload"]["messages"]["interface"]["commands"][
-            "stolen_vehicles_description"
-        ]
-        assert "/vehiculos-robados" in persona["payload"]["messages"]["help"][
-            "quick_references"
-        ]
-        assert persona["payload"]["messages"]["interface"][
-            "faction_member_analysis"
-        ]["intro"]
-        assert persona["payload"]["messages"]["interface"]["commands"][
-            "faction_member_analysis_description"
-        ]
-        assert persona["payload"]["messages"]["interface"]["ftp_requests"][
-            "published"
-        ]
-        assert persona["payload"]["messages"]["interface"]["commands"][
-            "ftp_request_description"
-        ]
-        assert "/solicitar-fto" in persona["payload"]["messages"]["help"][
-            "quick_references"
-        ]
+        assert persona["payload"]["messages"]["interface"]["commands"]["info_mdc_description"]
+        assert persona["payload"]["messages"]["interface"]["faction_status"]["connected_intro"]
+        assert persona["payload"]["messages"]["interface"]["commands"]["connected_members_description"]
+        assert "/conectados" in persona["payload"]["messages"]["help"]["quick_references"]
+        assert (
+            "sin PCU completo"
+            in persona["payload"]["messages"]["interface"]["pending_arrest_reports"]["result_intro"]
+        )
+        assert (
+            "revisión aprobada"
+            in persona["payload"]["messages"]["interface"]["commands"]["pending_arrest_reports_description"]
+        )
+        assert "/reportes-pendientes" in persona["payload"]["messages"]["help"]["quick_references"]
+        assert persona["payload"]["messages"]["interface"]["faction_reports"]["ready_title"]
+        assert (
+            "únicamente"
+            not in persona["payload"]["messages"]["interface"]["faction_reports"]["ready_description"]
+        )
+        assert persona["payload"]["messages"]["interface"]["commands"]["faction_report_description"]
+        assert "/informe-faccion" in persona["payload"]["messages"]["help"]["quick_references"]
+        assert persona["payload"]["messages"]["interface"]["operational_resources"]["connected_reference"]
+        assert persona["payload"]["messages"]["interface"]["commands"]["resources_description"]
+        assert "/recursos" in persona["payload"]["messages"]["help"]["quick_references"]
+        assert persona["payload"]["messages"]["interface"]["stolen_vehicles"]["no_results"]
+        assert persona["payload"]["messages"]["interface"]["commands"]["stolen_vehicles_description"]
+        assert "/vehiculos-robados" in persona["payload"]["messages"]["help"]["quick_references"]
+        assert persona["payload"]["messages"]["interface"]["faction_member_analysis"]["intro"]
+        assert persona["payload"]["messages"]["interface"]["commands"]["faction_member_analysis_description"]
+        assert persona["payload"]["messages"]["interface"]["ftp_requests"]["published"]
+        assert "{channel}" in persona["payload"]["messages"]["interface"]["ftp_requests"]["wrong_channel"]
+        assert persona["payload"]["messages"]["interface"]["commands"]["ftp_request_description"]
+        assert persona["payload"]["messages"]["interface"]["commands"]["info_ftp_description"]
+        assert "/solicitar-fto" in persona["payload"]["messages"]["help"]["quick_references"]
         analysis_feature = await client.fetch_one(
             sa.text(
                 "SELECT enabled, payload FROM guild_feature_settings "
@@ -2337,8 +2302,6 @@ async def _exercise_database(database_url: str) -> None:
         )
         assert not resumed_session.created
         assert resumed_session.source_cursor == "100"
-        assert await resumed_session.session.get_items() == [
-            {"role": "user", "content": "primera consulta"}
-        ]
+        assert await resumed_session.session.get_items() == [{"role": "user", "content": "primera consulta"}]
     finally:
         await client.close()

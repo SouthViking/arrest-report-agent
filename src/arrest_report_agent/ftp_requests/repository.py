@@ -15,7 +15,12 @@ from arrest_report_agent.infrastructure.postgres.schema import (
     ftp_training_requests,
 )
 
-from .models import FtpRequestStatus, FtpTrainingRequest
+from .models import (
+    FtpInstructorLevel,
+    FtpRequestStatus,
+    FtpTrainingPhase,
+    FtpTrainingRequest,
+)
 
 
 class ActiveFtpRequestError(ValueError):
@@ -32,11 +37,17 @@ class FtpRequestRepository:
         guild_id: int,
         channel_id: int,
         requester_user_id: int,
-        reason: str,
+        training_phase: FtpTrainingPhase,
+        requested_instructor_level: FtpInstructorLevel,
+        scheduled_for: datetime,
+        reason: str = "",
     ) -> FtpTrainingRequest:
         normalized_reason = reason.strip()
-        if not 10 <= len(normalized_reason) <= 500:
-            raise ValueError("FTP request reason must contain between 10 and 500 characters")
+        if len(normalized_reason) > 500:
+            raise ValueError("FTP request details cannot exceed 500 characters")
+        if scheduled_for.tzinfo is None:
+            raise ValueError("FTP request schedule must include timezone information")
+        normalized_schedule = scheduled_for.astimezone(UTC)
         async with self.client.transaction() as tx:
             guild = await tx.scalar(
                 sa.select(discord_guilds.c.discord_id)
@@ -69,6 +80,9 @@ class FtpRequestRepository:
                     channel_id=channel_id,
                     requester_user_id=requester_user_id,
                     reason=normalized_reason,
+                    training_phase=training_phase.value,
+                    requested_instructor_level=requested_instructor_level.value,
+                    scheduled_for=normalized_schedule,
                     status=FtpRequestStatus.PUBLISHING.value,
                 )
             )

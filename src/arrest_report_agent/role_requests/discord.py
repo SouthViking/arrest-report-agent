@@ -19,6 +19,7 @@ from arrest_report_agent.config import (
     BotPersona,
     GuildRuntimeSettings,
     RoleRequestFttEntryOptions,
+    RoleRequestFttWelcomeOptions,
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
 
@@ -172,6 +173,10 @@ class RoleRequestService:
             settings,
             "role_request_ftt_entry",
             None,
+        )
+        ftp_request_options = getattr(settings, "ftp_request_options", None)
+        self.ftp_request_channel_id: int | None = (
+            ftp_request_options.channel_id if ftp_request_options is not None else None
         )
         self.review_channel_ids = tuple(getattr(settings, "role_request_review_channel_ids", ()))
         self.repository = repository
@@ -1311,6 +1316,8 @@ class RoleRequestService:
                     decided_at=datetime.now(UTC),
                 )
                 await self._publish_decision(message, request, decision)
+                if status is RoleRequestStatus.APPROVED:
+                    await self._publish_ftt_entry_welcome(request, member)
                 log_event(
                     LOGGER,
                     "info",
@@ -1445,6 +1452,8 @@ class RoleRequestService:
             )
             decided = await repository.finalize(claimed.id, decision)
             await self._publish_v2_decision(decided, decision)
+            if status is RoleRequestStatus.APPROVED:
+                await self._publish_ftt_entry_welcome(decided, member)
             log_event(
                 LOGGER,
                 "info",
@@ -1544,6 +1553,85 @@ class RoleRequestService:
         if invalid:
             raise RoleRequestCodecError("role request roles are unavailable")
         return guild, member
+
+    async def _publish_ftt_entry_welcome(
+        self,
+        request: RoleRequest | StoredRoleRequest,
+        member: discord.Member,
+    ) -> None:
+        """Publish the configured FTP welcome after a complete entry approval."""
+
+        options = self.ftt_entry_options
+        welcome = options.welcome if options is not None else None
+        if request.kind is not RoleRequestKind.FTT_ENTRY or welcome is None:
+            return
+        guild = member.guild
+        channel: object | None = guild.get_channel(welcome.channel_id)
+        if channel is None:
+            try:
+                channel = await guild.fetch_channel(welcome.channel_id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
+                self._log_ftt_welcome_failure(
+                    "role_ftt_entry_welcome_channel_unavailable",
+                    request,
+                    error,
+                )
+                return
+        if not isinstance(channel, discord.TextChannel):
+            log_event(
+                LOGGER,
+                "warning",
+                "role_ftt_entry_welcome_channel_invalid",
+                guild_id=request.guild_id,
+                channel_id=welcome.channel_id,
+                requester_id=request.requester_id,
+            )
+            return
+        try:
+            await channel.send(
+                content=member.mention,
+                embed=build_ftt_entry_welcome_embed(
+                    member,
+                    welcome,
+                    ftp_request_channel_id=self.ftp_request_channel_id,
+                ),
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=False,
+                    users=[member],
+                    roles=False,
+                    replied_user=False,
+                ),
+            )
+            log_event(
+                LOGGER,
+                "info",
+                "role_ftt_entry_welcome_published",
+                guild_id=request.guild_id,
+                channel_id=channel.id,
+                requester_id=request.requester_id,
+            )
+        except (discord.Forbidden, discord.HTTPException) as error:
+            self._log_ftt_welcome_failure(
+                "role_ftt_entry_welcome_publish_failed",
+                request,
+                error,
+            )
+
+    @staticmethod
+    def _log_ftt_welcome_failure(
+        event: str,
+        request: RoleRequest | StoredRoleRequest,
+        error: Exception,
+    ) -> None:
+        log_event(
+            LOGGER,
+            "warning",
+            event,
+            exc_info=error,
+            guild_id=request.guild_id,
+            requester_id=request.requester_id,
+            **exception_fields(error),
+        )
 
     async def _publish_v2_decision(
         self,
@@ -1919,6 +2007,43 @@ class RoleRequestService:
             or permissions.manage_roles
             or permissions.manage_guild
         )
+
+
+def build_ftt_entry_welcome_embed(
+    member: discord.Member,
+    options: RoleRequestFttWelcomeOptions,
+    *,
+    ftp_request_channel_id: int | None = None,
+) -> discord.Embed:
+    request_hint = (
+        f"\n\nCuando necesites una ficha, utiliza `/solicitar-fto` en "
+        f"<#{ftp_request_channel_id}>."
+        if ftp_request_channel_id is not None
+        else ""
+    )
+    embed = discord.Embed(
+        title="🎓 ¡Bienvenido al Field Training Program!",
+        description=(
+            "Aquí puedes coordinar salidas de patrullaje para realizar tus fichas del FTP."
+            f"{request_hint}"
+        ),
+        color=discord.Color.gold(),
+    )
+    embed.set_author(
+        name=member.display_name,
+        icon_url=str(member.display_avatar.url),
+    )
+    embed.add_field(
+        name="📘 Reglamento",
+        value=f"[Leer reglamento del programa]({options.rules_url})",
+        inline=False,
+    )
+    embed.add_field(
+        name="📌 Revisa también",
+        value=" · ".join(f"<#{channel_id}>" for channel_id in options.reference_channel_ids),
+        inline=False,
+    )
+    return embed
 
 
 class RoleRequestDecisionView(discord.ui.View):
