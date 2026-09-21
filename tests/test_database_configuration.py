@@ -803,6 +803,7 @@ def test_arrest_lookup_migration_enables_only_lssd_and_creates_bindings() -> Non
         command.upgrade(alembic, "20260817_0032")
         asyncio.run(_seed_service_call_configuration_targets(database_url))
         asyncio.run(_seed_pager_forward_configuration(database_url))
+        asyncio.run(_seed_role_request_configuration_target(database_url))
         command.upgrade(alembic, "head")
         asyncio.run(_assert_arrest_lookup_configuration(database_url))
         asyncio.run(
@@ -1129,6 +1130,43 @@ async def _seed_service_call_configuration_targets(database_url: str) -> None:
                         ),
                         {"id": uuid.uuid4(), "policy_id": operational_policy_id},
                     )
+    finally:
+        await client.close()
+
+
+async def _seed_role_request_configuration_target(database_url: str) -> None:
+    """Seed the LSSD feature that later FTP migrations intentionally extend."""
+
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        async with client.transaction() as tx:
+            revision_id = await tx.scalar(
+                sa.text(
+                    "SELECT id FROM guild_config_revisions "
+                    "WHERE guild_id = :guild_id AND status = 'published'"
+                ),
+                {"guild_id": 1234674521416663070},
+            )
+            if revision_id is None:
+                raise AssertionError("missing seeded LSSD configuration revision")
+            await tx.execute(
+                sa.text(
+                    "INSERT INTO guild_feature_settings "
+                    "(id, config_revision_id, feature_key, enabled, schema_version, payload) "
+                    "VALUES (:id, :revision_id, 'role_requests', true, 1, '{}'::jsonb)"
+                ),
+                {"id": uuid.uuid4(), "revision_id": revision_id},
+            )
+            await tx.execute(
+                sa.text(
+                    "INSERT INTO guild_access_policies "
+                    "(id, config_revision_id, policy_key, subject_type, mode) "
+                    "VALUES (:id, :revision_id, 'role_request_allowed_roles', "
+                    "'role', 'restricted')"
+                ),
+                {"id": uuid.uuid4(), "revision_id": revision_id},
+            )
     finally:
         await client.close()
 

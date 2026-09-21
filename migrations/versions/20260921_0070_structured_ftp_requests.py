@@ -114,7 +114,9 @@ def upgrade() -> None:
         sa.text(
             """
             UPDATE guild_feature_settings AS feature
-            SET payload = feature.payload || jsonb_build_object('channel_id', :channel_id)
+            SET payload = feature.payload || jsonb_build_object(
+                'channel_id', CAST(:channel_id AS bigint)
+            )
             FROM guild_config_revisions AS revision
             WHERE revision.id = feature.config_revision_id
               AND revision.guild_id = :guild_id
@@ -192,7 +194,9 @@ def downgrade() -> None:
         sa.text(
             """
             UPDATE guild_feature_settings AS feature
-            SET payload = feature.payload || jsonb_build_object('channel_id', :channel_id)
+            SET payload = feature.payload || jsonb_build_object(
+                'channel_id', CAST(:channel_id AS bigint)
+            )
             FROM guild_config_revisions AS revision
             WHERE revision.id = feature.config_revision_id
               AND revision.guild_id = :guild_id
