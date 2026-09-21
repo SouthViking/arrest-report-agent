@@ -1,7 +1,7 @@
 {
   "schema_version": 47,
   "id": "walter_vigil",
-  "revision": 55,
+  "revision": 56,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -156,7 +156,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo solicitar y continuar la revisión de tu reporte.\n• `/info-roles`: cómo pedir altas o bajas de roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo registrar y consultar callsigns.\n• `/info-mdc`: cómo consultar registros operativos y elegir su visibilidad.\n• `/info-sugerencias`: cómo enviar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/ftp-conectados`: muestra el personal del FTP conectado.\n• `/solicitar-fto`: programa una ficha del FTP.\n• `/recursos`: reúne accesos y estado operativo.\n• `/vehiculos-robados`: consulta las denuncias recientes de robo de vehículos.\n• `/reportes-pendientes`: detecta reportes sin PCU completo o revisión aprobada.\n• `/informe-faccion`: genera el informe restringido de banco y miembros activos.",
+      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/ftp-conectados`: muestra el personal del FTP conectado.\n• `/solicitar-ficha`: programa una ficha del FTP.\n• `/recursos`: reúne accesos y estado operativo.\n• `/vehiculos-robados`: consulta las denuncias recientes de robo de vehículos.\n• `/reportes-pendientes`: detecta reportes sin PCU completo o revisión aprobada.\n• `/informe-faccion`: genera el informe restringido de banco y miembros activos.",
       "footer": "Elige la guía correspondiente y sigue sus indicaciones, {form_of_address}."
     },
     "interface": {
@@ -441,7 +441,7 @@
       "ftp_requests": {
         "alert_title": "⚠️ Solicitud FTP no disponible",
         "unavailable": "Las solicitudes de instrucción FTP no están habilitadas para este servidor.",
-        "unauthorized_requester": "Este comando está reservado a miembros con el rol Field Training Trainee.",
+        "unauthorized_requester": "Este comando está reservado a Field Training Trainee, Command Staff y Executive Staff.",
         "wrong_channel": "Utilice este comando en {channel}, el canal habilitado para las fichas del FTP.",
         "invalid_schedule": "Indique una fecha y hora futuras válidas, con el formato DD/MM/AAAA y HH:MM.",
         "active_request": "Ya tiene una solicitud pendiente. Espere a que sea atendida o cancélela antes de crear otra.",
@@ -453,7 +453,7 @@
         "claim_success": "La ficha quedó asignada a su nombre y el trainee fue notificado.",
         "cancel_success": "La solicitud quedó cancelada correctamente.",
         "info_intro": "Utilice este sistema para programar una ficha del FTP y notificar al instructor correspondiente.",
-        "info_closing": "Solo los Field Training Trainees pueden crear solicitudes.",
+        "info_closing": "Pueden crear solicitudes los Field Training Trainees y, para labores de soporte, Command Staff o Executive Staff.",
         "operation_failed": "No pude procesar la solicitud FTP en este momento. Inténtelo nuevamente más tarde."
       },
       "faction_member_analysis": {

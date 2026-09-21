@@ -40,7 +40,7 @@ El módulo **FTP conectado** configura la facción y los IDs de los roles de Sup
 FTO y FTT. Habilita `/ftp-conectados` sin fijar esos valores dentro del comando.
 
 El módulo **Solicitudes FTP** recibe `channel_id`, `command_role_ids` y `executive_role_ids`. Reutiliza
-los roles del módulo **FTP conectado** y habilita `/solicitar-fto` únicamente en el canal configurado.
+los roles del módulo **FTP conectado** y habilita `/solicitar-ficha` únicamente en el canal configurado.
 
 El módulo **Consulta de reportes de arresto** recibe `{"faction_id": 3}`. Habilita
 `/revisar-arresto`, `/ver-evidencia` y permite al agente completo buscar y vincular arrestos de esa facción, además de
@@ -97,7 +97,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/info-mdc` | `operational_staff_roles`; solo si SARP está activo | Pública; rechazo efímero | Persona activa |
 | `/conectados` | `operational_staff_roles`; módulo `faction_status` activo | Pública; rechazo efímero | Nómina de la facción en SARP |
 | `/ftp-conectados` | `operational_staff_roles`; módulo `ftp_status` activo | Pública; rechazo efímero | Nómina cacheada de SARP y roles de Discord |
-| `/solicitar-fto` | FTT; módulo `ftp_requests` activo y canal configurado | Modal y confirmación efímeros; solicitud pública en canal configurado | PostgreSQL y roles de Discord |
+| `/solicitar-ficha` | FTT, Command o Executive; módulo `ftp_requests` activo y canal configurado | Modal y confirmación efímeros; solicitud pública en canal configurado | PostgreSQL y roles de Discord |
 | `/ver-evidencia` | `operational_staff_roles`; módulo `arrest_report_lookup` activo | Pública; rechazo efímero | Bolsa de evidencias en SARP |
 | `/vehiculos-robados` | `operational_staff_roles`; módulo `stolen_vehicles` activo | Modal privado; resultado público o efímero | Denuncias recientes de vehículos en SARP |
 | `/recursos` | `operational_staff_roles`; módulo `operational_resources` activo | Pública; rechazo efímero | Configuración de PostgreSQL y API SARP |
@@ -264,7 +264,7 @@ cada sección a diez nombres. El cruce normaliza tildes y `_`, admite varios per
 `/` y el formato abreviado `N. Apellido`. Solo acepta una coincidencia única y nunca infiere una
 identidad ambigua. Comparte la consulta y el caché corto de la nómina usado por `/conectados`.
 
-## `/solicitar-fto`
+## `/solicitar-ficha`
 
 Abre para los Field Training Trainees un formulario con fase, fecha, hora y tipo de evaluador. Una
 solicitud general avisa a FTO, MFTO y Supervisory Staff y puede tomarla cualquier integrante habilitado

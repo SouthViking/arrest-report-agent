@@ -1271,7 +1271,7 @@ async def test_ftt_entry_requests_only_station_and_applies_complete_package(
     assert welcome_embed.title == "🎓 ¡Bienvenido al Field Training Program!"
     assert welcome_embed.author.name == role_request_env.requester.display_name
     assert welcome_embed.author.icon_url == "https://cdn.example/avatar.png"
-    assert "/solicitar-fto" in welcome_embed.description
+    assert "/solicitar-ficha" in welcome_embed.description
     assert "<#1551692208929906701>" in welcome_embed.description
     assert "viewtopic.php?t=37" in welcome_embed.fields[0].value
     assert f"<#{ANNOUNCEMENTS_CHANNEL_ID}>" in welcome_embed.fields[1].value

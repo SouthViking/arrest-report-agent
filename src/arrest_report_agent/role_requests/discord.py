@@ -2016,7 +2016,7 @@ def build_ftt_entry_welcome_embed(
     ftp_request_channel_id: int | None = None,
 ) -> discord.Embed:
     request_hint = (
-        f"\n\nCuando necesites una ficha, utiliza `/solicitar-fto` en "
+        f"\n\nCuando necesites una ficha, utiliza `/solicitar-ficha` en "
         f"<#{ftp_request_channel_id}>."
         if ftp_request_channel_id is not None
         else ""

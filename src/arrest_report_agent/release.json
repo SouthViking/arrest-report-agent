@@ -1,20 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.38.0",
-  "title": "Coordinación de fichas FTP",
-  "summary": "Los trainees ahora pueden programar sus fichas y recibir una bienvenida guiada al ingresar al programa.",
+  "version": "0.38.1",
+  "title": "Solicitudes FTP más claras",
+  "summary": "El flujo para programar fichas ahora utiliza un nombre más directo y permite soporte del personal de mando.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "El nuevo /solicitar-fto permite indicar fase, horario y si se necesita un evaluador general o supervisor."
-    },
-    {
-      "type": "added",
-      "text": "Al aprobar un ingreso FTT, el trainee recibe una bienvenida en ftp-chat con el reglamento y el acceso al canal de fichas."
+      "type": "improved",
+      "text": "El comando ahora se llama /solicitar-ficha y puede utilizarlo un FTT, Command Staff o Executive Staff."
     }
   ],
   "acknowledgements": []

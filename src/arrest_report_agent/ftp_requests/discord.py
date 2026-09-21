@@ -97,9 +97,10 @@ class FtpRequestService:
 
     def can_request(self, member: discord.Member) -> bool:
         ftp = self.settings.ftp_status_options
-        if ftp is None or self.request_options is None:
+        options = self.request_options
+        if ftp is None or options is None:
             return False
-        return _has_any_role(member, ftp.ftt_role_ids)
+        return _has_any_role(member, (*ftp.ftt_role_ids, *options.management_role_ids))
 
     def can_claim(self, member: discord.Member, request: FtpTrainingRequest) -> bool:
         ftp = self.settings.ftp_status_options
@@ -594,11 +595,11 @@ class FtpRequestModal(discord.ui.DesignerModal):
 class FtpRequestCog(commands.Cog):
     def __init__(self, registry: FtpRequestServiceRegistry, persona: BotPersona) -> None:
         self.registry = registry
-        self.request_fto.description = persona.messages.interface.commands.ftp_request_description
+        self.request_training.description = persona.messages.interface.commands.ftp_request_description
         self.info_ftp.description = persona.messages.interface.commands.info_ftp_description
 
-    @discord.slash_command(name="solicitar-fto", description="Solicita un instructor del FTP")
-    async def request_fto(self, ctx: discord.ApplicationContext) -> None:
+    @discord.slash_command(name="solicitar-ficha", description="Programa una ficha del FTP")
+    async def request_training(self, ctx: discord.ApplicationContext) -> None:
         if ctx.guild is None or not isinstance(ctx.author, discord.Member):
             await ctx.respond(
                 embed=discord.Embed(
@@ -734,7 +735,7 @@ def build_ftp_info_embed(service: FtpRequestService) -> discord.Embed:
     embed.add_field(
         name="1️⃣ Solicitar una ficha",
         value=(
-            f"Ve a <#{options.channel_id}> y utiliza `/solicitar-fto`. "
+            f"Ve a <#{options.channel_id}> y utiliza `/solicitar-ficha`. "
             "Selecciona la fase, la fecha, la hora y si necesitas una evaluación general o de supervisor."
         ),
         inline=False,

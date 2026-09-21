@@ -21,6 +21,7 @@ from arrest_report_agent.ftp_requests import (
     FtpTrainingRequest,
 )
 from arrest_report_agent.ftp_requests.discord import (
+    FtpRequestCog,
     FtpRequestControlsView,
     FtpRequestModal,
     FtpRequestService,
@@ -96,7 +97,8 @@ def test_ftp_request_permissions_follow_the_role_matrix(persona) -> None:
 
     assert service.can_request(_member(1, (40,)))  # FTT
     assert not service.can_request(_member(1, (30,)))  # FTO
-    assert not service.can_request(_member(1, (60,)))  # Command
+    assert service.can_request(_member(1, (60,)))  # Command
+    assert service.can_request(_member(1, (70,)))  # Executive
     assert not service.can_request(_member(1, (999,)))
 
     general_request = _request()
@@ -128,6 +130,13 @@ async def test_ftp_request_modal_exposes_only_general_and_supervisor(persona) ->
         ("General", FtpInstructorLevel.GENERAL.value),
         ("Supervisor", FtpInstructorLevel.SUPERVISOR.value),
     ]
+
+
+def test_ftp_request_commands_are_root_commands() -> None:
+    assert FtpRequestCog.request_training.name == "solicitar-ficha"
+    assert FtpRequestCog.info_ftp.name == "info-ftp"
+    assert FtpRequestCog.request_training.parent is None
+    assert FtpRequestCog.info_ftp.parent is None
 
 
 def test_ftp_request_notifies_the_selected_evaluator_group(persona) -> None:

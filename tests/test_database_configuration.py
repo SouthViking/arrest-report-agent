@@ -695,7 +695,7 @@ def test_global_persona_repair_migration_updates_an_already_applied_revision() -
 
         command.upgrade(alembic, "head")
 
-        asyncio.run(_assert_global_persona_revision(database_url, "walter_vigil", 55, 47))
+        asyncio.run(_assert_global_persona_revision(database_url, "walter_vigil", 56, 47))
     finally:
         command.downgrade(alembic, "base")
         if previous is None:
@@ -1925,7 +1925,7 @@ async def _assert_callsign_migration(
             {"revision_id": identifiers["config_revision_id"]},
         )
         assert persona is not None
-        assert persona["revision"] == 55
+        assert persona["revision"] == 56
         assert persona["schema_version"] == 47
         global_persona = await client.fetch_one(
             sa.text(
@@ -1938,7 +1938,7 @@ async def _assert_callsign_migration(
         )
         assert global_persona is not None
         assert global_persona["slug"] == "walter_vigil"
-        assert global_persona["revision"] == 55
+        assert global_persona["revision"] == 56
         assert global_persona["schema_version"] == 47
         assert set(persona["payload"]["presence"]) == {
             "idle",
@@ -2014,7 +2014,7 @@ async def _assert_callsign_migration(
         assert "{channel}" in persona["payload"]["messages"]["interface"]["ftp_requests"]["wrong_channel"]
         assert persona["payload"]["messages"]["interface"]["commands"]["ftp_request_description"]
         assert persona["payload"]["messages"]["interface"]["commands"]["info_ftp_description"]
-        assert "/solicitar-fto" in persona["payload"]["messages"]["help"]["quick_references"]
+        assert "/solicitar-ficha" in persona["payload"]["messages"]["help"]["quick_references"]
         analysis_feature = await client.fetch_one(
             sa.text(
                 "SELECT enabled, payload FROM guild_feature_settings "

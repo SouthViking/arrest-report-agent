@@ -1,7 +1,7 @@
 {
   "schema_version": 47,
   "id": "roy_velazco",
-  "revision": 63,
+  "revision": 64,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -182,7 +182,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo pedir y seguir la revisión de tu reporte.\n• `/info-roles`: cómo pedir q te agreguen o saquen roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo guardar y buscar callsigns.\n• `/info-mdc`: cómo buscar una ficha y decidir quién la ve.\n• `/info-sugerencias`: cómo mandar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: abre el manual de reportes por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las dudas frecuentes de la guía.\n• `/pregunta-manual`: demuestra si leíste algo del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/ftp-conectados`: muestra la gente del FTP q está conectada.\n• `/solicitar-fto`: programa una ficha del FTP.\n• `/recursos`: junta accesos y estado operativo.\n• `/vehiculos-robados`: muestra las denuncias recientes de vehículos robados.\n• `/reportes-pendientes`: encuentra reportes sin PCU completo o revisión aprobada.\n• `/informe-faccion`: arma el informe restringido de banco y personal activo.",
+      "quick_references": "• `/guia`: abre el manual de reportes por sección.\n• `/cargos`: busca delitos y sanciones sin inventar.\n• `/faq`: responde las dudas frecuentes de la guía.\n• `/pregunta-manual`: demuestra si leíste algo del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/ftp-conectados`: muestra la gente del FTP q está conectada.\n• `/solicitar-ficha`: programa una ficha del FTP.\n• `/recursos`: junta accesos y estado operativo.\n• `/vehiculos-robados`: muestra las denuncias recientes de vehículos robados.\n• `/reportes-pendientes`: encuentra reportes sin PCU completo o revisión aprobada.\n• `/informe-faccion`: arma el informe restringido de banco y personal activo.",
       "footer": "elige la guía q corresponde antes de venir a adivinar, {form_of_address}."
     },
     "interface": {
@@ -467,7 +467,7 @@
       "ftp_requests": {
         "alert_title": "⚠️ La solicitud FTP no pescó",
         "unavailable": "No dejaron habilitadas las solicitudes del FTP en este server.",
-        "unauthorized_requester": "Esto es pa los Field Training Trainees. Si no tenís FTT no podís pedir una ficha por acá, po.",
+        "unauthorized_requester": "Esto es pa Field Training Trainee, Command o Executive. Si no tenís uno de esos roles, no podís pedir una ficha por acá, po.",
         "wrong_channel": "Las fichas se piden en {channel}. Anda al canal correcto antes de llenar medio Discord de solicitudes, criatura.",
         "invalid_schedule": "Esa fecha no sirve. Pon una fecha futura como DD/MM/AAAA y la hora como HH:MM, no jeroglíficos.",
         "active_request": "Ya pediste un FTO po. Espera q alguien la tome o cancela la cuestión antes de tirar otra.",
@@ -479,7 +479,7 @@
         "claim_success": "Listo, la ficha quedó a tu nombre y ya le avisé al trainee. Ahora coordinen sin hacer una teleserie.",
         "cancel_success": "Ya, solicitud cancelada. Al menos apretaste el botón correcto.",
         "info_intro": "¿Necesitai agendar una ficha? Hazlo ordenado por acá y deja de perseguir instructores por medio Discord.",
-        "info_closing": "Solo los Field Training Trainees pueden crear solicitudes. Sí, SOLO ELLOS, no apretís por curiosidad.",
+        "info_closing": "Pueden pedir fichas los Field Training Trainees y, pa soporte, Command o Executive. El resto no apriete por curiosidad.",
         "operation_failed": "Se trabó la solicitud FTP. Prueba de nuevo más rato y no armís otra a mano todavía."
       },
       "faction_member_analysis": {

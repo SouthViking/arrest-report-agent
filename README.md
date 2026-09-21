@@ -412,7 +412,7 @@ Comandos disponibles:
 - `/conectados`: publica para `operational_staff_roles` el personal conectado y en servicio.
 - `/ftp-conectados`: publica para `operational_staff_roles` únicamente Supervisory Staff, MFTO,
   FTO y FTT conectados, indicando cuáles figuran en servicio.
-- `/solicitar-fto`: abre en el canal configurado un formulario para que un FTT programe su ficha,
+- `/solicitar-ficha`: abre en el canal configurado un formulario para que un FTT programe su ficha,
   elija un evaluador general o supervisor y reciba una notificación cuando alguien la tome.
 - `/ver-evidencia`: permite al personal de `operational_staff_roles` consultar públicamente una
   bolsa por su número y ver el contenido analizado junto con su cadena de custodia. El agente con
@@ -672,9 +672,9 @@ quince segundos para proteger el límite del proveedor.
 MFTO, FTO y FTT en Discord. Los nombres toleran guiones bajos, tildes y alias separados por `/`,
 incluido el formato `N. Apellido`; las coincidencias ambiguas se omiten en lugar de elegirse al azar.
 
-`/solicitar-fto` usa el módulo dinámico `ftp_requests` y persiste la fase, tipo de evaluador, horario,
-estado y referencias de Discord necesarias. Solo FTT puede solicitar: la opción general admite FTO o
-rangos superiores y la opción supervisor exige Supervisory, Command o Executive. Solo el autor,
+`/solicitar-ficha` usa el módulo dinámico `ftp_requests` y persiste la fase, tipo de evaluador, horario,
+estado y referencias de Discord necesarias. Pueden solicitar FTT, Command o Executive; la opción
+general admite FTO o rangos superiores y la opción supervisor exige Supervisory, Command o Executive. Solo el autor,
 Command Staff o Executive Staff puede cancelar. El canal y los roles se resuelven desde PostgreSQL,
 sin nuevos environment vars.
 
