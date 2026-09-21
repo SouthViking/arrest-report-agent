@@ -354,7 +354,8 @@ repeticiones y descripciones breves no estándar. El embed resume revisados, pen
 agrupa los resultados por agente y calcula un score interno según la ausencia del PCU, el estado de
 la revisión y sus plazos independientes de 24 y 48 horas. Los agentes se ordenan por su caso más
 grave, score acumulado y cantidad; dentro de cada grupo aparecen primero los casos más graves y
-antiguos. `🔴`, `🟠` y `🟡` indican casos críticos, de alta prioridad o todavía dentro de plazo.
+antiguos. `🔴`, `🟠`, `🟡` y `🟢` indican casos críticos, de alta prioridad, próximos al límite o
+todavía dentro de plazo.
 Las revisiones existentes enlazan su mensaje; tanto el arresto como la última revisión muestran el
 tiempo relativo nativo de Discord. Cada página contiene hasta ocho reportes y repite el agente cuando
 su grupo continúa.

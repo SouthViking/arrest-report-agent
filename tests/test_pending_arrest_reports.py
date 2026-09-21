@@ -215,9 +215,9 @@ def test_severity_and_score_use_independent_pcu_and_review_deadlines() -> None:
     )
 
     assert severity_for_report(both_missing) is PendingReportSeverity.HIGH
-    assert severity_for_report(pcu_complete) is PendingReportSeverity.MEDIUM
+    assert severity_for_report(pcu_complete) is PendingReportSeverity.ON_TIME
     assert severity_for_report(pcu_overdue) is PendingReportSeverity.CRITICAL
-    assert severity_for_report(review_near_deadline) is PendingReportSeverity.HIGH
+    assert severity_for_report(review_near_deadline) is PendingReportSeverity.MEDIUM
     assert severity_for_report(review_overdue) is PendingReportSeverity.CRITICAL
     assert severity_for_report(approved_without_pcu) is PendingReportSeverity.CRITICAL
     assert pending_report_score(both_missing) > pending_report_score(pcu_complete)
@@ -847,11 +847,11 @@ def test_embed_renders_every_reason_combination_inline(persona) -> None:
         "[Revisión aprobada](" in description
     )
     assert (
-        f"🟡 **#2** · Suspect 2 · {relative_time} — PCU completo · Sin revisión"
+        f"🟢 **#2** · Suspect 2 · {relative_time} — Sin revisión"
         in description
     )
     assert (
-        f"🟡 **#3** · Suspect 3 · {relative_time} — PCU completo · "
+        f"🟢 **#3** · Suspect 3 · {relative_time} — "
         "[Revisión pendiente]("
     ) in description
     assert (
@@ -883,6 +883,38 @@ def test_embed_without_pending_reports_is_green_and_concise(persona) -> None:
     assert embed.color == discord.Color.green()
     assert "0 de 4 pendientes" in (embed.description or "")
     assert "PCU completo" in (embed.description or "")
+
+
+def test_embed_marks_an_on_time_missing_review_green_without_completed_pcu_text(
+    persona,
+) -> None:
+    now = datetime(2026, 8, 18, 12, tzinfo=UTC)
+    result = PendingArrestReportScan(
+        faction_id=3,
+        date_from=date(2026, 8, 17),
+        date_to=date(2026, 8, 18),
+        total_reports=1,
+        pending_reports=(
+            _pending(
+                1,
+                created_at=now - timedelta(hours=8),
+                pcu_missing=False,
+                review_status=ArrestReviewStatus.MISSING,
+                age_hours=8,
+            ),
+        ),
+    )
+
+    embed = build_pending_arrest_reports_embed(
+        result,
+        ui=persona.messages.interface.pending_arrest_reports,
+    )
+    description = embed.description or ""
+
+    assert embed.color == discord.Color.green()
+    assert "🟢 **#1**" in description
+    assert "— Sin revisión" in description
+    assert "PCU completo" not in description
 
 
 def test_embed_groups_officers_by_highest_score_then_reports_by_score(persona) -> None:

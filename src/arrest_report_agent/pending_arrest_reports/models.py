@@ -20,6 +20,7 @@ class PendingReportStatus(StrEnum):
 class PendingReportSeverity(StrEnum):
     """Operational priority derived from completeness and elapsed time."""
 
+    ON_TIME = "on_time"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"

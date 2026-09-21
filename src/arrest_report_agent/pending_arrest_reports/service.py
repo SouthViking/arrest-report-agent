@@ -38,9 +38,10 @@ REVIEW_NEAR_DEADLINE_HOURS = 36
 REVIEW_DEADLINE_HOURS = 48
 
 _SEVERITY_SCORE = {
-    PendingReportSeverity.MEDIUM: 10_000,
-    PendingReportSeverity.HIGH: 20_000,
-    PendingReportSeverity.CRITICAL: 30_000,
+    PendingReportSeverity.ON_TIME: 10_000,
+    PendingReportSeverity.MEDIUM: 20_000,
+    PendingReportSeverity.HIGH: 30_000,
+    PendingReportSeverity.CRITICAL: 40_000,
 }
 
 
@@ -247,12 +248,11 @@ def severity_for_report(report: PendingArrestReport) -> PendingReportSeverity:
         or (pcu_missing and report.review_status is ArrestReviewStatus.APPROVED)
     ):
         return PendingReportSeverity.CRITICAL
-    if (
-        pcu_missing
-        or (review_incomplete and report.age_hours >= REVIEW_NEAR_DEADLINE_HOURS)
-    ):
+    if pcu_missing:
         return PendingReportSeverity.HIGH
-    return PendingReportSeverity.MEDIUM
+    if review_incomplete and report.age_hours >= REVIEW_NEAR_DEADLINE_HOURS:
+        return PendingReportSeverity.MEDIUM
+    return PendingReportSeverity.ON_TIME
 
 
 def pending_report_score(report: PendingArrestReport) -> int:

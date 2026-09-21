@@ -41,8 +41,12 @@ SEVERITY_EMOJIS = {
     PendingReportSeverity.CRITICAL: "🔴",
     PendingReportSeverity.HIGH: "🟠",
     PendingReportSeverity.MEDIUM: "🟡",
+    PendingReportSeverity.ON_TIME: "🟢",
 }
-SEVERITY_LEGEND = "🔴 Vencido o inconsistente · 🟠 Alta prioridad · 🟡 Dentro del plazo"
+SEVERITY_LEGEND = (
+    "🔴 Vencido o inconsistente · 🟠 Alta prioridad · "
+    "🟡 Próximo al límite · 🟢 Dentro del plazo"
+)
 
 
 class PendingReportVisibility(StrEnum):
@@ -484,7 +488,10 @@ def _format_grouped_report_entries(
 def _format_report_entry(report: PendingArrestReport) -> str:
     suspect = _compact_name(report.suspect_name)
     severity = severity_for_report(report)
-    reasons = [_format_pcu_state(report), _format_review_state(report)]
+    reasons: list[str] = []
+    if pcu_state := _format_pcu_state(report):
+        reasons.append(pcu_state)
+    reasons.append(_format_review_state(report))
     return (
         f"{SEVERITY_EMOJIS[severity]} **#{report.report_id}** · {suspect} · "
         f"<t:{int(report.created_at.timestamp())}:R> — "
@@ -492,9 +499,9 @@ def _format_report_entry(report: PendingArrestReport) -> str:
     )
 
 
-def _format_pcu_state(report: PendingArrestReport) -> str:
+def _format_pcu_state(report: PendingArrestReport) -> str | None:
     if report.pcu_reason is None:
-        return "PCU completo"
+        return None
     if report.age_hours >= PCU_DEADLINE_HOURS:
         return f"Sin PCU ({_format_overdue(report.age_hours - PCU_DEADLINE_HOURS)})"
     return "Sin PCU"
@@ -556,7 +563,7 @@ def _embed_color(
         return discord.Color.red()
     if PendingReportSeverity.HIGH in severities:
         return discord.Color.orange()
-    if reports:
+    if PendingReportSeverity.MEDIUM in severities:
         return discord.Color.gold()
     return discord.Color.green()
 
