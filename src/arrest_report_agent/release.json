@@ -1,20 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.37.0",
-  "title": "Prioridad en reportes pendientes",
-  "summary": "Los reportes pendientes ahora se ordenan por gravedad y muestran con mayor claridad sus plazos.",
+  "version": "0.37.1",
+  "title": "Tiempos relativos en reportes",
+  "summary": "Los reportes pendientes vuelven a mostrar fechas relativas que se actualizan automáticamente en Discord.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "Los reportes y agentes se priorizan mediante un score interno que considera PCU, revisión y antigüedad."
-    },
-    {
-      "type": "improved",
-      "text": "Cada caso muestra su gravedad, horas transcurridas y la antigüedad real de su última revisión."
+      "type": "fixed",
+      "text": "El arresto y su última revisión vuelven a mostrar el formato nativo «hace…» de Discord sin alterar su prioridad."
     }
   ],
   "acknowledgements": []

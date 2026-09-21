@@ -487,7 +487,7 @@ def _format_report_entry(report: PendingArrestReport) -> str:
     reasons = [_format_pcu_state(report), _format_review_state(report)]
     return (
         f"{SEVERITY_EMOJIS[severity]} **#{report.report_id}** · {suspect} · "
-        f"{_format_hours(report.age_hours)} — "
+        f"<t:{int(report.created_at.timestamp())}:R> — "
         f"{' · '.join(reasons)}"
     )
 
@@ -510,18 +510,14 @@ def _format_review_state(report: PendingArrestReport) -> str:
             else "Revisión pendiente"
         )
         label = f"[{status}]({report.review_url})"
-        if report.review_age_hours is not None:
-            label = f"{label} hace {_format_hours(report.review_age_hours)}"
+        if report.reviewed_at is not None:
+            label = f"{label} · <t:{int(report.reviewed_at.timestamp())}:R>"
     if (
         report.review_status is not ArrestReviewStatus.APPROVED
         and report.age_hours >= REVIEW_DEADLINE_HOURS
     ):
         label = f"{label} ({_format_overdue(report.age_hours - REVIEW_DEADLINE_HOURS)})"
     return label
-
-
-def _format_hours(hours: int) -> str:
-    return "menos de 1 h" if hours == 0 else f"{hours} h"
 
 
 def _format_overdue(hours: int) -> str:

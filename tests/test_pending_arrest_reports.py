@@ -841,27 +841,29 @@ def test_embed_renders_every_reason_combination_inline(persona) -> None:
 
     assert embed.color == discord.Color.red()
     assert "5 de 6 pendientes" in description
+    relative_time = f"<t:{int(now.timestamp())}:R>"
     assert (
-        "🔴 **#1** · Suspect 1 · menos de 1 h — Sin PCU · "
+        f"🔴 **#1** · Suspect 1 · {relative_time} — Sin PCU · "
         "[Revisión aprobada](" in description
     )
     assert (
-        "🟡 **#2** · Suspect 2 · menos de 1 h — PCU completo · Sin revisión"
+        f"🟡 **#2** · Suspect 2 · {relative_time} — PCU completo · Sin revisión"
         in description
     )
     assert (
-        "🟡 **#3** · Suspect 3 · menos de 1 h — PCU completo · "
+        f"🟡 **#3** · Suspect 3 · {relative_time} — PCU completo · "
         "[Revisión pendiente]("
     ) in description
     assert (
-        "🟠 **#4** · Suspect 4 · menos de 1 h — Sin PCU · Sin revisión"
+        f"🟠 **#4** · Suspect 4 · {relative_time} — Sin PCU · Sin revisión"
         in description
     )
     assert (
-        "🟠 **#5** · Suspect 5 · menos de 1 h — Sin PCU · "
+        f"🟠 **#5** · Suspect 5 · {relative_time} — Sin PCU · "
         "[Revisión pendiente]("
     ) in description
     assert "https://discord.com/channels/99/100/1001" in description
+    assert description.count(relative_time) == 8
     assert "🔴 Vencido o inconsistente" in description
 
 
