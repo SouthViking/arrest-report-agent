@@ -351,10 +351,12 @@ si el resultado será visible para todos o únicamente para quien consultó.
 La consulta no usa IA ni persiste el contenido. Lee hasta el máximo configurado, considera completa
 una narrativa que comienza con `Yo` y detecta como posibles pendientes los textos vacíos, placeholders,
 repeticiones y descripciones breves no estándar. El embed resume revisados, pendientes y cumplimiento;
-agrupa los resultados por agente, ordena primero a quienes tienen más pendientes y muestra dentro de
-cada grupo los casos más antiguos primero. Usa `🟢`, `🟡`, `🟠` y `🔴` para los tramos menores de
-18 horas, 18–24, 24–48 y superiores a 48 horas. Si hay más de quince resultados, los botones de
-página quedan reservados a quien inició la consulta y repiten el agente cuando su grupo continúa.
+agrupa los resultados por agente y calcula un score interno según la ausencia del PCU, el estado de
+la revisión y sus plazos independientes de 24 y 48 horas. Los agentes se ordenan por su caso más
+grave, score acumulado y cantidad; dentro de cada grupo aparecen primero los casos más graves y
+antiguos. `🔴`, `🟠` y `🟡` indican casos críticos, de alta prioridad o todavía dentro de plazo.
+Las revisiones existentes enlazan su mensaje y muestran las horas transcurridas desde su última
+publicación. Cada página contiene hasta ocho reportes y repite el agente cuando su grupo continúa.
 
 ## `/mdc`
 

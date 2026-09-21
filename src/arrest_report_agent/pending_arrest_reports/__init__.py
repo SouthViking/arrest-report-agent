@@ -16,6 +16,7 @@ from .models import (
     PendingArrestReportScan,
     PendingReportReason,
     PendingReportScanTooLargeError,
+    PendingReportSeverity,
     PendingReportStatus,
 )
 from .repository import PendingArrestReviewRepository
@@ -23,6 +24,8 @@ from .service import (
     PendingArrestReportService,
     PendingArrestReviewLookup,
     PendingLegacyArrestReviewLookup,
+    pending_report_score,
+    severity_for_report,
     status_for_age,
     unfinished_reason,
 )
@@ -42,10 +45,13 @@ __all__ = [
     "PendingReportPaginationView",
     "PendingReportReason",
     "PendingReportScanTooLargeError",
+    "PendingReportSeverity",
     "PendingReportStatus",
     "PendingReportVisibility",
     "PendingLegacyArrestReviewLookup",
     "build_pending_arrest_reports_embed",
+    "pending_report_score",
+    "severity_for_report",
     "status_for_age",
     "unfinished_reason",
 ]

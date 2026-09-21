@@ -21,15 +21,28 @@ from .models import (
     PendingArrestReport,
     PendingArrestReportScan,
     PendingReportScanTooLargeError,
+    PendingReportSeverity,
     PendingReportStatus,
 )
-from .service import PendingArrestReportService
+from .service import (
+    PCU_DEADLINE_HOURS,
+    REVIEW_DEADLINE_HOURS,
+    PendingArrestReportService,
+    pending_report_score,
+    severity_for_report,
+)
 
 LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
 VIEW_TIMEOUT_SECONDS = 300
 # Keep each slice bounded so worst-case names and headings remain below Discord's limit.
 REPORTS_PER_PAGE = 8
+SEVERITY_EMOJIS = {
+    PendingReportSeverity.CRITICAL: "🔴",
+    PendingReportSeverity.HIGH: "🟠",
+    PendingReportSeverity.MEDIUM: "🟡",
+}
+SEVERITY_LEGEND = "🔴 Vencido o inconsistente · 🟠 Alta prioridad · 🟡 Dentro del plazo"
 
 
 class PendingReportVisibility(StrEnum):
@@ -382,6 +395,7 @@ def build_pending_arrest_reports_embed(
                 page_start=start,
             )
         )
+        description_parts.append(SEVERITY_LEGEND)
     else:
         description_parts.append(ui.no_pending)
     description = "\n\n".join(description_parts)
@@ -412,14 +426,29 @@ def _group_reports_by_officer(
         grouped.setdefault(_officer_key(report), []).append(report)
     ordered_groups = sorted(
         grouped.items(),
-        key=lambda item: (-len(item[1]), item[0]),
+        key=_officer_group_priority,
     )
     ordered = tuple(
         report
         for _, group in ordered_groups
-        for report in sorted(group, key=lambda item: (item.created_at, item.report_id))
+        for report in sorted(
+            group,
+            key=lambda item: (
+                -pending_report_score(item),
+                -item.age_hours,
+                item.report_id,
+            ),
+        )
     )
     return ordered
+
+
+def _officer_group_priority(
+    item: tuple[str, list[PendingArrestReport]],
+) -> tuple[int, int, int, str]:
+    key, reports = item
+    scores = tuple(pending_report_score(report) for report in reports)
+    return (-max(scores), -sum(scores), -len(reports), key)
 
 
 def _format_grouped_report_entries(
@@ -454,20 +483,49 @@ def _format_grouped_report_entries(
 
 def _format_report_entry(report: PendingArrestReport) -> str:
     suspect = _compact_name(report.suspect_name)
-    arrest_date = f"<t:{int(report.created_at.timestamp())}:R>"
-    reasons: list[str] = []
-    if report.pcu_reason is not None:
-        reasons.append("Sin PCU")
-    if report.review_status is ArrestReviewStatus.MISSING:
-        reasons.append("Sin revisión")
-    elif report.review_status is ArrestReviewStatus.PENDING:
-        reasons.append("Revisión pendiente")
-    if report.review_url is not None:
-        reasons.append(f"[Post]({report.review_url})")
+    severity = severity_for_report(report)
+    reasons = [_format_pcu_state(report), _format_review_state(report)]
     return (
-        f"• **#{report.report_id}** · {suspect} · {arrest_date} — "
+        f"{SEVERITY_EMOJIS[severity]} **#{report.report_id}** · {suspect} · "
+        f"{_format_hours(report.age_hours)} — "
         f"{' · '.join(reasons)}"
     )
+
+
+def _format_pcu_state(report: PendingArrestReport) -> str:
+    if report.pcu_reason is None:
+        return "PCU completo"
+    if report.age_hours >= PCU_DEADLINE_HOURS:
+        return f"Sin PCU ({_format_overdue(report.age_hours - PCU_DEADLINE_HOURS)})"
+    return "Sin PCU"
+
+
+def _format_review_state(report: PendingArrestReport) -> str:
+    if report.review_status is ArrestReviewStatus.MISSING:
+        label = "Sin revisión"
+    else:
+        status = (
+            "Revisión aprobada"
+            if report.review_status is ArrestReviewStatus.APPROVED
+            else "Revisión pendiente"
+        )
+        label = f"[{status}]({report.review_url})"
+        if report.review_age_hours is not None:
+            label = f"{label} hace {_format_hours(report.review_age_hours)}"
+    if (
+        report.review_status is not ArrestReviewStatus.APPROVED
+        and report.age_hours >= REVIEW_DEADLINE_HOURS
+    ):
+        label = f"{label} ({_format_overdue(report.age_hours - REVIEW_DEADLINE_HOURS)})"
+    return label
+
+
+def _format_hours(hours: int) -> str:
+    return "menos de 1 h" if hours == 0 else f"{hours} h"
+
+
+def _format_overdue(hours: int) -> str:
+    return "plazo vencido" if hours == 0 else f"{hours} h fuera de plazo"
 
 
 def _officer_key(report: PendingArrestReport) -> str:
@@ -497,13 +555,11 @@ def _resolve_date_range(
 def _embed_color(
     reports: tuple[PendingArrestReport, ...],
 ) -> discord.Color:
-    statuses = {report.status for report in reports}
-    if PendingReportStatus.OVER_MAXIMUM_LIMIT in statuses:
+    severities = {severity_for_report(report) for report in reports}
+    if PendingReportSeverity.CRITICAL in severities:
         return discord.Color.red()
-    if PendingReportStatus.OVER_NORMAL_LIMIT in statuses:
+    if PendingReportSeverity.HIGH in severities:
         return discord.Color.orange()
-    if PendingReportStatus.NEAR_DEADLINE in statuses:
-        return discord.Color.gold()
     if reports:
         return discord.Color.gold()
     return discord.Color.green()

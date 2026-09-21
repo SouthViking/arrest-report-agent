@@ -1,18 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.36.0",
-  "title": "Ingreso FTT simplificado",
-  "summary": "Los nuevos miembros pueden solicitar sus roles iniciales eligiendo solamente su estación de destino.",
+  "version": "0.37.0",
+  "title": "Prioridad en reportes pendientes",
+  "summary": "Los reportes pendientes ahora se ordenan por gravedad y muestran con mayor claridad sus plazos.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
-      "type": "added",
-      "text": "El nuevo botón Ingreso FTT prepara automáticamente los roles iniciales para Ganton o Dillimore."
+      "type": "improved",
+      "text": "Los reportes y agentes se priorizan mediante un score interno que considera PCU, revisión y antigüedad."
     },
     {
       "type": "improved",
-      "text": "El rol CSD: TTCF también está disponible en la solicitud tradicional de roles."
+      "text": "Cada caso muestra su gravedad, horas transcurridas y la antigüedad real de su última revisión."
     }
   ],
   "acknowledgements": []

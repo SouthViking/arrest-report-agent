@@ -35,7 +35,7 @@ class PendingArrestReviewRepository:
         if not normalized_report_ids:
             return {}
 
-        recorded_at = sa.func.coalesce(
+        bound_at = sa.func.coalesce(
             report_arrest_bindings.c.updated_at,
             report_arrest_bindings.c.created_at,
         )
@@ -43,6 +43,7 @@ class PendingArrestReviewRepository:
             report_reviews.c.published_at,
             report_reviews.c.created_at,
         )
+        reviewed_at = sa.func.coalesce(published_at, bound_at)
         submission_join = sa.and_(
             report_arrest_bindings.c.guild_id == arrest_report_submissions.c.guild_id,
             report_arrest_bindings.c.root_message_id
@@ -61,7 +62,7 @@ class PendingArrestReviewRepository:
                 report_arrest_bindings.c.guild_id,
                 report_arrest_bindings.c.parent_channel_id,
                 report_arrest_bindings.c.root_message_id,
-                recorded_at.label("recorded_at"),
+                reviewed_at.label("reviewed_at"),
                 arrest_report_submissions.c.id.label("structured_submission_id"),
                 report_reviews.c.verdict,
             )
@@ -78,7 +79,7 @@ class PendingArrestReviewRepository:
             .order_by(
                 report_arrest_bindings.c.sarp_arrest_id,
                 report_arrest_bindings.c.root_message_id.desc(),
-                recorded_at.desc(),
+                bound_at.desc(),
                 published_at.desc().nulls_last(),
                 report_reviews.c.attempt_number.desc().nulls_last(),
             )
@@ -114,6 +115,6 @@ class PendingArrestReviewRepository:
                 guild_id=int(row["guild_id"]),
                 parent_channel_id=int(row["parent_channel_id"]),
                 root_message_id=int(row["root_message_id"]),
-                recorded_at=row["recorded_at"],
+                reviewed_at=row["reviewed_at"],
             )
         return reviews

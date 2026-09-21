@@ -18,6 +18,7 @@ from .models import (
     PendingArrestReportScan,
     PendingReportReason,
     PendingReportScanTooLargeError,
+    PendingReportSeverity,
     PendingReportStatus,
 )
 
@@ -31,6 +32,16 @@ PLACEHOLDER_ONLY = re.compile(
 )
 REPEATED_CHARACTER = re.compile(r"([a-záéíóúñ])\1{4,}", re.IGNORECASE)
 MAX_SHORT_NONSTANDARD_CHARACTERS = 120
+PCU_NEAR_DEADLINE_HOURS = 18
+PCU_DEADLINE_HOURS = 24
+REVIEW_NEAR_DEADLINE_HOURS = 36
+REVIEW_DEADLINE_HOURS = 48
+
+_SEVERITY_SCORE = {
+    PendingReportSeverity.MEDIUM: 10_000,
+    PendingReportSeverity.HIGH: 20_000,
+    PendingReportSeverity.CRITICAL: 30_000,
+}
 
 
 class PendingArrestReviewLookup(Protocol):
@@ -216,13 +227,57 @@ def status_for_age(created_at: datetime, *, now: datetime) -> PendingReportStatu
     """Classify a pending report against the 18, 24 and 48 hour thresholds."""
 
     age = max(timedelta(), now - created_at)
-    if age < timedelta(hours=18):
+    if age < timedelta(hours=PCU_NEAR_DEADLINE_HOURS):
         return PendingReportStatus.ON_TIME
-    if age < timedelta(hours=24):
+    if age < timedelta(hours=PCU_DEADLINE_HOURS):
         return PendingReportStatus.NEAR_DEADLINE
-    if age < timedelta(hours=48):
+    if age < timedelta(hours=REVIEW_DEADLINE_HOURS):
         return PendingReportStatus.OVER_NORMAL_LIMIT
     return PendingReportStatus.OVER_MAXIMUM_LIMIT
+
+
+def severity_for_report(report: PendingArrestReport) -> PendingReportSeverity:
+    """Return the visible priority band for one incomplete workflow."""
+
+    pcu_missing = report.pcu_reason is not None
+    review_incomplete = report.review_status is not ArrestReviewStatus.APPROVED
+    if (
+        (pcu_missing and report.age_hours >= PCU_DEADLINE_HOURS)
+        or (review_incomplete and report.age_hours >= REVIEW_DEADLINE_HOURS)
+        or (pcu_missing and report.review_status is ArrestReviewStatus.APPROVED)
+    ):
+        return PendingReportSeverity.CRITICAL
+    if (
+        pcu_missing
+        or (review_incomplete and report.age_hours >= REVIEW_NEAR_DEADLINE_HOURS)
+    ):
+        return PendingReportSeverity.HIGH
+    return PendingReportSeverity.MEDIUM
+
+
+def pending_report_score(report: PendingArrestReport) -> int:
+    """Rank pending reports without exposing an arbitrary score to Discord users."""
+
+    if report.pcu_reason is not None:
+        workflow_score = (
+            3_000
+            if report.review_status is ArrestReviewStatus.MISSING
+            else 2_000
+        )
+    else:
+        workflow_score = (
+            1_000
+            if report.review_status is ArrestReviewStatus.MISSING
+            else 500
+        )
+    age_score = min(report.age_hours, 999)
+    review_age_score = min(report.review_age_hours or 0, 99)
+    return (
+        _SEVERITY_SCORE[severity_for_report(report)]
+        + workflow_score
+        + age_score
+        + review_age_score
+    )
 
 
 def _classify_report(
@@ -242,16 +297,30 @@ def _classify_report(
         return None
 
     created_at = report.created_at.astimezone(UTC)
+    age_hours = _elapsed_hours(created_at, now=now)
+    reviewed_at = None
+    review_age_hours = None
+    if reference is not None:
+        reviewed_at = reference.reviewed_at.astimezone(UTC)
+        review_age_hours = _elapsed_hours(reviewed_at, now=now)
     return PendingArrestReport(
         report_id=report.id,
         officer_name=_display_name(report.police_name),
         suspect_name=_display_name(report.suspect_name),
         created_at=created_at,
+        age_hours=age_hours,
         status=status_for_age(created_at, now=now),
         pcu_reason=pcu_reason,
         review_status=review_status,
         review_url=reference.jump_url if reference is not None else None,
+        reviewed_at=reviewed_at,
+        review_age_hours=review_age_hours,
     )
+
+
+def _elapsed_hours(created_at: datetime, *, now: datetime) -> int:
+    elapsed = max(timedelta(), now - created_at)
+    return int(elapsed.total_seconds() // 3600)
 
 
 def _normalize_description(value: str) -> str:

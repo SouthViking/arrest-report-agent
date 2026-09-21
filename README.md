@@ -692,7 +692,10 @@ y licencias CCW/caza.
 `/reportes-pendientes` usa el módulo dinámico `pending_arrest_reports`. Descarga de forma paginada
 los reportes del período elegido, considera terminadas las narrativas que comienzan con `Yo` y marca
 determinísticamente textos vacíos, placeholders, repeticiones o descripciones breves no estándar.
-No guarda narrativas ni resultados: PostgreSQL conserva solamente la configuración del módulo. El
+Cruza cada caso con su revisión más reciente y prioriza los resultados mediante un score interno:
+PCU sin completar, revisiones ausentes o pendientes y plazos de 24 y 48 horas. Los círculos rojo,
+naranjo y amarillo exponen la urgencia sin mostrar el score. No guarda narrativas ni resultados:
+PostgreSQL conserva solamente la configuración y las referencias de revisión ya existentes. El
 formulario permite publicar el embed en el canal o recibirlo de forma efímera.
 
 El módulo dinámico `service_calls` consulta `GET /police/emergency-calls` únicamente cuando la

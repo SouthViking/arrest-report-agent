@@ -80,7 +80,10 @@ class DiscordLegacyArrestReviewLookup:
                         member_cache,
                     )
                     found[matched_reference.report_id] = matched_reference.model_copy(
-                        update={"approved": status is PersonalReportStatus.APPROVED}
+                        update={
+                            "approved": status is PersonalReportStatus.APPROVED,
+                            "reviewed_at": message.created_at,
+                        }
                     )
                     pending_roots.pop(message.id)
                     if not pending_roots:

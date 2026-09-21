@@ -17,6 +17,14 @@ class PendingReportStatus(StrEnum):
     OVER_MAXIMUM_LIMIT = "over_maximum_limit"
 
 
+class PendingReportSeverity(StrEnum):
+    """Operational priority derived from completeness and elapsed time."""
+
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
 class PendingReportReason(StrEnum):
     """Deterministic signal that made a PCU narrative look unfinished."""
 
@@ -54,7 +62,7 @@ class ArrestReportReviewReference(FrozenPendingReportModel):
     guild_id: int = Field(gt=0)
     parent_channel_id: int = Field(gt=0)
     root_message_id: int = Field(gt=0)
-    recorded_at: datetime
+    reviewed_at: datetime
 
     @property
     def jump_url(self) -> str:
@@ -69,10 +77,13 @@ class PendingArrestReport(FrozenPendingReportModel):
     officer_name: str = Field(min_length=1, max_length=100)
     suspect_name: str = Field(min_length=1, max_length=100)
     created_at: datetime
+    age_hours: int = Field(ge=0)
     status: PendingReportStatus
     pcu_reason: PendingReportReason | None = None
     review_status: ArrestReviewStatus
     review_url: str | None = Field(default=None, min_length=1)
+    reviewed_at: datetime | None = None
+    review_age_hours: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def validate_pending_state(self) -> PendingArrestReport:
@@ -82,6 +93,14 @@ class PendingArrestReport(FrozenPendingReportModel):
             raise ValueError("a missing review cannot have a Discord URL")
         if self.review_status is not ArrestReviewStatus.MISSING and self.review_url is None:
             raise ValueError("an existing review requires its Discord URL")
+        if self.review_status is ArrestReviewStatus.MISSING and (
+            self.reviewed_at is not None or self.review_age_hours is not None
+        ):
+            raise ValueError("a missing review cannot have review timing")
+        if self.review_status is not ArrestReviewStatus.MISSING and (
+            self.reviewed_at is None or self.review_age_hours is None
+        ):
+            raise ValueError("an existing review requires review timing")
         return self
 
 
