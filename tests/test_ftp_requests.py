@@ -4,6 +4,7 @@ import asyncio
 import os
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import discord
@@ -13,7 +14,6 @@ from alembic.config import Config
 
 from arrest_report_agent.config import FtpRequestOptions, FtpStatusOptions
 from arrest_report_agent.ftp_requests import (
-    ActiveFtpRequestError,
     FtpInstructorLevel,
     FtpRequestRepository,
     FtpRequestStatus,
@@ -24,9 +24,11 @@ from arrest_report_agent.ftp_requests.discord import (
     FtpRequestCog,
     FtpRequestControlsView,
     FtpRequestModal,
+    FtpRequestPanelView,
     FtpRequestService,
     build_ftp_info_embed,
     build_ftp_request_embed,
+    build_ftp_request_panel_embed,
     parse_ftp_schedule,
 )
 from arrest_report_agent.infrastructure.postgres import PostgresClient, PostgresClientConfig
@@ -166,6 +168,70 @@ async def test_terminal_ftp_request_view_disables_both_actions() -> None:
     assert all(getattr(child, "disabled", False) for child in view.children)
 
 
+@pytest.mark.asyncio
+async def test_ftp_request_panel_is_persistent_and_opens_the_form() -> None:
+    view = FtpRequestPanelView()
+
+    assert view.timeout is None
+    assert len(view.children) == 1
+    assert view.children[0].custom_id == "ftp-request:v1:open-form"
+    assert view.children[0].label == "Solicitar ficha"
+
+
+@pytest.mark.asyncio
+async def test_ftp_request_panel_opens_modal_for_authorized_member(persona) -> None:
+    service = _service(persona)
+    response = SimpleNamespace(send_modal=AsyncMock(), send_message=AsyncMock())
+    interaction = SimpleNamespace(
+        client=SimpleNamespace(
+            ftp_request_registry=SimpleNamespace(get=AsyncMock(return_value=service))
+        ),
+        guild_id=1,
+        channel_id=50,
+        user=_member(1, (40,)),
+        response=response,
+    )
+
+    await FtpRequestPanelView().children[0].callback(interaction)
+
+    response.send_modal.assert_awaited_once()
+    assert isinstance(response.send_modal.await_args.args[0], FtpRequestModal)
+    response.send_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ftp_request_panel_is_published_persisted_and_pinned(
+    persona,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = SimpleNamespace(
+        get_panel=AsyncMock(return_value=None),
+        save_panel=AsyncMock(),
+    )
+    service = _service(persona)
+    service.repository = repository
+    message = SimpleNamespace(
+        id=900,
+        pinned=False,
+        pin=AsyncMock(),
+        delete=AsyncMock(),
+    )
+    channel = SimpleNamespace(id=50, send=AsyncMock(return_value=message))
+    monkeypatch.setattr(service, "destination_channel", AsyncMock(return_value=channel))
+    guild = SimpleNamespace(id=1)
+
+    published = await service.ensure_request_panel(guild)
+
+    assert published is message
+    channel.send.assert_awaited_once()
+    repository.save_panel.assert_awaited_once_with(
+        guild_id=1,
+        channel_id=50,
+        message_id=900,
+    )
+    message.pin.assert_awaited_once_with(reason="Panel de solicitudes de fichas FTP")
+
+
 def test_ftp_request_embed_is_neutral_and_disables_technical_ids() -> None:
     requester = SimpleNamespace(
         display_name="C. Harrington",
@@ -218,7 +284,16 @@ def test_ftp_info_embed_points_to_the_configured_channel(persona) -> None:
 
     assert embed.title == "🎓 Fichas del Field Training Program"
     assert any("<#50>" in field.value for field in embed.fields)
+    assert any("mensaje fijado" in field.value for field in embed.fields)
     assert "superior" not in str(embed.to_dict()).lower()
+
+
+def test_ftp_request_panel_explains_repeatable_scheduled_requests(persona) -> None:
+    embed = build_ftp_request_panel_embed(_service(persona))
+
+    assert embed.title == "🎓 Solicitudes de fichas FTP"
+    assert "Pulsa el botón" in (embed.description or "")
+    assert "varias solicitudes" in (embed.description or "")
 
 
 def test_ftp_request_options_reject_overlap_between_management_roles() -> None:
@@ -231,7 +306,7 @@ def test_ftp_request_options_reject_overlap_between_management_roles() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ftp_request_repository_serializes_creation_and_transitions(
+async def test_ftp_request_repository_allows_multiple_scheduled_requests_and_transitions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     database_url = os.getenv("TEST_DATABASE_URL")
@@ -261,9 +336,8 @@ async def test_ftp_request_repository_serializes_creation_and_transitions(
 
         outcomes = await asyncio.gather(reserve(), reserve(), return_exceptions=True)
         created = [outcome for outcome in outcomes if isinstance(outcome, FtpTrainingRequest)]
-        blocked = [outcome for outcome in outcomes if isinstance(outcome, ActiveFtpRequestError)]
-        assert len(created) == 1
-        assert len(blocked) == 1
+        assert len(created) == 2
+        assert all(not isinstance(outcome, Exception) for outcome in outcomes)
 
         request = await repository.publish(created[0].id, 975432101234567803)
         assert request.status is FtpRequestStatus.PENDING
@@ -277,6 +351,14 @@ async def test_ftp_request_repository_serializes_creation_and_transitions(
             request.message_id or 0,
         )
         assert restored is not None and restored.id == request.id
+
+        panel = await repository.save_panel(
+            guild_id=guild_id,
+            channel_id=975432101234567802,
+            message_id=975432101234567899,
+        )
+        assert panel.guild_id == guild_id
+        assert await repository.get_panel(guild_id) == panel
 
         claims = await asyncio.gather(
             repository.claim(request.id, actor_user_id=975432101234567804),

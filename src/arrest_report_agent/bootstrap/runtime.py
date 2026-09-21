@@ -47,6 +47,7 @@ from arrest_report_agent.forum_shortcuts import ForumShortcutsCog
 from arrest_report_agent.ftp_requests import (
     FtpRequestCog,
     FtpRequestControlsView,
+    FtpRequestPanelView,
     FtpRequestRepository,
     FtpRequestServiceRegistry,
 )
@@ -529,6 +530,7 @@ async def build_runtime(
     )
     bot.ftp_request_registry = ftp_request_registry  # type: ignore[attr-defined]
     bot.add_view(FtpRequestControlsView())
+    bot.add_view(FtpRequestPanelView())
     bot.add_cog(FtpRequestCog(ftp_request_registry, persona.profile))
     log_event(
         LOGGER,

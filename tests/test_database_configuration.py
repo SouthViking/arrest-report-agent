@@ -1459,6 +1459,18 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
             "requested_instructor_level",
             "scheduled_for",
         }.issubset({str(row["column_name"]) for row in ftp_request_columns})
+        ftp_panel_table = await client.fetch_one(
+            sa.text("SELECT to_regclass('public.ftp_request_panels') AS name")
+        )
+        assert ftp_panel_table is not None
+        assert ftp_panel_table["name"] == "ftp_request_panels"
+        live_member_index = await client.fetch_one(
+            sa.text(
+                "SELECT to_regclass('public.uq_ftp_training_request_live_member') AS name"
+            )
+        )
+        assert live_member_index is not None
+        assert live_member_index["name"] is None
         report_rows = await client.fetch_all(
             sa.text(
                 "SELECT revision.guild_id, feature.enabled, feature.payload, policy.mode, "

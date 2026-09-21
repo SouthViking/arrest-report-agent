@@ -412,8 +412,9 @@ Comandos disponibles:
 - `/conectados`: publica para `operational_staff_roles` el personal conectado y en servicio.
 - `/ftp-conectados`: publica para `operational_staff_roles` únicamente Supervisory Staff, MFTO,
   FTO y FTT conectados, indicando cuáles figuran en servicio.
-- `/solicitar-ficha`: abre en el canal configurado un formulario para que un FTT programe su ficha,
-  elija un evaluador general o supervisor y reciba una notificación cuando alguien la tome.
+- `/solicitar-ficha`: mantiene como alternativa el formulario con el que un FTT programa su ficha,
+  elige un evaluador general o supervisor y recibe una notificación cuando alguien la toma. El canal
+  configurado también contiene un panel fijado que abre el mismo formulario sin permitir mensajes normales.
 - `/ver-evidencia`: permite al personal de `operational_staff_roles` consultar públicamente una
   bolsa por su número y ver el contenido analizado junto con su cadena de custodia. El agente con
   acceso completo reutiliza la misma consulta cuando necesita contrastar una bolsa durante una
@@ -673,10 +674,12 @@ MFTO, FTO y FTT en Discord. Los nombres toleran guiones bajos, tildes y alias se
 incluido el formato `N. Apellido`; las coincidencias ambiguas se omiten en lugar de elegirse al azar.
 
 `/solicitar-ficha` usa el módulo dinámico `ftp_requests` y persiste la fase, tipo de evaluador, horario,
-comentarios opcionales, estado y referencias de Discord necesarias. Pueden solicitar FTT, Command o Executive; la opción
-general admite FTO o rangos superiores y la opción supervisor exige Supervisory, Command o Executive. Solo el autor,
-Command Staff o Executive Staff puede cancelar. El canal y los roles se resuelven desde PostgreSQL,
-sin nuevos environment vars.
+comentarios opcionales, estado y referencias de Discord necesarias. El bot publica, actualiza y fija un panel
+de entrada persistente en el canal configurado; su botón abre el mismo formulario sin requerir permiso para
+escribir mensajes. Pueden solicitar FTT, Command o Executive y mantener varias solicitudes para horarios
+distintos; la opción general admite FTO o rangos superiores y la opción supervisor exige Supervisory, Command
+o Executive. Solo el autor, Command Staff o Executive Staff puede cancelar. El canal, panel y roles se resuelven
+desde PostgreSQL, sin nuevos environment vars.
 
 `/recursos` usa el módulo dinámico `operational_resources` y la misma política
 `operational_staff_roles`. Reúne en un panel público los enlaces oficiales, las direcciones de juego

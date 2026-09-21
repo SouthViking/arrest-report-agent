@@ -79,3 +79,13 @@ class FtpTrainingRequest(BaseModel):
             and self.requested_instructor_level is not None
             and self.scheduled_for is not None
         )
+
+
+class FtpRequestPanel(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    guild_id: int = Field(gt=0)
+    channel_id: int = Field(gt=0)
+    message_id: int = Field(gt=0)
+    created_at: datetime
+    updated_at: datetime

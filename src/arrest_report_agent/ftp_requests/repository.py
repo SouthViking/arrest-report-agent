@@ -7,24 +7,23 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from arrest_report_agent.infrastructure.postgres import PostgresClient
 from arrest_report_agent.infrastructure.postgres.schema import (
     discord_guilds,
+    ftp_request_panels,
     ftp_training_requests,
 )
 
 from .models import (
     FtpInstructorLevel,
+    FtpRequestPanel,
     FtpRequestStatus,
     FtpTrainingPhase,
     FtpTrainingRequest,
 )
-
-
-class ActiveFtpRequestError(ValueError):
-    """Raised when the same member already has a pending request."""
 
 
 class FtpRequestRepository:
@@ -50,28 +49,12 @@ class FtpRequestRepository:
         normalized_schedule = scheduled_for.astimezone(UTC)
         async with self.client.transaction() as tx:
             guild = await tx.scalar(
-                sa.select(discord_guilds.c.discord_id)
-                .where(discord_guilds.c.discord_id == guild_id)
-                .with_for_update()
+                sa.select(discord_guilds.c.discord_id).where(
+                    discord_guilds.c.discord_id == guild_id
+                )
             )
             if guild is None:
                 raise LookupError(f"Guild {guild_id} is not configured")
-            # Serialize attempts per member before consulting the partial unique key.
-            await tx.execute(
-                sa.text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-                {"key": f"ftp-request:{guild_id}:{requester_user_id}"},
-            )
-            active = await tx.scalar(
-                sa.select(ftp_training_requests.c.id).where(
-                    ftp_training_requests.c.guild_id == guild_id,
-                    ftp_training_requests.c.requester_user_id == requester_user_id,
-                    ftp_training_requests.c.status.in_(
-                        (FtpRequestStatus.PUBLISHING.value, FtpRequestStatus.PENDING.value)
-                    ),
-                )
-            )
-            if active is not None:
-                raise ActiveFtpRequestError("Member already has a pending FTP request")
             request_id = uuid.uuid4()
             await tx.execute(
                 ftp_training_requests.insert().values(
@@ -87,6 +70,38 @@ class FtpRequestRepository:
                 )
             )
             return await self._get(request_id, tx)
+
+    async def get_panel(self, guild_id: int) -> FtpRequestPanel | None:
+        row = await self.client.fetch_one(
+            sa.select(ftp_request_panels).where(ftp_request_panels.c.guild_id == guild_id)
+        )
+        return None if row is None else FtpRequestPanel.model_validate(dict(row))
+
+    async def save_panel(
+        self,
+        *,
+        guild_id: int,
+        channel_id: int,
+        message_id: int,
+    ) -> FtpRequestPanel:
+        statement = insert(ftp_request_panels).values(
+            guild_id=guild_id,
+            channel_id=channel_id,
+            message_id=message_id,
+        )
+        statement = statement.on_conflict_do_update(
+            index_elements=[ftp_request_panels.c.guild_id],
+            set_={
+                "channel_id": channel_id,
+                "message_id": message_id,
+                "updated_at": datetime.now(UTC),
+            },
+        )
+        await self.client.execute(statement)
+        panel = await self.get_panel(guild_id)
+        if panel is None:
+            raise LookupError(f"FTP request panel for guild {guild_id} was not persisted")
+        return panel
 
     async def publish(self, request_id: UUID, message_id: int) -> FtpTrainingRequest:
         async with self.client.transaction() as tx:

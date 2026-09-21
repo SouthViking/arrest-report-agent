@@ -1,16 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.38.2",
-  "title": "Solicitudes FTP simplificadas",
-  "summary": "Las solicitudes de fichas ahora admiten indicaciones adicionales y reducen las confirmaciones innecesarias.",
+  "version": "0.38.3",
+  "title": "Panel de solicitudes FTP",
+  "summary": "Las fichas ahora pueden solicitarse desde un panel fijo y organizarse en varios horarios.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
+      "type": "added",
+      "text": "El canal de fichas incorpora un botón fijo para abrir solicitudes sin necesidad de escribir mensajes."
+    },
+    {
       "type": "improved",
-      "text": "/solicitar-ficha incorpora comentarios opcionales, permite que una persona autorizada tome su propia solicitud y elimina confirmaciones redundantes."
+      "text": "Cada trainee puede mantener varias solicitudes para fechas u horarios diferentes."
     }
   ],
   "acknowledgements": []

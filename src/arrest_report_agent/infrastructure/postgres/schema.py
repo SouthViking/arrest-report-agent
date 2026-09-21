@@ -416,12 +416,26 @@ ftp_training_requests = sa.Table(
         "status",
         "created_at",
     ),
-    sa.Index(
-        "uq_ftp_training_request_live_member",
+)
+
+ftp_request_panels = sa.Table(
+    "ftp_request_panels",
+    metadata,
+    sa.Column(
         "guild_id",
-        "requester_user_id",
-        unique=True,
-        postgresql_where=sa.text("status IN ('publishing','pending')"),
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("channel_id", sa.BigInteger, nullable=False),
+    sa.Column("message_id", sa.BigInteger, nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.UniqueConstraint(
+        "guild_id",
+        "channel_id",
+        "message_id",
+        name="uq_ftp_request_panel_message",
     ),
 )
 

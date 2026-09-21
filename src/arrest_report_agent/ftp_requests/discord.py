@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
@@ -22,7 +23,7 @@ from .models import (
     FtpTrainingPhase,
     FtpTrainingRequest,
 )
-from .repository import ActiveFtpRequestError, FtpRequestRepository
+from .repository import FtpRequestRepository
 
 LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
@@ -143,6 +144,41 @@ class FtpRequestService:
             raise PermissionError("Bot cannot publish FTP requests in the configured channel")
         return resolved_channel
 
+    async def ensure_request_panel(self, guild: discord.Guild) -> discord.Message:
+        channel = await self.destination_channel(guild)
+        panel = await self.repository.get_panel(guild.id)
+        message: discord.Message | None = None
+        if panel is not None and panel.channel_id == channel.id:
+            try:
+                message = await channel.fetch_message(panel.message_id)
+            except discord.NotFound:
+                message = None
+        if message is None:
+            message = await channel.send(
+                embed=build_ftp_request_panel_embed(self),
+                view=FtpRequestPanelView(),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            try:
+                await self.repository.save_panel(
+                    guild_id=guild.id,
+                    channel_id=channel.id,
+                    message_id=message.id,
+                )
+            except Exception:
+                with suppress(discord.HTTPException):
+                    await message.delete()
+                raise
+        else:
+            await message.edit(
+                embed=build_ftp_request_panel_embed(self),
+                view=FtpRequestPanelView(),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        if not message.pinned:
+            await message.pin(reason="Panel de solicitudes de fichas FTP")
+        return message
+
     def notification_roles(
         self,
         guild: discord.Guild,
@@ -222,12 +258,6 @@ class FtpRequestService:
                 channel_id=request.channel_id,
                 message_id=request.message_id,
                 requester_user_id=request.requester_user_id,
-            )
-        except ActiveFtpRequestError:
-            await interaction.followup.send(
-                embed=self.alert(self.ui.active_request),
-                ephemeral=True,
-                allowed_mentions=discord.AllowedMentions.none(),
             )
         except Exception as error:
             if request is not None:
@@ -473,6 +503,56 @@ class FtpRequestControlsView(discord.ui.View):
         await service.cancel(interaction)
 
 
+class FtpRequestPanelView(discord.ui.View):
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Solicitar ficha",
+        emoji="🎓",
+        style=discord.ButtonStyle.primary,
+        custom_id="ftp-request:v1:open-form",
+    )
+    async def open_form_button(
+        self,
+        _button: discord.ui.Button[FtpRequestPanelView],
+        interaction: discord.Interaction,
+    ) -> None:
+        registry: FtpRequestServiceRegistry = interaction.client.ftp_request_registry  # type: ignore[attr-defined]
+        if interaction.guild_id is None:
+            await interaction.response.send_message(
+                embed=_unavailable_embed(None),
+                ephemeral=True,
+            )
+            return
+        try:
+            service = await registry.get(interaction.guild_id, require_enabled=False)
+        except LookupError:
+            service = None
+        if service is None or not service.enabled or service.request_options is None:
+            await interaction.response.send_message(
+                embed=_unavailable_embed(service),
+                ephemeral=True,
+            )
+            return
+        member = interaction.user
+        if not isinstance(member, discord.Member) or not service.can_request(member):
+            await interaction.response.send_message(
+                embed=service.alert(service.ui.unauthorized_requester),
+                ephemeral=True,
+            )
+            return
+        if interaction.channel_id != service.request_options.channel_id:
+            channel_mention = f"<#{service.request_options.channel_id}>"
+            await interaction.response.send_message(
+                embed=service.alert(service.ui.wrong_channel.format(channel=channel_mention)),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await interaction.response.send_modal(FtpRequestModal(service, member))
+
+
 class FtpRequestModal(discord.ui.DesignerModal):
     def __init__(self, service: FtpRequestService, member: discord.Member) -> None:
         self.service = service
@@ -573,8 +653,37 @@ class FtpRequestModal(discord.ui.DesignerModal):
 class FtpRequestCog(commands.Cog):
     def __init__(self, registry: FtpRequestServiceRegistry, persona: BotPersona) -> None:
         self.registry = registry
+        self._panel_lock = asyncio.Lock()
         self.request_training.description = persona.messages.interface.commands.ftp_request_description
         self.info_ftp.description = persona.messages.interface.commands.info_ftp_description
+
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        async with self._panel_lock:
+            for guild in self.registry.bot.guilds:
+                try:
+                    service = await self.registry.get(guild.id, require_enabled=False)
+                    if not service.enabled or service.request_options is None:
+                        continue
+                    message = await service.ensure_request_panel(guild)
+                    log_event(
+                        LOGGER,
+                        "info",
+                        "ftp_request_panel_ready",
+                        guild_id=guild.id,
+                        channel_id=message.channel.id,
+                        message_id=message.id,
+                        pinned=True,
+                    )
+                except Exception as error:
+                    log_event(
+                        LOGGER,
+                        "error",
+                        "ftp_request_panel_failed",
+                        exc_info=error,
+                        guild_id=guild.id,
+                        **exception_fields(error),
+                    )
 
     @discord.slash_command(name="solicitar-ficha", description="Programa una ficha del FTP")
     async def request_training(self, ctx: discord.ApplicationContext) -> None:
@@ -714,7 +823,7 @@ def build_ftp_info_embed(service: FtpRequestService) -> discord.Embed:
     embed.add_field(
         name="1️⃣ Solicitar una ficha",
         value=(
-            f"Ve a <#{options.channel_id}> y utiliza `/solicitar-ficha`. "
+            f"Ve a <#{options.channel_id}> y pulsa **Solicitar ficha** en el mensaje fijado. "
             "Selecciona la fase, la fecha, la hora y si necesitas una evaluación general o de supervisor. "
             "También puedes dejar indicaciones adicionales si hacen falta."
         ),
@@ -741,6 +850,20 @@ def build_ftp_info_embed(service: FtpRequestService) -> discord.Embed:
         inline=False,
     )
     embed.add_field(name="Importante", value=service.ui.info_closing, inline=False)
+    embed.set_footer(text="Field Training Program")
+    return embed
+
+
+def build_ftp_request_panel_embed(service: FtpRequestService) -> discord.Embed:
+    embed = discord.Embed(
+        title="🎓 Solicitudes de fichas FTP",
+        description=(
+            f"{service.ui.info_intro}\n\n"
+            "Pulsa el botón para indicar la fase, fecha, hora, tipo de evaluador y cualquier "
+            "comentario adicional. Puedes mantener varias solicitudes para horarios distintos."
+        ),
+        color=discord.Color.gold(),
+    )
     embed.set_footer(text="Field Training Program")
     return embed
 
