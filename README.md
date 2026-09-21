@@ -673,7 +673,7 @@ MFTO, FTO y FTT en Discord. Los nombres toleran guiones bajos, tildes y alias se
 incluido el formato `N. Apellido`; las coincidencias ambiguas se omiten en lugar de elegirse al azar.
 
 `/solicitar-ficha` usa el módulo dinámico `ftp_requests` y persiste la fase, tipo de evaluador, horario,
-estado y referencias de Discord necesarias. Pueden solicitar FTT, Command o Executive; la opción
+comentarios opcionales, estado y referencias de Discord necesarias. Pueden solicitar FTT, Command o Executive; la opción
 general admite FTO o rangos superiores y la opción supervisor exige Supervisory, Command o Executive. Solo el autor,
 Command Staff o Executive Staff puede cancelar. El canal y los roles se resuelven desde PostgreSQL,
 sin nuevos environment vars.

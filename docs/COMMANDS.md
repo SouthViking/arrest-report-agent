@@ -266,12 +266,14 @@ identidad ambigua. Comparte la consulta y el caché corto de la nómina usado po
 
 ## `/solicitar-ficha`
 
-Abre para los Field Training Trainees un formulario con fase, fecha, hora y tipo de evaluador. Una
+Abre para los Field Training Trainees, Command Staff y Executive Staff un formulario con fase, fecha,
+hora, tipo de evaluador y comentarios opcionales. Una
 solicitud general avisa a FTO, MFTO y Supervisory Staff y puede tomarla cualquier integrante habilitado
 de esa cadena o de Command/Executive. Una solicitud de supervisor solo admite Supervisory Staff,
-Command Staff o Executive Staff. El autor, Command Staff y Executive Staff pueden cancelarla. Al
-tomar o cancelar se edita el mismo mensaje, se notifica al trainee y se desactivan los botones; el bot
-limita a una solicitud pendiente por autor.
+Command Staff o Executive Staff. Una persona autorizada puede tomar la solicitud aunque también sea
+su autora. El autor, Command Staff y Executive Staff pueden cancelarla. Al tomarla se edita el mismo
+mensaje, se notifica al trainee y se desactivan los botones; al cancelarla se actualiza la tarjeta sin
+enviar una confirmación adicional. El bot limita a una solicitud pendiente por autor.
 
 ## `/radios-faccion` y `/auditar-radio`
 

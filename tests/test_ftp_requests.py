@@ -72,6 +72,7 @@ def _request(
     status: FtpRequestStatus = FtpRequestStatus.PENDING,
     *,
     level: FtpInstructorLevel = FtpInstructorLevel.GENERAL,
+    comments: str = "",
 ) -> FtpTrainingRequest:
     return FtpTrainingRequest(
         id=uuid4(),
@@ -79,7 +80,7 @@ def _request(
         channel_id=50,
         message_id=100,
         requester_user_id=200,
-        reason="",
+        reason=comments,
         training_phase=FtpTrainingPhase.PHASE_2,
         requested_instructor_level=level,
         scheduled_for=datetime.now(UTC) + timedelta(days=2),
@@ -130,6 +131,9 @@ async def test_ftp_request_modal_exposes_only_general_and_supervisor(persona) ->
         ("General", FtpInstructorLevel.GENERAL.value),
         ("Supervisor", FtpInstructorLevel.SUPERVISOR.value),
     ]
+    assert modal.comments.required is False
+    assert modal.comments.style is discord.InputTextStyle.long
+    assert modal.comments.max_length == 500
 
 
 def test_ftp_request_commands_are_root_commands() -> None:
@@ -167,7 +171,10 @@ def test_ftp_request_embed_is_neutral_and_disables_technical_ids() -> None:
         display_name="C. Harrington",
         display_avatar=SimpleNamespace(url="https://cdn.example/avatar.png"),
     )
-    pending = build_ftp_request_embed(_request(), requester=requester)
+    pending = build_ftp_request_embed(
+        _request(comments="Coordinar punto de encuentro antes de comenzar."),
+        requester=requester,
+    )
     claimed = build_ftp_request_embed(_request(FtpRequestStatus.CLAIMED))
 
     assert pending.title == "🎓 Solicitud de ficha FTP"
@@ -180,6 +187,11 @@ def test_ftp_request_embed_is_neutral_and_disables_technical_ids() -> None:
         for field in pending.fields
     )
     assert any(field.name == "Fecha" and "<t:" in field.value for field in pending.fields)
+    assert any(
+        field.name == "Comentarios"
+        and field.value == "Coordinar punto de encuentro antes de comenzar."
+        for field in pending.fields
+    )
     assert any(field.name == "Estado" and field.value == "Esperando instructor" for field in pending.fields)
     assert any(field.name == "Instructor asignado" and field.value == "<@300>" for field in claimed.fields)
 
@@ -244,6 +256,7 @@ async def test_ftp_request_repository_serializes_creation_and_transitions(
                 training_phase=FtpTrainingPhase.PHASE_2,
                 requested_instructor_level=FtpInstructorLevel.SUPERVISOR,
                 scheduled_for=datetime.now(UTC) + timedelta(days=2),
+                reason="Preferencia por horario nocturno.",
             )
 
         outcomes = await asyncio.gather(reserve(), reserve(), return_exceptions=True)
@@ -257,6 +270,7 @@ async def test_ftp_request_repository_serializes_creation_and_transitions(
         assert request.training_phase is FtpTrainingPhase.PHASE_2
         assert request.requested_instructor_level is FtpInstructorLevel.SUPERVISOR
         assert request.scheduled_for is not None
+        assert request.reason == "Preferencia por horario nocturno."
         restored = await FtpRequestRepository(client).get_by_message(
             guild_id,
             request.channel_id,

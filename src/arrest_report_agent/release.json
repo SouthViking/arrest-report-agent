@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.38.1",
-  "title": "Solicitudes FTP más claras",
-  "summary": "El flujo para programar fichas ahora utiliza un nombre más directo y permite soporte del personal de mando.",
+  "version": "0.38.2",
+  "title": "Solicitudes FTP simplificadas",
+  "summary": "Las solicitudes de fichas ahora admiten indicaciones adicionales y reducen las confirmaciones innecesarias.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,7 +10,7 @@
   "changes": [
     {
       "type": "improved",
-      "text": "El comando ahora se llama /solicitar-ficha y puede utilizarlo un FTT, Command Staff o Executive Staff."
+      "text": "/solicitar-ficha incorpora comentarios opcionales, permite que una persona autorizada tome su propia solicitud y elimina confirmaciones redundantes."
     }
   ],
   "acknowledgements": []
