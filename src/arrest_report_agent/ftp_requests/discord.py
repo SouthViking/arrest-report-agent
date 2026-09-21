@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import suppress
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -28,7 +28,6 @@ from .repository import FtpRequestRepository
 LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
 FTP_TIMEZONE = ZoneInfo("America/Santiago")
-MAX_SCHEDULE_DAYS = 180
 
 
 class FtpRequestServiceRegistry:
@@ -102,6 +101,16 @@ class FtpRequestService:
         if ftp is None or options is None:
             return False
         return _has_any_role(member, (*ftp.ftt_role_ids, *options.management_role_ids))
+
+    def is_command_channel(self, channel_id: int) -> bool:
+        options = self.request_options
+        return bool(options and channel_id in options.command_channel_ids)
+
+    def command_channel_mentions(self) -> str:
+        options = self.request_options
+        if options is None:
+            return ""
+        return " o ".join(f"<#{channel_id}>" for channel_id in options.command_channel_ids)
 
     def can_claim(self, member: discord.Member, request: FtpTrainingRequest) -> bool:
         ftp = self.settings.ftp_status_options
@@ -204,12 +213,7 @@ class FtpRequestService:
         scheduled_for: datetime,
         comments: str = "",
     ) -> None:
-        now = datetime.now(UTC)
-        if (
-            scheduled_for.tzinfo is None
-            or scheduled_for <= now
-            or scheduled_for > now + timedelta(days=MAX_SCHEDULE_DAYS)
-        ):
+        if scheduled_for.tzinfo is None:
             await interaction.response.send_message(
                 embed=self.alert(self.ui.invalid_schedule),
                 ephemeral=True,
@@ -710,10 +714,11 @@ class FtpRequestCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        if ctx.channel is None or ctx.channel.id != service.request_options.channel_id:
-            channel_mention = f"<#{service.request_options.channel_id}>"
+        if ctx.channel is None or not service.is_command_channel(ctx.channel.id):
             await ctx.respond(
-                embed=service.alert(service.ui.wrong_channel.format(channel=channel_mention)),
+                embed=service.alert(
+                    service.ui.wrong_channel.format(channel=service.command_channel_mentions())
+                ),
                 ephemeral=True,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -820,12 +825,17 @@ def build_ftp_info_embed(service: FtpRequestService) -> discord.Embed:
         description=service.ui.info_intro,
         color=discord.Color.gold(),
     )
+    alternate_channels = options.additional_command_channel_ids
+    command_alternative = ""
+    if alternate_channels:
+        mentions = " o ".join(f"<#{channel_id}>" for channel_id in alternate_channels)
+        command_alternative = f" También puedes utilizar `/solicitar-ficha` desde {mentions}."
     embed.add_field(
         name="1️⃣ Solicitar una ficha",
         value=(
             f"Ve a <#{options.channel_id}> y pulsa **Solicitar ficha** en el mensaje fijado. "
             "Selecciona la fase, la fecha, la hora y si necesitas una evaluación general o de supervisor. "
-            "También puedes dejar indicaciones adicionales si hacen falta."
+            f"También puedes dejar indicaciones adicionales si hacen falta.{command_alternative}"
         ),
         inline=False,
     )
@@ -871,8 +881,6 @@ def build_ftp_request_panel_embed(service: FtpRequestService) -> discord.Embed:
 def parse_ftp_schedule(
     raw_date: str,
     raw_time: str,
-    *,
-    now: datetime | None = None,
 ) -> datetime:
     try:
         local = datetime.strptime(
@@ -881,16 +889,7 @@ def parse_ftp_schedule(
         ).replace(tzinfo=FTP_TIMEZONE)
     except ValueError as error:
         raise ValueError("Invalid FTP request schedule") from error
-    scheduled_for = local.astimezone(UTC)
-    reference = now or datetime.now(UTC)
-    if reference.tzinfo is None:
-        raise ValueError("Reference time must include timezone information")
-    reference = reference.astimezone(UTC)
-    if scheduled_for <= reference:
-        raise ValueError("FTP request schedule must be in the future")
-    if scheduled_for > reference + timedelta(days=MAX_SCHEDULE_DAYS):
-        raise ValueError("FTP request schedule is too far in the future")
-    return scheduled_for
+    return local.astimezone(UTC)
 
 
 def _has_any_role(member: discord.Member, role_ids: tuple[int, ...]) -> bool:

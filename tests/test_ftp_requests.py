@@ -57,6 +57,7 @@ def _service(persona) -> FtpRequestService:
         ),
         ftp_request_options=FtpRequestOptions(
             channel_id=50,
+            additional_command_channel_ids=(51,),
             command_role_ids=(60,),
             executive_role_ids=(70,),
         ),
@@ -123,6 +124,10 @@ def test_ftp_request_permissions_follow_the_role_matrix(persona) -> None:
     assert service.can_cancel(_member(1, (60,)), request)
     assert service.can_cancel(_member(1, (70,)), request)
     assert not service.can_cancel(_member(1, (30,)), request)
+    assert service.is_command_channel(50)
+    assert service.is_command_channel(51)
+    assert not service.is_command_channel(52)
+    assert service.command_channel_mentions() == "<#50> o <#51>"
 
 
 @pytest.mark.asyncio
@@ -262,10 +267,8 @@ def test_ftp_request_embed_is_neutral_and_disables_technical_ids() -> None:
     assert any(field.name == "Instructor asignado" and field.value == "<@300>" for field in claimed.fields)
 
 
-def test_parse_ftp_schedule_uses_chile_and_rejects_invalid_ranges() -> None:
-    now = datetime(2026, 9, 21, 15, 0, tzinfo=UTC)
-
-    assert parse_ftp_schedule("26/09/2026", "20:00", now=now) == datetime(
+def test_parse_ftp_schedule_uses_chile_and_accepts_any_valid_date() -> None:
+    assert parse_ftp_schedule("26/09/2026", "20:00") == datetime(
         2026,
         9,
         26,
@@ -273,10 +276,16 @@ def test_parse_ftp_schedule_uses_chile_and_rejects_invalid_ranges() -> None:
         0,
         tzinfo=UTC,
     )
-    with pytest.raises(ValueError, match="future"):
-        parse_ftp_schedule("20/09/2026", "20:00", now=now)
+    assert parse_ftp_schedule("20/09/2026", "20:00") == datetime(
+        2026,
+        9,
+        20,
+        23,
+        0,
+        tzinfo=UTC,
+    )
     with pytest.raises(ValueError, match="Invalid"):
-        parse_ftp_schedule("mañana", "después", now=now)
+        parse_ftp_schedule("mañana", "después")
 
 
 def test_ftp_info_embed_points_to_the_configured_channel(persona) -> None:
@@ -284,6 +293,8 @@ def test_ftp_info_embed_points_to_the_configured_channel(persona) -> None:
 
     assert embed.title == "🎓 Fichas del Field Training Program"
     assert any("<#50>" in field.value for field in embed.fields)
+    assert any("<#51>" in field.value for field in embed.fields)
+    assert any("/solicitar-ficha" in field.value for field in embed.fields)
     assert any("mensaje fijado" in field.value for field in embed.fields)
     assert "superior" not in str(embed.to_dict()).lower()
 
@@ -302,6 +313,13 @@ def test_ftp_request_options_reject_overlap_between_management_roles() -> None:
             channel_id=50,
             command_role_ids=(60,),
             executive_role_ids=(60,),
+        )
+    with pytest.raises(ValueError, match="channel IDs must be unique"):
+        FtpRequestOptions(
+            channel_id=50,
+            additional_command_channel_ids=(50,),
+            command_role_ids=(60,),
+            executive_role_ids=(70,),
         )
 
 

@@ -231,6 +231,7 @@ class FtpStatusOptions(FrozenConfigModel):
 
 class FtpRequestOptions(FrozenConfigModel):
     channel_id: int = Field(gt=0)
+    additional_command_channel_ids: tuple[int, ...] = Field(default=(), max_length=10)
     command_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
     executive_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
 
@@ -241,11 +242,20 @@ class FtpRequestOptions(FrozenConfigModel):
             raise ValueError("FTP management role IDs must be positive")
         if len(role_ids) != len(set(role_ids)):
             raise ValueError("FTP management role IDs must be unique")
+        channel_ids = (self.channel_id, *self.additional_command_channel_ids)
+        if any(channel_id <= 0 for channel_id in channel_ids):
+            raise ValueError("FTP request channel IDs must be positive")
+        if len(channel_ids) != len(set(channel_ids)):
+            raise ValueError("FTP request channel IDs must be unique")
         return self
 
     @property
     def management_role_ids(self) -> tuple[int, ...]:
         return (*self.command_role_ids, *self.executive_role_ids)
+
+    @property
+    def command_channel_ids(self) -> tuple[int, ...]:
+        return (self.channel_id, *self.additional_command_channel_ids)
 
 
 class WarrantNotificationOptions(FrozenConfigModel):

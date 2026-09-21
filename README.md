@@ -676,10 +676,11 @@ incluido el formato `N. Apellido`; las coincidencias ambiguas se omiten en lugar
 `/solicitar-ficha` usa el módulo dinámico `ftp_requests` y persiste la fase, tipo de evaluador, horario,
 comentarios opcionales, estado y referencias de Discord necesarias. El bot publica, actualiza y fija un panel
 de entrada persistente en el canal configurado; su botón abre el mismo formulario sin requerir permiso para
-escribir mensajes. Pueden solicitar FTT, Command o Executive y mantener varias solicitudes para horarios
-distintos; la opción general admite FTO o rangos superiores y la opción supervisor exige Supervisory, Command
-o Executive. Solo el autor, Command Staff o Executive Staff puede cancelar. El canal, panel y roles se resuelven
-desde PostgreSQL, sin nuevos environment vars.
+escribir mensajes. El comando también puede habilitarse en canales de entrada adicionales, como `#ftp-chat`,
+sin cambiar el destino de las tarjetas. Pueden solicitar FTT, Command o Executive y mantener varias solicitudes
+para horarios distintos; la opción general admite FTO o rangos superiores y la opción supervisor exige
+Supervisory, Command o Executive. Solo el autor, Command Staff o Executive Staff puede cancelar. El canal,
+panel y roles se resuelven desde PostgreSQL, sin nuevos environment vars.
 
 `/recursos` usa el módulo dinámico `operational_resources` y la misma política
 `operational_staff_roles`. Reúne en un panel público los enlaces oficiales, las direcciones de juego

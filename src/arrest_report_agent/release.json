@@ -1,20 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.38.3",
-  "title": "Panel de solicitudes FTP",
-  "summary": "Las fichas ahora pueden solicitarse desde un panel fijo y organizarse en varios horarios.",
+  "version": "0.38.4",
+  "title": "Acceso ampliado a fichas FTP",
+  "summary": "Las solicitudes de fichas ahora son más accesibles y aceptan el horario indicado sin rechazos por zona horaria.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "El canal de fichas incorpora un botón fijo para abrir solicitudes sin necesidad de escribir mensajes."
+      "type": "improved",
+      "text": "Ahora puedes usar `/solicitar-ficha` tanto desde el canal de fichas como desde el chat del FTP."
     },
     {
-      "type": "improved",
-      "text": "Cada trainee puede mantener varias solicitudes para fechas u horarios diferentes."
+      "type": "fixed",
+      "text": "Las fechas y horas válidas ya no se rechazan por diferencias de zona horaria."
     }
   ],
   "acknowledgements": []

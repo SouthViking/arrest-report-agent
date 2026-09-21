@@ -1,7 +1,7 @@
 {
   "schema_version": 47,
   "id": "walter_vigil",
-  "revision": 56,
+  "revision": 57,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -443,7 +443,7 @@
         "unavailable": "Las solicitudes de instrucción FTP no están habilitadas para este servidor.",
         "unauthorized_requester": "Este comando está reservado a Field Training Trainee, Command Staff y Executive Staff.",
         "wrong_channel": "Utilice este comando en {channel}, el canal habilitado para las fichas del FTP.",
-        "invalid_schedule": "Indique una fecha y hora futuras válidas, con el formato DD/MM/AAAA y HH:MM.",
+        "invalid_schedule": "Indique una fecha y hora válidas, con el formato DD/MM/AAAA y HH:MM.",
         "active_request": "Ya tiene una solicitud pendiente. Espere a que sea atendida o cancélela antes de crear otra.",
         "published": "La solicitud fue publicada y el personal del FTP ya fue notificado.",
         "unauthorized_acceptor": "Solo un FTO o personal superior autorizado puede tomar esta solicitud.",

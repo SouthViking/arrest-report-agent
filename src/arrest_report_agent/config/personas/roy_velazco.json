@@ -1,7 +1,7 @@
 {
   "schema_version": 47,
   "id": "roy_velazco",
-  "revision": 64,
+  "revision": 65,
   "discord": {
     "username": "Roy Velazco",
     "nickname": null,
@@ -469,7 +469,7 @@
         "unavailable": "No dejaron habilitadas las solicitudes del FTP en este server.",
         "unauthorized_requester": "Esto es pa Field Training Trainee, Command o Executive. Si no tenís uno de esos roles, no podís pedir una ficha por acá, po.",
         "wrong_channel": "Las fichas se piden en {channel}. Anda al canal correcto antes de llenar medio Discord de solicitudes, criatura.",
-        "invalid_schedule": "Esa fecha no sirve. Pon una fecha futura como DD/MM/AAAA y la hora como HH:MM, no jeroglíficos.",
+        "invalid_schedule": "Esa fecha u hora no sirve. Usa DD/MM/AAAA y HH:MM, no jeroglíficos.",
         "active_request": "Ya pediste un FTO po. Espera q alguien la tome o cancela la cuestión antes de tirar otra.",
         "published": "Listo, ya avisé al FTP. Ahora espera sin spamear medio Discord.",
         "unauthorized_acceptor": "No tenís un rol autorizado pa hacerte cargo. No apretís botones por deporte.",
