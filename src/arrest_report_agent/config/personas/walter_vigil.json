@@ -1,7 +1,7 @@
 {
   "schema_version": 47,
   "id": "walter_vigil",
-  "revision": 57,
+  "revision": 58,
   "discord": {
     "username": "Walter Vigil",
     "nickname": null,
@@ -156,7 +156,7 @@
       "feature_guides_title": "🧭 Guías por función",
       "feature_guides": "• `/info-reportes`: cómo solicitar y continuar la revisión de tu reporte.\n• `/info-roles`: cómo pedir altas o bajas de roles.\n• `/info-pager`: cómo emitir, responder y cerrar pagers.\n• `/info-callsigns`: cómo registrar y consultar callsigns.\n• `/info-mdc`: cómo consultar registros operativos y elegir su visibilidad.\n• `/info-sugerencias`: cómo enviar una sugerencia.",
       "quick_references_title": "📚 Referencias rápidas",
-      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/ftp-conectados`: muestra el personal del FTP conectado.\n• `/solicitar-ficha`: programa una ficha del FTP.\n• `/recursos`: reúne accesos y estado operativo.\n• `/vehiculos-robados`: consulta las denuncias recientes de robo de vehículos.\n• `/reportes-pendientes`: detecta reportes sin PCU completo o revisión aprobada.\n• `/informe-faccion`: genera el informe restringido de banco y miembros activos.",
+      "quick_references": "• `/guia`: consulta el manual de reportes por secciones.\n• `/cargos`: busca delitos y sanciones.\n• `/faq`: resuelve dudas frecuentes de la guía.\n• `/pregunta-manual`: practica el contenido del manual.\n• `/conectados`: resume quién está conectado y en servicio.\n• `/ftp-conectados`: muestra el personal del FTP conectado.\n• `/solicitar-ficha`: programa una ficha del FTP.\n• `/fichas-activas`: muestra las solicitudes de fichas pendientes.\n• `/recursos`: reúne accesos y estado operativo.\n• `/vehiculos-robados`: consulta las denuncias recientes de robo de vehículos.\n• `/reportes-pendientes`: detecta reportes sin PCU completo o revisión aprobada.\n• `/informe-faccion`: genera el informe restringido de banco y miembros activos.",
       "footer": "Elige la guía correspondiente y sigue sus indicaciones, {form_of_address}."
     },
     "interface": {
@@ -582,6 +582,7 @@
         "info_mdc_description": "Explica cómo consultar el MDC y elegir su visibilidad",
         "connected_members_description": "Resume el personal conectado y en servicio",
         "ftp_request_description": "Programa una ficha del Field Training Program",
+        "active_ftp_requests_description": "Muestra las solicitudes de fichas pendientes",
         "info_ftp_description": "Explica cómo solicitar una ficha del FTP",
         "faction_member_analysis_description": "Analiza actividad y distribución de los miembros",
         "stolen_vehicles_description": "Muestra las denuncias recientes de vehículos robados",

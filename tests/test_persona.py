@@ -20,7 +20,7 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
 
     assert profile.id == "walter_vigil"
     assert profile.schema_version == 47
-    assert profile.revision == 57
+    assert profile.revision == 58
     assert profile.identity.full_name == "Walter Vigil"
     assert profile.discord.username == "Walter Vigil"
     assert profile.discord.nickname is None
@@ -28,6 +28,8 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     assert profile.presence.manual_index == "📑 Revisando el índice"
     assert profile.presence.manual_search == "🔎 Buscando en el manual"
     assert profile.presence.manual_read == "📖 Leyendo el manual"
+    assert profile.messages.interface.commands.active_ftp_requests_description
+    assert "/fichas-activas" in profile.messages.help.quick_references
     assert "Sargento de guardia" in profile.discord.bio
     role_info = profile.messages.interface.role_requests
     assert len(role_info.info_rules.splitlines()) == 2
@@ -41,7 +43,7 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
 
     assert profile.id == "roy_velazco"
     assert profile.schema_version == 47
-    assert profile.revision == 65
+    assert profile.revision == 66
     assert profile.identity.full_name == "Roy Velazco"
     assert profile.discord.username == "Roy Velazco"
     assert profile.discord.nickname is None
@@ -49,6 +51,8 @@ async def test_packaged_roy_persona_loads_with_avatar() -> None:
     assert profile.presence.manual_index == "📑 Revisando el índice"
     assert profile.presence.manual_search == "🔎 Buscando en el manual"
     assert profile.presence.manual_read == "📖 Leyendo el manual"
+    assert profile.messages.interface.commands.active_ftp_requests_description
+    assert "/fichas-activas" in profile.messages.help.quick_references
     assert profile.discord.avatar == "assets/roy-velazco-skin-avatar.png"
     assert "que el juez haga el resto" in profile.discord.bio
     assert any("chilenismos" in instruction for instruction in profile.personality.communication.conversation)

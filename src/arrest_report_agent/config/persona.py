@@ -225,7 +225,7 @@ class PersonaHelpMessages(FrozenPersonaModel):
     feature_guides_title: str = Field(min_length=1, max_length=256)
     feature_guides: str = Field(min_length=1, max_length=1024)
     quick_references_title: str = Field(min_length=1, max_length=256)
-    quick_references: str = Field(min_length=1, max_length=700)
+    quick_references: str = Field(min_length=1, max_length=1000)
     footer: str = Field(min_length=1, max_length=500)
 
     @model_validator(mode="after")
@@ -1076,6 +1076,7 @@ class PersonaCommandMessages(FrozenPersonaModel):
     info_mdc_description: str = Field(min_length=1, max_length=100)
     connected_members_description: str = Field(min_length=1, max_length=100)
     ftp_request_description: str = Field(min_length=1, max_length=100)
+    active_ftp_requests_description: str = Field(min_length=1, max_length=100)
     info_ftp_description: str = Field(min_length=1, max_length=100)
     faction_member_analysis_description: str = Field(min_length=1, max_length=100)
     stolen_vehicles_description: str = Field(min_length=1, max_length=100)

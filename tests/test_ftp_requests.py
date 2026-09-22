@@ -21,11 +21,13 @@ from arrest_report_agent.ftp_requests import (
     FtpTrainingRequest,
 )
 from arrest_report_agent.ftp_requests.discord import (
+    FtpActiveRequestsView,
     FtpRequestCog,
     FtpRequestControlsView,
     FtpRequestModal,
     FtpRequestPanelView,
     FtpRequestService,
+    build_active_ftp_requests_embed,
     build_ftp_info_embed,
     build_ftp_request_embed,
     build_ftp_request_panel_embed,
@@ -48,6 +50,7 @@ def _member(user_id: int, role_ids: tuple[int, ...]) -> discord.Member:
 
 def _service(persona) -> FtpRequestService:
     settings = SimpleNamespace(
+        operational_staff_role_ids=(80,),
         ftp_status_options=FtpStatusOptions(
             faction_id=3,
             supervisory_role_ids=(10,),
@@ -128,6 +131,8 @@ def test_ftp_request_permissions_follow_the_role_matrix(persona) -> None:
     assert service.is_command_channel(51)
     assert not service.is_command_channel(52)
     assert service.command_channel_mentions() == "<#50> o <#51>"
+    assert service.can_list_active(_member(1, (80,)))
+    assert not service.can_list_active(_member(1, (40,)))
 
 
 @pytest.mark.asyncio
@@ -145,8 +150,10 @@ async def test_ftp_request_modal_exposes_only_general_and_supervisor(persona) ->
 
 def test_ftp_request_commands_are_root_commands() -> None:
     assert FtpRequestCog.request_training.name == "solicitar-ficha"
+    assert FtpRequestCog.active_requests.name == "fichas-activas"
     assert FtpRequestCog.info_ftp.name == "info-ftp"
     assert FtpRequestCog.request_training.parent is None
+    assert FtpRequestCog.active_requests.parent is None
     assert FtpRequestCog.info_ftp.parent is None
 
 
@@ -267,6 +274,38 @@ def test_ftp_request_embed_is_neutral_and_disables_technical_ids() -> None:
     assert any(field.name == "Instructor asignado" and field.value == "<@300>" for field in claimed.fields)
 
 
+def test_active_ftp_requests_embed_is_compact_and_links_each_request() -> None:
+    embed = build_active_ftp_requests_embed((_request(),), total=1, page=0)
+
+    assert embed.title == "🎓 Solicitudes de fichas activas"
+    assert embed.description == "**1 solicitud pendiente**"
+    assert len(embed.fields) == 1
+    assert embed.fields[0].name == "Fase 2 · 👨‍🏫 General"
+    assert "<@200>" in embed.fields[0].value
+    assert "<t:" in embed.fields[0].value
+    assert "[Ver solicitud](https://discord.com/channels/1/50/100)" in embed.fields[0].value
+    assert "Coordinar" not in str(embed.to_dict())
+
+    empty = build_active_ftp_requests_embed((), total=0, page=0)
+    assert empty.description == "No hay solicitudes pendientes en este momento."
+
+
+@pytest.mark.asyncio
+async def test_active_ftp_requests_view_queries_pending_requests(persona) -> None:
+    service = _service(persona)
+    service.repository = SimpleNamespace(
+        list_pending=AsyncMock(return_value=((_request(),), 1)),
+    )
+    view = FtpActiveRequestsView(service, requester_id=80)
+
+    embed = await view.render(1)
+
+    service.repository.list_pending.assert_awaited_once_with(1, offset=0, limit=10)
+    assert embed.description == "**1 solicitud pendiente**"
+    assert view.previous.disabled is True
+    assert view.next.disabled is True
+
+
 def test_parse_ftp_schedule_uses_chile_and_accepts_any_valid_date() -> None:
     assert parse_ftp_schedule("26/09/2026", "20:00") == datetime(
         2026,
@@ -295,6 +334,7 @@ def test_ftp_info_embed_points_to_the_configured_channel(persona) -> None:
     assert any("<#50>" in field.value for field in embed.fields)
     assert any("<#51>" in field.value for field in embed.fields)
     assert any("/solicitar-ficha" in field.value for field in embed.fields)
+    assert any("/fichas-activas" in field.value for field in embed.fields)
     assert any("mensaje fijado" in field.value for field in embed.fields)
     assert "superior" not in str(embed.to_dict()).lower()
 
@@ -370,6 +410,11 @@ async def test_ftp_request_repository_allows_multiple_scheduled_requests_and_tra
         )
         assert restored is not None and restored.id == request.id
 
+        second = await repository.publish(created[1].id, 975432101234567806)
+        pending, total = await repository.list_pending(guild_id, offset=0, limit=10)
+        assert total == 2
+        assert {item.id for item in pending} == {request.id, second.id}
+
         panel = await repository.save_panel(
             guild_id=guild_id,
             channel_id=975432101234567802,
@@ -385,6 +430,10 @@ async def test_ftp_request_repository_allows_multiple_scheduled_requests_and_tra
         assert sum(changed for _, changed in claims) == 1
         claimed = next(item for item, changed in claims if changed)
         assert claimed.status is FtpRequestStatus.CLAIMED
+
+        pending, total = await repository.list_pending(guild_id, offset=0, limit=10)
+        assert total == 1
+        assert [item.id for item in pending] == [second.id]
 
         another = await reserve()
         assert another.id != request.id

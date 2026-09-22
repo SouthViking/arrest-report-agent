@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from contextlib import suppress
 from datetime import UTC, datetime
 from typing import cast
@@ -27,6 +28,8 @@ from .repository import FtpRequestRepository
 
 LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
+LIST_TIMEOUT_SECONDS = 900
+ACTIVE_REQUEST_PAGE_SIZE = 10
 FTP_TIMEZONE = ZoneInfo("America/Santiago")
 
 
@@ -101,6 +104,9 @@ class FtpRequestService:
         if ftp is None or options is None:
             return False
         return _has_any_role(member, (*ftp.ftt_role_ids, *options.management_role_ids))
+
+    def can_list_active(self, member: discord.Member) -> bool:
+        return _has_any_role(member, self.settings.operational_staff_role_ids)
 
     def is_command_channel(self, channel_id: int) -> bool:
         options = self.request_options
@@ -557,6 +563,86 @@ class FtpRequestPanelView(discord.ui.View):
         await interaction.response.send_modal(FtpRequestModal(service, member))
 
 
+class FtpActiveRequestsView(discord.ui.View):
+    def __init__(self, service: FtpRequestService, requester_id: int) -> None:
+        super().__init__(timeout=LIST_TIMEOUT_SECONDS)
+        self.service = service
+        self.requester_id = requester_id
+        self.page = 0
+        self.total = 0
+        self._sync_buttons()
+
+    async def render(self, guild_id: int) -> discord.Embed:
+        entries, self.total = await self.service.repository.list_pending(
+            guild_id,
+            offset=self.page * ACTIVE_REQUEST_PAGE_SIZE,
+            limit=ACTIVE_REQUEST_PAGE_SIZE,
+        )
+        last_page = max(0, math.ceil(self.total / ACTIVE_REQUEST_PAGE_SIZE) - 1)
+        if self.page > last_page:
+            self.page = last_page
+            entries, self.total = await self.service.repository.list_pending(
+                guild_id,
+                offset=self.page * ACTIVE_REQUEST_PAGE_SIZE,
+                limit=ACTIVE_REQUEST_PAGE_SIZE,
+            )
+        self._sync_buttons()
+        return build_active_ftp_requests_embed(entries, self.total, self.page)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if getattr(interaction.user, "id", None) == self.requester_id:
+            return True
+        await interaction.response.send_message(
+            "Solo quien abrió esta consulta puede cambiar de página.",
+            ephemeral=True,
+        )
+        return False
+
+    @discord.ui.button(label="Anterior", emoji="◀️", style=discord.ButtonStyle.secondary)
+    async def previous(
+        self,
+        _button: discord.ui.Button[FtpActiveRequestsView],
+        interaction: discord.Interaction,
+    ) -> None:
+        self.page = max(0, self.page - 1)
+        guild_id = interaction.guild_id
+        if guild_id is None:
+            await interaction.response.send_message(
+                "Esta consulta solo funciona dentro de un servidor.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.edit_message(
+            embed=await self.render(guild_id),
+            view=self,
+        )
+
+    @discord.ui.button(label="Siguiente", emoji="▶️", style=discord.ButtonStyle.secondary)
+    async def next(
+        self,
+        _button: discord.ui.Button[FtpActiveRequestsView],
+        interaction: discord.Interaction,
+    ) -> None:
+        pages = max(1, math.ceil(self.total / ACTIVE_REQUEST_PAGE_SIZE))
+        self.page = min(pages - 1, self.page + 1)
+        guild_id = interaction.guild_id
+        if guild_id is None:
+            await interaction.response.send_message(
+                "Esta consulta solo funciona dentro de un servidor.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.edit_message(
+            embed=await self.render(guild_id),
+            view=self,
+        )
+
+    def _sync_buttons(self) -> None:
+        pages = max(1, math.ceil(self.total / ACTIVE_REQUEST_PAGE_SIZE))
+        self.previous.disabled = self.page <= 0
+        self.next.disabled = self.page >= pages - 1
+
+
 class FtpRequestModal(discord.ui.DesignerModal):
     def __init__(self, service: FtpRequestService, member: discord.Member) -> None:
         self.service = service
@@ -659,6 +745,9 @@ class FtpRequestCog(commands.Cog):
         self.registry = registry
         self._panel_lock = asyncio.Lock()
         self.request_training.description = persona.messages.interface.commands.ftp_request_description
+        self.active_requests.description = (
+            persona.messages.interface.commands.active_ftp_requests_description
+        )
         self.info_ftp.description = persona.messages.interface.commands.info_ftp_description
 
     @commands.Cog.listener()
@@ -752,6 +841,53 @@ class FtpRequestCog(commands.Cog):
             return
         await ctx.respond(
             embed=build_ftp_info_embed(service),
+            ephemeral=False,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    @discord.slash_command(name="fichas-activas", description="Muestra las fichas FTP pendientes")
+    async def active_requests(self, ctx: discord.ApplicationContext) -> None:
+        if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+            await ctx.respond(
+                embed=_unavailable_embed(None),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        try:
+            service = await self.registry.get(ctx.guild.id, require_enabled=False)
+        except LookupError:
+            service = None
+        if service is None or not service.enabled or service.request_options is None:
+            await ctx.respond(
+                embed=_unavailable_embed(service),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        if not service.can_list_active(ctx.author):
+            await ctx.respond(
+                embed=service.alert(
+                    "Este comando está reservado al personal operativo autorizado."
+                ),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        view = FtpActiveRequestsView(service, ctx.author.id)
+        try:
+            embed = await view.render(ctx.guild.id)
+        except Exception as error:
+            service._log_error("ftp_active_requests_failed", error, ctx.interaction)
+            await ctx.respond(
+                embed=service.alert(service.ui.operation_failed),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await ctx.respond(
+            embed=embed,
+            view=view,
             ephemeral=False,
             allowed_mentions=discord.AllowedMentions.none(),
         )
@@ -859,8 +995,46 @@ def build_ftp_info_embed(service: FtpRequestService) -> discord.Embed:
         value="Mientras siga pendiente, puedes cancelarla desde la propia solicitud.",
         inline=False,
     )
+    embed.add_field(
+        name="5️⃣ Solicitudes activas",
+        value="El personal operativo puede usar `/fichas-activas` desde cualquier canal.",
+        inline=False,
+    )
     embed.add_field(name="Importante", value=service.ui.info_closing, inline=False)
     embed.set_footer(text="Field Training Program")
+    return embed
+
+
+def build_active_ftp_requests_embed(
+    entries: tuple[FtpTrainingRequest, ...],
+    total: int,
+    page: int,
+) -> discord.Embed:
+    embed = discord.Embed(
+        title="🎓 Solicitudes de fichas activas",
+        description=f"**{total} solicitud{'es' if total != 1 else ''} pendiente{'s' if total != 1 else ''}**",
+        color=discord.Color.gold(),
+    )
+    for request in entries:
+        phase = request.training_phase.label if request.training_phase else "Ficha FTP"
+        level = request.requested_instructor_level
+        level_label = level.label if level else "Por coordinar"
+        level_emoji = "⭐" if level is FtpInstructorLevel.SUPERVISOR else "👨‍🏫"
+        scheduled = (
+            discord.utils.format_dt(request.scheduled_for, style="f")
+            if request.scheduled_for is not None
+            else "Horario sin definir"
+        )
+        link = f"[Ver solicitud]({request.jump_url})" if request.jump_url else "Sin enlace"
+        embed.add_field(
+            name=f"{phase} · {level_emoji} {level_label}",
+            value=f"<@{request.requester_user_id}> · {scheduled} · {link}",
+            inline=False,
+        )
+    if total == 0:
+        embed.description = "No hay solicitudes pendientes en este momento."
+    pages = max(1, math.ceil(total / ACTIVE_REQUEST_PAGE_SIZE))
+    embed.set_footer(text=f"Página {page + 1}/{pages} · {total} activa(s)")
     return embed
 
 

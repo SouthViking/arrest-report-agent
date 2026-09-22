@@ -100,6 +100,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/conectados` | `operational_staff_roles`; módulo `faction_status` activo | Pública; rechazo efímero | Nómina de la facción en SARP |
 | `/ftp-conectados` | `operational_staff_roles`; módulo `ftp_status` activo | Pública; rechazo efímero | Nómina cacheada de SARP y roles de Discord |
 | `/solicitar-ficha` | FTT, Command o Executive; módulo `ftp_requests` activo y canal de entrada configurado | Modal desde comando o panel fijado; solicitud pública en el canal principal | PostgreSQL y roles de Discord |
+| `/fichas-activas` | `operational_staff_roles`; módulo `ftp_requests` activo | Pública en cualquier canal; rechazo efímero | Solicitudes FTP pendientes en PostgreSQL |
 | `/ver-evidencia` | `operational_staff_roles`; módulo `arrest_report_lookup` activo | Pública; rechazo efímero | Bolsa de evidencias en SARP |
 | `/vehiculos-robados` | `operational_staff_roles`; módulo `stolen_vehicles` activo | Modal privado; resultado público o efímero | Denuncias recientes de vehículos en SARP |
 | `/recursos` | `operational_staff_roles`; módulo `operational_resources` activo | Pública; rechazo efímero | Configuración de PostgreSQL y API SARP |
@@ -279,6 +280,12 @@ su autora. El autor, Command Staff y Executive Staff pueden cancelarla. Al tomar
 mensaje, se notifica al trainee y se desactivan los botones; al cancelarla se actualiza la tarjeta sin
 enviar una confirmación adicional. Un trainee puede mantener varias solicitudes para fechas u horarios
 distintos.
+
+## `/fichas-activas`
+
+Publica un resumen compacto de las solicitudes que todavía esperan instructor, ordenadas por fecha y
+hora. Cada fila muestra trainee, fase, tipo de evaluador y un acceso directo a la solicitud. Presenta
+diez resultados por página y puede utilizarse en cualquier canal por `operational_staff_roles`.
 
 ## `/radios-faccion` y `/auditar-radio`
 

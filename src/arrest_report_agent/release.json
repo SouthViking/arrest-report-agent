@@ -1,20 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.38.4",
-  "title": "Acceso ampliado a fichas FTP",
-  "summary": "Las solicitudes de fichas ahora son más accesibles y aceptan el horario indicado sin rechazos por zona horaria.",
+  "version": "0.38.5",
+  "title": "Solicitudes FTP activas",
+  "summary": "Ahora es más fácil encontrar las solicitudes de fichas que todavía esperan un instructor.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
-      "type": "improved",
-      "text": "Ahora puedes usar `/solicitar-ficha` tanto desde el canal de fichas como desde el chat del FTP."
-    },
-    {
-      "type": "fixed",
-      "text": "Las fechas y horas válidas ya no se rechazan por diferencias de zona horaria."
+      "type": "added",
+      "text": "El personal operativo puede usar `/fichas-activas` desde cualquier canal para consultar y abrir las solicitudes pendientes."
     }
   ],
   "acknowledgements": []

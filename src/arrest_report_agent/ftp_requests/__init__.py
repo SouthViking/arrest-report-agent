@@ -1,6 +1,7 @@
 """Field Training Program assistance request subsystem."""
 
 from .discord import (
+    FtpActiveRequestsView,
     FtpRequestCog,
     FtpRequestControlsView,
     FtpRequestPanelView,
@@ -16,6 +17,7 @@ from .models import (
 from .repository import FtpRequestRepository
 
 __all__ = [
+    "FtpActiveRequestsView",
     "FtpRequestCog",
     "FtpRequestControlsView",
     "FtpRequestPanel",

@@ -151,6 +151,33 @@ class FtpRequestRepository:
         )
         return None if row is None else self._from_row(row)
 
+    async def list_pending(
+        self,
+        guild_id: int,
+        *,
+        offset: int,
+        limit: int,
+    ) -> tuple[tuple[FtpTrainingRequest, ...], int]:
+        where = (
+            ftp_training_requests.c.guild_id == guild_id,
+            ftp_training_requests.c.status == FtpRequestStatus.PENDING.value,
+        )
+        count_row = await self.client.fetch_one(
+            sa.select(sa.func.count().label("count")).where(*where)
+        )
+        total = int(count_row["count"] if count_row is not None else 0)
+        rows = await self.client.fetch_all(
+            sa.select(ftp_training_requests)
+            .where(*where)
+            .order_by(
+                ftp_training_requests.c.scheduled_for.asc().nulls_last(),
+                ftp_training_requests.c.created_at.asc(),
+            )
+            .offset(offset)
+            .limit(limit)
+        )
+        return tuple(self._from_row(row) for row in rows), total
+
     async def claim(
         self,
         request_id: UUID,

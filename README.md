@@ -681,6 +681,8 @@ sin cambiar el destino de las tarjetas. Pueden solicitar FTT, Command o Executiv
 para horarios distintos; la opción general admite FTO o rangos superiores y la opción supervisor exige
 Supervisory, Command o Executive. Solo el autor, Command Staff o Executive Staff puede cancelar. El canal,
 panel y roles se resuelven desde PostgreSQL, sin nuevos environment vars.
+`/fichas-activas` reutiliza esos registros para publicar en cualquier canal un resumen paginado de las
+solicitudes pendientes, ordenado por horario y restringido a `operational_staff_roles`.
 
 `/recursos` usa el módulo dinámico `operational_resources` y la misma política
 `operational_staff_roles`. Reúne en un panel público los enlaces oficiales, las direcciones de juego
