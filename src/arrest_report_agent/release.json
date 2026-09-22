@@ -1,14 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.38.5",
-  "title": "Solicitudes FTP activas",
-  "summary": "Ahora es más fácil encontrar las solicitudes de fichas que todavía esperan un instructor.",
+  "version": "0.38.6",
+  "title": "Horarios correctos en las fichas FTP",
+  "summary": "Cada solicitud interpreta la fecha y hora según la zona horaria que elijas.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
-      "type": "added",
-      "text": "El personal operativo puede usar `/fichas-activas` desde cualquier canal para consultar y abrir las solicitudes pendientes."
+      "type": "improved",
+      "text": "Al solicitar una ficha, primero eliges tu zona horaria y Discord muestra el horario equivalente para cada persona."
     }
   ],
   "acknowledgements": []

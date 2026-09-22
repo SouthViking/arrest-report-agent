@@ -269,9 +269,11 @@ identidad ambigua. Comparte la consulta y el caché corto de la nómina usado po
 
 ## `/solicitar-ficha`
 
-Abre para los Field Training Trainees, Command Staff y Executive Staff un formulario con fase, fecha,
-hora, tipo de evaluador y comentarios opcionales. El bot publica y fija un panel en el canal de fichas;
-su botón abre el mismo formulario aunque los miembros no puedan escribir mensajes normales. El comando
+Abre para los Field Training Trainees, Command Staff y Executive Staff un selector de zona horaria y,
+a continuación, un formulario con fase, fecha, hora, tipo de evaluador y comentarios opcionales. Cada
+solicitud convierte el horario local elegido a UTC para que Discord lo muestre según la zona horaria de
+cada persona. El bot publica y fija un panel en el canal de fichas; su botón abre el mismo flujo aunque los
+miembros no puedan escribir mensajes normales. El comando
 puede utilizarse además desde los canales de entrada adicionales configurados. Una
 solicitud general avisa a FTO, MFTO y Supervisory Staff y puede tomarla cualquier integrante habilitado
 de esa cadena o de Command/Executive. Una solicitud de supervisor solo admite Supervisory Staff,

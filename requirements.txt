@@ -9,3 +9,4 @@ asyncpg>=0.30,<1
 alembic>=1.15,<2
 boto3>=1.36,<2
 Pillow>=11,<13
+tzdata>=2025.2,<2027

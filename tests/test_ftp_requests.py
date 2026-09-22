@@ -21,12 +21,14 @@ from arrest_report_agent.ftp_requests import (
     FtpTrainingRequest,
 )
 from arrest_report_agent.ftp_requests.discord import (
+    FTP_TIMEZONE_OPTIONS,
     FtpActiveRequestsView,
     FtpRequestCog,
     FtpRequestControlsView,
     FtpRequestModal,
     FtpRequestPanelView,
     FtpRequestService,
+    FtpTimezoneView,
     build_active_ftp_requests_embed,
     build_ftp_info_embed,
     build_ftp_request_embed,
@@ -137,7 +139,11 @@ def test_ftp_request_permissions_follow_the_role_matrix(persona) -> None:
 
 @pytest.mark.asyncio
 async def test_ftp_request_modal_exposes_only_general_and_supervisor(persona) -> None:
-    modal = FtpRequestModal(_service(persona), _member(1, (40,)))
+    modal = FtpRequestModal(
+        _service(persona),
+        _member(1, (40,)),
+        "America/Argentina/Buenos_Aires",
+    )
 
     assert [(option.label, option.value) for option in modal.instructor_level.options] == [
         ("General", FtpInstructorLevel.GENERAL.value),
@@ -146,6 +152,7 @@ async def test_ftp_request_modal_exposes_only_general_and_supervisor(persona) ->
     assert modal.comments.required is False
     assert modal.comments.style is discord.InputTextStyle.long
     assert modal.comments.max_length == 500
+    assert modal.children[3].label == "Hora · America/Argentina/Buenos_Aires"
 
 
 def test_ftp_request_commands_are_root_commands() -> None:
@@ -191,7 +198,7 @@ async def test_ftp_request_panel_is_persistent_and_opens_the_form() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ftp_request_panel_opens_modal_for_authorized_member(persona) -> None:
+async def test_ftp_request_panel_opens_timezone_selector_for_authorized_member(persona) -> None:
     service = _service(persona)
     response = SimpleNamespace(send_modal=AsyncMock(), send_message=AsyncMock())
     interaction = SimpleNamespace(
@@ -206,9 +213,40 @@ async def test_ftp_request_panel_opens_modal_for_authorized_member(persona) -> N
 
     await FtpRequestPanelView().children[0].callback(interaction)
 
+    response.send_modal.assert_not_awaited()
+    response.send_message.assert_awaited_once()
+    assert response.send_message.await_args.kwargs["ephemeral"] is True
+    assert isinstance(response.send_message.await_args.kwargs["view"], FtpTimezoneView)
+
+
+@pytest.mark.asyncio
+async def test_ftp_timezone_selector_opens_modal_with_selected_timezone(persona) -> None:
+    member = _member(1, (40,))
+    view = FtpTimezoneView(_service(persona), member)
+    select = view.children[0]
+    select._selected_values = ["America/Bogota"]  # noqa: SLF001
+    select._interaction = SimpleNamespace(data={})  # noqa: SLF001
+    response = SimpleNamespace(send_modal=AsyncMock(), send_message=AsyncMock())
+    interaction = SimpleNamespace(user=member, response=response)
+
+    await select.callback(interaction)
+
     response.send_modal.assert_awaited_once()
-    assert isinstance(response.send_modal.await_args.args[0], FtpRequestModal)
+    modal = response.send_modal.await_args.args[0]
+    assert isinstance(modal, FtpRequestModal)
+    assert modal.timezone_key == "America/Bogota"
     response.send_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ftp_timezone_selector_uses_fixed_iana_options(persona) -> None:
+    view = FtpTimezoneView(_service(persona), _member(1, (40,)))
+    select = view.children[0]
+
+    assert [(str(option.emoji), option.label, option.value) for option in select.options] == [
+        (emoji, timezone_key, timezone_key)
+        for emoji, timezone_key in FTP_TIMEZONE_OPTIONS
+    ]
 
 
 @pytest.mark.asyncio
@@ -306,8 +344,8 @@ async def test_active_ftp_requests_view_queries_pending_requests(persona) -> Non
     assert view.next.disabled is True
 
 
-def test_parse_ftp_schedule_uses_chile_and_accepts_any_valid_date() -> None:
-    assert parse_ftp_schedule("26/09/2026", "20:00") == datetime(
+def test_parse_ftp_schedule_uses_selected_timezone_and_accepts_valid_date() -> None:
+    assert parse_ftp_schedule("26/09/2026", "20:00", "America/Santiago") == datetime(
         2026,
         9,
         26,
@@ -315,16 +353,18 @@ def test_parse_ftp_schedule_uses_chile_and_accepts_any_valid_date() -> None:
         0,
         tzinfo=UTC,
     )
-    assert parse_ftp_schedule("20/09/2026", "20:00") == datetime(
+    assert parse_ftp_schedule("26/09/2026", "20:00", "America/Bogota") == datetime(
         2026,
         9,
-        20,
-        23,
+        27,
+        1,
         0,
         tzinfo=UTC,
     )
     with pytest.raises(ValueError, match="Invalid"):
-        parse_ftp_schedule("mañana", "después")
+        parse_ftp_schedule("mañana", "después", "Europe/Madrid")
+    with pytest.raises(ValueError, match="timezone"):
+        parse_ftp_schedule("26/09/2026", "20:00", "Etc/GMT+3")
 
 
 def test_ftp_info_embed_points_to_the_configured_channel(persona) -> None:

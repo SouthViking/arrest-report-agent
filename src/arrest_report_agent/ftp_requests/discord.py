@@ -30,7 +30,20 @@ LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
 LIST_TIMEOUT_SECONDS = 900
 ACTIVE_REQUEST_PAGE_SIZE = 10
-FTP_TIMEZONE = ZoneInfo("America/Santiago")
+FTP_TIMEZONE_OPTIONS = (
+    ("🇦🇷", "America/Argentina/Buenos_Aires"),
+    ("🇨🇱", "America/Santiago"),
+    ("🇨🇴", "America/Bogota"),
+    ("🇻🇪", "America/Caracas"),
+    ("🇪🇸", "Europe/Madrid"),
+    ("🇪🇸", "Atlantic/Canary"),
+    ("🇲🇽", "America/Mexico_City"),
+    ("🇲🇽", "America/Mazatlan"),
+    ("🇲🇽", "America/Hermosillo"),
+    ("🇲🇽", "America/Cancun"),
+    ("🇲🇽", "America/Tijuana"),
+)
+FTP_TIMEZONE_KEYS = frozenset(timezone_key for _, timezone_key in FTP_TIMEZONE_OPTIONS)
 
 
 class FtpRequestServiceRegistry:
@@ -513,6 +526,55 @@ class FtpRequestControlsView(discord.ui.View):
         await service.cancel(interaction)
 
 
+class FtpTimezoneSelect(discord.ui.Select["FtpTimezoneView"]):
+    def __init__(self) -> None:
+        super().__init__(
+            custom_id="ftp-request:v1:timezone",
+            placeholder="Selecciona tu zona horaria",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(label=timezone_key, value=timezone_key, emoji=emoji)
+                for emoji, timezone_key in FTP_TIMEZONE_OPTIONS
+            ],
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view = cast(FtpTimezoneView, self.view)
+        await view.open_modal(interaction, next(iter(self.values or ()), ""))
+
+
+class FtpTimezoneView(discord.ui.View):
+    def __init__(self, service: FtpRequestService, member: discord.Member) -> None:
+        super().__init__(timeout=MODAL_TIMEOUT_SECONDS, disable_on_timeout=True)
+        self.service = service
+        self.member = member
+        self.requester_id = member.id
+        self.add_item(FtpTimezoneSelect())
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if getattr(interaction.user, "id", None) == self.requester_id:
+            return True
+        await interaction.response.send_message(
+            embed=self.service.alert(self.service.ui.unauthorized_requester),
+            ephemeral=True,
+        )
+        return False
+
+    async def open_modal(self, interaction: discord.Interaction, timezone_key: str) -> None:
+        if timezone_key not in FTP_TIMEZONE_KEYS:
+            await interaction.response.send_message(
+                embed=self.service.alert(self.service.ui.invalid_schedule),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        self.stop()
+        await interaction.response.send_modal(
+            FtpRequestModal(self.service, self.member, timezone_key)
+        )
+
+
 class FtpRequestPanelView(discord.ui.View):
     def __init__(self) -> None:
         super().__init__(timeout=None)
@@ -560,7 +622,12 @@ class FtpRequestPanelView(discord.ui.View):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
-        await interaction.response.send_modal(FtpRequestModal(service, member))
+        await interaction.response.send_message(
+            "Selecciona la zona horaria que usarás para esta solicitud.",
+            view=FtpTimezoneView(service, member),
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
 
 class FtpActiveRequestsView(discord.ui.View):
@@ -644,9 +711,17 @@ class FtpActiveRequestsView(discord.ui.View):
 
 
 class FtpRequestModal(discord.ui.DesignerModal):
-    def __init__(self, service: FtpRequestService, member: discord.Member) -> None:
+    def __init__(
+        self,
+        service: FtpRequestService,
+        member: discord.Member,
+        timezone_key: str,
+    ) -> None:
+        if timezone_key not in FTP_TIMEZONE_KEYS:
+            raise ValueError("Unsupported FTP request timezone")
         self.service = service
         self.member_id = member.id
+        self.timezone_key = timezone_key
         self.training_phase = discord.ui.StringSelect(  # type: ignore[type-var]
             custom_id="ftp-request:v2:create:phase",
             placeholder="Seleccione la ficha que realizará",
@@ -701,7 +776,7 @@ class FtpRequestModal(discord.ui.DesignerModal):
             discord.ui.Label("Ficha a realizar", self.training_phase),
             discord.ui.Label("Tipo de evaluador", self.instructor_level),
             discord.ui.Label("Fecha", self.date),
-            discord.ui.Label("Hora", self.time),
+            discord.ui.Label(f"Hora · {timezone_key}", self.time),
             discord.ui.Label("Comentarios (opcional)", self.comments),
             title="Solicitar una ficha FTP",
             custom_id=f"ftp-request:v2:create:{member.id}",
@@ -722,6 +797,7 @@ class FtpRequestModal(discord.ui.DesignerModal):
             scheduled_for = parse_ftp_schedule(
                 self.date.value or "",
                 self.time.value or "",
+                self.timezone_key,
             )
         except (StopIteration, ValueError):
             await interaction.response.send_message(
@@ -818,7 +894,12 @@ class FtpRequestCog(commands.Cog):
             service._log_error("ftp_request_destination_unavailable", error, ctx.interaction)
             await ctx.respond(embed=service.alert(service.ui.unavailable), ephemeral=True)
             return
-        await ctx.send_modal(FtpRequestModal(service, ctx.author))
+        await ctx.respond(
+            "Selecciona la zona horaria que usarás para esta solicitud.",
+            view=FtpTimezoneView(service, ctx.author),
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
     @discord.slash_command(name="info-ftp", description="Explica cómo solicitar una ficha FTP")
     async def info_ftp(self, ctx: discord.ApplicationContext) -> None:
@@ -970,7 +1051,8 @@ def build_ftp_info_embed(service: FtpRequestService) -> discord.Embed:
         name="1️⃣ Solicitar una ficha",
         value=(
             f"Ve a <#{options.channel_id}> y pulsa **Solicitar ficha** en el mensaje fijado. "
-            "Selecciona la fase, la fecha, la hora y si necesitas una evaluación general o de supervisor. "
+            "Selecciona tu zona horaria y luego indica la fase, la fecha, la hora y si necesitas "
+            "una evaluación general o de supervisor. "
             f"También puedes dejar indicaciones adicionales si hacen falta.{command_alternative}"
         ),
         inline=False,
@@ -1043,7 +1125,8 @@ def build_ftp_request_panel_embed(service: FtpRequestService) -> discord.Embed:
         title="🎓 Solicitudes de fichas FTP",
         description=(
             f"{service.ui.info_intro}\n\n"
-            "Pulsa el botón para indicar la fase, fecha, hora, tipo de evaluador y cualquier "
+            "Pulsa el botón, selecciona tu zona horaria e indica la fase, fecha, hora, tipo de "
+            "evaluador y cualquier "
             "comentario adicional. Puedes mantener varias solicitudes para horarios distintos."
         ),
         color=discord.Color.gold(),
@@ -1055,12 +1138,15 @@ def build_ftp_request_panel_embed(service: FtpRequestService) -> discord.Embed:
 def parse_ftp_schedule(
     raw_date: str,
     raw_time: str,
+    timezone_key: str,
 ) -> datetime:
+    if timezone_key not in FTP_TIMEZONE_KEYS:
+        raise ValueError("Invalid FTP request timezone")
     try:
         local = datetime.strptime(
             f"{raw_date.strip()} {raw_time.strip()}",
             "%d/%m/%Y %H:%M",
-        ).replace(tzinfo=FTP_TIMEZONE)
+        ).replace(tzinfo=ZoneInfo(timezone_key))
     except ValueError as error:
         raise ValueError("Invalid FTP request schedule") from error
     return local.astimezone(UTC)
