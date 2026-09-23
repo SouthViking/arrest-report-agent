@@ -86,7 +86,7 @@ ROLE_REQUEST_ALLOWED_CHANNEL_IDS=*
 ROLE_REQUEST_ALLOWED_ROLE_IDS=*
 ROLE_REQUEST_REVIEWER_ROLE_IDS=
 BOT_PERSONA=walter_vigil
-OPENAI_MODEL=gpt-5.6-terra
+OPENAI_MODEL=gpt-6-luna
 OPENAI_REASONING_EFFORT=medium
 ```
 
@@ -630,7 +630,7 @@ el contenido exacto del FAQ.
 | `BOT_PERSONA` | solo importación | Persona inicial para `db import-env`; se elimina después del corte. |
 | `LOG_JSON_INDENTED` | `true` | Usa JSON indentado; `false` genera un objeto compacto por línea. |
 | `PORT` | Railway | Puerto inyectado por Railway para el healthcheck; tiene prioridad sobre `HEALTH_PORT`. |
-| `OPENAI_MODEL` | `gpt-5.6-terra` | Modelo del runner. |
+| `OPENAI_MODEL` | `gpt-6-luna` | Modelo inicial para nuevas configuraciones; las guilds existentes usan el valor guardado en PostgreSQL. |
 | `OPENAI_REASONING_EFFORT` | `medium` | Esfuerzo validado contra los valores admitidos por el modelo. |
 | `OPENAI_MAX_RETRIES` | `2` | Reintentos del proveedor. |
 | `REVIEW_TIMEOUT_SECONDS` | `180` | Tiempo total máximo de una revisión. |

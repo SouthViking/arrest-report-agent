@@ -261,7 +261,7 @@ class AppSettings(BaseSettings):
         le=25,
     )
 
-    openai_model: str = Field(default="gpt-5.6-terra", alias="OPENAI_MODEL", min_length=1)
+    openai_model: str = Field(default="gpt-6-luna", alias="OPENAI_MODEL", min_length=1)
     openai_reasoning_effort: str = Field(default="medium", alias="OPENAI_REASONING_EFFORT", min_length=1)
     openai_max_retries: int = Field(default=2, alias="OPENAI_MAX_RETRIES", ge=0, le=10)
     openai_tracing_enabled: bool = Field(default=True, alias="OPENAI_TRACING_ENABLED")

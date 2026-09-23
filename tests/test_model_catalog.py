@@ -22,6 +22,24 @@ def test_catalog_resolves_supported_runtime_defaults_and_pricing() -> None:
     assert model.service_tier_pricing.select_band(272_001).id == "long"
 
 
+def test_catalog_resolves_gpt6_luna_with_medium_reasoning_and_standard_pricing() -> None:
+    model = ModelCatalog.load_default().resolve("gpt-6-luna", "medium")
+
+    assert model.id == "gpt-6-luna"
+    assert model.runtime_defaults.image_detail == "original"
+    assert model.runtime_defaults.service_tier == "default"
+    assert model.service_tier_pricing.select_band(272_000).rates_per_unit.input == Decimal("0.10")
+    assert model.service_tier_pricing.select_band(272_001).rates_per_unit.output == Decimal("0.75")
+    usage = Usage(
+        requests=1,
+        input_tokens=10_000,
+        input_tokens_details={"cached_tokens": 2_000, "cache_write_tokens": 1_000},
+        output_tokens=1_000,
+        total_tokens=11_000,
+    )
+    assert summarize_usage(usage, model).estimated_cost_usd == Decimal("0.00134500")
+
+
 @pytest.mark.parametrize(
     ("model_id", "effort", "expected"),
     [

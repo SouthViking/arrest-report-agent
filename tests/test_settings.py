@@ -28,9 +28,22 @@ def test_settings_parse_channel_ids_and_persona_selection(settings: AppSettings)
     assert settings.max_total_file_bytes == 52_428_800
     assert settings.channel_context_max_messages == 5
     assert settings.thread_context_max_historical_files == 2
-    assert settings.app_version == "0.38.6"
+    assert settings.app_version == "0.38.7"
     assert settings.sarp_online_players_cache_seconds == 30
     assert settings.online_inmates_page_size == 10
+
+
+def test_new_configurations_default_to_gpt6_luna(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    monkeypatch.delenv("OPENAI_REASONING_EFFORT", raising=False)
+    settings = AppSettings(
+        _env_file=None,
+        DISCORD_TOKEN="discord",
+        OPENAI_API_KEY="openai",
+    )
+
+    assert settings.openai_model == "gpt-6-luna"
+    assert settings.openai_reasoning_effort == "medium"
 
 
 def test_empty_escalation_roles_disable_mentions_and_legacy_name_is_supported() -> None:
@@ -125,7 +138,7 @@ def test_railway_webhook_requires_complete_identity_and_url_safe_secret() -> Non
 
     assert settings.railway_webhook_enabled is True
     assert settings.railway_webhook_identity_is_complete is True
-    assert settings.app_version == "0.38.6"
+    assert settings.app_version == "0.38.7"
 
     with pytest.raises(ValidationError, match="RAILWAY_ENVIRONMENT_ID"):
         AppSettings(**{key: value for key, value in values.items() if key != "RAILWAY_ENVIRONMENT_ID"})

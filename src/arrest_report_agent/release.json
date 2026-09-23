@@ -1,14 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.38.6",
-  "title": "Horarios correctos en las fichas FTP",
-  "summary": "Cada solicitud interpreta la fecha y hora según la zona horaria que elijas.",
+  "version": "0.38.7",
+  "title": "Migración del agente a GPT-6 Luna",
+  "summary": "El agente general y la auditoría radial pasan a GPT-6 Luna para reducir el costo de las consultas.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
       "type": "improved",
-      "text": "Al solicitar una ficha, primero eliges tu zona horaria y Discord muestra el horario equivalente para cada persona."
+      "text": "Las configuraciones activas que usaban Terra migran a Luna, manteniendo las herramientas y el razonamiento en medium."
+    },
+    {
+      "type": "improved",
+      "text": "El catálogo incorpora las tarifas de Luna para estimar correctamente el costo de las ejecuciones."
     }
   ],
   "acknowledgements": []

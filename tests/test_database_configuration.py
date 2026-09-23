@@ -631,6 +631,113 @@ def test_database_migrations_and_versioned_configuration_round_trip() -> None:
             os.environ["DATABASE_URL"] = previous
 
 
+def test_luna_migration_updates_current_terra_configs_without_rewriting_history(settings) -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = database_url
+    alembic = Config("alembic.ini")
+    try:
+        command.downgrade(alembic, "base")
+        command.upgrade(alembic, "20260921_0075")
+        asyncio.run(_seed_model_migration_configurations(database_url, settings))
+
+        command.upgrade(alembic, "head")
+        asyncio.run(
+            _assert_model_migration_configurations(
+                database_url,
+                ("gpt-6-luna", "gpt-6-luna", "gpt-5.6-terra", "gpt-6-sol"),
+            )
+        )
+
+        command.downgrade(alembic, "20260921_0075")
+        asyncio.run(
+            _assert_model_migration_configurations(
+                database_url,
+                ("gpt-5.6-terra", "gpt-5.6-terra", "gpt-5.6-terra", "gpt-6-sol"),
+            )
+        )
+    finally:
+        command.downgrade(alembic, "base")
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
+
+
+async def _seed_model_migration_configurations(database_url: str, settings: AppSettings) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        agent = GuildAgentConfig(
+            model="gpt-5.6-terra",
+            reasoning_effort="medium",
+            review_timeout_seconds=settings.review_timeout_seconds,
+            max_agent_turns=settings.max_agent_turns,
+            max_images_per_review=settings.max_images_per_review,
+            max_image_bytes=settings.max_image_bytes,
+            max_files_per_review=settings.max_files_per_review,
+            max_file_bytes=settings.max_file_bytes,
+            max_total_file_bytes=settings.max_total_file_bytes,
+            thread_context_max_messages=settings.thread_context_max_messages,
+            channel_context_max_messages=settings.channel_context_max_messages,
+            thread_context_max_chars=settings.thread_context_max_chars,
+            thread_context_max_message_chars=settings.thread_context_max_message_chars,
+            thread_context_max_historical_images=settings.thread_context_max_historical_images,
+            thread_context_max_historical_files=settings.thread_context_max_historical_files,
+            thread_auto_archive_minutes=settings.thread_auto_archive_minutes,  # type: ignore[arg-type]
+        )
+        agent_table = sa.table(
+            "guild_agent_settings",
+            sa.column("config_revision_id"),
+            *(sa.column(name) for name in GuildAgentConfig.model_fields),
+        )
+        async with client.transaction() as tx:
+            for guild_id, revisions in (
+                (1234674521416663070, ((1, "published", agent), (2, "draft", agent), (3, "archived", agent))),
+                (999, ((1, "published", agent.model_copy(update={"model": "gpt-6-sol"})),)),
+            ):
+                await tx.execute(
+                    sa.text("INSERT INTO discord_guilds (discord_id, name) VALUES (:id, 'QA')"),
+                    {"id": guild_id},
+                )
+                for revision, status, configured_agent in revisions:
+                    revision_id = uuid.uuid4()
+                    await tx.execute(
+                        sa.text(
+                            "INSERT INTO guild_config_revisions (id, guild_id, revision, status) "
+                            "VALUES (:id, :guild_id, :revision, :status)"
+                        ),
+                        {"id": revision_id, "guild_id": guild_id, "revision": revision, "status": status},
+                    )
+                    await tx.execute(
+                        agent_table.insert().values(
+                            config_revision_id=revision_id,
+                            **configured_agent.model_dump(),
+                        )
+                    )
+    finally:
+        await client.close()
+
+
+async def _assert_model_migration_configurations(database_url: str, expected: tuple[str, ...]) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(
+            sa.text(
+                "SELECT agent.model FROM guild_agent_settings AS agent "
+                "JOIN guild_config_revisions AS revision ON revision.id = agent.config_revision_id "
+                "ORDER BY revision.guild_id DESC, revision.revision"
+            )
+        )
+        assert tuple(str(row["model"]) for row in rows) == expected
+    finally:
+        await client.close()
+
+
 def test_scope_refusal_cleanup_migration_sanitizes_persisted_personas() -> None:
     database_url = os.getenv("TEST_DATABASE_URL")
     if not database_url:

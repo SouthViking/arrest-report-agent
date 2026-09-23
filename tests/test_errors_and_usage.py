@@ -104,7 +104,7 @@ def test_usage_summary_keeps_raw_tokens_and_catalog_cost_breakdown(model, caplog
     assert summary.pricing_context_bands == "short:1"
     assert summary.pricing_service_tier == "default"
     assert summary.pricing_tier_name == "standard"
-    assert summary.pricing_version == "2026-07-30"
+    assert summary.pricing_version == "2026-09-23"
     assert summary.pricing_currency == "USD"
     assert summary.pricing_calculation_basis == "aggregate_fallback"
     assert summary.priced_requests == 1
@@ -121,7 +121,7 @@ def test_usage_summary_keeps_raw_tokens_and_catalog_cost_breakdown(model, caplog
     assert payload["cache_write_input_tokens"] == 1_000
     assert payload["reasoning_tokens"] == 600
     assert payload["estimated_cost_usd"] == 0.0289
-    assert payload["pricing_version"] == "2026-07-30"
+    assert payload["pricing_version"] == "2026-09-23"
 
 
 def test_error_log_keeps_structured_fields_and_full_traceback(caplog) -> None:

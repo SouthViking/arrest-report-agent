@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "pricing_version": "2026-07-30",
+  "pricing_version": "2026-09-23",
   "pricing_source_url": "https://developers.openai.com/api/docs/pricing",
   "currency": "USD",
   "token_price_unit": 1000000,
@@ -55,6 +55,62 @@
                 "cached_input": "0.40",
                 "cache_write": "5.00",
                 "output": "18.00"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gpt-6-luna",
+      "aliases": [],
+      "supported_reasoning_efforts": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "supported_image_details": [
+        "low",
+        "high",
+        "auto",
+        "original"
+      ],
+      "supported_text_verbosity": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "runtime_defaults": {
+        "image_detail": "original",
+        "text_verbosity": "low",
+        "max_output_tokens": 2500,
+        "service_tier": "default"
+      },
+      "pricing": {
+        "default": {
+          "display_name": "standard",
+          "context_bands": [
+            {
+              "id": "short",
+              "max_input_tokens": 272000,
+              "rates_per_unit": {
+                "input": "0.10",
+                "cached_input": "0.01",
+                "cache_write": "0.125",
+                "output": "0.50"
+              }
+            },
+            {
+              "id": "long",
+              "max_input_tokens": null,
+              "rates_per_unit": {
+                "input": "0.20",
+                "cached_input": "0.02",
+                "cache_write": "0.25",
+                "output": "0.75"
               }
             }
           ]

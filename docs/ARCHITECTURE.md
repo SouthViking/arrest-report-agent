@@ -463,9 +463,10 @@ cosmético se registra sin interrumpir el expediente. Todos los textos provienen
 
 ## Resolución del modelo y costos
 
-El entorno selecciona únicamente `OPENAI_MODEL` y `OPENAI_REASONING_EFFORT`. Al arrancar, el runtime
-carga `config/data/models.json`, lo valida con Pydantic y rechaza modelos o efforts no soportados. El
-catálogo aporta detalle de imagen, verbosity, límite de salida, service tier y tarifas.
+El entorno selecciona `OPENAI_MODEL` y `OPENAI_REASONING_EFFORT` solo para el importador inicial de
+configuración. En guilds existentes, el runtime usa el modelo de la revisión activa en PostgreSQL.
+Al arrancar carga `config/data/models.json`, lo valida con Pydantic y rechaza modelos o efforts no
+soportados. El catálogo aporta detalle de imagen, verbosity, límite de salida, service tier y tarifas.
 
 El costo se calcula desde `Usage` del Agents SDK. Se conservan los contadores crudos y cada llamada
 se tarifa de forma independiente para seleccionar correctamente el tramo de contexto. Las escrituras
