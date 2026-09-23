@@ -86,7 +86,7 @@
       "runtime_defaults": {
         "image_detail": "original",
         "text_verbosity": "low",
-        "max_output_tokens": 2500,
+        "max_output_tokens": 10000,
         "service_tier": "default"
       },
       "pricing": {

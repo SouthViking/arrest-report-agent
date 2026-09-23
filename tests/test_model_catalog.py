@@ -27,6 +27,7 @@ def test_catalog_resolves_gpt6_luna_with_medium_reasoning_and_standard_pricing()
 
     assert model.id == "gpt-6-luna"
     assert model.runtime_defaults.image_detail == "original"
+    assert model.runtime_defaults.max_output_tokens == 10_000
     assert model.runtime_defaults.service_tier == "default"
     assert model.service_tier_pricing.select_band(272_000).rates_per_unit.input == Decimal("0.10")
     assert model.service_tier_pricing.select_band(272_001).rates_per_unit.output == Decimal("0.75")

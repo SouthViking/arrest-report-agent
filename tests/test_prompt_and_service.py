@@ -12,7 +12,7 @@ from arrest_report_agent.application.errors import AgentSessionUnavailableError
 from arrest_report_agent.application.prompt import build_agent_instructions
 from arrest_report_agent.application.service import ReviewService
 from arrest_report_agent.application.service_context import ReviewRunContext
-from arrest_report_agent.config import PackagedPersonaProvider
+from arrest_report_agent.config import ModelCatalog, PackagedPersonaProvider
 from arrest_report_agent.config.logging import STRUCTURED_EVENT_ATTRIBUTE
 from arrest_report_agent.domain import (
     AgentAccessLevel,
@@ -322,6 +322,22 @@ def test_review_tool_schema_exposes_context_specific_writing_rules() -> None:
     assert "never use formal usted forms" in finding_properties["recommendation"]["description"]
     assert "without persona slang" in charge_properties["note"]["description"]
     assert "do not require literal formulas" in charge_properties["alignment"]["description"]
+
+
+def test_luna_review_agents_have_room_for_reasoning_and_structured_publication(
+    settings, persona
+) -> None:
+    model = ModelCatalog.load_default().resolve("gpt-6-luna", "medium")
+    service = ReviewService(
+        settings,
+        ChargeCatalog.load_default(),
+        ReportGuide.load_default(),
+        model,
+        persona,
+    )
+
+    assert service.agent.model_settings.max_tokens == 10_000
+    assert service.report_owner_agent.model_settings.max_tokens == 10_000
 
 
 def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, model, persona) -> None:
