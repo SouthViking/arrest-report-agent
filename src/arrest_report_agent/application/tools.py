@@ -57,6 +57,7 @@ from .ports import (
     CharacterLegalFactsQuery,
     EvidenceBagLookup,
     FactionFrequencyLookup,
+    FactionOfficerRankLookup,
     GuildMemberProfile,
     GuildMemberSearchQuery,
     GuildMemberSearchResult,
@@ -153,6 +154,7 @@ MAX_ARREST_DETAIL_CALLS_PER_RUN = 3
 MAX_CHARACTER_LEGAL_FACT_CALLS_PER_RUN = 3
 MAX_EVIDENCE_BAG_CALLS_PER_RUN = 3
 MAX_FACTION_FREQUENCY_CALLS_PER_RUN = 2
+MAX_FACTION_OFFICER_RANK_CALLS_PER_RUN = 2
 MAX_MANUAL_LIST_CALLS_PER_RUN = 3
 MAX_MANUAL_SEARCH_CALLS_PER_RUN = 5
 MAX_MANUAL_READ_CALLS_PER_RUN = 6
@@ -216,6 +218,7 @@ def build_agent_tools(
     character_legal_facts_lookup: CharacterLegalFactsLookup | None = None,
     evidence_bag_lookup: EvidenceBagLookup | None = None,
     faction_frequency_lookup: FactionFrequencyLookup | None = None,
+    faction_officer_rank_lookup: FactionOfficerRankLookup | None = None,
     report_channel_ids: frozenset[int] = frozenset(),
     manual_catalog: ManualCatalog | None = None,
     report_image_lookup: ReportImageLookup | None = None,
@@ -1589,6 +1592,49 @@ def build_agent_tools(
         run_context.latest_arrest_report = result.report
         return arrest_detail_payload(result.report, bound=True)
 
+    @function_tool
+    async def get_report_officer_rank(
+        ctx: RunContextWrapper[ReviewRunContext],
+        fuzzy: bool = True,
+    ) -> dict[str, object]:
+        """Look up the current SARP faction rank of the officer named in the loaded arrest report.
+
+        First compares complete names case/accent/spacing-insensitively. When fuzzy=true, a single
+        strong approximate match is returned only as possible_match, never as confirmed identity.
+        Ambiguous, missing and unavailable roster data are distinct; current rank is not proof of
+        the officer's rank on the historical report date.
+        """
+
+        run_context = ctx.context
+        if faction_officer_rank_lookup is None:
+            return {"ok": False, "error": "unavailable"}
+        report = run_context.latest_arrest_report
+        if report is None:
+            return {"ok": False, "error": "report_not_loaded"}
+        if run_context.faction_officer_rank_calls >= MAX_FACTION_OFFICER_RANK_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_lookup_limit_reached"}
+        run_context.faction_officer_rank_calls += 1
+        await _set_activity(run_context, AgentActivity.RECORDS)
+        result = await faction_officer_rank_lookup.find(report.officer_name, fuzzy=fuzzy)
+        payload: dict[str, object] = {
+            "ok": result.status != "unavailable",
+            "status": result.status,
+            "report_officer_name": result.officer_name,
+        }
+        if result.member_name is not None:
+            payload["matched_member_name"] = result.member_name
+        if result.current_rank is not None:
+            payload["current_sarp_rank"] = result.current_rank
+        if result.match_method is not None:
+            payload["match_method"] = result.match_method
+        if result.candidates:
+            payload["candidates"] = list(result.candidates)
+        if result.error is not None:
+            payload["error"] = result.error
+        if result.retry_after_seconds is not None:
+            payload["retry_after_seconds"] = result.retry_after_seconds
+        return payload
+
     async def _get_structured_images(
         ctx: RunContextWrapper[ReviewRunContext],
         *,
@@ -1928,6 +1974,8 @@ def build_agent_tools(
             get_report_suspect_images,
             get_report_supporting_images,
         ]
+    if faction_officer_rank_lookup is not None:
+        report_tools.append(get_report_officer_rank)
     if access_level is AgentAccessLevel.REPORT_OWNER:
         owner_record_tools: list[object] = []
         if character_legal_facts_lookup is not None:
@@ -1963,6 +2011,8 @@ def build_agent_tools(
     live_record_tools: list[object] = []
     if faction_frequency_lookup is not None:
         live_record_tools.append(get_faction_frequencies)
+    if faction_officer_rank_lookup is not None:
+        live_record_tools.append(get_report_officer_rank)
     if arrest_report_lookup is not None:
         live_record_tools.extend(
             [

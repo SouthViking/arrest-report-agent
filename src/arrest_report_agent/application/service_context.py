@@ -65,6 +65,7 @@ class ReviewRunContext:
     character_legal_fact_calls: int = 0
     evidence_bag_calls: int = 0
     faction_frequency_calls: int = 0
+    faction_officer_rank_calls: int = 0
     manual_list_calls: int = 0
     manual_search_calls: int = 0
     manual_read_calls: int = 0

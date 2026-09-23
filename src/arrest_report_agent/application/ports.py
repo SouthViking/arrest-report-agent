@@ -486,6 +486,36 @@ class FactionFrequencyLookup(Protocol):
         """List frequencies only for the faction bound by the active guild configuration."""
 
 
+FactionOfficerRankStatus = Literal[
+    "matched",
+    "possible_match",
+    "ambiguous",
+    "not_found",
+    "invalid_name",
+    "rank_unknown",
+    "unavailable",
+]
+
+
+@dataclass(frozen=True)
+class FactionOfficerRankLookupResult:
+    """Current faction rank for one report officer, with explicit identity uncertainty."""
+
+    status: FactionOfficerRankStatus
+    officer_name: str
+    member_name: str | None = None
+    current_rank: str | None = None
+    match_method: Literal["normalized_exact", "compact_exact", "fuzzy"] | None = None
+    candidates: tuple[str, ...] = ()
+    error: str | None = None
+    retry_after_seconds: float | None = None
+
+
+class FactionOfficerRankLookup(Protocol):
+    async def find(self, officer_name: str, *, fuzzy: bool = True) -> FactionOfficerRankLookupResult:
+        """Resolve only the current configured faction roster, never a historical rank."""
+
+
 @dataclass(frozen=True)
 class PollAnswerDraft:
     """One validated native Discord poll answer."""

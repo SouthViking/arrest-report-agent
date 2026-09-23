@@ -155,6 +155,7 @@ class DatabaseConfigProvider:
             arrest_lookup = None
             character_legal_facts_lookup = None
             faction_frequency_lookup = None
+            faction_officer_rank_lookup = None
             faction_id = settings.arrest_report_lookup_faction_id
             if self.sarp_client is not None and faction_id is not None:
                 from arrest_report_agent.arrest_reports import SarpArrestReportLookup
@@ -172,9 +173,14 @@ class DatabaseConfigProvider:
                 if self.faction_directory is not None:
                     from arrest_report_agent.faction_directory import (
                         SarpFactionFrequencyLookup,
+                        SarpFactionOfficerRankLookup,
                     )
 
                     faction_frequency_lookup = SarpFactionFrequencyLookup(
+                        self.faction_directory,
+                        faction_id=faction_id,
+                    )
+                    faction_officer_rank_lookup = SarpFactionOfficerRankLookup(
                         self.faction_directory,
                         faction_id=faction_id,
                     )
@@ -189,10 +195,9 @@ class DatabaseConfigProvider:
                 character_legal_facts_lookup,
                 evidence_bag_lookup=(self.evidence_bag_lookup if faction_id is not None else None),
                 faction_frequency_lookup=faction_frequency_lookup,
+                faction_officer_rank_lookup=faction_officer_rank_lookup,
                 manual_catalog=self.manual_catalog,
-                report_image_lookup=(
-                    self.report_image_lookup if arrest_lookup is not None else None
-                ),
+                report_image_lookup=(self.report_image_lookup if arrest_lookup is not None else None),
             )
             bundle = GuildRuntimeBundle(
                 snapshot=snapshot,

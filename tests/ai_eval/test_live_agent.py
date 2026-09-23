@@ -7,6 +7,7 @@ production prompt, local knowledge and action tools, session behavior and config
 from __future__ import annotations
 
 import base64
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -27,6 +28,8 @@ from arrest_report_agent.application.ports import (
     CharacterLegalFactsLookup,
     CharacterLegalFactsQuery,
     CharacterLegalFactsResult,
+    FactionOfficerRankLookup,
+    FactionOfficerRankLookupResult,
     GuildRoleProfile,
     GuildRoleSearchResult,
     MessageAttachmentLookupResult,
@@ -170,7 +173,7 @@ class RecordingArrestReportLookup:
             suspect_name="Terry McKenzie",
             officer_name="Charles Harrington",
             description=(
-                "Yo, ayudante Charles Harrington, bajo la asignación 280L, detuve a Terry "
+                "Yo, Deputy Sheriff Charles Harrington, bajo la asignación 280L, detuve a Terry "
                 "McKenzie en Jefferson después de que huyera de una intervención vehicular. "
                 "El sospechoso fue trasladado a la estación sin lesiones. No se recolectó "
                 "evidencia física."
@@ -328,6 +331,7 @@ class RecordingCharacterLegalFactsLookup:
             ),
         )
 
+
 class RecordingMessageDirectory:
     """Return one real image payload and record lazy attachment reads."""
 
@@ -447,6 +451,7 @@ async def _run_agent(
     character_legal_facts_lookup: CharacterLegalFactsLookup | None = None,
     report_image_lookup: ReportImageLookup | None = None,
     preloaded_arrest_report: ArrestReportDetail | None = None,
+    faction_officer_rank_lookup: FactionOfficerRankLookup | None = None,
 ) -> tuple[ReviewRunContext, InMemoryPublisher]:
     model = ModelCatalog.load_default().resolve(
         settings.openai_model,
@@ -473,6 +478,7 @@ async def _run_agent(
         arrest_report_lookup=arrest_report_lookup,
         character_legal_facts_lookup=character_legal_facts_lookup,
         report_image_lookup=report_image_lookup,
+        faction_officer_rank_lookup=faction_officer_rank_lookup,
     )
 
     await service.review(
@@ -569,7 +575,7 @@ async def test_approves_complete_report_without_demanding_roleplay_recordings(
             """Solicito la revisión de este expediente transcrito. Las fotografías reglamentarias
 frontal y lateral están presentes y son legibles.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W y acompañada por el ayudante Marco Ruiz,
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W y acompañada por el ayudante Marco Ruiz,
 patrullaba Jefferson el 05/08/2026, aproximadamente a las 22:15. Observamos un Sultan negro que
 circulaba sin luces y le ordenamos detenerse mediante luces y sirena. El conductor se detuvo en
 Forum Drive. Cuando le indiqué que quedaba detenido por conducir de forma temeraria, volvió a
@@ -608,7 +614,7 @@ async def test_blocks_verifiable_spelling_and_writing_errors(
             "user",
             """Solicito revisión. Las fotografías reglamentarias están presentes.
 
-Yo, ayudante Elena Torres, iva patrullando por Jefferson con el ayudante Marco Ruiz el 05/08/2026
+Yo, Deputy Sheriff Elena Torres, iva patrullando por Jefferson con el ayudante Marco Ruiz el 05/08/2026
 a las 22:15. Hay divise un Sultan negro y le ordene detenerse. El conductor se detubo, pero cuando
 le informe que quedava detenido, uyo hacia Idlewood. Lo perseguimos ocho minutos asta que choco
 contra una barrera. Luego lo arrestamos y fue trasladado a la estación de Ganton. No se recolectó
@@ -648,7 +654,7 @@ async def test_rejects_charge_when_report_explicitly_negates_its_elements(
             """Solicito la revisión de este expediente transcrito. Las fotografías reglamentarias
 están presentes y son legibles.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W, detuve un Premier azul en Jefferson el
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W, detuve un Premier azul en Jefferson el
 05/08/2026 a las 20:10 por una luz trasera averiada. El conductor se estacionó inmediatamente,
 apagó el motor, entregó su documentación y permaneció junto al vehículo durante toda la
 intervención. En ningún momento intentó huir, evadir la parada ni resistirse. Tras verificar una
@@ -678,7 +684,7 @@ async def test_accepts_semantically_supported_charge_without_literal_stop_order(
             """Solicito la revisión de este expediente transcrito. Las fotografías reglamentarias
 están presentes y son legibles.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las 22:15
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las 22:15
 cuando observé un Sultan negro circulando a gran velocidad y cruzando ambos carriles. Activé las
 luces y la sirena de la patrulla; el conductor aceleró y huyó hacia Idlewood. Lo seguí durante ocho
 minutos hasta que perdió el control y quedó detenido contra una barrera. Identifiqué al conductor
@@ -709,7 +715,7 @@ async def test_supports_evasion_without_requiring_an_explicit_halt_or_prior_cust
             """Solicito la revisión de este expediente transcrito. Las fotografías reglamentarias
 están presentes y son legibles.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W, acudí a un robo en Jefferson el 05/08/2026 a
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W, acudí a un robo en Jefferson el 05/08/2026 a
 las 22:15. Al descender de la patrulla para intervenir, Daniel Vega salió corriendo del lugar al
 advertir la presencia policial y trató de perderme entre los callejones de Idlewood. Lo perseguí
 durante varios minutos hasta alcanzarlo, identificarlo y arrestarlo sin lesiones. Después lo
@@ -746,7 +752,7 @@ async def test_mass_operation_does_not_require_naming_every_helper_mentioned_by_
             """Revisa únicamente la narrativa. Las fotografías reglamentarias están presentes y
 son legibles.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W, respondí el 05/08/2026 a las 22:15 a un
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W, respondí el 05/08/2026 a las 22:15 a un
 operativo masivo en Jefferson donde varias unidades contenían una pelea. Observé directamente a
 Daniel Vega golpear a una persona caída. Intervine, lo separé del grupo y lo arresté sin lesiones.
 Los demás ayudantes aseguraron el perímetro y atendieron al resto de involucrados. Trasladé a Vega
@@ -780,7 +786,7 @@ async def test_nonprofessional_but_clear_narrative_does_not_block_approval(
             "user",
             """Solicito revisión. Las fotografías reglamentarias están presentes y son legibles.
 
-Yo, ayudante Elena Torres, bajo la asignación 241 William, patrullaba Jefferson el 05/08/2026 a las
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241 William, patrullaba Jefferson el 05/08/2026 a las
 22:15. La unidad 240W inició una persecución contra un Sultan negro y cuando me incorporo al apoyo
 veo que el conductor toma Forum Drive hacia Idlewood. Seguimos el vehículo por unos ocho minutos.
 Finalmente choca contra una barrera, así que bajamos y arrestamos a Daniel Vega sin lesiones. Luego
@@ -816,7 +822,7 @@ async def test_clear_isolated_nonstandard_verbal_forms_are_not_reported(
             "user",
             """Solicito revisión. Las fotografías reglamentarias están presentes y son legibles.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W, conducí la unidad por Jefferson el 05/08/2026
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W, conducí la unidad por Jefferson el 05/08/2026
 a las 22:15. Observé un Sultan negro circulando sin luces y le ordené detenerse con luces y sirena.
 El conductor se detuvo en Forum Drive. Cuando descendí de la unidad, volvió a encender el vehículo
 y huyó hacia Idlewood. Lo seguí durante ocho minutos hasta que chocó contra una barrera. Retení al
@@ -854,7 +860,7 @@ async def test_accepts_adjacent_booking_date_without_false_chronology_error(
             """Solicito la revisión de este expediente transcrito. Las fotografías reglamentarias
 están presentes y son legibles.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W, respondí a un almacén de Jefferson el
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W, respondí a un almacén de Jefferson el
 03/08/2026, aproximadamente a las 12:00. En el interior observé a Maikel Santana preparando y
 separando una sustancia controlada en varios envoltorios. Tras identificarme, Santana se entregó
 sin resistencia. Incauté los envoltorios, utensilios y dinero asociado; todo quedó registrado en la
@@ -889,7 +895,7 @@ async def test_requires_correct_charge_history_when_modal_names_another_characte
             """Solicito la revisión de este expediente transcrito. Las fotografías reglamentarias
 están presentes y son legibles.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las 20:10
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las 20:10
 cuando observé un Sultan negro circulando sin luces. Le ordené detenerse mediante luces y sirena.
 El conductor se detuvo en Forum Drive, pero volvió a encender el vehículo y huyó cuando me acerqué.
 Inicié una persecución que duró ocho minutos y terminó en Idlewood, donde el vehículo quedó
@@ -936,7 +942,7 @@ async def test_ignores_old_rows_from_the_character_charge_history(
             """Solicito la revisión de este expediente transcrito. Las fotografías reglamentarias
 están presentes y son legibles.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W y acompañada por el ayudante Marco Ruiz,
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W y acompañada por el ayudante Marco Ruiz,
 patrullaba Jefferson el 05/08/2026 a las 22:15. Observamos un Sultan negro circulando sin luces y le
 ordenamos detenerse mediante luces y sirena. El conductor se detuvo en Forum Drive, pero volvió a
 encender el vehículo y huyó cuando me acerqué. Iniciamos una persecución que duró ocho minutos y
@@ -967,7 +973,7 @@ async def test_narrative_only_review_does_not_require_or_assess_charges(
             "user",
             """Revisa únicamente la narrativa; no evalúes los cargos.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las 22:15
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las 22:15
 cuando observé un Sultan negro circulando sin luces. Le ordené detenerse mediante luces y sirena.
 El conductor se detuvo en Forum Drive, pero volvió a encender el vehículo y huyó cuando me acerqué.
 Inicié una persecución que duró ocho minutos y terminó en Idlewood, donde el vehículo quedó
@@ -982,6 +988,60 @@ y lo trasladé a la estación de Ganton. No se recolectó evidencia física.""",
     assert publication.review_scope is ReviewScope.NARRATIVE
     assert publication.verdict is ReviewVerdict.APPROVED
     assert publication.charges == []
+
+
+async def test_narrative_review_requires_authors_rank_even_when_display_name_has_it(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            """Revisa únicamente la narrativa de este reporte.
+
+Yo, Elena Torres, bajo la asignación 241W, patrullaba Jefferson con Marco Ruiz el 05/08/2026 a
+las 22:15. Observamos un Sultan negro circulando sin luces y le ordenamos detenerse mediante luces
+y sirena. El conductor se detuvo en Forum Drive, pero volvió a encender el vehículo y huyó cuando
+me acerqué. La persecución terminó ocho minutos después en Idlewood, donde el vehículo quedó
+inmovilizado contra una barrera. Identificamos al conductor como Daniel Vega, lo arrestamos sin
+lesiones y lo trasladamos a la estación de Ganton. No se recolectó evidencia física.""",
+        ),
+        root_author_display="Ayudante Torres",
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+
+    assert publication.review_scope is ReviewScope.NARRATIVE
+    assert publication.verdict is ReviewVerdict.CORRECTIONS_REQUIRED
+    assert any(
+        finding.severity.value == "required" and "rango" in (finding.title + " " + finding.detail).lower()
+        for finding in publication.findings
+    ), publication.model_dump(mode="json")
+
+
+async def test_narrative_review_accepts_companion_without_rank(
+    ai_eval_settings: AppSettings,
+) -> None:
+    case = _case(
+        (
+            "user",
+            """Revisa únicamente la narrativa de este reporte.
+
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W, patrullaba Jefferson con Marco Ruiz el
+05/08/2026 a las 22:15. Observamos un Sultan negro circulando sin luces y le ordenamos detenerse
+mediante luces y sirena. El conductor se detuvo en Forum Drive, pero volvió a encender el vehículo
+y huyó cuando me acerqué. La persecución terminó ocho minutos después en Idlewood, donde el
+vehículo quedó inmovilizado contra una barrera. Identificamos al conductor como Daniel Vega, lo
+arrestamos sin lesiones y lo trasladamos a la estación de Ganton. No se recolectó evidencia física.""",
+        )
+    )
+
+    _, publisher = await _run_agent(ai_eval_settings, case)
+    publication = _single_publication(publisher)
+
+    assert publication.review_scope is ReviewScope.NARRATIVE
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+    assert not any("rango" in finding.title.lower() for finding in publication.findings)
 
 
 async def test_charges_only_review_ignores_general_writing_errors(
@@ -1128,7 +1188,7 @@ async def test_re_review_uses_latest_corrected_version(
             """Presento la versión corregida para una segunda revisión. Las fotografías reglamentarias
 están presentes y son legibles.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W y acompañada por el ayudante Marco Ruiz,
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W y acompañada por el ayudante Marco Ruiz,
 patrullaba Jefferson el 05/08/2026, aproximadamente a las 22:15. En Forum Drive ordenamos detenerse
 al conductor de un Sultan negro. Después de detenerse, le indiqué que quedaba arrestado por
 conducción temeraria; entonces encendió nuevamente el vehículo y huyó hacia el este. La persecución
@@ -1163,7 +1223,7 @@ async def test_resolves_radio_codes_before_assessing_report_charges(
             "user",
             """Solicito la revisión completa. Las fotografías frontal y lateral están presentes.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W, respondí a un 211 en un comercio de Jefferson
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W, respondí a un 211 en un comercio de Jefferson
 el 05/08/2026 a las 20:15. La encargada señaló a Daniel Vega y declaró que acababa de quitarle el
 dinero de la caja mediante un forcejeo. Lo observé huir con el efectivo, lo alcancé a una cuadra y
 lo arresté sin lesiones. Informé el 10-15 y regresé a disponibilidad con un 10-98. El detenido fue
@@ -1227,7 +1287,7 @@ async def test_does_not_treat_dates_times_evidence_or_charge_ids_as_radio_codes(
             "user",
             """Revisa esta narrativa. Las fotografías están presentes.
 
-Yo, ayudante Elena Torres, bajo la asignación 241W, observé a Daniel Vega en Jefferson el 05/08/2026
+Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W, observé a Daniel Vega en Jefferson el 05/08/2026
 a las 21:15 mientras circulaba a alta velocidad, cruzaba repetidamente al carril contrario y obligaba
 a otros vehículos a frenar para evitar una colisión. Le ordené detenerse mediante luces y sirena. El
 conductor se detuvo de inmediato, fue arrestado sin resistencia y trasladado a Ganton. Una botella
@@ -1359,10 +1419,9 @@ async def test_sarp_failure_without_visual_material_does_not_invent_a_review(
 
     assert lookup.current == [(case.guild_id, case.root_message_id)]
     assert context.published or context.messages_sent_count > 0
-    assert all(
-        publication.verdict is ReviewVerdict.INCONCLUSIVE
-        for publication in publisher.publications
-    ), publisher.publications
+    assert all(publication.verdict is ReviewVerdict.INCONCLUSIVE for publication in publisher.publications), (
+        publisher.publications
+    )
     assert any(term in rendered_result for term in ("sarp", "sistema", "disponible"))
 
 
@@ -1456,6 +1515,135 @@ async def test_structured_initial_review_reuses_sarp_detail_and_loads_only_reque
     assert context.arrest_detail_calls == 0
     assert image_lookup.calls == ["suspect_photo"]
     assert publisher.publications
+
+
+async def test_structured_review_requires_rank_in_preloaded_sarp_narrative(
+    ai_eval_settings: AppSettings,
+) -> None:
+    arrest_lookup = RecordingArrestReportLookup()
+    report = replace(
+        arrest_lookup.report,
+        description=(
+            "Yo, Charles Harrington, bajo la asignación 280L, detuve a Terry McKenzie en "
+            "Jefferson el 05/08/2026 a las 22:15 después de que huyera de una intervención "
+            "vehicular. La persecución terminó en Idlewood, donde lo arresté sin lesiones y "
+            "lo trasladé a la estación de Ganton. No se recolectó evidencia física."
+        ),
+    )
+    case = _case(
+        ("user", "Revisa únicamente la narrativa del reporte estructurado de PCU."),
+        root_author_display="Ayudante Harrington",
+        initial_channel_id=4002,
+        structured_submission_id=UUID("00000000-0000-0000-0000-000000000753"),
+        structured_report_id=report.report_id,
+        structured_suspect_name=report.suspect_name,
+    )
+
+    _, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        arrest_report_lookup=arrest_lookup,
+        preloaded_arrest_report=report,
+    )
+    publication = _single_publication(publisher)
+
+    assert publication.review_scope is ReviewScope.NARRATIVE
+    assert publication.verdict is ReviewVerdict.CORRECTIONS_REQUIRED
+    assert any(
+        finding.severity.value == "required" and "rango" in (finding.title + " " + finding.detail).lower()
+        for finding in publication.findings
+    ), publication.model_dump(mode="json")
+
+
+class RecordingOfficerRankLookup:
+    def __init__(self, current_rank: str = "Sheriff's Sergeant") -> None:
+        self.calls: list[tuple[str, bool]] = []
+        self.current_rank = current_rank
+
+    async def find(self, officer_name: str, *, fuzzy: bool = True) -> FactionOfficerRankLookupResult:
+        self.calls.append((officer_name, fuzzy))
+        return FactionOfficerRankLookupResult(
+            status="matched",
+            officer_name=officer_name,
+            member_name="Charles Harrington",
+            current_rank=self.current_rank,
+            match_method="normalized_exact",
+        )
+
+
+async def test_structured_review_rejects_generic_ayudante_even_with_rank_lookup_available(
+    ai_eval_settings: AppSettings,
+) -> None:
+    arrest_lookup = RecordingArrestReportLookup()
+    rank_lookup = RecordingOfficerRankLookup(current_rank="Deputy Sheriff")
+    report = replace(
+        arrest_lookup.report,
+        description=(
+            "Yo, ayudante Charles Harrington, bajo la asignación 280L, detuve a Terry McKenzie "
+            "en Jefferson el 05/08/2026 a las 22:15 después de que huyera de una intervención "
+            "vehicular. La persecución terminó en Idlewood, donde lo arresté sin lesiones y lo "
+            "trasladé a la estación de Ganton. No se recolectó evidencia física."
+        ),
+    )
+    case = _case(
+        ("user", "Inicia la revisión completa de este reporte estructurado."),
+        root_author_display="C. Harrington",
+        initial_channel_id=4002,
+        structured_submission_id=UUID("00000000-0000-0000-0000-000000000755"),
+        structured_report_id=report.report_id,
+        structured_suspect_name=report.suspect_name,
+    )
+
+    _, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        arrest_report_lookup=arrest_lookup,
+        preloaded_arrest_report=report,
+        faction_officer_rank_lookup=rank_lookup,
+    )
+    publication = _single_publication(publisher)
+
+    assert publication.review_scope is ReviewScope.FULL
+    assert publication.verdict is ReviewVerdict.CORRECTIONS_REQUIRED
+    assert any(
+        finding.severity.value == "required" and "rango" in (finding.title + " " + finding.detail).lower()
+        for finding in publication.findings
+    ), publication.model_dump(mode="json")
+
+
+async def test_structured_review_checks_current_officer_rank_without_rejecting_historical_difference(
+    ai_eval_settings: AppSettings,
+) -> None:
+    arrest_lookup = RecordingArrestReportLookup()
+    rank_lookup = RecordingOfficerRankLookup()
+    case = _case(
+        ("user", "Revisa solo la narrativa de este reporte; compara el rango declarado con SARP."),
+        root_author_display="C. Harrington",
+        initial_channel_id=4002,
+        structured_submission_id=UUID("00000000-0000-0000-0000-000000000754"),
+        structured_report_id=arrest_lookup.report.report_id,
+        structured_suspect_name=arrest_lookup.report.suspect_name,
+    )
+
+    _, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        arrest_report_lookup=arrest_lookup,
+        preloaded_arrest_report=arrest_lookup.report,
+        faction_officer_rank_lookup=rank_lookup,
+    )
+    publication = _single_publication(publisher)
+
+    assert len(rank_lookup.calls) == 1
+    assert rank_lookup.calls[0][0] == "Charles Harrington"
+    assert publication.review_scope is ReviewScope.NARRATIVE
+    assert not any(
+        finding.severity.value == "required" and "rango" in (finding.title + " " + finding.detail).lower()
+        for finding in publication.findings
+    ), publication.model_dump(mode="json")
 
 
 async def test_structured_initial_review_without_id_searches_and_binds_the_matching_report(
@@ -1560,7 +1748,7 @@ async def test_review_checks_prior_serious_conviction_without_demanding_it_in_na
         suspect_name="Terry McKenzie",
         officer_name="Charles Harrington",
         description=(
-            "Yo, ayudante Charles Harrington, bajo la asignación 280L, detuve a Terry "
+            "Yo, Deputy Sheriff Charles Harrington, bajo la asignación 280L, detuve a Terry "
             "McKenzie tras encontrar una pistola cargada bajo su control durante una intervención. "
             "El arma fue asegurada y el sospechoso fue trasladado a Ganton sin lesiones."
         ),
@@ -1601,9 +1789,7 @@ async def test_review_checks_prior_serious_conviction_without_demanding_it_in_na
     assert facts_lookup.queries[0].reference_at == arrest_lookup.report.created_at
     assert facts_lookup.queries[0].exclude_arrest_id == arrest_lookup.report.report_id
     assert all(
-        "antecedente" not in (
-            f"{finding.title} {finding.detail} {finding.recommendation}"
-        ).casefold()
+        "antecedente" not in (f"{finding.title} {finding.detail} {finding.recommendation}").casefold()
         for finding in publication.findings
     ), publication.model_dump(mode="json")
     assert publication.charges[0].alignment == "supported"
@@ -1618,7 +1804,7 @@ async def test_review_checks_overdue_unpaid_fine_at_report_time(
         suspect_name="Terry McKenzie",
         officer_name="Charles Harrington",
         description=(
-            "Yo, ayudante Charles Harrington, bajo la asignación 280L, identifiqué a Terry "
+            "Yo, Deputy Sheriff Charles Harrington, bajo la asignación 280L, identifiqué a Terry "
             "McKenzie y confirmé en el sistema una multa que continuaba impaga. Procedí con su "
             "detención y traslado a Ganton sin incidentes."
         ),

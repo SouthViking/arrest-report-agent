@@ -6,7 +6,7 @@ from arrest_report_agent.config import BotPersona
 from arrest_report_agent.domain import AgentAccessLevel
 from arrest_report_agent.knowledge import ReportGuideSection
 
-PROMPT_VERSION = "2026-09-07.1"
+PROMPT_VERSION = "2026-09-23.2"
 
 
 def build_agent_instructions(
@@ -17,6 +17,7 @@ def build_agent_instructions(
     character_legal_facts_enabled: bool = False,
     evidence_lookup_enabled: bool = False,
     faction_frequency_lookup_enabled: bool = False,
+    faction_officer_rank_lookup_enabled: bool = False,
     report_image_lookup_enabled: bool = False,
 ) -> str:
     """Build compact instructions from one validated runtime persona."""
@@ -313,6 +314,32 @@ Dispones del plan de frecuencias configurado actualmente para la facción de est
 </sarp_faction_frequencies>
 """
 
+    faction_officer_rank_tools = ""
+    if faction_officer_rank_lookup_enabled:
+        faction_officer_rank_tools = """
+<sarp_report_officer_rank>
+`get_report_officer_rank` compara el nombre del agente redactor del reporte SARP ya cargado con el
+directorio actual de la facción; no requiere que inventes un nombre ni que uses roles de Discord.
+
+- En una revisión `full` o `narrative`, si el redactor declara su rango al inicio, úsala para
+  contrastar ese rango con el registro actual cuando el reporte SARP esté disponible. En `targeted`
+  úsala solo si preguntan por la identificación o el rango; en `charges` o conversación ajena a este
+  punto no la consultes. No sustituye la lectura del rango escrito en la narrativa.
+- `matched` confirma la coincidencia del nombre completo normalizado; `possible_match` solo sugiere
+  una coincidencia fuzzy y NO confirma identidad. `ambiguous`, `not_found`, `invalid_name`,
+  `rank_unknown` o `unavailable` tampoco prueban que el rango escrito sea incorrecto.
+- El rango de SARP es el vigente hoy, no necesariamente el que tenía el redactor al escribir un
+  reporte antiguo. Reconoce equivalencias de rangos formales como `Sergeant`/`sargento`, pero
+  nunca conviertas el genérico «ayudante» en un rango declarado, aunque SARP muestre
+  `Deputy Sheriff` como rango actual. Si una coincidencia exacta muestra un rango realmente distinto,
+  señala solo una observación verificable y pide confirmar el rango a la fecha del reporte; jamás
+  conviertas esa sola diferencia en `required`, rechazo o motivo de no aprobar. Una coincidencia
+  fuzzy tampoco basta para afirmar discrepancia.
+- Si el rango falta en la identificación inicial, aplícale el requisito de la narrativa sin
+  consultar esta tool: ni el directorio ni el rol de Discord pueden rellenar el texto ausente.
+</sarp_report_officer_rank>
+"""
+
     complete_manual_tools = ""
     if access_level is AgentAccessLevel.FULL:
         complete_manual_tools = """
@@ -433,6 +460,8 @@ Usa los ejemplos como referencia de voz y variedad, no como respuestas fijas par
 {evidence_tools}
 
 {faction_frequency_tools}
+
+{faction_officer_rank_tools}
 
 {complete_manual_tools}
 {poll_tools}
@@ -607,6 +636,16 @@ en la comprensión, la evidencia o el procedimiento documentado.
 **Evaluación:**
 - Aplica la guía según el incidente, acepta sus distintos formatos y no convierte elementos
   condicionales en requisitos.
+- En una revisión `full` o `narrative`, verifica que el agente redactor declare su propio rango
+  formal y nombre al comienzo de la narrativa, como en «Yo, sargento Nombre Apellido» o
+  «Yo, Deputy Sheriff Nombre Apellido». Acepta una formulación equivalente, sin exigir esas frases
+  literales. «Yo, ayudante Nombre Apellido» NO satisface el requisito: «ayudante» describe la
+  función de forma genérica, no declara el rango formal del redactor. Si falta ese rango en la
+  identificación inicial, clasifícalo como `required` y entrega `corrections_required`: no lo
+  infieras del nombre obtenido por la API, del rango SARP actual, de roles de Discord ni de datos
+  externos al texto. No exijas el rango de cada compañero mencionado; «ayudante» o incluso solo el
+  nombre pueden bastar para ellos. En `charges` no evalúes este punto y en `targeted` hazlo solo
+  cuando el foco incluya la identificación inicial del redactor.
 - Comprueba cronología, lugar, participantes, intervención, hechos, evidencia, resultado y cargos.
   No exijas un apartado, párrafo o frase de conclusión: si el desarrollo y el resultado se comprenden
   por el conjunto del reporte, no generes un hallazgo. Solo señala el resultado cuando su ausencia

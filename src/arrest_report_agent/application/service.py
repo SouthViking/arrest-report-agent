@@ -37,6 +37,7 @@ from .ports import (
     CharacterLegalFactsLookup,
     EvidenceBagLookup,
     FactionFrequencyLookup,
+    FactionOfficerRankLookup,
     ReportImageLookup,
 )
 from .prompt import PROMPT_VERSION, build_agent_instructions
@@ -65,6 +66,7 @@ class ReviewService:
         faction_frequency_lookup: FactionFrequencyLookup | None = None,
         manual_catalog: ManualCatalog | None = None,
         report_image_lookup: ReportImageLookup | None = None,
+        faction_officer_rank_lookup: FactionOfficerRankLookup | None = None,
     ) -> None:
         self.settings = settings
         self.catalog_provider = as_charge_catalog_provider(catalog)
@@ -91,6 +93,7 @@ class ReviewService:
             character_legal_facts_lookup=character_legal_facts_lookup,
             evidence_bag_lookup=evidence_bag_lookup,
             faction_frequency_lookup=faction_frequency_lookup,
+            faction_officer_rank_lookup=faction_officer_rank_lookup,
             report_channel_ids=settings.report_channel_allowlist.ids or frozenset(),
             manual_catalog=self.manual_catalog,
             report_image_lookup=report_image_lookup,
@@ -111,6 +114,7 @@ class ReviewService:
             character_legal_facts_lookup=character_legal_facts_lookup,
             evidence_bag_lookup=evidence_bag_lookup,
             faction_frequency_lookup=None,
+            faction_officer_rank_lookup=faction_officer_rank_lookup,
             report_channel_ids=settings.report_channel_allowlist.ids or frozenset(),
             manual_catalog=self.manual_catalog,
             report_image_lookup=report_image_lookup,
@@ -133,6 +137,7 @@ class ReviewService:
                 character_legal_facts_enabled=character_legal_facts_lookup is not None,
                 evidence_lookup_enabled=evidence_bag_lookup is not None,
                 faction_frequency_lookup_enabled=faction_frequency_lookup is not None,
+                faction_officer_rank_lookup_enabled=faction_officer_rank_lookup is not None,
                 report_image_lookup_enabled=report_image_lookup is not None,
             ),
             model=model.id,
@@ -149,6 +154,7 @@ class ReviewService:
                 character_legal_facts_enabled=character_legal_facts_lookup is not None,
                 evidence_lookup_enabled=evidence_bag_lookup is not None,
                 faction_frequency_lookup_enabled=False,
+                faction_officer_rank_lookup_enabled=faction_officer_rank_lookup is not None,
                 report_image_lookup_enabled=report_image_lookup is not None,
             ),
             model=model.id,

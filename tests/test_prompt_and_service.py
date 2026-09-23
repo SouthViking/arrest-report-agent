@@ -150,6 +150,17 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "`charges` y `manual_review_reason`" in prompt
 
 
+def test_review_prompt_checks_only_the_authors_opening_rank(persona) -> None:
+    prompt = build_agent_instructions(persona)
+
+    assert "declare su propio rango\n  formal y nombre al comienzo de la narrativa" in prompt
+    assert "«Yo, ayudante Nombre Apellido» NO satisface el requisito" in prompt
+    assert "clasifícalo como `required` y entrega `corrections_required`" in prompt
+    assert "del rango SARP actual, de roles de Discord" in prompt
+    assert "No exijas el rango de cada compañero mencionado" in prompt
+    assert "En `charges` no evalúes este punto" in prompt
+
+
 def test_report_owner_keeps_a_specialized_mission(persona) -> None:
     prompt = build_agent_instructions(persona, AgentAccessLevel.REPORT_OWNER)
 
@@ -218,6 +229,22 @@ def test_faction_frequency_instructions_are_conditional_and_full_access_only(per
     assert "No expongas IDs internos" in full
     assert "slots de transmisión" in full
     assert "<sarp_faction_frequencies>" not in owner
+
+
+def test_report_officer_rank_instructions_are_conditional_and_available_to_owner(persona) -> None:
+    disabled = build_agent_instructions(persona)
+    full = build_agent_instructions(persona, faction_officer_rank_lookup_enabled=True)
+    owner = build_agent_instructions(
+        persona,
+        AgentAccessLevel.REPORT_OWNER,
+        faction_officer_rank_lookup_enabled=True,
+    )
+
+    assert "<sarp_report_officer_rank>" not in disabled
+    assert "get_report_officer_rank" in full
+    assert "`possible_match`" in full
+    assert "jamás\n  conviertas esa sola diferencia en `required`" in full
+    assert "get_report_officer_rank" in owner
     assert "get_faction_frequencies" not in owner
 
 

@@ -1,20 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.38.7",
-  "title": "Migración del agente a GPT-6 Luna",
-  "summary": "El agente general y la auditoría radial pasan a GPT-6 Luna para reducir el costo de las consultas.",
+  "version": "0.38.8",
+  "title": "Rango del redactor en reportes",
+  "summary": "La revisión de arrestos distingue el rango formal del redactor y puede contrastarlo con SARP.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "Las configuraciones activas que usaban Terra migran a Luna, manteniendo las herramientas y el razonamiento en medium."
+      "type": "added",
+      "text": "El agente puede consultar el rango actual del redactor en SARP durante la revisión."
     },
     {
-      "type": "improved",
-      "text": "El catálogo incorpora las tarifas de Luna para estimar correctamente el costo de las ejecuciones."
+      "type": "fixed",
+      "text": "Decir solo «ayudante» ya no sustituye el rango formal al inicio del reporte."
     }
   ],
   "acknowledgements": []

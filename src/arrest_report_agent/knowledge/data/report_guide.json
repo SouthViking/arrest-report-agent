@@ -1,5 +1,5 @@
 {
-  "version": "2026-09-01",
+  "version": "2026-09-23",
   "source": "Manual de procedimientos LSSD proporcionado para el MVP",
   "sections": {
     "overview": {
@@ -23,7 +23,7 @@
     },
     "narrative_structure": {
       "recommended_order": [
-        "Introducción del agente, rango, nombre y asignación o callsign.",
+        "Identificación inicial del agente redactor con su rango y nombre; después, asignación o callsign si corresponde.",
         "Situación previa y motivo por el cual se acercó o respondió a escena.",
         "Localización y llegada.",
         "Hechos relevantes en orden entendible.",
@@ -35,6 +35,7 @@
     },
     "essential_content": {
       "generally_required": [
+        "El agente redactor debe declarar su propio rango formal y nombre al comienzo de la narrativa, por ejemplo «Yo, sargento Nombre Apellido» o «Yo, Deputy Sheriff Nombre Apellido». Aceptar una formulación equivalente, sin exigir esas frases literales. «Yo, ayudante Nombre Apellido» no basta: ayudante es una referencia genérica, no el rango formal declarado. El rango no se suple con datos de la API ni roles de Discord; no exigir el rango de cada compañero mencionado.",
         "Cuándo ocurrió o cuándo se involucró el agente: fecha y hora aproximadas cuando estén disponibles.",
         "Quiénes participaron: agente redactor y otros ayudantes cuya actuación individual sea material para comprender o atribuir los hechos.",
         "Cómo se inició: llamada 911, observación propia, apoyo a otra unidad u otro origen.",
@@ -102,6 +103,7 @@
         "La narrativa vigente y el listado o captura de cargos son materiales esenciales para una revisión completa."
       ],
       "blocking_threshold": [
+        "Si falta el rango formal del agente redactor en la identificación inicial de la narrativa, o solo figura el genérico «ayudante», solicitar corrección obligatoria aunque su nombre o rango pueda inferirse de otros datos. No aplicar esta regla a los compañeros mencionados ni a una revisión limitada a cargos.",
         "Solicitar corrección obligatoria solo cuando el problema corregible afecte la comprensión de los hechos, el fundamento documentado del arresto, la identificación relevante o la trazabilidad de evidencia física.",
         "Toda falta verificable de ortografía, gramática, puntuación o redacción debe corregirse y bloquea la aprobación.",
         "Citar ejemplos representativos y agrupar errores lingüísticos del mismo tipo en un solo hallazgo accionable.",

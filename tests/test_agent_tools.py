@@ -10,6 +10,7 @@ from agents.tool_context import ToolContext
 from arrest_report_agent.application.ports import (
     ArrestReportDetail,
     ChannelMemberSearchQuery,
+    FactionOfficerRankLookupResult,
     GuildMemberLookupResult,
     GuildMemberNameMatchStrategy,
     GuildMemberProfile,
@@ -51,6 +52,88 @@ from arrest_report_agent.knowledge import (
     ReportGuide,
 )
 from arrest_report_agent.knowledge.catalog import Charge, ChargeCategory
+
+
+@pytest.mark.asyncio
+async def test_report_officer_rank_tool_uses_loaded_report_and_is_available_to_owner() -> None:
+    class Lookup:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, bool]] = []
+
+        async def find(self, officer_name: str, *, fuzzy: bool = True) -> FactionOfficerRankLookupResult:
+            self.calls.append((officer_name, fuzzy))
+            return FactionOfficerRankLookupResult(
+                status="matched",
+                officer_name=officer_name,
+                member_name="Charles Harrington",
+                current_rank="Sergeant",
+                match_method="normalized_exact",
+            )
+
+    lookup = Lookup()
+    case = ReviewCase(
+        guild_id=11111111111111111,
+        parent_channel_id=22222222222222222,
+        channel_id=33333333333333333,
+        thread_id=33333333333333333,
+        root_message_id=33333333333333333,
+        trigger_message_id=44444444444444444,
+        requester_user_id=55555555555555555,
+        interaction_mode=InteractionMode.THREAD_FOLLOW_UP,
+        messages=[],
+        attachments=[],
+    )
+    context = ReviewRunContext(
+        case=case,
+        publisher=FakePublisher(),
+        attempt=1,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+    )
+    tools = {
+        tool.name: tool
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+            access_level=AgentAccessLevel.REPORT_OWNER,
+            faction_officer_rank_lookup=lookup,
+        )
+    }
+    tool = tools["get_report_officer_rank"]
+
+    async def invoke(arguments: str) -> object:
+        return await tool.on_invoke_tool(
+            ToolContext(
+                context=context,
+                tool_name="get_report_officer_rank",
+                tool_call_id="rank-lookup",
+                tool_arguments=arguments,
+            ),
+            arguments,
+        )
+
+    assert await invoke("{}") == {"ok": False, "error": "report_not_loaded"}
+    context.latest_arrest_report = ArrestReportDetail(
+        report_id=751,
+        suspect_name="Terry McKenzie",
+        officer_name="Charles Harrington",
+        description="Yo, ayudante Charles Harrington...",
+        created_at=datetime(2026, 8, 18, tzinfo=UTC),
+        updated_at=None,
+        charges=(),
+    )
+    found = await invoke('{"fuzzy":false}')
+    assert found == {
+        "ok": True,
+        "status": "matched",
+        "report_officer_name": "Charles Harrington",
+        "matched_member_name": "Charles Harrington",
+        "current_sarp_rank": "Sergeant",
+        "match_method": "normalized_exact",
+    }
+    assert lookup.calls == [("Charles Harrington", False)]
+    await invoke("{}")
+    assert await invoke("{}") == {"ok": False, "error": "run_lookup_limit_reached"}
+    assert len(lookup.calls) == 2
 
 
 def _catalog(identifier: int, title: str) -> ChargeCatalog:

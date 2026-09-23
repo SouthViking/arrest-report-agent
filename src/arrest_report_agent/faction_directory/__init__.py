@@ -7,6 +7,7 @@ from .models import (
     FactionDirectorySnapshot,
     activity_level_for,
 )
+from .officer_ranks import SarpFactionOfficerRankLookup
 from .service import FactionDirectoryService
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "FactionDirectoryService",
     "FactionDirectorySnapshot",
     "SarpFactionFrequencyLookup",
+    "SarpFactionOfficerRankLookup",
     "activity_level_for",
 ]

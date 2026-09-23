@@ -144,19 +144,33 @@ def test_evidence_guide_treats_recordings_as_roleplay_and_accepts_semantic_bag_r
 
 def test_guide_does_not_require_a_standalone_conclusion_when_outcome_is_clear() -> None:
     guide = ReportGuide.load_default()
-    sections = guide.get(["narrative_structure", "essential_content", "review_calibration"])[
-        "sections"
-    ]
+    sections = guide.get(["narrative_structure", "essential_content", "review_calibration"])["sections"]
 
-    assert "No exigir un apartado, párrafo o frase de conclusión" in sections[
-        "narrative_structure"
-    ]["flexibility"]
-    assert "no se exige una conclusión explícita o separada" in sections["essential_content"][
-        "generally_required"
-    ][-1]
+    assert (
+        "No exigir un apartado, párrafo o frase de conclusión"
+        in sections["narrative_structure"]["flexibility"]
+    )
+    assert (
+        "no se exige una conclusión explícita o separada"
+        in sections["essential_content"]["generally_required"][-1]
+    )
     blocking = " ".join(sections["review_calibration"]["blocking_threshold"])
     assert "ausencia de un cierre o una conclusión separada" in blocking
     assert "descrita como serial" in blocking
+
+
+def test_guide_requires_authors_rank_at_start_but_not_companions_ranks() -> None:
+    sections = ReportGuide.load_default().get(
+        ["narrative_structure", "essential_content", "review_calibration"]
+    )["sections"]
+
+    assert "rango y nombre" in sections["narrative_structure"]["recommended_order"][0]
+    identification = sections["essential_content"]["generally_required"][0]
+    assert "propio rango formal y nombre al comienzo" in identification
+    assert "«Yo, ayudante Nombre Apellido» no basta" in identification
+    assert "no exigir el rango de cada compañero" in identification
+    assert "API ni roles de Discord" in identification
+    assert "corrección obligatoria" in sections["review_calibration"]["blocking_threshold"][0]
 
 
 def test_charge_guide_filters_historical_rows_by_identity_and_proximity() -> None:
@@ -179,8 +193,9 @@ def test_review_calibration_uses_semantic_coverage_and_material_threshold() -> N
 
     assert "cantidad ni un orden fijo" in calibration["semantic_coverage"][0]
     assert "cargos" in calibration["semantic_coverage"][2]
-    assert "bloquea la aprobación" in calibration["blocking_threshold"][1]
-    assert "agrupar errores lingüísticos" in calibration["blocking_threshold"][2]
+    blocking = " ".join(calibration["blocking_threshold"])
+    assert "bloquea la aprobación" in blocking
+    assert "agrupar errores lingüísticos" in blocking
     assert "versión más reciente" in calibration["iteration"][0]
     assert "fuente oficial" in calibration["iteration"][2]
 
