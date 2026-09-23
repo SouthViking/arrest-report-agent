@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.38.8",
-  "title": "Rango del redactor en reportes",
-  "summary": "La revisión de arrestos distingue el rango formal del redactor y puede contrastarlo con SARP.",
+  "version": "0.38.9",
+  "title": "Resolución de órdenes judiciales",
+  "summary": "Las notificaciones de órdenes ahora pueden firmarse o rechazarse desde su canal y avisan el resultado al solicitante.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,11 @@
   "changes": [
     {
       "type": "added",
-      "text": "El agente puede consultar el rango actual del redactor en SARP durante la revisión."
+      "text": "Las órdenes se notifican en #ordenes-judiciales; Command y Executive pueden marcarlas como firmadas o rechazadas."
     },
     {
       "type": "fixed",
-      "text": "Decir solo «ayudante» ya no sustituye el rango formal al inicio del reporte."
+      "text": "El resultado queda reflejado en la tarjeta y se avisa al solicitante en #comandos; el rechazo admite un motivo opcional."
     }
   ],
   "acknowledgements": []

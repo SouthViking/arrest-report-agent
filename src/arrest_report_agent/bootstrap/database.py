@@ -517,7 +517,8 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         schema_version=1,
                         payload=(
                             {
-                                "channel_id": 1261076248541532240,
+                                "channel_id": 1552367150591905793,
+                                "result_channel_id": 1537203701893169254,
                                 "command_role_ids": [1234678029662294047],
                                 "executive_role_ids": [1234678238182244414],
                             }

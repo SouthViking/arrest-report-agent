@@ -8,6 +8,7 @@ from .discord import (
     build_warrant_info_embed,
     build_warrant_notification_embed,
 )
+from .repository import WarrantNotificationRepository
 from .service import (
     WarrantChargeDetail,
     WarrantDetail,
@@ -21,6 +22,7 @@ __all__ = [
     "WarrantLookupResult",
     "WarrantLookupService",
     "WarrantNotificationCog",
+    "WarrantNotificationRepository",
     "WarrantNotificationView",
     "WarrantType",
     "build_warrant_detail_embed",

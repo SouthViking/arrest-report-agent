@@ -1545,12 +1545,18 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         warrant_notifications = {int(row["guild_id"]): row for row in warrant_notification_rows}
         assert warrant_notifications[1234674521416663070]["enabled"] is True
         assert warrant_notifications[1234674521416663070]["payload"] == {
-            "channel_id": 1261076248541532240,
+            "channel_id": 1552367150591905793,
+            "result_channel_id": 1537203701893169254,
             "command_role_ids": [1234678029662294047],
             "executive_role_ids": [1234678238182244414],
         }
         assert warrant_notifications[999]["enabled"] is False
         assert warrant_notifications[999]["payload"] == {}
+        warrant_notification_table = await client.fetch_one(
+            sa.text("SELECT to_regclass('public.warrant_notifications') AS name")
+        )
+        assert warrant_notification_table is not None
+        assert warrant_notification_table["name"] == "warrant_notifications"
         ftp_request_table = await client.fetch_one(
             sa.text("SELECT to_regclass('public.ftp_training_requests') AS name")
         )

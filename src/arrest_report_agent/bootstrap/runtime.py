@@ -146,6 +146,7 @@ from arrest_report_agent.support_contributions import (
 from arrest_report_agent.warrant_notifications import (
     WarrantLookupService,
     WarrantNotificationCog,
+    WarrantNotificationRepository,
     WarrantNotificationView,
 )
 
@@ -559,8 +560,9 @@ async def build_runtime(
         if faction_directory is None:
             raise RuntimeError("Faction-directory service was not initialized")
         warrant_lookup = WarrantLookupService(sarp_client)
-        bot.add_view(WarrantNotificationView(warrant_lookup))
-        bot.add_cog(WarrantNotificationCog(config_provider, warrant_lookup))
+        warrant_repository = WarrantNotificationRepository(postgres)
+        bot.add_view(WarrantNotificationView(warrant_lookup, config_provider, warrant_repository))
+        bot.add_cog(WarrantNotificationCog(config_provider, warrant_lookup, warrant_repository))
         faction_status_service = FactionStatusService(
             sarp_client,
             directory=faction_directory,

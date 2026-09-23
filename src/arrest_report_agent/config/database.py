@@ -262,6 +262,7 @@ class WarrantNotificationOptions(FrozenConfigModel):
     """Destination and mentions for warrant notifications."""
 
     channel_id: int = Field(gt=0)
+    result_channel_id: int | None = Field(default=None, gt=0)
     command_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
     executive_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
 
@@ -277,6 +278,10 @@ class WarrantNotificationOptions(FrozenConfigModel):
     @property
     def notification_role_ids(self) -> tuple[int, ...]:
         return (*self.executive_role_ids, *self.command_role_ids)
+
+    @property
+    def resolution_channel_id(self) -> int:
+        return self.result_channel_id or self.channel_id
 
 
 class FactionMemberAnalysisOptions(FrozenConfigModel):

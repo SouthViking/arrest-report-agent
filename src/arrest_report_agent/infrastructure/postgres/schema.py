@@ -439,6 +439,43 @@ ftp_request_panels = sa.Table(
     ),
 )
 
+warrant_notifications = sa.Table(
+    "warrant_notifications",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("interaction_id", sa.BigInteger, nullable=False, unique=True),
+    sa.Column("channel_id", sa.BigInteger, nullable=False),
+    sa.Column("message_id", sa.BigInteger),
+    sa.Column("requester_user_id", sa.BigInteger, nullable=False),
+    sa.Column("report_url", sa.String(1000), nullable=False),
+    sa.Column("warrant_id", sa.BigInteger, nullable=False),
+    sa.Column("warrant_type", sa.String(20), nullable=False),
+    sa.Column("status", sa.String(20), nullable=False),
+    sa.Column("resolved_by_user_id", sa.BigInteger),
+    sa.Column("rejection_reason", sa.String(500)),
+    sa.Column("result_message_id", sa.BigInteger),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("resolved_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(
+        "status IN ('publishing','pending','signed','rejected','failed')",
+        name="ck_warrant_notification_status",
+    ),
+    sa.CheckConstraint("warrant_id > 0", name="ck_warrant_notification_warrant_id"),
+    sa.CheckConstraint(
+        "rejection_reason IS NULL OR char_length(rejection_reason) <= 500",
+        name="ck_warrant_notification_rejection_reason",
+    ),
+    sa.UniqueConstraint("guild_id", "channel_id", "message_id", name="uq_warrant_notification_message"),
+    sa.Index("ix_warrant_notification_guild_status", "guild_id", "status", "created_at"),
+)
+
 deployment_events = sa.Table(
     "deployment_events",
     metadata,
