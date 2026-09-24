@@ -1125,7 +1125,8 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     ArrestReportLookupOptions.model_validate(payload)
                 except ValueError as error:
                     raise ValueError(
-                        "Consulta de arrestos requiere `faction_id` y un modo de adjunto válido."
+                        "Consulta de arrestos requiere `faction_id`, un modo de adjunto válido y "
+                        "`max_rank_names_per_lookup` entre 1 y 50 si se especifica."
                     ) from error
             if key == "pending_arrest_reports":
                 payload.setdefault("max_range_days", 90)

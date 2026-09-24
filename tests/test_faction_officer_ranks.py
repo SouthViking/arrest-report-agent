@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from arrest_report_agent.faction_directory import officer_ranks
 from arrest_report_agent.faction_directory.models import (
     FactionDirectoryMember,
     FactionDirectorySnapshot,
@@ -41,8 +42,7 @@ async def test_rank_lookup_matches_accents_spaces_and_underscores() -> None:
     directory = Directory(_member("José De La Rosa", "Deputy Sheriff"))
     lookup = SarpFactionOfficerRankLookup(directory, faction_id=3)  # type: ignore[arg-type]
 
-    exact = await lookup.find("JOSE_DE_LA_ROSA")
-    compact = await lookup.find("Jose DelaRosa")
+    exact, compact = await lookup.find_many(("JOSE_DE_LA_ROSA", "Jose DelaRosa"))
 
     assert (exact.status, exact.match_method, exact.current_rank) == (
         "matched",
@@ -50,6 +50,24 @@ async def test_rank_lookup_matches_accents_spaces_and_underscores() -> None:
         "Deputy Sheriff",
     )
     assert (compact.status, compact.match_method) == ("matched", "compact_exact")
+    assert directory.calls == [3]
+
+
+@pytest.mark.asyncio
+async def test_rank_lookup_refreshes_its_snapshot_after_two_minutes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = [100.0]
+    monkeypatch.setattr(officer_ranks, "monotonic", lambda: clock[0])
+    directory = Directory(_member("Charles Harrington", "Sergeant"))
+    lookup = SarpFactionOfficerRankLookup(directory, faction_id=3)  # type: ignore[arg-type]
+
+    assert (await lookup.find("Charles Harrington")).current_rank == "Sergeant"
+    directory.members = (_member("Charles Harrington", "Lieutenant"),)
+    clock[0] += 119
+    assert (await lookup.find("Charles Harrington")).current_rank == "Sergeant"
+    clock[0] += 2
+    assert (await lookup.find("Charles Harrington")).current_rank == "Lieutenant"
     assert directory.calls == [3, 3]
 
 
@@ -88,9 +106,11 @@ async def test_rank_lookup_does_not_invent_rank_or_identity() -> None:
 
 @pytest.mark.asyncio
 async def test_rank_lookup_reports_unavailable_separately_from_not_found() -> None:
+    directory = Directory(error=RuntimeError("offline"))
     lookup = SarpFactionOfficerRankLookup(  # type: ignore[arg-type]
-        Directory(error=RuntimeError("offline")), faction_id=3
+        directory, faction_id=3
     )
-    result = await lookup.find("Charles Harrington")
-    assert result.status == "unavailable"
-    assert result.error is not None
+    results = await lookup.find_many(("Charles Harrington", "Marco Ruiz", "Harrington"))
+    assert [result.status for result in results] == ["unavailable", "unavailable", "invalid_name"]
+    assert all(result.error is not None for result in results[:2])
+    assert directory.calls == [3]

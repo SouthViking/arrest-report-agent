@@ -44,7 +44,9 @@ y `executive_role_ids`. Reutiliza los roles del módulo **FTP conectado**, manti
 canal principal y puede habilitar `/solicitar-ficha` en otros canales de entrada sin cambiar dónde se
 publican las tarjetas.
 
-El módulo **Consulta de reportes de arresto** recibe `{"faction_id": 3}`. Habilita
+El módulo **Consulta de reportes de arresto** recibe `{"faction_id": 3}`. Admite además
+`"max_rank_names_per_lookup": 20` (entre 1 y 50) para limitar los nombres consultados en lote
+por la tool de rangos; se puede ajustar en una nueva revisión de configuración. Habilita
 `/revisar-arresto`, `/ver-evidencia` y permite al agente completo buscar y vincular arrestos de esa facción, además de
 consultar bolsas de evidencias cuando el usuario entrega una referencia explícita. En un expediente ya
 vinculado, el propietario con acceso limitado solo puede consultar su referencia vigente al pedir

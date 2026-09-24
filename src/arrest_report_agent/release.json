@@ -1,16 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.38.11",
-  "title": "Orientación sobre el rango en reportes",
-  "summary": "Las revisiones ahora indican el rango vigente cuando falta en la identificación inicial del agente.",
+  "version": "0.38.12",
+  "title": "Consultas de rangos más ágiles",
+  "summary": "El agente puede consultar el rango vigente de varios integrantes a la vez.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "El agente consulta el rango en SARP y lo sugiere como ejemplo de corrección, sin asumir que era el mismo al momento del arresto."
+      "type": "improved",
+      "text": "Al revisar un reporte, el agente puede comprobar varios nombres en una sola consulta y mostrar un resultado para cada uno."
+    },
+    {
+      "type": "improved",
+      "text": "Las consultas de rango aprovechan un caché más amplio y admiten un límite configurable por servidor."
     }
   ],
   "acknowledgements": []

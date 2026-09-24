@@ -196,6 +196,7 @@ class DatabaseConfigProvider:
                 evidence_bag_lookup=(self.evidence_bag_lookup if faction_id is not None else None),
                 faction_frequency_lookup=faction_frequency_lookup,
                 faction_officer_rank_lookup=faction_officer_rank_lookup,
+                max_rank_names_per_lookup=settings.max_rank_names_per_lookup,
                 manual_catalog=self.manual_catalog,
                 report_image_lookup=(self.report_image_lookup if arrest_lookup is not None else None),
             )

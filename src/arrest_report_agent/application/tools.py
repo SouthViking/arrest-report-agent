@@ -155,6 +155,7 @@ MAX_CHARACTER_LEGAL_FACT_CALLS_PER_RUN = 3
 MAX_EVIDENCE_BAG_CALLS_PER_RUN = 3
 MAX_FACTION_FREQUENCY_CALLS_PER_RUN = 2
 MAX_FACTION_OFFICER_RANK_CALLS_PER_RUN = 2
+MAX_RANK_NAMES_SCHEMA_LIMIT = 50
 MAX_MANUAL_LIST_CALLS_PER_RUN = 3
 MAX_MANUAL_SEARCH_CALLS_PER_RUN = 5
 MAX_MANUAL_READ_CALLS_PER_RUN = 6
@@ -219,11 +220,15 @@ def build_agent_tools(
     evidence_bag_lookup: EvidenceBagLookup | None = None,
     faction_frequency_lookup: FactionFrequencyLookup | None = None,
     faction_officer_rank_lookup: FactionOfficerRankLookup | None = None,
+    max_rank_names_per_lookup: int = 20,
     report_channel_ids: frozenset[int] = frozenset(),
     manual_catalog: ManualCatalog | None = None,
     report_image_lookup: ReportImageLookup | None = None,
 ) -> list[object]:
     """Create tools bound to immutable knowledge snapshots."""
+
+    if not 1 <= max_rank_names_per_lookup <= MAX_RANK_NAMES_SCHEMA_LIMIT:
+        raise ValueError("max_rank_names_per_lookup must be between 1 and 50")
 
     resolved_radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
     resolved_manual_catalog = manual_catalog or ManualCatalog.load_default()
@@ -1595,45 +1600,61 @@ def build_agent_tools(
     @function_tool
     async def get_report_officer_rank(
         ctx: RunContextWrapper[ReviewRunContext],
+        names: Annotated[
+            list[Annotated[str, Field(min_length=1, max_length=100)]] | None,
+            Field(min_length=1, max_length=MAX_RANK_NAMES_SCHEMA_LIMIT),
+        ] = None,
         fuzzy: bool = True,
     ) -> dict[str, object]:
-        """Look up the current SARP faction rank of the officer named in the loaded arrest report.
+        """Look up current SARP faction ranks for a bounded list of relevant officer names.
 
-        First compares complete names case/accent/spacing-insensitively. When fuzzy=true, a single
-        strong approximate match is returned only as possible_match, never as confirmed identity.
-        Ambiguous, missing and unavailable roster data are distinct; current rank is not proof of
-        the officer's rank on the historical report date.
+        Omit names to use the officer from the loaded arrest report. Explicit names can be taken
+        from the report or the user's question. The roster is faction-bound and shared across the
+        batch. Exact matching ignores case, accents and spacing; a strong fuzzy match is only a
+        possible_match, never confirmed identity. A current rank is not proof of historical rank.
         """
 
         run_context = ctx.context
         if faction_officer_rank_lookup is None:
             return {"ok": False, "error": "unavailable"}
-        report = run_context.latest_arrest_report
-        if report is None:
-            return {"ok": False, "error": "report_not_loaded"}
+        if names is None:
+            report = run_context.latest_arrest_report
+            if report is None:
+                return {"ok": False, "error": "report_not_loaded"}
+            names = [report.officer_name]
+        if len(names) > max_rank_names_per_lookup:
+            return {
+                "ok": False,
+                "error": "name_limit_exceeded",
+                "max_names": max_rank_names_per_lookup,
+            }
         if run_context.faction_officer_rank_calls >= MAX_FACTION_OFFICER_RANK_CALLS_PER_RUN:
             return {"ok": False, "error": "run_lookup_limit_reached"}
         run_context.faction_officer_rank_calls += 1
         await _set_activity(run_context, AgentActivity.RECORDS)
-        result = await faction_officer_rank_lookup.find(report.officer_name, fuzzy=fuzzy)
-        payload: dict[str, object] = {
-            "ok": result.status != "unavailable",
-            "status": result.status,
-            "report_officer_name": result.officer_name,
+        results: list[dict[str, object]] = []
+        for result in await faction_officer_rank_lookup.find_many(tuple(names), fuzzy=fuzzy):
+            item: dict[str, object] = {
+                "queried_name": result.officer_name,
+                "status": result.status,
+            }
+            if result.member_name is not None:
+                item["matched_member_name"] = result.member_name
+            if result.current_rank is not None:
+                item["current_sarp_rank"] = result.current_rank
+            if result.match_method is not None:
+                item["match_method"] = result.match_method
+            if result.candidates:
+                item["candidates"] = list(result.candidates)
+            if result.error is not None:
+                item["error"] = result.error
+            if result.retry_after_seconds is not None:
+                item["retry_after_seconds"] = result.retry_after_seconds
+            results.append(item)
+        return {
+            "ok": all(item["status"] != "unavailable" for item in results),
+            "results": results,
         }
-        if result.member_name is not None:
-            payload["matched_member_name"] = result.member_name
-        if result.current_rank is not None:
-            payload["current_sarp_rank"] = result.current_rank
-        if result.match_method is not None:
-            payload["match_method"] = result.match_method
-        if result.candidates:
-            payload["candidates"] = list(result.candidates)
-        if result.error is not None:
-            payload["error"] = result.error
-        if result.retry_after_seconds is not None:
-            payload["retry_after_seconds"] = result.retry_after_seconds
-        return payload
 
     async def _get_structured_images(
         ctx: RunContextWrapper[ReviewRunContext],

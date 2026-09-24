@@ -242,6 +242,14 @@ def test_report_officer_rank_instructions_are_conditional_and_available_to_owner
 
     assert "<sarp_report_officer_rank>" not in disabled
     assert "get_report_officer_rank" in full
+    assert "hasta 20 nombres completos" in full
+    configured = build_agent_instructions(
+        persona,
+        faction_officer_rank_lookup_enabled=True,
+        max_rank_names_per_lookup=37,
+    )
+    assert "hasta 37 nombres completos" in configured
+    assert "`queried_name`" in full
     assert "`possible_match`" in full
     assert "jamás\n  conviertas esa sola diferencia en `required`" in full
     assert "incluye ese rango vigente en la recomendación como ejemplo concreto" in full

@@ -1571,6 +1571,14 @@ class RecordingOfficerRankLookup:
             match_method="normalized_exact",
         )
 
+    async def find_many(
+        self,
+        officer_names: tuple[str, ...],
+        *,
+        fuzzy: bool = True,
+    ) -> tuple[FactionOfficerRankLookupResult, ...]:
+        return tuple([await self.find(name, fuzzy=fuzzy) for name in officer_names])
+
 
 async def test_structured_review_rejects_generic_ayudante_even_with_rank_lookup_available(
     ai_eval_settings: AppSettings,

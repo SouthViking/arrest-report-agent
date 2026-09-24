@@ -309,6 +309,7 @@ class FactionMemberAnalysisOptions(FrozenConfigModel):
 class ArrestReportLookupOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
     report_attachment_mode: ArrestReportAttachmentMode = ArrestReportAttachmentMode.GENERATED
+    max_rank_names_per_lookup: int = Field(default=20, ge=1, le=50, strict=True)
 
 
 class PendingArrestReportsOptions(FrozenConfigModel):
@@ -898,6 +899,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return ArrestReportAttachmentMode.GENERATED
         return ArrestReportLookupOptions.model_validate(feature.payload).report_attachment_mode
+
+    @property
+    def max_rank_names_per_lookup(self) -> int:
+        feature = self.snapshot.features.get("arrest_report_lookup")
+        if feature is None or not feature.enabled:
+            return 20
+        return ArrestReportLookupOptions.model_validate(feature.payload).max_rank_names_per_lookup
 
     @property
     def pending_arrest_reports_options(self) -> PendingArrestReportsOptions | None:

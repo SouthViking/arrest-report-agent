@@ -70,13 +70,20 @@ def test_arrest_lookup_configuration_requires_positive_faction_id() -> None:
     defaults = ArrestReportLookupOptions(faction_id=3)
     assert defaults.faction_id == 3
     assert defaults.report_attachment_mode is ArrestReportAttachmentMode.GENERATED
+    assert defaults.max_rank_names_per_lookup == 20
     manual = ArrestReportLookupOptions(
         faction_id=3,
         report_attachment_mode="manual",
     )
     assert manual.report_attachment_mode is ArrestReportAttachmentMode.MANUAL
+    custom = ArrestReportLookupOptions(faction_id=3, max_rank_names_per_lookup=37)
+    assert custom.max_rank_names_per_lookup == 37
     with pytest.raises(ValueError, match="greater than 0"):
         ArrestReportLookupOptions(faction_id=0)
+    with pytest.raises(ValueError, match="less than or equal to 50"):
+        ArrestReportLookupOptions(faction_id=3, max_rank_names_per_lookup=51)
+    with pytest.raises(ValueError, match="valid integer"):
+        ArrestReportLookupOptions(faction_id=3, max_rank_names_per_lookup="20")  # type: ignore[arg-type]
 
 
 def test_pending_arrest_reports_options_are_bounded() -> None:
@@ -361,6 +368,7 @@ def test_arrest_lookup_runtime_requires_valid_enabled_payload(settings) -> None:
 
     snapshot = GuildConfigSnapshot.model_validate(values)
     assert GuildRuntimeSettings(settings, snapshot).arrest_report_lookup_faction_id == 3
+    assert GuildRuntimeSettings(settings, snapshot).max_rank_names_per_lookup == 20
     assert (
         GuildRuntimeSettings(settings, snapshot).arrest_report_attachment_mode
         is ArrestReportAttachmentMode.GENERATED
@@ -376,6 +384,15 @@ def test_arrest_lookup_runtime_requires_valid_enabled_payload(settings) -> None:
         GuildRuntimeSettings(settings, generated_snapshot).arrest_report_attachment_mode
         is ArrestReportAttachmentMode.GENERATED
     )
+    values["features"]["arrest_report_lookup"] = GuildFeatureSnapshot(
+        key="arrest_report_lookup",
+        enabled=True,
+        schema_version=1,
+        payload={"faction_id": 3, "max_rank_names_per_lookup": 37},
+    )
+    assert GuildRuntimeSettings(
+        settings, GuildConfigSnapshot.model_validate(values)
+    ).max_rank_names_per_lookup == 37
     values["features"] = {
         "arrest_report_lookup": GuildFeatureSnapshot(
             key="arrest_report_lookup",

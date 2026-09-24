@@ -6,7 +6,7 @@ from arrest_report_agent.config import BotPersona
 from arrest_report_agent.domain import AgentAccessLevel
 from arrest_report_agent.knowledge import ReportGuideSection
 
-PROMPT_VERSION = "2026-09-23.2"
+PROMPT_VERSION = "2026-09-24.1"
 
 
 def build_agent_instructions(
@@ -18,6 +18,7 @@ def build_agent_instructions(
     evidence_lookup_enabled: bool = False,
     faction_frequency_lookup_enabled: bool = False,
     faction_officer_rank_lookup_enabled: bool = False,
+    max_rank_names_per_lookup: int = 20,
     report_image_lookup_enabled: bool = False,
 ) -> str:
     """Build compact instructions from one validated runtime persona."""
@@ -316,18 +317,22 @@ Dispones del plan de frecuencias configurado actualmente para la facción de est
 
     faction_officer_rank_tools = ""
     if faction_officer_rank_lookup_enabled:
-        faction_officer_rank_tools = """
+        faction_officer_rank_tools = f"""
 <sarp_report_officer_rank>
-`get_report_officer_rank` compara el nombre del agente redactor del reporte SARP ya cargado con el
-directorio actual de la facción; no requiere que inventes un nombre ni que uses roles de Discord.
+`get_report_officer_rank` compara nombres con el directorio actual de la facción. Sin `names`, usa
+el nombre del redactor del reporte SARP ya cargado. Si necesitas consultar varios nombres relevantes
+del reporte o la pregunta del usuario, pasa `names` con hasta {max_rank_names_per_lookup} nombres completos
+en una sola llamada; la respuesta contiene un resultado por nombre. No inventes nombres ni uses roles
+de Discord.
 
 - En una revisión `full` o `narrative`, úsala cuando el reporte SARP esté disponible: si el
   redactor declara un rango al inicio, contrástalo con el registro actual; si falta o solo dice
   «ayudante», consulta el rango para orientar la corrección. En `targeted` úsala solo si preguntan
   por la identificación o el rango; en `charges` o conversación ajena a este punto no la consultes.
   No sustituye la lectura del rango escrito en la narrativa.
-- `matched` confirma la coincidencia del nombre completo normalizado; `possible_match` solo sugiere
-  una coincidencia fuzzy y NO confirma identidad. `ambiguous`, `not_found`, `invalid_name`,
+- Cada resultado se asocia a `queried_name`. `matched` confirma la coincidencia del nombre completo
+  normalizado; `possible_match` solo sugiere una coincidencia fuzzy y NO confirma identidad.
+  `ambiguous`, `not_found`, `invalid_name`,
   `rank_unknown` o `unavailable` tampoco prueban que el rango escrito sea incorrecto.
 - El rango de SARP es el vigente hoy, no necesariamente el que tenía el redactor al escribir un
   reporte antiguo. Reconoce equivalencias de rangos formales como `Sergeant`/`sargento`, pero

@@ -499,7 +499,7 @@ FactionOfficerRankStatus = Literal[
 
 @dataclass(frozen=True)
 class FactionOfficerRankLookupResult:
-    """Current faction rank for one report officer, with explicit identity uncertainty."""
+    """Current faction rank for one queried officer, with explicit identity uncertainty."""
 
     status: FactionOfficerRankStatus
     officer_name: str
@@ -514,6 +514,14 @@ class FactionOfficerRankLookupResult:
 class FactionOfficerRankLookup(Protocol):
     async def find(self, officer_name: str, *, fuzzy: bool = True) -> FactionOfficerRankLookupResult:
         """Resolve only the current configured faction roster, never a historical rank."""
+
+    async def find_many(
+        self,
+        officer_names: tuple[str, ...],
+        *,
+        fuzzy: bool = True,
+    ) -> tuple[FactionOfficerRankLookupResult, ...]:
+        """Resolve several names against one snapshot of the configured faction roster."""
 
 
 @dataclass(frozen=True)

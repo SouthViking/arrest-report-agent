@@ -62,6 +62,11 @@ async def test_report_officer_rank_tool_uses_loaded_report_and_is_available_to_o
 
         async def find(self, officer_name: str, *, fuzzy: bool = True) -> FactionOfficerRankLookupResult:
             self.calls.append((officer_name, fuzzy))
+            if officer_name == "Marco Ruiz":
+                return FactionOfficerRankLookupResult(
+                    status="not_found",
+                    officer_name=officer_name,
+                )
             return FactionOfficerRankLookupResult(
                 status="matched",
                 officer_name=officer_name,
@@ -69,6 +74,14 @@ async def test_report_officer_rank_tool_uses_loaded_report_and_is_available_to_o
                 current_rank="Sergeant",
                 match_method="normalized_exact",
             )
+
+        async def find_many(
+            self,
+            officer_names: tuple[str, ...],
+            *,
+            fuzzy: bool = True,
+        ) -> tuple[FactionOfficerRankLookupResult, ...]:
+            return tuple([await self.find(name, fuzzy=fuzzy) for name in officer_names])
 
     lookup = Lookup()
     case = ReviewCase(
@@ -96,6 +109,7 @@ async def test_report_officer_rank_tool_uses_loaded_report_and_is_available_to_o
             ReportGuide.load_default(),
             access_level=AgentAccessLevel.REPORT_OWNER,
             faction_officer_rank_lookup=lookup,
+            max_rank_names_per_lookup=2,
         )
     }
     tool = tools["get_report_officer_rank"]
@@ -112,6 +126,26 @@ async def test_report_officer_rank_tool_uses_loaded_report_and_is_available_to_o
         )
 
     assert await invoke("{}") == {"ok": False, "error": "report_not_loaded"}
+    assert await invoke('{"names":["Uno Dos","Tres Cuatro","Cinco Seis"]}') == {
+        "ok": False,
+        "error": "name_limit_exceeded",
+        "max_names": 2,
+    }
+    assert lookup.calls == []
+    batch = await invoke('{"names":["Charles Harrington","Marco Ruiz"],"fuzzy":false}')
+    assert batch == {
+        "ok": True,
+        "results": [
+            {
+                "queried_name": "Charles Harrington",
+                "status": "matched",
+                "matched_member_name": "Charles Harrington",
+                "current_sarp_rank": "Sergeant",
+                "match_method": "normalized_exact",
+            },
+            {"queried_name": "Marco Ruiz", "status": "not_found"},
+        ],
+    }
     context.latest_arrest_report = ArrestReportDetail(
         report_id=751,
         suspect_name="Terry McKenzie",
@@ -124,16 +158,25 @@ async def test_report_officer_rank_tool_uses_loaded_report_and_is_available_to_o
     found = await invoke('{"fuzzy":false}')
     assert found == {
         "ok": True,
-        "status": "matched",
-        "report_officer_name": "Charles Harrington",
-        "matched_member_name": "Charles Harrington",
-        "current_sarp_rank": "Sergeant",
-        "match_method": "normalized_exact",
+        "results": [
+            {
+                "queried_name": "Charles Harrington",
+                "status": "matched",
+                "matched_member_name": "Charles Harrington",
+                "current_sarp_rank": "Sergeant",
+                "match_method": "normalized_exact",
+            }
+        ],
     }
-    assert lookup.calls == [("Charles Harrington", False)]
-    await invoke("{}")
+    assert lookup.calls == [
+        ("Charles Harrington", False),
+        ("Marco Ruiz", False),
+        ("Charles Harrington", False),
+    ]
     assert await invoke("{}") == {"ok": False, "error": "run_lookup_limit_reached"}
-    assert len(lookup.calls) == 2
+    assert len(lookup.calls) == 3
+    names_schema = tool.params_json_schema["properties"]["names"]
+    assert any(option.get("maxItems") == 50 for option in names_schema["anyOf"])
 
 
 def _catalog(identifier: int, title: str) -> ChargeCatalog:

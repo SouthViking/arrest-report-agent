@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from difflib import SequenceMatcher
+from time import monotonic
 from typing import Literal
 
 from arrest_report_agent.application.member_names import normalize_person_name
@@ -23,24 +25,38 @@ MIN_FIRST_NAME_SCORE = 0.85
 MIN_SURNAME_SCORE = 0.86
 MIN_UNIQUE_MARGIN = 0.08
 MAX_AMBIGUOUS_CANDIDATES = 3
+OFFICER_RANK_SNAPSHOT_CACHE_SECONDS = 120.0
 type RankMatchMethod = Literal["normalized_exact", "compact_exact", "fuzzy"]
 
 
 class SarpFactionOfficerRankLookup:
-    """Reuse the shared roster cache without exposing its complete membership to the agent."""
+    """Cache rank lookup snapshots without slowing live faction presence updates."""
 
     def __init__(self, directory: FactionDirectoryService, *, faction_id: int) -> None:
         if faction_id <= 0:
             raise ValueError("faction_id must be positive")
         self.directory = directory
         self.faction_id = faction_id
+        self._snapshot_cache: tuple[float, FactionDirectorySnapshot] | None = None
+        self._snapshot_lock = asyncio.Lock()
 
     async def find(self, officer_name: str, *, fuzzy: bool = True) -> FactionOfficerRankLookupResult:
-        query = normalize_person_name(officer_name)
-        if len(query.split()) < 2:
-            return FactionOfficerRankLookupResult(status="invalid_name", officer_name=officer_name)
+        return (await self.find_many((officer_name,), fuzzy=fuzzy))[0]
+
+    async def find_many(
+        self,
+        officer_names: tuple[str, ...],
+        *,
+        fuzzy: bool = True,
+    ) -> tuple[FactionOfficerRankLookupResult, ...]:
+        queries = tuple(normalize_person_name(name) for name in officer_names)
+        if not any(len(query.split()) >= 2 for query in queries):
+            return tuple(
+                FactionOfficerRankLookupResult(status="invalid_name", officer_name=name)
+                for name in officer_names
+            )
         try:
-            snapshot = await self.directory.snapshot(self.faction_id)
+            snapshot = await self._snapshot()
         except Exception as error:
             code, retry_after = classify_sarp_failure(error)
             log_event(
@@ -52,13 +68,30 @@ class SarpFactionOfficerRankLookup:
                 exc_info=error,
                 **exception_fields(error),
             )
-            return FactionOfficerRankLookupResult(
-                status="unavailable",
-                officer_name=officer_name,
-                error=code,
-                retry_after_seconds=retry_after,
+            return tuple(
+                FactionOfficerRankLookupResult(
+                    status="unavailable" if len(query.split()) >= 2 else "invalid_name",
+                    officer_name=name,
+                    error=code if len(query.split()) >= 2 else None,
+                    retry_after_seconds=retry_after if len(query.split()) >= 2 else None,
+                )
+                for name, query in zip(officer_names, queries, strict=True)
             )
-        return _resolve_rank(snapshot, officer_name, query, fuzzy=fuzzy)
+        return tuple(
+            _resolve_rank(snapshot, name, query, fuzzy=fuzzy)
+            if len(query.split()) >= 2
+            else FactionOfficerRankLookupResult(status="invalid_name", officer_name=name)
+            for name, query in zip(officer_names, queries, strict=True)
+        )
+
+    async def _snapshot(self) -> FactionDirectorySnapshot:
+        async with self._snapshot_lock:
+            cached = self._snapshot_cache
+            if cached is not None and cached[0] > monotonic():
+                return cached[1]
+            snapshot = await self.directory.snapshot(self.faction_id)
+            self._snapshot_cache = (monotonic() + OFFICER_RANK_SNAPSHOT_CACHE_SECONDS, snapshot)
+            return snapshot
 
 
 def _resolve_rank(

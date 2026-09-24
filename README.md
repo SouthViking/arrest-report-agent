@@ -535,7 +535,8 @@ Comandos disponibles:
 En `/config` → **Módulos**, `report_owner_access` acepta `{"max_rounds": 5}` con un valor entre 1 y
 20. Solo puede habilitarse cuando `report_channels` contiene IDs explícitos.
 `arrest_report_lookup` acepta
-`{"faction_id": 3, "report_attachment_mode": "generated"}` y habilita las tools SARP del agente
+`{"faction_id": 3, "report_attachment_mode": "generated", "max_rank_names_per_lookup": 20}`
+y habilita las tools SARP del agente
 para esa guild. `report_attachment_mode` usa `generated` por defecto y puede cambiarse a `manual`;
 el modo generado crea una imagen vigente del reporte SARP al publicarlo y la reemplaza después de
 cada revisión completa. El modo se resuelve desde PostgreSQL en cada revisión, sin agregar variables
