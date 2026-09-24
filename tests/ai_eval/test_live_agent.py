@@ -28,6 +28,11 @@ from arrest_report_agent.application.ports import (
     CharacterLegalFactsLookup,
     CharacterLegalFactsQuery,
     CharacterLegalFactsResult,
+    EvidenceBagCustodyEvent,
+    EvidenceBagDetail,
+    EvidenceBagItem,
+    EvidenceBagLookup,
+    EvidenceBagLookupResult,
     FactionOfficerRankLookup,
     FactionOfficerRankLookupResult,
     GuildRoleProfile,
@@ -452,6 +457,7 @@ async def _run_agent(
     report_image_lookup: ReportImageLookup | None = None,
     preloaded_arrest_report: ArrestReportDetail | None = None,
     faction_officer_rank_lookup: FactionOfficerRankLookup | None = None,
+    evidence_bag_lookup: EvidenceBagLookup | None = None,
 ) -> tuple[ReviewRunContext, InMemoryPublisher]:
     model = ModelCatalog.load_default().resolve(
         settings.openai_model,
@@ -479,6 +485,7 @@ async def _run_agent(
         character_legal_facts_lookup=character_legal_facts_lookup,
         report_image_lookup=report_image_lookup,
         faction_officer_rank_lookup=faction_officer_rank_lookup,
+        evidence_bag_lookup=evidence_bag_lookup,
     )
 
     await service.review(
@@ -1559,6 +1566,7 @@ async def test_structured_review_requires_rank_in_preloaded_sarp_narrative(
 class RecordingOfficerRankLookup:
     def __init__(self, current_rank: str = "Sheriff's Sergeant") -> None:
         self.calls: list[tuple[str, bool]] = []
+        self.batches: list[tuple[tuple[str, ...], bool]] = []
         self.current_rank = current_rank
 
     async def find(self, officer_name: str, *, fuzzy: bool = True) -> FactionOfficerRankLookupResult:
@@ -1566,7 +1574,7 @@ class RecordingOfficerRankLookup:
         return FactionOfficerRankLookupResult(
             status="matched",
             officer_name=officer_name,
-            member_name="Charles Harrington",
+            member_name=officer_name,
             current_rank=self.current_rank,
             match_method="normalized_exact",
         )
@@ -1577,6 +1585,7 @@ class RecordingOfficerRankLookup:
         *,
         fuzzy: bool = True,
     ) -> tuple[FactionOfficerRankLookupResult, ...]:
+        self.batches.append((officer_names, fuzzy))
         return tuple([await self.find(name, fuzzy=fuzzy) for name in officer_names])
 
 
@@ -1644,7 +1653,7 @@ async def test_structured_review_checks_current_officer_rank_without_rejecting_h
         structured_suspect_name=arrest_lookup.report.suspect_name,
     )
 
-    _, publisher = await _run_agent(
+    context, publisher = await _run_agent(
         ai_eval_settings,
         case,
         access_level=AgentAccessLevel.REPORT_OWNER,
@@ -1656,11 +1665,144 @@ async def test_structured_review_checks_current_officer_rank_without_rejecting_h
 
     assert len(rank_lookup.calls) == 1
     assert rank_lookup.calls[0][0] == "Charles Harrington"
+    assert rank_lookup.batches == [(('Charles Harrington',), True)]
+    assert context.faction_officer_rank_calls == 1
     assert publication.review_scope is ReviewScope.NARRATIVE
     assert not any(
         finding.severity.value == "required" and "rango" in (finding.title + " " + finding.detail).lower()
         for finding in publication.findings
     ), publication.model_dump(mode="json")
+
+
+async def test_agent_looks_up_one_explicit_officer_rank(
+    ai_eval_settings: AppSettings,
+) -> None:
+    rank_lookup = RecordingOfficerRankLookup()
+    case = _case(("user", "¿Cuál es el rango vigente en SARP de Charles Harrington? Consúltalo."))
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        faction_officer_rank_lookup=rank_lookup,
+    )
+    response = "\n".join(publisher.messages).casefold()
+
+    assert rank_lookup.batches == [(("Charles Harrington",), True)]
+    assert context.faction_officer_rank_calls == 1
+    assert publisher.publications == []
+    assert "sergeant" in response
+
+
+async def test_agent_batches_multiple_explicit_officer_ranks(
+    ai_eval_settings: AppSettings,
+) -> None:
+    rank_lookup = RecordingOfficerRankLookup()
+    case = _case(
+        (
+            "user",
+            "Consulta el rango vigente en SARP de Charles Harrington y Marco Ruiz. "
+            "Necesito el resultado de ambos; no revises un arresto.",
+        )
+    )
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        faction_officer_rank_lookup=rank_lookup,
+    )
+    response = "\n".join(publisher.messages).casefold()
+
+    assert len(rank_lookup.batches) == 1, rank_lookup.batches
+    assert rank_lookup.batches[0][0] == ("Charles Harrington", "Marco Ruiz")
+    assert context.faction_officer_rank_calls == 1
+    assert publisher.publications == []
+    assert "charles harrington" in response and "marco ruiz" in response
+
+
+class RecordingEvidenceBagLookup:
+    """Return deterministic SARP-shaped bag data while recording real agent tool use."""
+
+    def __init__(self) -> None:
+        self.calls: list[int] = []
+
+    async def get(self, evidence_id: int) -> EvidenceBagLookupResult:
+        self.calls.append(evidence_id)
+        descriptions = {
+            4654218: "Casquillo de 9 mm con huellas de Terry McKenzie.",
+            4654219: "Pistola de 9 mm con número de serie legible.",
+        }
+        if evidence_id not in descriptions:
+            return EvidenceBagLookupResult(detail=None, error="not_found")
+        timestamp = datetime(2026, 8, 18, 12, 0, tzinfo=UTC)
+        return EvidenceBagLookupResult(
+            detail=EvidenceBagDetail(
+                evidence_id=evidence_id,
+                items=(
+                    EvidenceBagItem(
+                        analysis_id=evidence_id + 100,
+                        sample_id=evidence_id + 200,
+                        result=descriptions[evidence_id],
+                        officer_name="Analista Laura Pérez",
+                        agency="LSSD",
+                        examined_at=timestamp,
+                    ),
+                ),
+                custody=(
+                    EvidenceBagCustodyEvent(
+                        event_id=evidence_id + 300,
+                        action="Bolsa entregada al laboratorio.",
+                        officer_name="Charles Harrington",
+                        created_at=timestamp,
+                    ),
+                ),
+            )
+        )
+
+
+async def test_agent_looks_up_one_evidence_bag(
+    ai_eval_settings: AppSettings,
+) -> None:
+    lookup = RecordingEvidenceBagLookup()
+    case = _case(("user", "Consulta la bolsa de evidencia #4654218 en SARP. ¿Qué contiene?"))
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        evidence_bag_lookup=lookup,
+    )
+    response = "\n".join(publisher.messages).casefold()
+
+    assert lookup.calls == [4654218]
+    assert context.evidence_bag_calls == 1
+    assert context.evidence_bag_ids_queried == 1
+    assert publisher.publications == []
+    assert "casquillo" in response
+
+
+async def test_agent_batches_multiple_evidence_bags(
+    ai_eval_settings: AppSettings,
+) -> None:
+    lookup = RecordingEvidenceBagLookup()
+    case = _case(
+        (
+            "user",
+            "Consulta las bolsas de evidencia #4654218 y #4654219 en SARP. "
+            "Dime el resultado analizado de cada una.",
+        )
+    )
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        evidence_bag_lookup=lookup,
+    )
+    response = "\n".join(publisher.messages).casefold()
+
+    assert lookup.calls == [4654218, 4654219]
+    assert context.evidence_bag_calls == 1
+    assert context.evidence_bag_ids_queried == 2
+    assert publisher.publications == []
+    assert "casquillo" in response and "pistola" in response
 
 
 async def test_structured_initial_review_without_id_searches_and_binds_the_matching_report(

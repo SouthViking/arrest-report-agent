@@ -213,10 +213,12 @@ el contenido analizado y la cadena de custodia vigente en SARP. Solo puede usarl
 `operational_staff_roles` cuando el módulo `arrest_report_lookup` y la integración SARP están
 activos. No muestra IDs técnicos de análisis, muestras o agentes.
 
-La misma consulta está disponible como tool para el agente con acceso completo, que puede utilizarla
-en conversaciones normales o durante una revisión cuando una bolsa esté identificada explícitamente.
-La lógica de consulta y manejo de fallos es compartida con el comando, y no conserva el contenido en
-caché. El acceso limitado del propietario no recibe esta tool para explorar bolsas arbitrarias.
+La misma consulta está disponible como tool para el agente, tanto con acceso completo como en una
+revisión solicitada por el propietario, cuando las bolsas estén identificadas explícitamente. Puede
+consultar hasta diez bolsas en una llamada, ajustando la cadena de custodia y los metadatos de
+análisis por bolsa; la forma anterior de consultar una sola bolsa sigue disponible. Se permiten
+como máximo diez consultas de bolsa y tres invocaciones de la tool por ejecución. La lógica de
+consulta y manejo de fallos es compartida con el comando, y no conserva el contenido en caché.
 
 ## `/bitacora`, `/info-bitacora`, `/guia-bitacora` y `/resumen-bitacora`
 

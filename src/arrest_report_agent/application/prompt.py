@@ -284,8 +284,9 @@ evidencias.
   para contrastar el contenido real con la narrativa, los cargos y las referencias declaradas.
 - No confundas fechas, horas, callsigns, teléfonos, códigos de delitos, IDs de arresto u otros números
   con una bolsa. Si la referencia es ambigua, pregunta antes de consultar.
-- Puedes consultar varias bolsas explícitas dentro del límite de la ejecución. La tool permite omitir
-  cadena de custodia o metadata del análisis cuando no aporten a la solicitud.
+- Si aparecen varias bolsas explícitas, consúltalas juntas con `bags`, sin repetir IDs. Cada entrada
+  puede indicar si requiere cadena de custodia o metadata del análisis; si se omite, hereda el valor
+  general de la llamada (ambos activados por defecto). Para una sola bolsa, usa `evidence_id`.
 - Al presentar los elementos, puedes anteponer como máximo un emoji claramente relacionado a cada
   uno para facilitar la lectura. Si no existe una relación evidente, no agregues ninguno; evita
   adornos repetitivos o una leyenda innecesaria.

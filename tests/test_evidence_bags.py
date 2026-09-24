@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC
 from types import SimpleNamespace
@@ -95,6 +96,19 @@ class FakeEvidenceLookup:
         return self.result
 
 
+class FakeEvidenceLookupById:
+    def __init__(self, results: dict[int, EvidenceBagLookupResult | Exception]) -> None:
+        self.results = results
+        self.calls: list[int] = []
+
+    async def get(self, evidence_id: int) -> EvidenceBagLookupResult:
+        self.calls.append(evidence_id)
+        result = self.results[evidence_id]
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
 class FakePublisher:
     async def mark_review_started(self) -> None: ...
 
@@ -148,7 +162,10 @@ def context(*, access_level: AgentAccessLevel = AgentAccessLevel.FULL) -> Review
     )
 
 
-def tools(lookup: FakeEvidenceLookup, access_level: AgentAccessLevel) -> dict[str, object]:
+def tools(
+    lookup: FakeEvidenceLookup | FakeEvidenceLookupById,
+    access_level: AgentAccessLevel,
+) -> dict[str, object]:
     return {
         tool.name: tool
         for tool in build_agent_tools(
@@ -158,6 +175,23 @@ def tools(lookup: FakeEvidenceLookup, access_level: AgentAccessLevel) -> dict[st
             evidence_bag_lookup=lookup,
         )
     }
+
+
+async def invoke_evidence_tool(
+    tool: object,
+    run_context: ReviewRunContext,
+    payload: dict[str, object],
+) -> dict[str, object]:
+    arguments = json.dumps(payload)
+    return await tool.on_invoke_tool(  # type: ignore[attr-defined,no-any-return]
+        ToolContext(
+            context=run_context,
+            tool_name="get_evidence_bag",
+            tool_call_id="evidence-batch",
+            tool_arguments=arguments,
+        ),
+        arguments,
+    )
 
 
 def test_samp_color_sanitizer_preserves_plain_text_and_removes_rgb_and_rgba_tags() -> None:
@@ -287,6 +321,189 @@ async def test_evidence_tool_distinguishes_existing_unanalyzed_bag_from_missing_
     }
 
 
+async def test_evidence_tool_batches_mixed_results_with_per_bag_detail_options() -> None:
+    analyzed = await EvidenceBagService(FakeEvidenceClient(evidence_payload(10))).get(10)
+    empty = await EvidenceBagService(FakeEvidenceClient(SarpEvidenceDetail(id=11))).get(11)
+    lookup = FakeEvidenceLookupById(
+        {
+            10: analyzed,
+            11: empty,
+            12: EvidenceBagLookupResult(detail=None, error="not_found"),
+        }
+    )
+    tool = tools(lookup, AgentAccessLevel.FULL)["get_evidence_bag"]
+
+    result = await invoke_evidence_tool(
+        tool,
+        context(),
+        {
+            "bags": [
+                {"evidence_id": 10, "include_custody": True},
+                {"evidence_id": 11},
+                {"evidence_id": 12},
+            ],
+            "include_custody": False,
+            "include_analysis_metadata": False,
+        },
+    )
+
+    assert lookup.calls == [10, 11, 12]
+    results = result["results"]
+    assert [entry["evidence_id"] for entry in results] == [10, 11, 12]
+    assert [entry["status"] for entry in results] == ["analyzed", "exists_unanalyzed", "not_found"]
+    assert results[0]["items"] == [
+        {"result": "Lata de ECola, cantidad: 10, huellas: Tyler Morgan;"},
+        {"result": "Radio UHF, cantidad: 4032, huellas: Tyler Morgan;"},
+    ]
+    assert len(results[0]["custody"]) == 1
+    assert results[1] == {"status": "exists_unanalyzed", "evidence_id": 11, "items": []}
+    assert results[2] == {"status": "not_found", "evidence_id": 12}
+
+
+async def test_evidence_tool_per_bag_flags_override_top_level_defaults() -> None:
+    detail = await EvidenceBagService(FakeEvidenceClient(evidence_payload(10))).get(10)
+    lookup = FakeEvidenceLookupById({10: detail, 11: detail})
+    tool = tools(lookup, AgentAccessLevel.FULL)["get_evidence_bag"]
+
+    result = await invoke_evidence_tool(
+        tool,
+        context(),
+        {
+            "bags": [
+                {"evidence_id": 10, "include_analysis_metadata": True},
+                {"evidence_id": 11, "include_custody": False},
+            ],
+            "include_analysis_metadata": False,
+        },
+    )
+
+    first, second = result["results"]
+    assert "examined_by" in first["items"][0]
+    assert "examined_by" not in second["items"][0]
+    assert "custody" in first
+    assert "custody" not in second
+
+
+async def test_evidence_tool_deduplicates_fetches_without_losing_per_bag_projection() -> None:
+    detail = await EvidenceBagService(FakeEvidenceClient(evidence_payload(10))).get(10)
+    lookup = FakeEvidenceLookupById({10: detail})
+    tool = tools(lookup, AgentAccessLevel.FULL)["get_evidence_bag"]
+
+    result = await invoke_evidence_tool(
+        tool,
+        context(),
+        {"bags": [{"evidence_id": 10}, {"evidence_id": 10, "include_custody": False}]},
+    )
+
+    assert lookup.calls == [10]
+    assert len(result["results"]) == 2
+    assert "custody" in result["results"][0]
+    assert "custody" not in result["results"][1]
+
+
+async def test_evidence_tool_keeps_unexpected_failure_isolated_to_one_bag() -> None:
+    lookup = FakeEvidenceLookupById(
+        {
+            10: RuntimeError("provider failure"),
+            11: EvidenceBagLookupResult(detail=EvidenceBagDetail(evidence_id=11, items=(), custody=())),
+        }
+    )
+    tool = tools(lookup, AgentAccessLevel.FULL)["get_evidence_bag"]
+
+    result = await invoke_evidence_tool(tool, context(), {"bags": [{"evidence_id": 10}, {"evidence_id": 11}]})
+
+    assert [entry["status"] for entry in result["results"]] == ["unavailable", "exists_unanalyzed"]
+
+
+async def test_evidence_tool_preserves_rate_limit_retry_for_one_bag_in_batch() -> None:
+    lookup = FakeEvidenceLookupById(
+        {
+            10: EvidenceBagLookupResult(detail=None, error="rate_limited", retry_after_seconds=12),
+            11: EvidenceBagLookupResult(detail=EvidenceBagDetail(evidence_id=11, items=(), custody=())),
+        }
+    )
+    tool = tools(lookup, AgentAccessLevel.FULL)["get_evidence_bag"]
+
+    result = await invoke_evidence_tool(tool, context(), {"bags": [{"evidence_id": 10}, {"evidence_id": 11}]})
+
+    assert result["results"][0] == {
+        "status": "rate_limited",
+        "evidence_id": 10,
+        "retry_after_seconds": 12,
+    }
+    assert result["results"][1]["status"] == "exists_unanalyzed"
+
+
+async def test_evidence_tool_limits_total_unique_bags_across_calls() -> None:
+    lookup = FakeEvidenceLookupById(
+        {
+            bag_id: EvidenceBagLookupResult(
+                detail=EvidenceBagDetail(evidence_id=bag_id, items=(), custody=())
+            )
+            for bag_id in range(1, 12)
+        }
+    )
+    tool = tools(lookup, AgentAccessLevel.FULL)["get_evidence_bag"]
+    run_context = context()
+
+    batch = await invoke_evidence_tool(
+        tool,
+        run_context,
+        {"bags": [{"evidence_id": bag_id} for bag_id in range(1, 11)]},
+    )
+    overflow = await invoke_evidence_tool(tool, run_context, {"evidence_id": 11})
+
+    assert len(batch["results"]) == 10
+    assert overflow == {"status": "run_limit_reached", "evidence_id": 11}
+    assert lookup.calls == list(range(1, 11))
+
+
+async def test_evidence_tool_limits_concurrent_provider_requests() -> None:
+    class ConcurrencyLookup:
+        active = 0
+        peak = 0
+
+        async def get(self, evidence_id: int) -> EvidenceBagLookupResult:
+            self.active += 1
+            self.peak = max(self.peak, self.active)
+            await asyncio.sleep(0)
+            self.active -= 1
+            return EvidenceBagLookupResult(
+                detail=EvidenceBagDetail(evidence_id=evidence_id, items=(), custody=())
+            )
+
+    lookup = ConcurrencyLookup()
+    tool = {
+        tool.name: tool
+        for tool in build_agent_tools(
+            ChargeCatalog.load_default(),
+            ReportGuide.load_default(),
+            evidence_bag_lookup=lookup,
+        )
+    }["get_evidence_bag"]
+
+    await invoke_evidence_tool(
+        tool,
+        context(),
+        {"bags": [{"evidence_id": bag_id} for bag_id in range(1, 7)]},
+    )
+
+    assert lookup.peak == 3
+
+
+async def test_evidence_tool_requires_exactly_one_input_form() -> None:
+    tool = tools(FakeEvidenceLookup(EvidenceBagLookupResult(detail=None)), AgentAccessLevel.FULL)[
+        "get_evidence_bag"
+    ]
+
+    assert await invoke_evidence_tool(tool, context(), {}) == {
+        "error": "provide_exactly_one_of_evidence_id_or_bags"
+    }
+    assert await invoke_evidence_tool(
+        tool, context(), {"evidence_id": 10, "bags": [{"evidence_id": 11}]}
+    ) == {"error": "provide_exactly_one_of_evidence_id_or_bags"}
+
+
 async def test_evidence_tool_is_available_to_both_access_levels_and_bounded_per_run() -> None:
     result = await EvidenceBagService(FakeEvidenceClient(evidence_payload())).get(4_385_409)
     lookup = FakeEvidenceLookup(result)
@@ -330,6 +547,7 @@ def test_evidence_instructions_are_exposed_to_both_agents(persona) -> None:
 
     assert "<sarp_evidence_bags>" in full
     assert "get_evidence_bag" in full
+    assert "`bags`" in full
     assert "como máximo un emoji" in full
     assert "no agregues ninguno" in full
     assert "exists_unanalyzed" in full
