@@ -1605,12 +1605,21 @@ async def test_structured_review_rejects_generic_ayudante_even_with_rank_lookup_
     )
     publication = _single_publication(publisher)
 
+    assert rank_lookup.calls == [("Charles Harrington", True)]
     assert publication.review_scope is ReviewScope.FULL
     assert publication.verdict is ReviewVerdict.CORRECTIONS_REQUIRED
-    assert any(
-        finding.severity.value == "required" and "rango" in (finding.title + " " + finding.detail).lower()
-        for finding in publication.findings
-    ), publication.model_dump(mode="json")
+    rank_findings = [
+        finding for finding in publication.findings
+        if finding.severity.value == "required"
+        and "rango" in (finding.title + " " + finding.detail).lower()
+    ]
+    assert rank_findings, publication.model_dump(mode="json")
+    recommendation = rank_findings[0].recommendation.casefold()
+    assert "deputy sheriff" in recommendation, publication.model_dump(mode="json")
+    assert "charles harrington" in recommendation, publication.model_dump(mode="json")
+    assert any(term in recommendation for term in ("fecha", "momento", "entonces")), (
+        publication.model_dump(mode="json")
+    )
 
 
 async def test_structured_review_checks_current_officer_rank_without_rejecting_historical_difference(

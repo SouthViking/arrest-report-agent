@@ -244,6 +244,9 @@ def test_report_officer_rank_instructions_are_conditional_and_available_to_owner
     assert "get_report_officer_rank" in full
     assert "`possible_match`" in full
     assert "jamás\n  conviertas esa sola diferencia en `required`" in full
+    assert "incluye ese rango vigente en la recomendación como ejemplo concreto" in full
+    assert "sin presentar el rango actual como certeza histórica" in full
+    assert "Si no hay coincidencia confirmada\n  o rango conocido" in full
     assert "get_report_officer_rank" in owner
     assert "get_faction_frequencies" not in owner
 

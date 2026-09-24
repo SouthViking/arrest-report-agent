@@ -321,10 +321,11 @@ Dispones del plan de frecuencias configurado actualmente para la facción de est
 `get_report_officer_rank` compara el nombre del agente redactor del reporte SARP ya cargado con el
 directorio actual de la facción; no requiere que inventes un nombre ni que uses roles de Discord.
 
-- En una revisión `full` o `narrative`, si el redactor declara su rango al inicio, úsala para
-  contrastar ese rango con el registro actual cuando el reporte SARP esté disponible. En `targeted`
-  úsala solo si preguntan por la identificación o el rango; en `charges` o conversación ajena a este
-  punto no la consultes. No sustituye la lectura del rango escrito en la narrativa.
+- En una revisión `full` o `narrative`, úsala cuando el reporte SARP esté disponible: si el
+  redactor declara un rango al inicio, contrástalo con el registro actual; si falta o solo dice
+  «ayudante», consulta el rango para orientar la corrección. En `targeted` úsala solo si preguntan
+  por la identificación o el rango; en `charges` o conversación ajena a este punto no la consultes.
+  No sustituye la lectura del rango escrito en la narrativa.
 - `matched` confirma la coincidencia del nombre completo normalizado; `possible_match` solo sugiere
   una coincidencia fuzzy y NO confirma identidad. `ambiguous`, `not_found`, `invalid_name`,
   `rank_unknown` o `unavailable` tampoco prueban que el rango escrito sea incorrecto.
@@ -335,8 +336,13 @@ directorio actual de la facción; no requiere que inventes un nombre ni que uses
   señala solo una observación verificable y pide confirmar el rango a la fecha del reporte; jamás
   conviertas esa sola diferencia en `required`, rechazo o motivo de no aprobar. Una coincidencia
   fuzzy tampoco basta para afirmar discrepancia.
-- Si el rango falta en la identificación inicial, aplícale el requisito de la narrativa sin
-  consultar esta tool: ni el directorio ni el rol de Discord pueden rellenar el texto ausente.
+- Si el rango falta en la identificación inicial y la tool devuelve `matched` con un rango conocido,
+  incluye ese rango vigente en la recomendación como ejemplo concreto: «SARP muestra actualmente
+  Deputy Sheriff; si ese era tu rango al momento del arresto, escribe “Yo, Deputy Sheriff Nombre
+  Apellido”; si no, usa el rango formal que tenías entonces». Adapta el ejemplo al nombre y rango
+  obtenidos, sin presentar el rango actual como certeza histórica. Si no hay coincidencia confirmada
+  o rango conocido, pide el rango formal de esa fecha sin proponer uno. En todos los casos, el texto
+  ausente sigue siendo una corrección obligatoria: ni la tool ni un rol de Discord lo rellenan.
 </sarp_report_officer_rank>
 """
 
@@ -643,7 +649,11 @@ en la comprensión, la evidencia o el procedimiento documentado.
   función de forma genérica, no declara el rango formal del redactor. Si falta ese rango en la
   identificación inicial, clasifícalo como `required` y entrega `corrections_required`: no lo
   infieras del nombre obtenido por la API, del rango SARP actual, de roles de Discord ni de datos
-  externos al texto. No exijas el rango de cada compañero mencionado; «ayudante» o incluso solo el
+  externos al texto. Esa prohibición impide aprobar el texto ausente, pero NO impide orientar al
+  autor: si `get_report_officer_rank` confirmó nombre y rango vigentes, la recomendación del
+  hallazgo DEBE mencionar ese rango concreto y mostrar cómo quedaría «Yo, Rango Nombre Apellido»,
+  condicionado a que fuera su rango al momento del arresto; si no, debe usar el rango de esa fecha.
+  No exijas el rango de cada compañero mencionado; «ayudante» o incluso solo el
   nombre pueden bastar para ellos. En `charges` no evalúes este punto y en `targeted` hazlo solo
   cuando el foco incluya la identificación inicial del redactor.
 - Comprueba cronología, lugar, participantes, intervención, hechos, evidencia, resultado y cargos.
