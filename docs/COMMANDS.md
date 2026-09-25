@@ -94,6 +94,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 |---|---|---|---|
 | `/ayuda` | Todos | Pública | Persona seleccionada y configuración del bot |
 | `/info-reportes` | Acceso completo o acceso del propietario habilitado | Pública; rechazo efímero | Persona, canales y configuración de acceso del propietario |
+| `/ampliar-cupo cantidad` | ID incluido en `REPORT_OWNER_QUOTA_ADMIN_USER_IDS`; acceso del propietario habilitado; dentro del hilo de un reporte | Embed público en el hilo; errores y acuse efímeros | PostgreSQL; añade de 1 a 10 rondas al cupo del autor de ese reporte |
 | `/revisar-arresto` | `operational_staff_roles`; módulo `arrest_report_lookup` activo; solo en `report_channels` | Formulario; expediente e hilo públicos; errores efímeros | Reporte vigente de SARP, fotografías en Railway Bucket y tarjeta de Discord; el reporte puede adjuntarse manualmente o generarse según la configuración de la guild |
 | `/guia` | Todos | Efímera | `report_guide.json` |
 | `/cargos` | Todos | Efímera | Catálogo SARP con fallback `delitos.json` |
@@ -159,6 +160,12 @@ revisión inicial creada por el comando no consume una intervención. El formato
 legacy y conversaciones ya existentes. Si
 `report_owner_access` está deshabilitado, informa que la capacidad no está disponible sin enseñar
 pasos que no funcionarían.
+
+`/ampliar-cupo` toma el reporte y su autor del hilo actual, sin permitir elegir otro destinatario.
+Las concesiones se suman al límite base, no modifican el historial de rondas consumidas y registran
+el ID de quien las otorgó. El embed público muestra únicamente los turnos disponibles en ese momento,
+no el total ni los ya consumidos. `REPORT_OWNER_QUOTA_ADMIN_USER_IDS` acepta IDs separados por comas,
+sin `*`; si está vacío, nadie puede usarlo.
 
 La tarjeta estructurada se publica con franja amarilla. Solo un `review_scope=full` puede actualizar
 esa franja: verde para `approved`, rojo para `corrections_required` y naranja para `inconclusive`.

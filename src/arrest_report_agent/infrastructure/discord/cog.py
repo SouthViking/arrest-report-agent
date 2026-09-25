@@ -49,6 +49,7 @@ from arrest_report_agent.support import append_support_note
 
 from .context import (
     REPORT_OWNER_MINIMUM_IMAGE_COUNT,
+    REPORT_OWNER_QUOTA_GRANT_EMBED_TITLE,
     DiscordContextBuilder,
     DiscordResponseRoute,
     ReviewTarget,
@@ -1379,6 +1380,176 @@ class ReviewCog(commands.Cog):
             guild_id=ctx.guild.id if ctx.guild else "direct_message",
             channel_id=ctx.channel.id if ctx.channel else "unknown",
             user_id=ctx.author.id,
+        )
+
+    @discord.slash_command(
+        name="ampliar-cupo",
+        description="Concede revisiones adicionales al autor de este reporte",
+        contexts={discord.InteractionContextType.guild},
+    )
+    @discord.option(  # type: ignore[no-untyped-call,untyped-decorator]
+        "cantidad",
+        int,
+        description="Turnos adicionales para el autor (1 a 10)",
+        min_value=1,
+        max_value=10,
+    )
+    async def grant_report_owner_rounds(
+        self,
+        ctx: discord.ApplicationContext,
+        cantidad: int,
+    ) -> None:
+        if ctx.author.id not in self.settings.report_owner_quota_admin_user_ids:
+            await ctx.respond(
+                embed=discord.Embed(
+                    title="Acceso restringido",
+                    description="No tienes permiso para ampliar el cupo de revisiones.",
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        if ctx.guild is None or not isinstance(ctx.channel, discord.Thread):
+            await ctx.respond(
+                embed=discord.Embed(
+                    title="Hilo requerido",
+                    description="Usa este comando dentro del hilo del reporte que quieres ampliar.",
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return
+        base_rounds = getattr(self.settings, "report_owner_access_max_rounds", None)
+        repository = self.report_owner_run_repository
+        if base_rounds is None or repository is None:
+            await ctx.respond(
+                embed=discord.Embed(
+                    title="Cupo no disponible",
+                    description="El acceso del autor a revisiones no está habilitado en este servidor.",
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return
+        await ctx.defer(ephemeral=True)
+        try:
+            root_id, owner_id = await self.context_builder.report_owner_for_thread(ctx.channel)
+            grant = await repository.grant_extra_rounds(
+                guild_id=ctx.guild.id,
+                root_message_id=root_id,
+                owner_user_id=owner_id,
+                granted_by_user_id=ctx.author.id,
+                interaction_id=ctx.interaction.id,
+                amount=cantidad,
+                base_max_rounds=base_rounds,
+            )
+        except ContextUnavailableError:
+            await ctx.send_followup(
+                embed=discord.Embed(
+                    title="Reporte no identificado",
+                    description="Este hilo no corresponde a un reporte habilitado para revisiones.",
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "report_owner_round_grant_failed",
+                exc_info=error,
+                guild_id=ctx.guild.id,
+                thread_id=ctx.channel.id,
+                admin_user_id=ctx.author.id,
+                interaction_id=ctx.interaction.id,
+                **exception_fields(error),
+            )
+            await ctx.send_followup(
+                embed=discord.Embed(
+                    title="No pude ampliar el cupo",
+                    description="Prueba de nuevo más tarde.",
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return
+        log_event(
+            LOGGER,
+            "info",
+            "report_owner_round_granted",
+            guild_id=ctx.guild.id,
+            root_message_id=root_id,
+            thread_id=ctx.channel.id,
+            owner_user_id=owner_id,
+            admin_user_id=ctx.author.id,
+            interaction_id=ctx.interaction.id,
+            added_rounds=grant.added_rounds,
+            max_rounds=grant.max_rounds,
+            used_rounds=grant.used_rounds,
+            duplicate=grant.duplicate,
+        )
+        if grant.duplicate:
+            await ctx.send_followup(
+                content="Esta concesión ya se había registrado; no se añadieron más turnos.",
+                ephemeral=True,
+            )
+            return
+        public_embed = discord.Embed(
+            title=REPORT_OWNER_QUOTA_GRANT_EMBED_TITLE,
+            description=(
+                f"<@{owner_id}> recibió **{grant.added_rounds} "
+                f"{'turno adicional' if grant.added_rounds == 1 else 'turnos adicionales'}**.\n"
+                f"**Turnos disponibles ahora:** {grant.remaining_rounds}\n"
+                f"**Autorizado por:** <@{ctx.author.id}>"
+            ),
+            color=discord.Color.blurple(),
+        )
+        try:
+            public_message = await ctx.channel.send(
+                embed=public_embed,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "report_owner_round_grant_publication_failed",
+                exc_info=error,
+                guild_id=ctx.guild.id,
+                root_message_id=root_id,
+                thread_id=ctx.channel.id,
+                owner_user_id=owner_id,
+                admin_user_id=ctx.author.id,
+                interaction_id=ctx.interaction.id,
+                added_rounds=grant.added_rounds,
+                remaining_rounds=grant.remaining_rounds,
+                **exception_fields(error),
+            )
+            await ctx.send_followup(
+                content=(
+                    "El cupo se amplió, pero no pude publicar la constancia en el hilo. "
+                    "No repitas el comando para este mismo ajuste."
+                ),
+                ephemeral=True,
+            )
+            return
+        log_event(
+            LOGGER,
+            "info",
+            "report_owner_round_grant_published",
+            guild_id=ctx.guild.id,
+            root_message_id=root_id,
+            thread_id=ctx.channel.id,
+            owner_user_id=owner_id,
+            admin_user_id=ctx.author.id,
+            interaction_id=ctx.interaction.id,
+            message_id=public_message.id,
+        )
+        await ctx.send_followup(
+            content="Cupo ampliado y publicado en este hilo.",
+            ephemeral=True,
         )
 
     @discord.slash_command(name="guia", description="Consulta la guía de reportes por secciones")

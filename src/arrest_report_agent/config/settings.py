@@ -87,6 +87,9 @@ class AppSettings(BaseSettings):
     openai_api_key: SecretStr = Field(alias="OPENAI_API_KEY")
     database_url: SecretStr | None = Field(default=None, alias="DATABASE_URL")
     config_owner_user_ids_csv: str = Field(default="", alias="CONFIG_OWNER_USER_IDS")
+    report_owner_quota_admin_user_ids_csv: str = Field(
+        default="", alias="REPORT_OWNER_QUOTA_ADMIN_USER_IDS"
+    )
     database_pool_size: int = Field(default=3, alias="DATABASE_POOL_SIZE", ge=1, le=20)
     database_max_overflow: int = Field(default=2, alias="DATABASE_MAX_OVERFLOW", ge=0, le=20)
     database_pool_timeout_seconds: float = Field(
@@ -484,6 +487,13 @@ class AppSettings(BaseSettings):
         return parse_configured_snowflakes(
             self.config_owner_user_ids_csv,
             variable_name="CONFIG_OWNER_USER_IDS",
+        )
+
+    @property
+    def report_owner_quota_admin_user_ids(self) -> tuple[int, ...]:
+        return parse_configured_snowflakes(
+            self.report_owner_quota_admin_user_ids_csv,
+            variable_name="REPORT_OWNER_QUOTA_ADMIN_USER_IDS",
         )
 
     @property

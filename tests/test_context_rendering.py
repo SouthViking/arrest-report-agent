@@ -687,6 +687,44 @@ def test_bot_embed_content_is_preserved_in_thread_history(settings, persona) -> 
     assert "Pie: Watch Sergeant" in converted[0].content
 
 
+def test_quota_grant_embed_is_not_injected_into_agent_history(settings, persona) -> None:
+    author = SimpleNamespace(id=999, display_name="Sgt. Vigil", name="Sgt. Vigil", bot=True)
+    notice = SimpleNamespace(
+        id=2,
+        content="",
+        author=author,
+        created_at=datetime.now(UTC),
+        edited_at=None,
+        reference=None,
+        attachments=[],
+        embeds=[SimpleNamespace(title="🎟️ Cupo de revisión ampliado")],
+    )
+    review = SimpleNamespace(
+        id=1,
+        content="Revisé el arresto.",
+        author=author,
+        created_at=datetime.now(UTC),
+        edited_at=None,
+        reference=None,
+        attachments=[],
+        embeds=[],
+    )
+    target = ReviewTarget(
+        root=review,
+        trigger=review,
+        parent=SimpleNamespace(id=3),
+        thread=SimpleNamespace(id=4),
+    )
+    bot = SimpleNamespace(user=SimpleNamespace(id=999))
+
+    converted, truncated = DiscordContextBuilder(settings, persona, bot)._convert_messages(  # noqa: SLF001
+        [review, notice], target
+    )
+
+    assert truncated is False
+    assert [message.id for message in converted] == [review.id]
+
+
 def test_render_preserves_reply_and_edit_context() -> None:
     case = ReviewCase(
         guild_id=1,
@@ -1039,6 +1077,43 @@ async def test_report_owner_thread_requires_canonical_human_root(
             TriggerActivation.MENTION,
             bot_user_id=999,
         )
+
+
+@pytest.mark.asyncio
+async def test_quota_grant_target_is_bound_to_report_thread(
+    settings, persona, monkeypatch
+) -> None:
+    report_channel_id = min(settings.report_channel_ids)
+    root = SimpleNamespace(
+        id=800,
+        author=SimpleNamespace(id=123, bot=False),
+        webhook_id=None,
+        guild=SimpleNamespace(id=min(settings.discord_guild_ids)),
+    )
+
+    class FakeTextChannel:
+        id = report_channel_id
+
+        async def fetch_message(self, message_id: int):
+            assert message_id == root.id
+            return root
+
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.TextChannel",
+        FakeTextChannel,
+    )
+    builder = DiscordContextBuilder(settings, persona)
+    thread = SimpleNamespace(id=root.id, parent=FakeTextChannel())
+    assert await builder.report_owner_for_thread(thread) == (root.id, 123)
+
+    thread.parent.id = 999
+    with pytest.raises(ContextUnavailableError, match="authorized report channel"):
+        await builder.report_owner_for_thread(thread)
+
+    thread.parent.id = report_channel_id
+    root.author.bot = True
+    with pytest.raises(ContextUnavailableError, match="not published by a human"):
+        await builder.report_owner_for_thread(thread)
 
 
 @pytest.mark.asyncio

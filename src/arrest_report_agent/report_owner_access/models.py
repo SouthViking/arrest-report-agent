@@ -29,3 +29,17 @@ class OwnerRunReservation:
     @property
     def round_number(self) -> int | None:
         return self.used_rounds if self.result is OwnerRunReservationResult.RESERVED else None
+
+
+@dataclass(frozen=True, slots=True)
+class OwnerRoundGrant:
+    """Updated quota after one idempotent, audited administrator grant."""
+
+    added_rounds: int
+    used_rounds: int
+    max_rounds: int
+    duplicate: bool = False
+
+    @property
+    def remaining_rounds(self) -> int:
+        return max(0, self.max_rounds - self.used_rounds)

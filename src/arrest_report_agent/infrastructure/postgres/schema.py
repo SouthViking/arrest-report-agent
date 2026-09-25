@@ -926,6 +926,31 @@ report_owner_agent_runs = sa.Table(
     ),
 )
 
+report_owner_round_grants = sa.Table(
+    "report_owner_round_grants",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("root_message_id", sa.BigInteger, nullable=False),
+    sa.Column("owner_user_id", sa.BigInteger, nullable=False),
+    sa.Column("granted_by_user_id", sa.BigInteger, nullable=False),
+    sa.Column("interaction_id", sa.BigInteger, nullable=False, unique=True),
+    sa.Column("amount", sa.Integer, nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint("amount BETWEEN 1 AND 10", name="ck_report_owner_round_grant_amount"),
+    sa.Index(
+        "ix_report_owner_round_grant_usage",
+        "guild_id",
+        "root_message_id",
+        "owner_user_id",
+    ),
+)
+
 manual_quiz_questions = sa.Table(
     "manual_quiz_questions",
     metadata,

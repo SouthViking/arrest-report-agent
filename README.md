@@ -394,6 +394,10 @@ Comandos disponibles:
 - `/info-reportes`: guía pública y breve para que el autor inicie o continúe la revisión limitada
   de su propio expediente. Explica el formulario estructurado, la revisión inicial, las
   continuaciones disponibles, los canales habilitados y la compatibilidad con el formato anterior.
+- `/ampliar-cupo cantidad`: concede de 1 a 10 continuaciones adicionales al autor del reporte
+  desde su hilo y publica allí un embed con los turnos disponibles después del ajuste. Solo
+  funciona para los IDs configurados en `REPORT_OWNER_QUOTA_ADMIN_USER_IDS`; cada concesión queda
+  auditada en PostgreSQL.
 - `/revisar-arresto`: permite a `operational_staff_roles` publicar un reporte en un canal de
   `report_channels`, indicar su ID SARP, separar fotografías y respaldos, abrir su hilo e iniciar
   una primera revisión sin consumir una de las cinco continuaciones del propietario. La capa interna

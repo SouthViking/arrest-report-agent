@@ -31,6 +31,7 @@ from .trigger import TriggerActivation
 
 PARTICIPANT_REGISTRY_LIMIT = 10
 REPORT_OWNER_MINIMUM_IMAGE_COUNT = 4
+REPORT_OWNER_QUOTA_GRANT_EMBED_TITLE = "🎟️ Cupo de revisión ampliado"
 _REPORT_NAME_TOKEN = r"[^\W\d_]+(?:[-'’][^\W\d_]+)*"
 _REPORT_EVIDENCE_BAG_SUFFIX = r"(?:\s*-\s*#\d{1,20})?"
 _REPORT_NAME_PATTERN = re.compile(
@@ -216,6 +217,27 @@ class DiscordContextBuilder:
             thread=root.thread,
             response_route=DiscordResponseRoute.THREAD,
         )
+
+    async def report_owner_for_thread(self, thread: discord.Thread) -> tuple[int, int]:
+        """Resolve the quota's root and beneficiary from a configured report thread."""
+
+        configured_channels = self.settings.report_channel_allowlist.ids
+        parent = thread.parent
+        if (
+            configured_channels is None
+            or not isinstance(parent, discord.TextChannel)
+            or parent.id not in configured_channels
+        ):
+            raise ContextUnavailableError("Thread parent is not an authorized report channel")
+        try:
+            root = await parent.fetch_message(thread.id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
+            raise ContextUnavailableError("Unable to verify the report thread root") from error
+        submission = await self._structured_submission(root, thread_id=thread.id)
+        if submission is not None:
+            return root.id, submission.owner_user_id
+        self._require_human_owner(root, root.author.id)
+        return root.id, root.author.id
 
     async def _structured_owner_submission(
         self,
@@ -441,6 +463,8 @@ class DiscordContextBuilder:
         by_id = {message.id: message for message in ordered}
         truncated = False
         for message in ordered:
+            if _is_quota_grant_notice(message, self.bot):
+                continue
             content = _message_context_text(message)
             is_prior_channel_message = target.thread is None and message.id not in {
                 target.root.id,
@@ -1022,6 +1046,13 @@ def _other_participant_roles(case: ReviewCase) -> list[str]:
 def _is_own_bot(author: discord.abc.User, bot: discord.Client | None) -> bool:
     bot_user = bot.user if bot is not None else None
     return bot_user is not None and author.id == bot_user.id
+
+
+def _is_quota_grant_notice(message: discord.Message, bot: discord.Client | None) -> bool:
+    return _is_own_bot(message.author, bot) and any(
+        getattr(embed, "title", None) == REPORT_OWNER_QUOTA_GRANT_EMBED_TITLE
+        for embed in getattr(message, "embeds", ())
+    )
 
 
 def _case_subject(message: discord.Message, display_name: str) -> str | None:

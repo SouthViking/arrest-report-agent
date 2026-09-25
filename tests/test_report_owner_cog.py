@@ -3,8 +3,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
+import discord
 import pytest
 
 from arrest_report_agent.domain import AgentAccessLevel, InteractionMode, ReviewCase
@@ -15,6 +17,7 @@ from arrest_report_agent.infrastructure.discord.context import (
     ReviewTarget,
 )
 from arrest_report_agent.report_owner_access import (
+    OwnerRoundGrant,
     OwnerRunReservation,
     OwnerRunReservationResult,
 )
@@ -114,6 +117,182 @@ class _Repository:
 
     async def mark_failed(self, run_id: object) -> None:
         self.failed.append(run_id)
+
+
+@pytest.mark.asyncio
+async def test_grant_report_owner_rounds_requires_exact_admin_id(settings, persona) -> None:
+    repository = SimpleNamespace(grant_extra_rounds=AsyncMock())
+    cog = ReviewCog(
+        SimpleNamespace(user=SimpleNamespace(id=999)),  # type: ignore[arg-type]
+        settings,
+        _Service(),  # type: ignore[arg-type]
+        persona,
+        report_owner_run_repository=repository,  # type: ignore[arg-type]
+    )
+    cog._default_runtime = replace(  # noqa: SLF001
+        cog._default_runtime,  # noqa: SLF001
+        settings=SimpleNamespace(
+            report_owner_quota_admin_user_ids=(123, 125),
+            report_owner_access_max_rounds=5,
+        ),
+    )
+    context = SimpleNamespace(author=SimpleNamespace(id=124), respond=AsyncMock())
+
+    await ReviewCog.grant_report_owner_rounds.callback(cog, context, 2)  # type: ignore[arg-type]
+
+    context.respond.assert_awaited_once()
+    assert context.respond.await_args.kwargs["ephemeral"] is True
+    repository.grant_extra_rounds.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("admin_id", "used_rounds", "available"),
+    [(123, 5, 2), (125, 2, 5)],
+)
+async def test_grant_report_owner_rounds_publishes_current_availability(
+    settings, persona, admin_id: int, used_rounds: int, available: int
+) -> None:
+    repository = SimpleNamespace(
+        grant_extra_rounds=AsyncMock(
+            return_value=OwnerRoundGrant(added_rounds=2, used_rounds=used_rounds, max_rounds=7)
+        )
+    )
+    cog = ReviewCog(
+        SimpleNamespace(user=SimpleNamespace(id=999)),  # type: ignore[arg-type]
+        settings,
+        _Service(),  # type: ignore[arg-type]
+        persona,
+        report_owner_run_repository=repository,  # type: ignore[arg-type]
+    )
+    builder = SimpleNamespace(report_owner_for_thread=AsyncMock(return_value=(700, 456)))
+    cog._default_runtime = replace(  # noqa: SLF001
+        cog._default_runtime,  # noqa: SLF001
+        settings=SimpleNamespace(
+            report_owner_quota_admin_user_ids=(123, 125),
+            report_owner_access_max_rounds=5,
+        ),
+        context_builder=builder,  # type: ignore[arg-type]
+    )
+    thread = MagicMock(spec=discord.Thread)
+    thread.id = 700
+    thread.send = AsyncMock(return_value=SimpleNamespace(id=900))
+    context = SimpleNamespace(
+        author=SimpleNamespace(id=admin_id),
+        guild=SimpleNamespace(id=100),
+        channel=thread,
+        interaction=SimpleNamespace(id=800),
+        defer=AsyncMock(),
+        send_followup=AsyncMock(),
+    )
+
+    await ReviewCog.grant_report_owner_rounds.callback(cog, context, 2)  # type: ignore[arg-type]
+
+    context.defer.assert_awaited_once_with(ephemeral=True)
+    builder.report_owner_for_thread.assert_awaited_once_with(thread)
+    repository.grant_extra_rounds.assert_awaited_once_with(
+        guild_id=100,
+        root_message_id=700,
+        owner_user_id=456,
+        granted_by_user_id=admin_id,
+        interaction_id=800,
+        amount=2,
+        base_max_rounds=5,
+    )
+    thread.send.assert_awaited_once()
+    public_args = thread.send.await_args.kwargs
+    assert public_args["embed"].title == "🎟️ Cupo de revisión ampliado"
+    assert f"**Turnos disponibles ahora:** {available}" in public_args["embed"].description
+    assert "**Autorizado por:**" in public_args["embed"].description
+    assert public_args["allowed_mentions"].everyone is False
+    assert context.send_followup.await_args.kwargs["ephemeral"] is True
+
+
+@pytest.mark.asyncio
+async def test_grant_report_owner_rounds_does_not_publish_duplicate(settings, persona) -> None:
+    repository = SimpleNamespace(
+        grant_extra_rounds=AsyncMock(
+            return_value=OwnerRoundGrant(
+                added_rounds=0, used_rounds=5, max_rounds=7, duplicate=True
+            )
+        )
+    )
+    cog = ReviewCog(
+        SimpleNamespace(user=SimpleNamespace(id=999)),  # type: ignore[arg-type]
+        settings,
+        _Service(),  # type: ignore[arg-type]
+        persona,
+        report_owner_run_repository=repository,  # type: ignore[arg-type]
+    )
+    cog._default_runtime = replace(  # noqa: SLF001
+        cog._default_runtime,  # noqa: SLF001
+        settings=SimpleNamespace(
+            report_owner_quota_admin_user_ids=(123,),
+            report_owner_access_max_rounds=5,
+        ),
+        context_builder=SimpleNamespace(  # type: ignore[arg-type]
+            report_owner_for_thread=AsyncMock(return_value=(700, 456))
+        ),
+    )
+    thread = MagicMock(spec=discord.Thread)
+    thread.id = 700
+    thread.send = AsyncMock()
+    context = SimpleNamespace(
+        author=SimpleNamespace(id=123),
+        guild=SimpleNamespace(id=100),
+        channel=thread,
+        interaction=SimpleNamespace(id=800),
+        defer=AsyncMock(),
+        send_followup=AsyncMock(),
+    )
+
+    await ReviewCog.grant_report_owner_rounds.callback(cog, context, 2)  # type: ignore[arg-type]
+
+    thread.send.assert_not_awaited()
+    assert context.send_followup.await_args.kwargs["ephemeral"] is True
+
+
+@pytest.mark.asyncio
+async def test_grant_report_owner_rounds_warns_if_public_notice_fails(settings, persona) -> None:
+    repository = SimpleNamespace(
+        grant_extra_rounds=AsyncMock(
+            return_value=OwnerRoundGrant(added_rounds=2, used_rounds=5, max_rounds=7)
+        )
+    )
+    cog = ReviewCog(
+        SimpleNamespace(user=SimpleNamespace(id=999)),  # type: ignore[arg-type]
+        settings,
+        _Service(),  # type: ignore[arg-type]
+        persona,
+        report_owner_run_repository=repository,  # type: ignore[arg-type]
+    )
+    cog._default_runtime = replace(  # noqa: SLF001
+        cog._default_runtime,  # noqa: SLF001
+        settings=SimpleNamespace(
+            report_owner_quota_admin_user_ids=(123,),
+            report_owner_access_max_rounds=5,
+        ),
+        context_builder=SimpleNamespace(  # type: ignore[arg-type]
+            report_owner_for_thread=AsyncMock(return_value=(700, 456))
+        ),
+    )
+    thread = MagicMock(spec=discord.Thread)
+    thread.id = 700
+    thread.send = AsyncMock(side_effect=RuntimeError("message unavailable"))
+    context = SimpleNamespace(
+        author=SimpleNamespace(id=123),
+        guild=SimpleNamespace(id=100),
+        channel=thread,
+        interaction=SimpleNamespace(id=800),
+        defer=AsyncMock(),
+        send_followup=AsyncMock(),
+    )
+
+    await ReviewCog.grant_report_owner_rounds.callback(cog, context, 2)  # type: ignore[arg-type]
+
+    repository.grant_extra_rounds.assert_awaited_once()
+    assert context.send_followup.await_args.kwargs["ephemeral"] is True
+    assert "El cupo se amplió" in context.send_followup.await_args.kwargs["content"]
 
 
 def _event(settings) -> tuple[object, ReviewTarget, ReviewCase, list[str]]:

@@ -46,6 +46,21 @@ def test_new_configurations_default_to_gpt6_luna(monkeypatch: pytest.MonkeyPatch
     assert settings.openai_reasoning_effort == "medium"
 
 
+def test_report_owner_quota_admin_accepts_explicit_user_id_allowlist(settings: AppSettings) -> None:
+    assert settings.report_owner_quota_admin_user_ids == ()
+    assert settings.model_copy(
+        update={"report_owner_quota_admin_user_ids_csv": "123456,789012,123456"}
+    ).report_owner_quota_admin_user_ids == (123456, 789012)
+    with pytest.raises(ValueError, match="does not support"):
+        _ = settings.model_copy(
+            update={"report_owner_quota_admin_user_ids_csv": "*"}
+        ).report_owner_quota_admin_user_ids
+    with pytest.raises(ValueError, match="positive Discord snowflakes"):
+        _ = settings.model_copy(
+            update={"report_owner_quota_admin_user_ids_csv": "123456,invalid"}
+        ).report_owner_quota_admin_user_ids
+
+
 def test_empty_escalation_roles_disable_mentions_and_legacy_name_is_supported() -> None:
     settings = AppSettings(
         _env_file=None,
