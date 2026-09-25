@@ -1,20 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.38.17",
-  "title": "Verificación de bolsas en reportes",
-  "summary": "Roy consulta las bolsas de evidencia identificadas en una revisión completa y distingue las que aún no tienen análisis.",
+  "version": "0.38.18",
+  "title": "Resumen automático de reportes pendientes",
+  "summary": "El bot puede publicar periódicamente los reportes de arresto pendientes y avisar a los agentes cuyo plazo se acerca o ya venció.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "Si el reporte identifica bolsas de evidencia, Roy las consulta antes del veredicto y agrupa varias en una sola llamada."
+      "type": "added",
+      "text": "El resumen reutiliza /reportes-pendientes, admite frecuencia y destinos configurables, y no se publica si no hay casos pendientes."
     },
     {
       "type": "improved",
-      "text": "La tool de bolsas usa una única lista para una o varias bolsas, con opciones de cadena de custodia y análisis independientes por cada una."
+      "text": "Las menciones se agrupan por urgencia, reconocen usuarios con varios PJ y evitan recordatorios repetidos hasta una escalada o al menos un día después."
     }
   ],
   "acknowledgements": []

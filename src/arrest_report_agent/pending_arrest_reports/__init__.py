@@ -1,5 +1,7 @@
 """Deterministic unfinished arrest-report inspection."""
 
+from .digest import PendingArrestDigestWorker
+from .digest_repository import PendingArrestDigestRepository
 from .discord import (
     PendingArrestReportCog,
     PendingArrestReportModal,
@@ -37,6 +39,8 @@ __all__ = [
     "DiscordLegacyArrestReviewLookup",
     "PendingArrestReport",
     "PendingArrestReportCog",
+    "PendingArrestDigestRepository",
+    "PendingArrestDigestWorker",
     "PendingArrestReportModal",
     "PendingArrestReportScan",
     "PendingArrestReportService",

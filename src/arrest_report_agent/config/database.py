@@ -312,10 +312,29 @@ class ArrestReportLookupOptions(FrozenConfigModel):
     max_rank_names_per_lookup: int = Field(default=20, ge=1, le=50, strict=True)
 
 
+class PendingArrestDigestTarget(FrozenConfigModel):
+    channel_id: int = Field(gt=0)
+    mention_users: bool = False
+
+
 class PendingArrestReportsOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
     max_range_days: int = Field(default=90, ge=1, le=365)
     max_records: int = Field(default=1_000, ge=50, le=5_000)
+    digest_interval_hours: int = Field(default=6, ge=1, le=168)
+    digest_lookback_days: int = Field(default=7, ge=1, le=90)
+    digest_targets: tuple[PendingArrestDigestTarget, ...] = Field(default=(), max_length=10)
+
+    @model_validator(mode="after")
+    def validate_digest_targets(self) -> PendingArrestReportsOptions:
+        channel_ids = [target.channel_id for target in self.digest_targets]
+        if len(channel_ids) != len(set(channel_ids)):
+            raise ValueError("digest target channels must be unique")
+        if sum(target.mention_users for target in self.digest_targets) > 1:
+            raise ValueError("only one digest target can mention users")
+        if self.digest_lookback_days > self.max_range_days:
+            raise ValueError("digest lookback cannot exceed max range")
+        return self
 
 
 class FactionReportOptions(FrozenConfigModel):

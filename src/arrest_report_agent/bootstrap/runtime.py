@@ -101,6 +101,8 @@ from arrest_report_agent.pagers import (
 )
 from arrest_report_agent.pending_arrest_reports import (
     DiscordLegacyArrestReviewLookup,
+    PendingArrestDigestRepository,
+    PendingArrestDigestWorker,
     PendingArrestReportCog,
     PendingArrestReportService,
     PendingArrestReviewRepository,
@@ -179,6 +181,7 @@ class Runtime:
     cost_monitoring: CostMonitoringService | None
     service_call_worker: ServiceCallFeedWorker | None
     stolen_vehicle_worker: StolenVehicleFeedWorker | None
+    pending_digest_worker: PendingArrestDigestWorker | None
     postgres: PostgresClient
     config_provider: DatabaseConfigProvider
 
@@ -231,6 +234,9 @@ class Runtime:
             "stolen_vehicles": (
                 self.stolen_vehicle_worker.running if self.stolen_vehicle_worker is not None else False
             ),
+            "pending_arrest_digest": (
+                self.pending_digest_worker.running if self.pending_digest_worker is not None else False
+            ),
         }
 
     async def close(self) -> None:
@@ -242,6 +248,8 @@ class Runtime:
             await self.service_call_worker.close()
         if self.stolen_vehicle_worker is not None:
             await self.stolen_vehicle_worker.close()
+        if self.pending_digest_worker is not None:
+            await self.pending_digest_worker.close()
         if self.contribution_normalization_worker is not None:
             await self.contribution_normalization_worker.close()
         await self.config_provider.close()
@@ -426,6 +434,7 @@ async def build_runtime(
     service_call_worker: ServiceCallFeedWorker | None = None
     stolen_vehicle_worker: StolenVehicleFeedWorker | None = None
     stolen_vehicle_service: StolenVehicleService | None = None
+    pending_digest_worker: PendingArrestDigestWorker | None = None
     if sarp_client is not None:
         service_call_guild_ids = tuple(
             bundle.snapshot.guild_id
@@ -618,17 +627,34 @@ async def build_runtime(
                 persona.profile,
             )
         )
-        bot.add_cog(
-            PendingArrestReportCog(
-                config_provider,
-                PendingArrestReportService(
-                    sarp_client,
-                    PendingArrestReviewRepository(postgres),
-                    DiscordLegacyArrestReviewLookup(bot),
-                ),
-                persona.profile,
-            )
+        pending_report_service = PendingArrestReportService(
+            sarp_client,
+            PendingArrestReviewRepository(postgres),
+            DiscordLegacyArrestReviewLookup(bot),
         )
+        bot.add_cog(PendingArrestReportCog(config_provider, pending_report_service, persona.profile))
+        pending_digest_guild_ids = tuple(
+            bundle.snapshot.guild_id
+            for bundle in all_bundles
+            if (options := bundle.settings.pending_arrest_reports_options) is not None
+            and options.digest_targets
+        )
+        pending_digest_worker = PendingArrestDigestWorker(
+            bot,
+            config_provider,
+            PendingArrestDigestRepository(postgres),
+            pending_report_service,
+            DiscordGuildMemberDirectory(bot),
+            enabled_guild_ids=pending_digest_guild_ids,
+            initial_options={
+                bundle.snapshot.guild_id: options
+                for bundle in all_bundles
+                if (options := bundle.settings.pending_arrest_reports_options) is not None
+                and options.digest_targets
+            },
+        )
+        config_provider.register_guild_callback(pending_digest_worker.configuration_updated)
+        pending_digest_worker.start()
         bot.add_cog(
             ArrestStatisticsCog(
                 config_provider,
@@ -714,8 +740,7 @@ async def build_runtime(
         configured_guilds=sum(
             1
             for bundle in all_bundles
-            if (feature := bundle.snapshot.features.get("blacklists")) is not None
-            and feature.enabled
+            if (feature := bundle.snapshot.features.get("blacklists")) is not None and feature.enabled
         ),
     )
     log_event(
@@ -823,6 +848,7 @@ async def build_runtime(
         cost_monitoring=cost_monitoring,
         service_call_worker=service_call_worker,
         stolen_vehicle_worker=stolen_vehicle_worker,
+        pending_digest_worker=pending_digest_worker,
         postgres=postgres,
         config_provider=config_provider,
     )

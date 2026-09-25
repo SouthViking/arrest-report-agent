@@ -548,9 +548,13 @@ cada revisión completa. El modo se resuelve desde PostgreSQL en cada revisión,
 de entorno ni conservar versiones anteriores de la imagen. El interruptor global `SARP_API_ENABLED`
 debe estar activo.
 `pending_arrest_reports` acepta
-`{"faction_id": 3, "max_range_days": 90, "max_records": 1000}` y habilita la consulta manual
-determinista. Reutiliza `operational_staff_roles`, funciona en cualquier canal y tampoco agrega
-variables de entorno.
+`{"faction_id": 3, "max_range_days": 90, "max_records": 1000, "digest_interval_hours": 6,
+"digest_lookback_days": 7, "digest_targets": [{"channel_id": 1537203701893169254,
+"mention_users": true}]}`. La consulta manual sigue funcionando en cualquier canal para
+`operational_staff_roles`. El resumen automático reutiliza el mismo escaneo y formato; admite varios
+canales, pero solo uno con menciones para evitar pings duplicados. No publica si no hay pendientes.
+La frecuencia y los destinos se pueden cambiar desde `/config` sin reiniciar; un destino vacío
+desactiva el envío periódico. No requiere variables de entorno nuevas.
 
 Al iniciar el acceso limitado fuera de un hilo, la publicación raíz debe contener dos componentes
 de nombre, una referencia opcional de bolsa de evidencia y al menos cuatro imágenes compatibles. La
@@ -710,8 +714,12 @@ determinísticamente textos vacíos, placeholders, repeticiones o descripciones 
 Cruza cada caso con su revisión más reciente y prioriza los resultados mediante un score interno:
 PCU sin completar, revisiones ausentes o pendientes y plazos de 24 y 48 horas. Los círculos rojo,
 naranjo, amarillo y verde exponen la urgencia sin mostrar el score. No guarda narrativas ni resultados:
-PostgreSQL conserva solamente la configuración y las referencias de revisión ya existentes. El
-formulario permite publicar el embed en el canal o recibirlo de forma efímera.
+PostgreSQL conserva configuración, referencias de revisión y metadatos de programación/avisos. El
+formulario permite publicar el embed en el canal o recibirlo de forma efímera. El envío periódico
+guarda solo el estado de programación, las entregas y los avisos: menciona de forma agrupada a los
+agentes próximos a vencer (18/36 h) o fuera de plazo (24/48 h), cruza alias de múltiples PJ y no
+repite un aviso hasta que cambie de nivel o pase un día. La primera publicación ocurre después del
+intervalo configurado, no inmediatamente al arrancar.
 
 El módulo dinámico `service_calls` consulta `GET /police/emergency-calls` únicamente cuando la
 política `service_call_channels` contiene al menos un canal explícito. La primera sincronización fija

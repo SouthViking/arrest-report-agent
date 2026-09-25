@@ -10,6 +10,54 @@ from sqlalchemy.dialects import postgresql
 metadata = sa.MetaData()
 
 
+pending_arrest_digest_state = sa.Table(
+    "pending_arrest_digest_state",
+    metadata,
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("next_due_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("cycle_id", postgresql.UUID(as_uuid=True)),
+    sa.Column("lease_until", sa.DateTime(timezone=True)),
+    sa.Column("last_completed_at", sa.DateTime(timezone=True)),
+)
+
+pending_arrest_digest_deliveries = sa.Table(
+    "pending_arrest_digest_deliveries",
+    metadata,
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("cycle_id", postgresql.UUID(as_uuid=True), primary_key=True),
+    sa.Column("channel_id", sa.BigInteger, primary_key=True),
+    sa.Column("message_id", sa.BigInteger, nullable=False),
+    sa.Column("reply_sent", sa.Boolean, nullable=False, server_default=sa.false()),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+)
+
+pending_arrest_digest_mentions = sa.Table(
+    "pending_arrest_digest_mentions",
+    metadata,
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("report_id", sa.BigInteger, primary_key=True),
+    sa.Column("user_id", sa.BigInteger, primary_key=True),
+    sa.Column("stage", sa.SmallInteger, nullable=False),
+    sa.Column("mentioned_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint("stage IN (1,2)", name="ck_pending_digest_mention_stage"),
+)
+
+
 def uuid_column(name: str = "id", *, primary_key: bool = False) -> sa.Column[uuid.UUID]:
     return sa.Column(
         name,
@@ -400,8 +448,7 @@ ftp_training_requests = sa.Table(
         name="ck_ftp_training_request_phase",
     ),
     sa.CheckConstraint(
-        "requested_instructor_level IS NULL OR "
-        "requested_instructor_level IN ('general','supervisor')",
+        "requested_instructor_level IS NULL OR requested_instructor_level IN ('general','supervisor')",
         name="ck_ftp_training_request_instructor_level",
     ),
     sa.UniqueConstraint(

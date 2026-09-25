@@ -643,6 +643,11 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                                 "faction_id": 3,
                                 "max_range_days": 90,
                                 "max_records": 1000,
+                                "digest_interval_hours": 6,
+                                "digest_lookback_days": 7,
+                                "digest_targets": [
+                                    {"channel_id": 1537203701893169254, "mention_users": True}
+                                ],
                             }
                             if guild_id == 1234674521416663070
                             else {}

@@ -90,10 +90,25 @@ def test_pending_arrest_reports_options_are_bounded() -> None:
     options = PendingArrestReportsOptions(faction_id=3)
     assert options.max_range_days == 90
     assert options.max_records == 1000
+    assert options.digest_interval_hours == 6
+    assert options.digest_targets == ()
     with pytest.raises(ValueError, match="less than or equal to 365"):
         PendingArrestReportsOptions(faction_id=3, max_range_days=366)
     with pytest.raises(ValueError, match="greater than or equal to 50"):
         PendingArrestReportsOptions(faction_id=3, max_records=49)
+    with pytest.raises(ValueError, match="must be unique"):
+        PendingArrestReportsOptions(
+            faction_id=3,
+            digest_targets=({"channel_id": 123}, {"channel_id": 123}),
+        )
+    with pytest.raises(ValueError, match="only one digest target"):
+        PendingArrestReportsOptions(
+            faction_id=3,
+            digest_targets=(
+                {"channel_id": 123, "mention_users": True},
+                {"channel_id": 456, "mention_users": True},
+            ),
+        )
 
 
 def test_arrest_statistics_options_are_bounded() -> None:
@@ -285,9 +300,7 @@ def test_role_request_retirement_requires_explicit_managed_catalog(settings) -> 
         GuildConfigSnapshot.model_validate(invalid)
 
     invalid = snapshot.model_dump()
-    invalid["policies"][AccessPolicyKey.OPERATIONAL_STAFF_ROLES]["mode"] = (
-        AccessPolicyMode.DISABLED
-    )
+    invalid["policies"][AccessPolicyKey.OPERATIONAL_STAFF_ROLES]["mode"] = AccessPolicyMode.DISABLED
     invalid["policies"][AccessPolicyKey.OPERATIONAL_STAFF_ROLES]["ids"] = ()
     with pytest.raises(ValueError, match="restricted operational staff roles"):
         GuildConfigSnapshot.model_validate(invalid)
@@ -404,9 +417,10 @@ def test_arrest_lookup_runtime_requires_valid_enabled_payload(settings) -> None:
         schema_version=1,
         payload={"faction_id": 3, "max_rank_names_per_lookup": 37},
     )
-    assert GuildRuntimeSettings(
-        settings, GuildConfigSnapshot.model_validate(values)
-    ).max_rank_names_per_lookup == 37
+    assert (
+        GuildRuntimeSettings(settings, GuildConfigSnapshot.model_validate(values)).max_rank_names_per_lookup
+        == 37
+    )
     values["features"] = {
         "arrest_report_lookup": GuildFeatureSnapshot(
             key="arrest_report_lookup",
@@ -1498,6 +1512,9 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
             "faction_id": 3,
             "max_range_days": 90,
             "max_records": 1000,
+            "digest_interval_hours": 6,
+            "digest_lookback_days": 7,
+            "digest_targets": [{"channel_id": 1537203701893169254, "mention_users": True}],
         }
         assert pending[999]["enabled"] is False
         assert pending[999]["payload"] == {}
@@ -1610,9 +1627,7 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         assert ftp_panel_table is not None
         assert ftp_panel_table["name"] == "ftp_request_panels"
         live_member_index = await client.fetch_one(
-            sa.text(
-                "SELECT to_regclass('public.uq_ftp_training_request_live_member') AS name"
-            )
+            sa.text("SELECT to_regclass('public.uq_ftp_training_request_live_member') AS name")
         )
         assert live_member_index is not None
         assert live_member_index["name"] is None
@@ -2172,9 +2187,7 @@ async def _assert_callsign_migration(
         assert persona["payload"]["messages"]["interface"]["commands"]["ftp_request_description"]
         assert persona["payload"]["messages"]["interface"]["commands"]["info_ftp_description"]
         assert "/solicitar-ficha" in persona["payload"]["messages"]["help"]["quick_references"]
-        assert persona["payload"]["messages"]["interface"]["commands"][
-            "active_ftp_requests_description"
-        ]
+        assert persona["payload"]["messages"]["interface"]["commands"]["active_ftp_requests_description"]
         assert "/fichas-activas" in persona["payload"]["messages"]["help"]["quick_references"]
         analysis_feature = await client.fetch_one(
             sa.text(
