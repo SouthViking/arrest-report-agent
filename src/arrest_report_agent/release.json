@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.38.12",
-  "title": "Consultas de rangos más ágiles",
-  "summary": "El agente puede consultar el rango vigente de varios integrantes a la vez.",
+  "version": "0.38.13",
+  "title": "Consultas de evidencias más ágiles",
+  "summary": "El agente puede consultar varias bolsas de evidencia en una sola solicitud.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,11 @@
   "changes": [
     {
       "type": "improved",
-      "text": "Al revisar un reporte, el agente puede comprobar varios nombres en una sola consulta y mostrar un resultado para cada uno."
+      "text": "Al revisar un caso, el agente puede consultar varias bolsas de evidencia a la vez y distinguir el resultado de cada una."
     },
     {
       "type": "improved",
-      "text": "Las consultas de rango aprovechan un caché más amplio y admiten un límite configurable por servidor."
+      "text": "Puede incluir la cadena de custodia y los datos del análisis según lo que se necesite de cada bolsa; la consulta individual sigue disponible."
     }
   ],
   "acknowledgements": []
