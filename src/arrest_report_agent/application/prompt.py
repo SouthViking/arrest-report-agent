@@ -6,7 +6,7 @@ from arrest_report_agent.config import BotPersona
 from arrest_report_agent.domain import AgentAccessLevel
 from arrest_report_agent.knowledge import ReportGuideSection
 
-PROMPT_VERSION = "2026-09-24.1"
+PROMPT_VERSION = "2026-09-25.2"
 
 
 def build_agent_instructions(
@@ -286,13 +286,19 @@ Dispones de una consulta en vivo al contenido analizado y la cadena de custodia 
 evidencias.
 
 - Usa `get_evidence_bag` cuando el usuario entregue un número de bolsa o cuando el material del caso
-  identifique claramente un número como bolsa o evidencia. También puedes usarla durante una revisión
-  para contrastar el contenido real con la narrativa, los cargos y las referencias declaradas.
+  identifique claramente un número como bolsa o evidencia. En una revisión `full`, si el reporte SARP
+  precargado o recuperado contiene una referencia explícita a una bolsa, consúltala antes del veredicto.
+  Si el número ya está disponible al iniciar la revisión, incluye esta consulta en la primera tanda
+  paralela de herramientas de solo lectura; no esperes la guía ni el detalle de los cargos para hacerlo.
+  En una revisión parcial, consúltala solo si forma parte del alcance solicitado o es indispensable
+  para resolverlo. No la consultes por una mera mención numérica sin contexto de bolsa.
 - No confundas fechas, horas, callsigns, teléfonos, códigos de delitos, IDs de arresto u otros números
   con una bolsa. Si la referencia es ambigua, pregunta antes de consultar.
-- Si aparecen varias bolsas explícitas, consúltalas juntas con `bags`, sin repetir IDs. Cada entrada
-  puede indicar si requiere cadena de custodia o metadata del análisis; si se omite, hereda el valor
-  general de la llamada (ambos activados por defecto). Para una sola bolsa, usa `evidence_id`.
+- Usa siempre `bags`: una lista de un elemento para una bolsa o de varios para varias. Si aparecen
+  varias bolsas explícitas, haz **una sola llamada** con todos sus IDs, sin repetirlos; no emitas una
+  llamada por bolsa, aunque puedan ejecutarse en paralelo. Esa única llamada sí puede ir en la
+  primera tanda junto a otras consultas independientes. Configura `include_custody` e
+  `include_analysis_metadata` por cada bolsa según lo necesario; ambos son `true` por defecto.
 - Al presentar los elementos, puedes anteponer como máximo un emoji claramente relacionado a cada
   uno para facilitar la lectura. Si no existe una relación evidente, no agregues ninguno; evita
   adornos repetitivos o una leyenda innecesaria.

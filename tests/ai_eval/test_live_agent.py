@@ -7,6 +7,7 @@ production prompt, local knowledge and action tools, session behavior and config
 from __future__ import annotations
 
 import base64
+import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -458,6 +459,7 @@ async def _run_agent(
     preloaded_arrest_report: ArrestReportDetail | None = None,
     faction_officer_rank_lookup: FactionOfficerRankLookup | None = None,
     evidence_bag_lookup: EvidenceBagLookup | None = None,
+    evidence_bag_arguments: list[dict[str, object]] | None = None,
 ) -> tuple[ReviewRunContext, InMemoryPublisher]:
     model = ModelCatalog.load_default().resolve(
         settings.openai_model,
@@ -487,6 +489,16 @@ async def _run_agent(
         faction_officer_rank_lookup=faction_officer_rank_lookup,
         evidence_bag_lookup=evidence_bag_lookup,
     )
+    if evidence_bag_arguments is not None:
+        agent = service.report_owner_agent if access_level is AgentAccessLevel.REPORT_OWNER else service.agent
+        evidence_tool = next(tool for tool in agent.tools if tool.name == "get_evidence_bag")
+        invoke = evidence_tool.on_invoke_tool  # type: ignore[attr-defined]
+
+        async def record_evidence_call(ctx: object, arguments: str) -> object:
+            evidence_bag_arguments.append(json.loads(arguments))
+            return await invoke(ctx, arguments)
+
+        evidence_tool.on_invoke_tool = record_evidence_call  # type: ignore[attr-defined]
 
     await service.review(
         context,
@@ -1722,11 +1734,16 @@ async def test_agent_batches_multiple_explicit_officer_ranks(
 class RecordingEvidenceBagLookup:
     """Return deterministic SARP-shaped bag data while recording real agent tool use."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, unanalyzed_ids: set[int] | None = None) -> None:
         self.calls: list[int] = []
+        self.unanalyzed_ids = unanalyzed_ids or set()
 
     async def get(self, evidence_id: int) -> EvidenceBagLookupResult:
         self.calls.append(evidence_id)
+        if evidence_id in self.unanalyzed_ids:
+            return EvidenceBagLookupResult(
+                detail=EvidenceBagDetail(evidence_id=evidence_id, items=(), custody=())
+            )
         descriptions = {
             4654218: "Casquillo de 9 mm con huellas de Terry McKenzie.",
             4654219: "Pistola de 9 mm con número de serie legible.",
@@ -1803,6 +1820,98 @@ async def test_agent_batches_multiple_evidence_bags(
     assert context.evidence_bag_ids_queried == 2
     assert publisher.publications == []
     assert "casquillo" in response and "pistola" in response
+
+
+async def test_structured_full_review_checks_explicit_unanalyzed_bag_without_flagging_it(
+    ai_eval_settings: AppSettings,
+) -> None:
+    arrest_lookup = RecordingArrestReportLookup()
+    report = replace(
+        arrest_lookup.report,
+        description=(
+            "Yo, Deputy Sheriff Charles Harrington, bajo la asignación 280L, detuve a Terry "
+            "McKenzie en Jefferson el 18/08/2026 después de que huyera de una intervención "
+            "vehicular. Lo arresté sin lesiones y trasladé a la estación de Ganton. Durante el "
+            "procedimiento incauté un arma que guardé en la bolsa de evidencia #4654218."
+        ),
+    )
+    case = _case(
+        ("user", "Inicia la revisión completa del expediente estructurado."),
+        initial_channel_id=4002,
+        structured_submission_id=UUID("00000000-0000-0000-0000-000000000754"),
+        structured_report_id=report.report_id,
+        structured_suspect_name=report.suspect_name,
+    )
+    evidence_lookup = RecordingEvidenceBagLookup(unanalyzed_ids={4654218})
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        arrest_report_lookup=arrest_lookup,
+        evidence_bag_lookup=evidence_lookup,
+        preloaded_arrest_report=report,
+    )
+    publication = _single_publication(publisher)
+
+    assert evidence_lookup.calls == [4654218]
+    assert context.evidence_bag_calls == 1
+    assert arrest_lookup.details == []
+    assert not any(
+        finding.severity.value == "required"
+        and any(
+            term in f"{finding.title} {finding.detail} {finding.recommendation}".lower()
+            for term in ("bolsa", "analiz", "laboratorio")
+        )
+        for finding in publication.findings
+    ), publication.model_dump(mode="json")
+
+
+async def test_structured_full_review_batches_multiple_explicit_evidence_bags(
+    ai_eval_settings: AppSettings,
+) -> None:
+    arrest_lookup = RecordingArrestReportLookup()
+    report = replace(
+        arrest_lookup.report,
+        description=(
+            "Yo, Deputy Sheriff Charles Harrington, bajo la asignación 280L, detuve a Terry "
+            "McKenzie en Jefferson el 18/08/2026 después de que huyera de una intervención "
+            "vehicular. Lo arresté sin lesiones y trasladé a la estación de Ganton. Durante el "
+            "procedimiento guardé los casquillos en la bolsa de evidencia #4654218 y el arma "
+            "en la bolsa de evidencia #4654219."
+        ),
+    )
+    case = _case(
+        ("user", "Inicia la revisión completa del expediente estructurado."),
+        initial_channel_id=4002,
+        structured_submission_id=UUID("00000000-0000-0000-0000-000000000755"),
+        structured_report_id=report.report_id,
+        structured_suspect_name=report.suspect_name,
+    )
+    evidence_lookup = RecordingEvidenceBagLookup()
+    evidence_arguments: list[dict[str, object]] = []
+
+    context, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        arrest_report_lookup=arrest_lookup,
+        evidence_bag_lookup=evidence_lookup,
+        evidence_bag_arguments=evidence_arguments,
+        preloaded_arrest_report=report,
+    )
+
+    assert publisher.publications
+    assert evidence_lookup.calls == [4654218, 4654219]
+    assert context.evidence_bag_calls == 1
+    assert context.evidence_bag_ids_queried == 2
+    assert len(evidence_arguments) == 1
+    assert set(evidence_arguments[0]) == {"bags"}
+    assert [bag["evidence_id"] for bag in evidence_arguments[0]["bags"]] == [  # type: ignore[index]
+        4654218,
+        4654219,
+    ]
+    assert arrest_lookup.details == []
 
 
 async def test_structured_initial_review_without_id_searches_and_binds_the_matching_report(

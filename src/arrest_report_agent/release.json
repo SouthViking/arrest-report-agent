@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.38.16",
-  "title": "Solicitudes de roles más claras",
-  "summary": "El formulario muestra las opciones que corresponden a cada miembro y completa mejor las solicitudes de retiro.",
+  "version": "0.38.17",
+  "title": "Verificación de bolsas en reportes",
+  "summary": "Roy consulta las bolsas de evidencia identificadas en una revisión completa y distingue las que aún no tienen análisis.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,11 @@
   "changes": [
     {
       "type": "improved",
-      "text": "Ingreso FTT y retiro aparecen según la membresía del solicitante; se vuelve a comprobar antes de aprobar."
+      "text": "Si el reporte identifica bolsas de evidencia, Roy las consulta antes del veredicto y agrupa varias en una sola llamada."
     },
     {
-      "type": "fixed",
-      "text": "Al aprobar un retiro, Roy quita todos los roles que puede administrar, no solo los del catálogo de solicitudes, y avisa si queda alguno pendiente."
+      "type": "improved",
+      "text": "La tool de bolsas usa una única lista para una o varias bolsas, con opciones de cadena de custodia y análisis independientes por cada una."
     }
   ],
   "acknowledgements": []
