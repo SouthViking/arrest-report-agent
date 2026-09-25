@@ -76,6 +76,8 @@ class RoleRequestModalCopy:
     ftt_entry_station_label: str = "Estación de destino"
     ftt_entry_station_placeholder: str = "Selecciona Ganton o Dillimore."
     ftt_entry_already_complete: str = "Ya tienes todos los roles de este ingreso FTT."
+    ftt_entry_already_member: str = "Ya perteneces a la facción. Usa Cambiar roles si necesitas un ajuste."
+    ftt_entry_retired: str = "El reingreso de personal retirado debe gestionarse con Command Staff."
     ftt_entry_partial_blocked: str = (
         "Las solicitudes de ingreso FTT solo pueden aprobarse o rechazarse completas."
     )
@@ -86,6 +88,7 @@ class RoleRequestModalCopy:
     retirement_confirm_label: str = "Confirmo que solicito mi retiro"
     retirement_confirmation_required: str = "Debes confirmar el retiro antes de enviar la solicitud."
     retirement_already_owned: str = "Ya tienes el rol de retiro asignado."
+    retirement_requires_member: str = "Solo los miembros activos de la facción pueden solicitar el retiro."
     retirement_partial_blocked: str = (
         "Las solicitudes de retiro solo pueden aprobarse o rechazarse completas."
     )
@@ -168,6 +171,9 @@ class RoleRequestService:
         self.reviewer_role_ids = frozenset(settings.role_request_reviewer_role_ids)
         self.allowed_roles = settings.role_request_allowed_role_allowlist
         self.allowed_role_order = settings.role_request_allowed_role_ids
+        self.operational_staff_role_ids = frozenset(
+            getattr(settings, "operational_staff_role_ids", ())
+        )
         self.retired_role_id = getattr(settings, "role_request_retired_role_id", None)
         self.ftt_entry_options: RoleRequestFttEntryOptions | None = getattr(
             settings,
@@ -443,7 +449,7 @@ class RoleRequestService:
         self,
         member: discord.Member,
     ) -> tuple[discord.Role, tuple[discord.Role, ...]]:
-        """Resolve the configured retirement role and current managed roles atomically."""
+        """Resolve the retirement role and every role the bot can remove."""
 
         retired_role_id = self.retired_role_id
         bot_member = member.guild.me
@@ -460,8 +466,37 @@ class RoleRequestService:
         current_ids = {role.id for role in member.roles}
         if retired_role_id in current_ids:
             raise RoleRequestValidationError(ROLE_REQUEST_MODAL_COPY.retirement_already_owned)
+        if not self.is_active_member(member):
+            raise RoleRequestValidationError(ROLE_REQUEST_MODAL_COPY.retirement_requires_member)
         removals = self._retirement_removals(member, bot_member)
         return retired_role, removals
+
+    def is_active_member(self, member: discord.Member) -> bool:
+        """Use the guild's operational roles as its Discord membership signal."""
+
+        return any(role.id in self.operational_staff_role_ids for role in member.roles)
+
+    def _validate_ftt_entry_member(self, member: discord.Member) -> None:
+        if self.retired_role_id is not None and any(
+            role.id == self.retired_role_id for role in member.roles
+        ):
+            raise RoleRequestValidationError(ROLE_REQUEST_MODAL_COPY.ftt_entry_retired)
+        if self.is_active_member(member):
+            raise RoleRequestValidationError(ROLE_REQUEST_MODAL_COPY.ftt_entry_already_member)
+
+    def _guided_requester_is_eligible(
+        self,
+        member: discord.Member,
+        kind: RoleRequestKind,
+    ) -> bool:
+        retired = self.retired_role_id is not None and any(
+            role.id == self.retired_role_id for role in member.roles
+        )
+        if kind is RoleRequestKind.RETIREMENT:
+            return self.is_active_member(member) and not retired
+        if kind is RoleRequestKind.FTT_ENTRY:
+            return not self.is_active_member(member) and not retired
+        return True
 
     def ftt_entry_changes(
         self,
@@ -473,6 +508,7 @@ class RoleRequestService:
         options = self.ftt_entry_options
         if options is None or not self.allowed_roles.is_restricted:
             raise RoleRequestValidationError(self.ui.request_unavailable)
+        self._validate_ftt_entry_member(member)
         station = next(
             (candidate for candidate in options.stations if candidate.key == station_key),
             None,
@@ -502,15 +538,83 @@ class RoleRequestService:
             role
             for role in member.roles
             if role.id != self.retired_role_id
-            and self.allowed_roles.allows(role.id)
             and role.id != role.guild.default_role.id
             and not role.managed
+            and not role >= bot_member.top_role
         )
-        if any(role >= bot_member.top_role for role in candidates):
+        if any(
+            role.id in self.operational_staff_role_ids
+            and (role.managed or role >= bot_member.top_role)
+            for role in member.roles
+        ):
             raise RoleRequestValidationError(self.ui.subsystem_unavailable)
         if len(candidates) > MAX_ROLES_PER_OPERATION:
             raise RoleRequestValidationError(self.ui.subsystem_unavailable)
         return candidates
+
+    async def _retirement_verification_note(
+        self,
+        guild: discord.Guild,
+        member: discord.Member,
+        *,
+        retired_role_id: int,
+        expected_role_ids: set[int],
+    ) -> str | None:
+        """Surface roles left behind instead of silently claiming a complete retirement."""
+
+        try:
+            refreshed = await guild.fetch_member(member.id)
+        except (discord.Forbidden, discord.HTTPException) as error:
+            log_event(
+                LOGGER,
+                "warning",
+                "role_retirement_verification_failed",
+                exc_info=error,
+                guild_id=guild.id,
+                requester_id=member.id,
+                **exception_fields(error),
+            )
+            return "No se pudo verificar el estado final de los roles. Revísalos manualmente."
+
+        actual_ids = {role.id for role in refreshed.roles if role.id != guild.default_role.id}
+        unexpected_ids = actual_ids - expected_role_ids
+        missing_ids = expected_role_ids - actual_ids
+        retained_ids = actual_ids - {retired_role_id}
+        if unexpected_ids or missing_ids:
+            log_event(
+                LOGGER,
+                "warning",
+                "role_retirement_roles_mismatch",
+                guild_id=guild.id,
+                requester_id=member.id,
+                unexpected_role_ids=sorted(unexpected_ids),
+                missing_role_ids=sorted(missing_ids),
+            )
+            return "La actualización de roles no quedó como se esperaba. Revísala manualmente."
+        if retained_ids:
+            log_event(
+                LOGGER,
+                "warning",
+                "role_retirement_unmanageable_roles_retained",
+                guild_id=guild.id,
+                requester_id=member.id,
+                retained_role_ids=sorted(retained_ids),
+            )
+            mentions = ", ".join(f"<@&{role_id}>" for role_id in sorted(retained_ids)[:8])
+            suffix = " y otros" if len(retained_ids) > 8 else ""
+            return f"Roy no pudo retirar estos roles: {mentions}{suffix}. Revísalos manualmente."
+        return None
+
+    @staticmethod
+    def _decision_comment_with_verification(
+        comment: str | None,
+        verification_note: str | None,
+    ) -> str | None:
+        original = (comment or "").strip()
+        if verification_note is None:
+            return original or None
+        available = MAX_REASON_LENGTH - len(verification_note) - 1
+        return "\n".join(part for part in (original[:available], verification_note) if part)
 
     async def find_pending_request(
         self,
@@ -697,6 +801,7 @@ class RoleRequestService:
         await interaction.response.defer(ephemeral=True)
         try:
             async with self._creation_lock(member.guild.id, member.id):
+                member = await member.guild.fetch_member(member.id)
                 station, additions = self.ftt_entry_changes(member, station_key)
                 message, additions, _ = await self._publish_new_request(
                     interaction_id=getattr(interaction, "id", None),
@@ -767,6 +872,7 @@ class RoleRequestService:
         ):
             raise RoleRequestValidationError(self.ui.request_unavailable)
         self.validate_channel_permissions(member.guild, channel)
+        member = await member.guild.fetch_member(member.id)
         retired_role, removals = self.retirement_changes(member)
         if self.repository is not None:
             message = await self._publish_v2_request(
@@ -1268,6 +1374,7 @@ class RoleRequestService:
                 guild, member = context
 
                 current_ids = {role.id for role in member.roles if role.id != guild.default_role.id}
+                verification_note: str | None = None
                 if request.kind is RoleRequestKind.RETIREMENT:
                     retired_role_id = self.retired_role_id
                     bot_member = guild.me
@@ -1291,6 +1398,13 @@ class RoleRequestService:
                             f"Solicitud de roles {request.message_id} aprobada por {interaction.user.id}"
                         ),
                     )
+                if request.kind is RoleRequestKind.RETIREMENT:
+                    verification_note = await self._retirement_verification_note(
+                        guild,
+                        member,
+                        retired_role_id=retired_role_id,
+                        expected_role_ids=target_ids,
+                    )
 
                 unapproved_add = (
                     set() if request.kind is not RoleRequestKind.NORMAL else requested_add - approved_add
@@ -1312,10 +1426,17 @@ class RoleRequestService:
                     approved_remove_role_ids=tuple(sorted(approved_remove)),
                     unapproved_add_role_ids=tuple(sorted(unapproved_add)),
                     unapproved_remove_role_ids=tuple(sorted(unapproved_remove)),
-                    comment=comment,
+                    comment=self._decision_comment_with_verification(comment, verification_note),
                     decided_at=datetime.now(UTC),
                 )
                 await self._publish_decision(message, request, decision)
+                if verification_note is not None:
+                    with suppress(discord.Forbidden, discord.HTTPException):
+                        await interaction.followup.send(
+                            embed=self.build_alert_embed(verification_note),
+                            ephemeral=True,
+                            allowed_mentions=discord.AllowedMentions.none(),
+                        )
                 if status is RoleRequestStatus.APPROVED:
                     await self._publish_ftt_entry_welcome(request, member)
                 log_event(
@@ -1407,6 +1528,7 @@ class RoleRequestService:
                 return
 
             current_ids = {role.id for role in member.roles if role.id != guild.default_role.id}
+            verification_note: str | None = None
             if claimed.kind is RoleRequestKind.RETIREMENT:
                 retired_role_id = self.retired_role_id
                 bot_member = guild.me
@@ -1429,6 +1551,13 @@ class RoleRequestService:
                         f"aprobada por {interaction.user.id}"
                     ),
                 )
+            if claimed.kind is RoleRequestKind.RETIREMENT:
+                verification_note = await self._retirement_verification_note(
+                    guild,
+                    member,
+                    retired_role_id=retired_role_id,
+                    expected_role_ids=target_ids,
+                )
             unapproved_add = (
                 set() if claimed.kind is not RoleRequestKind.NORMAL else requested_add - approved_add
             )
@@ -1447,11 +1576,18 @@ class RoleRequestService:
                 approved_remove_role_ids=tuple(sorted(approved_remove)),
                 unapproved_add_role_ids=tuple(sorted(unapproved_add)),
                 unapproved_remove_role_ids=tuple(sorted(unapproved_remove)),
-                comment=(comment or "").strip() or None,
+                comment=self._decision_comment_with_verification(comment, verification_note),
                 decided_at=datetime.now(UTC),
             )
             decided = await repository.finalize(claimed.id, decision)
             await self._publish_v2_decision(decided, decision)
+            if verification_note is not None:
+                with suppress(discord.Forbidden, discord.HTTPException):
+                    await interaction.followup.send(
+                        embed=self.build_alert_embed(verification_note),
+                        ephemeral=True,
+                        allowed_mentions=discord.AllowedMentions.none(),
+                    )
             if status is RoleRequestStatus.APPROVED:
                 await self._publish_ftt_entry_welcome(decided, member)
             log_event(
@@ -1540,6 +1676,7 @@ class RoleRequestService:
                 or retired_role is None
                 or stored.add_role_ids != (self.retired_role_id,)
                 or self._role_is_protected(retired_role, bot_member)
+                or not self._guided_requester_is_eligible(member, stored.kind)
             )
         else:
             roles = tuple(
@@ -1549,6 +1686,7 @@ class RoleRequestService:
                 bot_member is None
                 or any(role is None for role in roles)
                 or any(self._role_is_protected(role, bot_member) for role in roles if role is not None)
+                or not self._guided_requester_is_eligible(member, stored.kind)
             )
         if invalid:
             raise RoleRequestCodecError("role request roles are unavailable")
@@ -1810,6 +1948,7 @@ class RoleRequestService:
                 or retired_role is None
                 or request.add_role_ids != (self.retired_role_id,)
                 or self._role_is_protected(retired_role, bot_member)
+                or not self._guided_requester_is_eligible(member, request.kind)
             )
         else:
             requested_roles = tuple(
@@ -1821,6 +1960,7 @@ class RoleRequestService:
                 or any(
                     self._role_is_protected(role, bot_member) for role in requested_roles if role is not None
                 )
+                or not self._guided_requester_is_eligible(member, request.kind)
             )
         if invalid_roles:
             await self._close_failed(
@@ -2273,9 +2413,13 @@ class RoleRequestStartView(discord.ui.View):
         self.normal_button.label = ROLE_REQUEST_MODAL_COPY.normal_button
         self.ftt_entry_button.label = ROLE_REQUEST_MODAL_COPY.ftt_entry_button
         self.retirement_button.label = ROLE_REQUEST_MODAL_COPY.retirement_button
-        if not service.ftt_entry_enabled:
+        active_member = service.is_active_member(member)
+        retired_member = service.retired_role_id is not None and any(
+            role.id == service.retired_role_id for role in member.roles
+        )
+        if not service.ftt_entry_enabled or active_member or retired_member:
             self.remove_item(self.ftt_entry_button)
-        if not service.retirement_enabled:
+        if not service.retirement_enabled or not active_member or retired_member:
             self.remove_item(self.retirement_button)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -2316,6 +2460,7 @@ class RoleRequestStartView(discord.ui.View):
         interaction: discord.Interaction,
     ) -> None:
         try:
+            self.service._validate_ftt_entry_member(self.member)
             modal = FttEntryRoleRequestModal(
                 self.service,
                 member=self.member,
@@ -2797,9 +2942,9 @@ class RoleRequestCog(commands.Cog):
             embed.add_field(
                 name="📤 Retiro de la facción",
                 value=(
-                    "Elige **Solicitar retiro** al abrir `/solicitar-roles`. "
-                    "No tendrás que indicar bajas: al aprobarse se conservará únicamente "
-                    "el rol de retiro dentro del catálogo gestionado."
+                    "Si eres miembro activo, elige **Solicitar retiro** al abrir `/solicitar-roles`. "
+                    "No tendrás que indicar bajas: al aprobarse Roy retirará los roles "
+                    "que pueda administrar y asignará el rol de retiro."
                 ),
                 inline=False,
             )
@@ -2807,7 +2952,8 @@ class RoleRequestCog(commands.Cog):
             embed.add_field(
                 name="🎓 Ingreso FTT",
                 value=(
-                    "Elige **Ingreso FTT**, selecciona tu estación y el bot preparará "
+                    "Si aún no perteneces a la facción, elige **Ingreso FTT**, selecciona "
+                    "tu estación y el bot preparará "
                     "automáticamente todos los roles iniciales necesarios."
                 ),
                 inline=False,

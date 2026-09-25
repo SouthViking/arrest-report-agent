@@ -245,6 +245,12 @@ def test_role_request_retirement_requires_explicit_managed_catalog(settings) -> 
         mode=AccessPolicyMode.RESTRICTED,
         ids=(1261076248541532240, 1234678185124298853),
     )
+    policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES] = AccessPolicySnapshot(
+        key=AccessPolicyKey.OPERATIONAL_STAFF_ROLES,
+        subject_type="role",
+        mode=AccessPolicyMode.RESTRICTED,
+        ids=(1234675327872012328,),
+    )
     values = {
         "guild_id": 1,
         "revision_id": uuid4(),
@@ -276,6 +282,14 @@ def test_role_request_retirement_requires_explicit_managed_catalog(settings) -> 
     invalid["policies"][AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]["mode"] = AccessPolicyMode.OPEN
     invalid["policies"][AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]["ids"] = ()
     with pytest.raises(ValueError, match="explicit managed-role catalog"):
+        GuildConfigSnapshot.model_validate(invalid)
+
+    invalid = snapshot.model_dump()
+    invalid["policies"][AccessPolicyKey.OPERATIONAL_STAFF_ROLES]["mode"] = (
+        AccessPolicyMode.DISABLED
+    )
+    invalid["policies"][AccessPolicyKey.OPERATIONAL_STAFF_ROLES]["ids"] = ()
+    with pytest.raises(ValueError, match="restricted operational staff roles"):
         GuildConfigSnapshot.model_validate(invalid)
 
     invalid = snapshot.model_dump()

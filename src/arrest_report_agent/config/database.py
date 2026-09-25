@@ -498,6 +498,10 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if role_requests_feature.schema_version != 1:
                 raise ValueError("role_requests requires feature schema version 1")
             options = RoleRequestOptions.model_validate(role_requests_feature.payload)
+            if options.retired_role_id is not None or options.ftt_entry is not None:
+                operational_roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
+                if operational_roles.mode is not AccessPolicyMode.RESTRICTED or not operational_roles.ids:
+                    raise ValueError("guided role requests require restricted operational staff roles")
             if options.retired_role_id is not None:
                 allowed_roles = self.policies[AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]
                 if allowed_roles.mode is not AccessPolicyMode.RESTRICTED:

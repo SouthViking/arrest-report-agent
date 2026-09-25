@@ -143,10 +143,11 @@ IA y persiste el expediente y sus referencias en PostgreSQL. `/info-roles` perma
 cualquier canal o hilo de una guild habilitada.
 
 Cuando `role_requests` define `retired_role_id`, `/solicitar-roles` ofrece un flujo separado para
-pedir el retiro de la facción. Ese formulario no solicita bajas manuales: al aprobarlo, el bot
-vuelve a consultar al miembro, retira todos los roles que pertenezcan al catálogo gestionado y
-asigna el rol de retiro mediante una única edición. Los roles externos al catálogo se conservan y
-la solicitud de retiro solo admite aprobación completa o rechazo.
+miembros con alguno de los `operational_staff_roles`. Ese formulario no solicita bajas manuales:
+al aprobarlo, el bot vuelve a consultar al miembro, retira todos los roles que puede administrar
+y asigna el rol de retiro mediante una única edición. Verifica el resultado y avisa al aprobador
+si quedaron roles que no puede retirar. El ingreso FTT se muestra solo a personas sin esos roles
+operativos ni el rol de retiro; el reingreso desde `Retired` requiere gestión aparte.
 
 El módulo determinista de pagers persiste sus avisos, múltiples roles destinatarios y respondientes
 en PostgreSQL. `/pager` emite el aviso en el canal autorizado, `/pager-activos` enlaza los avisos

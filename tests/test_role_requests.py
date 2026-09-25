@@ -571,7 +571,9 @@ def _retirement_service(env, retired_role_id: int = 704) -> tuple[RoleRequestSer
             "role_request_retired_role_id": retired.id,
         }
     )
-    return RoleRequestService(env.service.bot, configured, env.service.persona), retired
+    service = RoleRequestService(env.service.bot, configured, env.service.persona)
+    service.operational_staff_role_ids = frozenset({env.requester.top_role.id})
+    return service, retired
 
 
 def _ftt_entry_service(env) -> tuple[RoleRequestService, tuple[FakeRole, ...]]:
@@ -597,6 +599,7 @@ def _ftt_entry_service(env) -> tuple[RoleRequestService, tuple[FakeRole, ...]]:
     env.guild._channels[WELCOME_CHANNEL_ID] = welcome_channel
     env.guild.text_channels.append(welcome_channel)
     service = RoleRequestService(env.service.bot, configured, env.service.persona)
+    service.operational_staff_role_ids = frozenset({712})
     service.ftp_request_channel_id = 1551692208929906701
     service.ftt_entry_options = RoleRequestFttEntryOptions(
         base_role_ids=(710, 711, 712, 713),
@@ -897,6 +900,33 @@ def test_retirement_codec_accepts_legacy_disabled_partial_button(role_request_en
     assert request.kind is RoleRequestKind.RETIREMENT
 
 
+def test_retirement_codec_accepts_previous_request_description(role_request_env) -> None:
+    service, retired = _retirement_service(role_request_env)
+    embed = build_pending_embed(
+        requester=role_request_env.requester,
+        add_role_ids=(retired.id,),
+        remove_role_ids=(703,),
+        reason=None,
+        ui=service.ui,
+        created_at=datetime.now(UTC),
+        message_id=852,
+        kind=RoleRequestKind.RETIREMENT,
+    )
+    for field in embed.fields:
+        if field.name == REQUEST_KIND_FIELD_TITLE:
+            field.value = "Retiro de la facción · se retirarán los roles gestionados actuales."
+    message = FakeMessage(message_id=852, channel=role_request_env.channel, embed=embed)
+    message.components[0].children[1].disabled = True
+
+    request = decode_pending_message(
+        message,
+        bot_user_id=BOT_ID,
+        allowed_channel_ids=frozenset({CHANNEL_ID}),
+    )
+
+    assert request.kind is RoleRequestKind.RETIREMENT
+
+
 def test_pending_codec_round_trip_supports_ftt_entry(role_request_env) -> None:
     service, roles = _ftt_entry_service(role_request_env)
     embed = build_pending_embed(
@@ -1144,7 +1174,7 @@ async def test_retirement_uses_reduced_modal_and_is_excluded_from_normal_catalog
 
 
 @pytest.mark.asyncio
-async def test_retirement_approval_recalculates_managed_roles_and_preserves_external_roles(
+async def test_retirement_approval_removes_all_manageable_roles_including_uncatalogued_ones(
     role_request_env,
 ) -> None:
     service, retired = _retirement_service(role_request_env)
@@ -1165,22 +1195,175 @@ async def test_retirement_approval_recalculates_managed_roles_and_preserves_exte
     )
     assert request.kind is RoleRequestKind.RETIREMENT
     assert request.add_role_ids == (retired.id,)
-    assert request.remove_role_ids == (role_request_env.removable.id,)
+    assert set(request.remove_role_ids) == {
+        role_request_env.removable.id,
+        role_request_env.requester.top_role.id,
+    }
     assert [child.custom_id for child in message.components[0].children] == [
         APPROVE_ALL_CUSTOM_ID,
         REJECT_CUSTOM_ID,
     ]
 
-    # This managed role was assigned after the request and must still be removed.
+    # Another role assigned after the request must still be removed.
     role_request_env.requester.roles.append(role_request_env.add_two)
     decision = _interaction(role_request_env, message)
     await service.approve_all(decision)
 
     final_ids = {role.id for role in role_request_env.requester.roles}
-    assert final_ids == {role_request_env.requester.top_role.id, retired.id}
+    assert final_ids == {retired.id}
     assert len(role_request_env.requester.edit_calls) == 1
     approved = {field.name: field.value for field in message.embeds[0].fields}[APPROVED_CHANGES_TITLE]
     assert role_request_env.add_two.mention in approved
+
+
+@pytest.mark.asyncio
+async def test_guided_role_request_buttons_follow_operational_membership(role_request_env) -> None:
+    service, retired = _retirement_service(role_request_env)
+    ftt_service, ftt_roles = _ftt_entry_service(role_request_env)
+    service.ftt_entry_options = ftt_service.ftt_entry_options
+    service.operational_staff_role_ids = frozenset({role_request_env.requester.top_role.id, 712})
+
+    def labels() -> list[str]:
+        view = RoleRequestStartView(
+            service,
+            member=role_request_env.requester,
+            channel=role_request_env.channel,
+        )
+        return [child.label for child in view.children]
+
+    assert labels() == [
+        ROLE_REQUEST_MODAL_COPY.normal_button,
+        ROLE_REQUEST_MODAL_COPY.retirement_button,
+    ]
+    role_request_env.requester.roles.remove(role_request_env.requester.top_role)
+    assert labels() == [
+        ROLE_REQUEST_MODAL_COPY.normal_button,
+        ROLE_REQUEST_MODAL_COPY.ftt_entry_button,
+    ]
+    role_request_env.requester.roles.append(ftt_roles[2])
+    assert labels() == [
+        ROLE_REQUEST_MODAL_COPY.normal_button,
+        ROLE_REQUEST_MODAL_COPY.retirement_button,
+    ]
+    role_request_env.requester.roles.append(retired)
+    assert labels() == [ROLE_REQUEST_MODAL_COPY.normal_button]
+
+
+def test_guided_request_submission_rechecks_member_roles(role_request_env) -> None:
+    retirement_service, retired = _retirement_service(role_request_env)
+    ftt_service, ftt_roles = _ftt_entry_service(role_request_env)
+    ftt_service.operational_staff_role_ids = frozenset({role_request_env.requester.top_role.id, 712})
+    ftt_service.retired_role_id = retired.id
+
+    with pytest.raises(RoleRequestValidationError, match="perteneces a la facción"):
+        ftt_service.ftt_entry_changes(role_request_env.requester, "ganton")
+
+    role_request_env.requester.roles.remove(role_request_env.requester.top_role)
+    with pytest.raises(RoleRequestValidationError, match="miembros activos"):
+        retirement_service.retirement_changes(role_request_env.requester)
+
+    role_request_env.requester.roles.append(ftt_roles[2])
+    with pytest.raises(RoleRequestValidationError, match="perteneces a la facción"):
+        ftt_service.ftt_entry_changes(role_request_env.requester, "ganton")
+
+    role_request_env.requester.roles.append(retired)
+    with pytest.raises(RoleRequestValidationError, match="reingreso"):
+        ftt_service.ftt_entry_changes(role_request_env.requester, "ganton")
+
+
+@pytest.mark.asyncio
+async def test_retirement_warns_reviewer_about_roles_bot_cannot_remove(role_request_env) -> None:
+    service, retired = _retirement_service(role_request_env)
+    managed = FakeRole(920, name="Integración", position=2, managed=True)
+    higher = FakeRole(921, name="Externo", position=51)
+    for role in (managed, higher):
+        role.guild = role_request_env.guild
+        role_request_env.guild.roles.append(role)
+        role_request_env.guild._roles[role.id] = role
+        role_request_env.requester.roles.append(role)
+
+    creation = _interaction(role_request_env, SimpleNamespace(id=0), user=role_request_env.requester)
+    await service.create_retirement_request(
+        creation,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+        reason=None,
+    )
+    message = next(iter(role_request_env.channel.messages.values()))
+    decision = _interaction(role_request_env, message)
+    await service.approve_all(decision)
+
+    assert {role.id for role in role_request_env.requester.roles} == {retired.id, managed.id, higher.id}
+    warning = decision.followup.messages[-1]["embed"].description
+    assert managed.mention in warning
+    assert higher.mention in warning
+    assert decision.followup.messages[-1]["ephemeral"] is True
+
+
+@pytest.mark.asyncio
+async def test_v2_retirement_removes_roles_outside_catalog(role_request_env) -> None:
+    service, retired = _retirement_service(role_request_env)
+    repository = FakeRoleRequestRepository()
+    service.repository = repository  # type: ignore[assignment]
+    review_channel = FakeChannel(210)
+    review_channel.guild = role_request_env.guild
+    role_request_env.guild._channels[review_channel.id] = review_channel
+    role_request_env.guild.text_channels.append(review_channel)
+    service.review_channel_ids = (review_channel.id,)
+    creation = _interaction(role_request_env, SimpleNamespace(id=0), user=role_request_env.requester)
+
+    await service.create_retirement_request(
+        creation,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+        reason=None,
+    )
+    role_request_env.requester.roles.append(role_request_env.add_two)
+    review_message = next(iter(review_channel.messages.values()))
+    await service.approve_all(_interaction(role_request_env, review_message))
+
+    assert repository.request is not None
+    assert repository.request.status is StoredRoleRequestStatus.APPROVED
+    assert {role.id for role in role_request_env.requester.roles} == {retired.id}
+    assert len(role_request_env.requester.edit_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_retirement_approval_rechecks_current_membership(role_request_env) -> None:
+    service, retired = _retirement_service(role_request_env)
+    creation = _interaction(role_request_env, SimpleNamespace(id=0), user=role_request_env.requester)
+    await service.create_retirement_request(
+        creation,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+        reason=None,
+    )
+    message = next(iter(role_request_env.channel.messages.values()))
+    role_request_env.requester.roles.remove(role_request_env.requester.top_role)
+
+    await service.approve_all(_interaction(role_request_env, message))
+
+    assert not role_request_env.requester.edit_calls
+    assert retired not in role_request_env.requester.roles
+
+
+@pytest.mark.asyncio
+async def test_ftt_approval_rechecks_current_membership(role_request_env) -> None:
+    service, roles = _ftt_entry_service(role_request_env)
+    creation = _interaction(role_request_env, SimpleNamespace(id=0), user=role_request_env.requester)
+    await service.create_ftt_entry_request(
+        creation,
+        member=role_request_env.requester,
+        channel=role_request_env.channel,
+        station_key="ganton",
+    )
+    message = next(iter(role_request_env.channel.messages.values()))
+    role_request_env.requester.roles.append(roles[2])
+
+    await service.approve_all(_interaction(role_request_env, message))
+
+    assert not role_request_env.requester.edit_calls
+    assert roles[0] not in role_request_env.requester.roles
 
 
 @pytest.mark.asyncio

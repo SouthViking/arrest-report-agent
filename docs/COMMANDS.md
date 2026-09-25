@@ -598,11 +598,13 @@ Si el módulo configura el ingreso FTT o un rol de retiro, el comando muestra pr
 para elegir el flujo. **Ingreso FTT** solicita únicamente la estación de destino y prepara el paquete
 de roles iniciales configurado, omitiendo los que el miembro ya posea. La solicitud queda identificada
 como ingreso en sus tarjetas pública y privada, y solo admite aprobación o rechazo completos.
-**Solicitar retiro** usa un formulario reducido con motivo opcional
-y confirmación explícita; no presenta selectores de altas o bajas. La solicitud agrega el rol de
-retiro y muestra los roles gestionados actuales que se retirarán. Al aprobarla, el bot recalcula
-ese conjunto para incluir cambios posteriores, conserva los roles ajenos al catálogo y ejecuta una
-sola edición atómica. No existe aprobación parcial para un retiro.
+**Solicitar retiro** se muestra solo a miembros con un rol de `operational_staff_roles` y usa un
+formulario reducido con motivo opcional y confirmación explícita. La solicitud agrega el rol de
+retiro y muestra los roles administrables actuales que se retirarán. Al aprobarla, el bot recalcula
+ese conjunto para incluir cambios posteriores, quita todos los roles que puede administrar y
+ejecuta una sola edición. Luego comprueba el resultado y advierte si quedan roles que Roy no puede
+retirar. El ingreso FTT solo aparece a quienes no tienen un rol operativo ni `Retired`; ambos
+criterios se vuelven a comprobar al enviar y aprobar. No existe aprobación parcial para un retiro.
 
 La solicitud deja en el mismo canal un embed público sin motivo, revisor ni comentario. PostgreSQL
 conserva el expediente y las referencias a sus copias privadas; cada canal configurado en

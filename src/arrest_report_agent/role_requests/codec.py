@@ -19,7 +19,8 @@ REJECT_CUSTOM_ID = f"{CODEC_VERSION}:reject"
 DECISION_CUSTOM_IDS = frozenset({APPROVE_ALL_CUSTOM_ID, APPROVE_PARTIAL_CUSTOM_ID, REJECT_CUSTOM_ID})
 EMPTY_VALUE = "—"
 REQUEST_KIND_FIELD_TITLE = "📤 Tipo de solicitud"
-RETIREMENT_REQUEST_VALUE = "Retiro de la facción · se retirarán los roles gestionados actuales."
+RETIREMENT_REQUEST_VALUE = "Retiro de la facción · se retirarán los roles administrables actuales."
+LEGACY_RETIREMENT_REQUEST_VALUE = "Retiro de la facción · se retirarán los roles gestionados actuales."
 FTT_ENTRY_REQUEST_VALUE = "Ingreso a la facción · Field Training Trainee"
 FTT_ENTRY_PENDING_TITLE = "📋 Solicitud de ingreso FTT"
 STATION_FIELD_TITLE = "📍 Estación de destino"
@@ -441,7 +442,7 @@ def _validate_pending_components(
 def _parse_request_kind(value: str | None) -> RoleRequestKind:
     if value is None:
         return RoleRequestKind.NORMAL
-    if value.strip() == RETIREMENT_REQUEST_VALUE:
+    if value.strip() in {RETIREMENT_REQUEST_VALUE, LEGACY_RETIREMENT_REQUEST_VALUE}:
         return RoleRequestKind.RETIREMENT
     if value.strip() == FTT_ENTRY_REQUEST_VALUE:
         return RoleRequestKind.FTT_ENTRY

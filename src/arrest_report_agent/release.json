@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.38.15",
-  "title": "Mejor contexto en los hilos de revisión",
-  "summary": "Las revisiones de arresto conservan mejor lo consultado en interacciones anteriores del mismo hilo.",
+  "version": "0.38.16",
+  "title": "Solicitudes de roles más claras",
+  "summary": "El formulario muestra las opciones que corresponden a cada miembro y completa mejor las solicitudes de retiro.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,11 @@
   "changes": [
     {
       "type": "improved",
-      "text": "El agente puede reutilizar llamadas y resultados previos del expediente entre interacciones del propietario y del staff, manteniendo sus permisos de herramientas."
+      "text": "Ingreso FTT y retiro aparecen según la membresía del solicitante; se vuelve a comprobar antes de aprobar."
     },
     {
-      "type": "improved",
-      "text": "Cuando ya conoce los datos necesarios, consulta los antecedentes legales en paralelo con otras herramientas para reducir turnos de revisión."
+      "type": "fixed",
+      "text": "Al aprobar un retiro, Roy quita todos los roles que puede administrar, no solo los del catálogo de solicitudes, y avisa si queda alguno pendiente."
     }
   ],
   "acknowledgements": []
