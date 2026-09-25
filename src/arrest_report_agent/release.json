@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.38.13",
-  "title": "Consultas de evidencias más ágiles",
-  "summary": "El agente puede consultar varias bolsas de evidencia en una sola solicitud.",
+  "version": "0.38.14",
+  "title": "Más turnos para revisar un reporte",
+  "summary": "Ahora es posible ampliar los turnos de revisión de un reporte desde su propio hilo.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,11 @@
   "changes": [
     {
       "type": "improved",
-      "text": "Al revisar un caso, el agente puede consultar varias bolsas de evidencia a la vez y distinguir el resultado de cada una."
+      "text": "Los usuarios autorizados pueden conceder turnos adicionales al autor de un reporte desde el hilo correspondiente."
     },
     {
       "type": "improved",
-      "text": "Puede incluir la cadena de custodia y los datos del análisis según lo que se necesite de cada bolsa; la consulta individual sigue disponible."
+      "text": "El hilo muestra un aviso con los turnos disponibles tras el ajuste y quién lo autorizó."
     }
   ],
   "acknowledgements": []
