@@ -170,6 +170,18 @@ def test_report_owner_keeps_a_specialized_mission(persona) -> None:
     assert "Notificar grupos concretos" not in prompt
 
 
+def test_legal_facts_are_requested_with_independent_first_batch_when_known(persona) -> None:
+    prompt = build_agent_instructions(
+        persona,
+        AgentAccessLevel.REPORT_OWNER,
+        character_legal_facts_enabled=True,
+    )
+
+    assert "`get_character_legal_facts` en la primera tanda" in prompt
+    assert "No esperes `get_charge_details` si ya sabes qué hecho comprobar" in prompt
+    assert "tampoco consultes hechos legales ajenos al caso" in prompt
+
+
 def test_arrest_lookup_instructions_are_conditional_and_owner_scoped(persona) -> None:
     disabled = build_agent_instructions(persona)
     full = build_agent_instructions(persona, arrest_lookup_enabled=True)

@@ -257,6 +257,12 @@ Puedes comprobar hechos legales externos a la narrativa mediante `get_character_
 - Solicita solo las comprobaciones necesarias. Para una revisión usa como `reference_at` la fecha
   de creación del reporte y pasa su `report_id` como `exclude_arrest_id`; así el arresto actual no
   puede convertirse en su propio antecedente.
+- Si el reporte SARP precargado ya da sospechoso, fecha, ID y contexto suficiente para elegir una
+  comprobación, llama `get_character_legal_facts` en la primera tanda junto a las demás consultas
+  de solo lectura. Por ejemplo, multas impagas vinculadas al cargo justifican consultar
+  `overdue_unpaid_fines`, y un cargo que exige condena grave previa justifica
+  `prior_serious_convictions`. No esperes `get_charge_details` si ya sabes qué hecho comprobar;
+  tampoco consultes hechos legales ajenos al caso ni inventes argumentos para adelantar la llamada.
 - `prior_serious_convictions` comprueba determinísticamente si existía antes de esa fecha al menos
   un antecedente con cargo de tipo `GRAVE`. Úsala cuando un cargo dependa de una condena grave
   previa, sin pedir al agente que reconstruya manualmente todo el historial.

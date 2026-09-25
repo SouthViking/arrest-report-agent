@@ -72,8 +72,18 @@ class RecordingAgentSessionManager:
     def __init__(self) -> None:
         self.calls = []
 
-    async def prepare(self, key, *, next_source_cursor):
-        self.calls.append((key, next_source_cursor))
+    async def prepare(
+        self,
+        key,
+        *,
+        next_source_cursor,
+        readable_partitions=(),
+        history_filter=None,
+        include_readable_cursors=True,
+    ):
+        self.calls.append(
+            (key, next_source_cursor, readable_partitions, history_filter, include_readable_cursors)
+        )
         return PreparedAgentSession(
             session=SimpleNamespace(session_id=key.session_id),  # type: ignore[arg-type]
             source_cursor="10",
@@ -173,10 +183,30 @@ async def test_persistent_session_is_activated_only_in_configured_report_channel
     assert prepared is not None
     assert prepared.source_cursor == "10"
     assert skipped is None
-    key, cursor = manager.calls[0]
+    key, cursor, readable_partitions, history_filter, include_readable_cursors = manager.calls[0]
     assert key.namespace == "discord_agent_thread"
     assert key.access_partition == "full"
     assert cursor == "30"
+    assert readable_partitions == (AgentAccessLevel.REPORT_OWNER.value,)
+    assert history_filter is None
+    assert include_readable_cursors is True
+
+    await cog._prepare_agent_session(report_case, AgentAccessLevel.REPORT_OWNER)  # noqa: SLF001
+    assert manager.calls[-1][2] == (AgentAccessLevel.FULL.value,)
+    assert manager.calls[-1][3] is not None
+    assert manager.calls[-1][4] is True
+
+
+def test_staff_session_uses_latest_visible_partition_cursor() -> None:
+    session = PreparedAgentSession(
+        session=SimpleNamespace(session_id="test"),  # type: ignore[arg-type]
+        source_cursor="100",
+        readable_source_cursors=("120",),
+        created=False,
+    )
+
+    assert ReviewCog._source_cursor_as_message_id(session) == 120  # noqa: SLF001
+    assert ReviewCog._source_cursor_as_message_id(session, include_readable=False) == 100  # noqa: SLF001
 
 def test_operational_commands_are_registered_at_the_root() -> None:
     commands = [

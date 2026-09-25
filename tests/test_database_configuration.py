@@ -2488,5 +2488,39 @@ async def _exercise_database(database_url: str) -> None:
         assert not resumed_session.created
         assert resumed_session.source_cursor == "100"
         assert await resumed_session.session.get_items() == [{"role": "user", "content": "primera consulta"}]
+
+        owner_key = AgentConversationKey(
+            namespace="discord_agent_thread",
+            scope_key="guild:123:root:457",
+            access_partition="report_owner",
+        )
+        staff_key = AgentConversationKey(
+            namespace="discord_agent_thread",
+            scope_key="guild:123:root:457",
+            access_partition="full",
+        )
+        owner = await session_manager.prepare(owner_key, next_source_cursor="300")
+        await owner.session.add_items(  # type: ignore[arg-type]
+            [
+                {"role": "user", "content": "revisión inicial"},
+                {"type": "function_call", "name": "get_character_legal_facts", "call_id": "facts"},
+                {"type": "function_call_output", "call_id": "facts", "output": "dos multas"},
+            ]
+        )
+        staff = await session_manager.prepare(
+            staff_key,
+            next_source_cursor="400",
+            readable_partitions=("report_owner",),
+        )
+        assert staff.readable_source_cursors == ("300",)
+        assert [item["type"] for item in await staff.session.get_items() if "type" in item] == [
+            "function_call",
+            "function_call_output",
+        ]
+        await staff.session.add_items(  # type: ignore[arg-type]
+            [{"role": "assistant", "content": "solo staff"}]
+        )
+        assert len(await staff.session.get_items()) == 4
+        assert len(await owner.session.get_items()) == 3
     finally:
         await client.close()

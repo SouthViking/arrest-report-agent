@@ -616,6 +616,7 @@ def render_agent_input(
     case: ReviewCase,
     *,
     after_message_id: int | None = None,
+    include_assistant_delta: bool = False,
     preloaded_arrest_report: ArrestReportDetail | None = None,
 ) -> list[dict[str, Any]]:
     """Render full Discord history or only new source turns for a persistent session."""
@@ -624,7 +625,10 @@ def render_agent_input(
         message
         for message in case.messages
         if after_message_id is None
-        or (message.id > after_message_id and not message.author_is_assistant)
+        or (
+            message.id > after_message_id
+            and (include_assistant_delta or not message.author_is_assistant)
+        )
     ]
 
     omitted_assistant_message_ids = {

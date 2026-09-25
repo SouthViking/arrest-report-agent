@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
+
 import sqlalchemy as sa
+from agents.items import TResponseInputItem
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from arrest_report_agent.infrastructure.postgres import PostgresClient
-from arrest_report_agent.infrastructure.postgres.schema import agent_sessions
+from arrest_report_agent.infrastructure.postgres.schema import agent_messages, agent_sessions
 
 from .models import AgentConversationKey, AgentSessionRecord
 
@@ -61,3 +64,37 @@ class AgentSessionRepository:
         )
         if result.rowcount != 1:
             raise LookupError("Agent session disappeared while advancing its source cursor")
+
+    async def read_source_cursor(self, key: AgentConversationKey) -> str | None:
+        row = await self.client.fetch_one(
+            sa.select(agent_sessions.c.source_cursor).where(
+                agent_sessions.c.session_id == key.session_id
+            )
+        )
+        return str(row["source_cursor"]) if row and row["source_cursor"] is not None else None
+
+    async def read_items(
+        self,
+        key: AgentConversationKey,
+        *,
+        readable_partitions: tuple[str, ...],
+    ) -> list[tuple[str, TResponseInputItem]]:
+        """Read partition-tagged items in chronological order for an access-aware view."""
+
+        session_ids = [
+            AgentConversationKey(key.namespace, key.scope_key, partition).session_id
+            for partition in (key.access_partition, *readable_partitions)
+        ]
+        rows = await self.client.fetch_all(
+            sa.select(agent_messages.c.session_id, agent_messages.c.message_data)
+            .where(agent_messages.c.session_id.in_(session_ids))
+            .order_by(agent_messages.c.created_at, agent_messages.c.id)
+        )
+        items: list[tuple[str, TResponseInputItem]] = []
+        for row in rows:
+            try:
+                items.append((str(row["session_id"]), json.loads(row["message_data"])))
+            except json.JSONDecodeError:
+                # Match the SDK session's handling of a corrupt stored item.
+                continue
+        return items

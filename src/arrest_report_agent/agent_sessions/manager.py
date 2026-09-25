@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from agents.extensions.memory import SQLAlchemySession
+from agents.items import TResponseInputItem
 from agents.memory import Session, SessionSettings
 from openai.types.responses import ResponseInputItemParam
 
@@ -20,6 +21,10 @@ from .repository import AgentSessionRepository
 
 LOGGER = logging.getLogger(__name__)
 SessionFactory = Callable[[str], Session]
+SessionHistoryFilter = Callable[
+    [list[tuple[str, TResponseInputItem]]],
+    list[TResponseInputItem],
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +32,7 @@ class PreparedAgentSession:
     session: Session
     source_cursor: str | None
     created: bool
+    readable_source_cursors: tuple[str, ...] = ()
 
 
 class _CursorTrackingSession:
@@ -39,17 +45,35 @@ class _CursorTrackingSession:
         *,
         next_source_cursor: str,
         key: AgentConversationKey,
+        readable_partitions: tuple[str, ...] = (),
+        history_filter: SessionHistoryFilter | None = None,
     ) -> None:
         self._delegate = delegate
         self._repository = repository
         self._next_source_cursor = next_source_cursor
         self._key = key
+        self._readable_partitions = readable_partitions
+        self._history_filter = history_filter
         self._cursor_pending = True
         self.session_id = delegate.session_id
         self.session_settings: SessionSettings | None = delegate.session_settings
 
     async def get_items(self, limit: int | None = None) -> list[ResponseInputItemParam]:
         try:
+            if self._readable_partitions:
+                stored = await self._repository.read_items(
+                    self._key,
+                    readable_partitions=self._readable_partitions,
+                )
+                items = (
+                    self._history_filter(stored)
+                    if self._history_filter is not None
+                    else [item for _, item in stored]
+                )
+                resolved_limit = limit if limit is not None else getattr(self.session_settings, "limit", None)
+                if resolved_limit is not None:
+                    return items[-resolved_limit:] if resolved_limit > 0 else []
+                return items
             return await self._delegate.get_items(limit)
         except Exception as error:
             self._log_storage_failure("agent_session_read_failed", error)
@@ -135,14 +159,31 @@ class AgentSessionManager:
         key: AgentConversationKey,
         *,
         next_source_cursor: str,
+        readable_partitions: tuple[str, ...] = (),
+        history_filter: SessionHistoryFilter | None = None,
+        include_readable_cursors: bool = True,
     ) -> PreparedAgentSession:
         record = await self.repository.get_or_create(key)
+        readable_partitions = tuple(
+            partition for partition in dict.fromkeys(readable_partitions)
+            if partition != key.access_partition
+        )
+        readable_cursors_list: list[str] = []
+        if include_readable_cursors:
+            for partition in readable_partitions:
+                cursor = await self.repository.read_source_cursor(
+                    AgentConversationKey(key.namespace, key.scope_key, partition)
+                )
+                if cursor is not None:
+                    readable_cursors_list.append(cursor)
         delegate = self._session_factory(record.session_id)
         session = _CursorTrackingSession(
             delegate,
             self.repository,
             next_source_cursor=next_source_cursor,
             key=key,
+            readable_partitions=readable_partitions,
+            history_filter=history_filter,
         )
         log_event(
             LOGGER,
@@ -157,4 +198,5 @@ class AgentSessionManager:
             session=session,
             source_cursor=record.source_cursor,
             created=record.created,
+            readable_source_cursors=tuple(readable_cursors_list),
         )

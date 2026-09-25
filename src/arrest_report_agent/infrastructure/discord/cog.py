@@ -29,6 +29,7 @@ from arrest_report_agent.application import (
     ReviewService,
 )
 from arrest_report_agent.application.errors import public_error_message
+from arrest_report_agent.application.session_visibility import owner_visible_session_items
 from arrest_report_agent.config import (
     AppSettings,
     ArrestReportAttachmentMode,
@@ -797,16 +798,30 @@ class ReviewCog(commands.Cog):
                     report_snapshot_current=report_snapshot_current,
                 )
                 prepared_session = await self._prepare_agent_session(case, access_level)
-                source_cursor = self._source_cursor_as_message_id(prepared_session)
+                latest_cursor = self._source_cursor_as_message_id(prepared_session)
                 if (
                     prepared_session is not None
-                    and prepared_session.source_cursor is not None
-                    and source_cursor is None
+                    and (
+                        prepared_session.source_cursor is not None
+                        or prepared_session.readable_source_cursors
+                    )
+                    and latest_cursor is None
                 ):
                     prepared_session = None
+                owner_access = access_level is AgentAccessLevel.REPORT_OWNER
+                source_cursor = self._source_cursor_as_message_id(
+                    prepared_session,
+                    include_readable=not owner_access,
+                )
                 agent_input = render_agent_input(
                     case,
                     after_message_id=source_cursor,
+                    include_assistant_delta=(
+                        owner_access
+                        and source_cursor is not None
+                        and latest_cursor is not None
+                        and latest_cursor > source_cursor
+                    ),
                     preloaded_arrest_report=preloaded_arrest_report,
                 )
                 try:
@@ -958,7 +973,29 @@ class ReviewCog(commands.Cog):
         )
         next_cursor = str(max((message.id for message in case.messages), default=case.trigger_message_id))
         try:
-            return await manager.prepare(key, next_source_cursor=next_cursor)
+            owner_access = access_level is AgentAccessLevel.REPORT_OWNER
+            return await manager.prepare(
+                key,
+                next_source_cursor=next_cursor,
+                readable_partitions=(
+                    (AgentAccessLevel.FULL.value,)
+                    if owner_access
+                    else (AgentAccessLevel.REPORT_OWNER.value,)
+                ),
+                history_filter=(
+                    partial(
+                        owner_visible_session_items,
+                        owner_session_id=key.session_id,
+                        suspect_name=case.structured_suspect_name,
+                        report_id=case.structured_report_id,
+                        parent_channel_id=case.parent_channel_id,
+                        root_message_id=case.root_message_id,
+                        thread_id=case.thread_id,
+                    )
+                    if owner_access
+                    else None
+                ),
+            )
         except Exception as error:
             log_event(
                 LOGGER,
@@ -977,11 +1014,25 @@ class ReviewCog(commands.Cog):
             return None
 
     @staticmethod
-    def _source_cursor_as_message_id(session: PreparedAgentSession | None) -> int | None:
-        if session is None or session.source_cursor is None:
+    def _source_cursor_as_message_id(
+        session: PreparedAgentSession | None,
+        *,
+        include_readable: bool = True,
+    ) -> int | None:
+        if session is None:
+            return None
+        cursors = [
+            cursor
+            for cursor in (
+                session.source_cursor,
+                *(session.readable_source_cursors if include_readable else ()),
+            )
+            if cursor is not None
+        ]
+        if not cursors:
             return None
         try:
-            return int(session.source_cursor)
+            return max(int(cursor) for cursor in cursors)
         except ValueError:
             log_event(
                 LOGGER,

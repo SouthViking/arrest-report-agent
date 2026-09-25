@@ -370,6 +370,10 @@ def test_render_session_delta_keeps_only_new_human_messages() -> None:
     assert "root.txt" not in combined
     assert "assistant.txt" not in combined
 
+    bridged = render_agent_input(case, after_message_id=10, include_assistant_delta=True)
+    assert "Revisión anterior" in str(bridged)
+    assert "assistant.txt" in str(bridged)
+
 
 def test_render_identifies_omitted_attachments_and_recovery_tool() -> None:
     message_id = 10

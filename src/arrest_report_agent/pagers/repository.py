@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
+from typing import cast
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -351,16 +353,19 @@ class PagerRepository:
             .mappings()
             .all()
         )
-        recipients = (
+        recipients = cast(
+            Sequence[int],
             (
-                await connection.execute(
-                    sa.select(pager_recipient_roles.c.role_id)
-                    .where(pager_recipient_roles.c.pager_id == pager_id)
-                    .order_by(pager_recipient_roles.c.position)
+                (
+                    await connection.execute(
+                        sa.select(pager_recipient_roles.c.role_id)
+                        .where(pager_recipient_roles.c.pager_id == pager_id)
+                        .order_by(pager_recipient_roles.c.position)
+                    )
                 )
-            )
-            .scalars()
-            .all()
+                .scalars()
+                .all()
+            ),
         )
         return Pager(
             id=UUID(str(row["id"])),

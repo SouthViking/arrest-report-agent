@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.38.14",
-  "title": "Más turnos para revisar un reporte",
-  "summary": "Ahora es posible ampliar los turnos de revisión de un reporte desde su propio hilo.",
+  "version": "0.38.15",
+  "title": "Mejor contexto en los hilos de revisión",
+  "summary": "Las revisiones de arresto conservan mejor lo consultado en interacciones anteriores del mismo hilo.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,11 @@
   "changes": [
     {
       "type": "improved",
-      "text": "Los usuarios autorizados pueden conceder turnos adicionales al autor de un reporte desde el hilo correspondiente."
+      "text": "El agente puede reutilizar llamadas y resultados previos del expediente entre interacciones del propietario y del staff, manteniendo sus permisos de herramientas."
     },
     {
       "type": "improved",
-      "text": "El hilo muestra un aviso con los turnos disponibles tras el ajuste y quién lo autorizó."
+      "text": "Cuando ya conoce los datos necesarios, consulta los antecedentes legales en paralelo con otras herramientas para reducir turnos de revisión."
     }
   ],
   "acknowledgements": []

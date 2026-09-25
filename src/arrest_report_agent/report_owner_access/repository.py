@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import cast
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -43,13 +44,16 @@ class ReportOwnerRunRepository:
             raise ValueError("Report-owner max rounds must be between 1 and 20")
         async with self.client.transaction() as connection:
             await self._lock_owner_report(connection, guild_id, root_message_id, owner_user_id)
-            existing = (
-                await connection.execute(
-                    sa.select(report_owner_agent_runs.c.id).where(
-                        report_owner_agent_runs.c.trigger_message_id == trigger_message_id
+            existing = cast(
+                UUID | None,
+                (
+                    await connection.execute(
+                        sa.select(report_owner_agent_runs.c.id).where(
+                            report_owner_agent_runs.c.trigger_message_id == trigger_message_id
+                        )
                     )
-                )
-            ).scalar_one_or_none()
+                ).scalar_one_or_none(),
+            )
             used = await self._used_rounds(connection, guild_id, root_message_id, owner_user_id)
             max_rounds += await self._extra_rounds(connection, guild_id, root_message_id, owner_user_id)
             if existing is not None:
