@@ -19,6 +19,7 @@ from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
 from .attachments import build_discord_files
 from .card import build_submission_view
+from .image_management import ReportImageManager
 from .models import ArrestReportSubmission, PublicationStatus
 from .render import RenderedArrestReport, render_arrest_report_image
 from .service import StructuredArrestReportService, StructuredReportFile
@@ -44,6 +45,14 @@ class StructuredArrestReportCog(commands.Cog):
         self.service = service
         self.review_cog = review_cog
         self._initial_review_tasks: set[asyncio.Task[None]] = set()
+        self.image_manager = ReportImageManager(self)
+
+    @discord.slash_command(
+        name="adjuntos-reporte",
+        description="Gestiona las imágenes de una revisión de arresto desde su hilo",
+    )
+    async def manage_report_images(self, ctx: discord.ApplicationContext) -> None:
+        await self.image_manager.open(ctx)
 
     @discord.slash_command(
         name="revisar-arresto",

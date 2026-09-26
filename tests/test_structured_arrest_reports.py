@@ -41,6 +41,7 @@ from arrest_report_agent.structured_arrest_reports import (
     ArrestReportAssetCategory,
     ArrestReportSubmission,
     InitialReviewStatus,
+    PendingArrestReportAsset,
     PublicationStatus,
     StructuredArrestReportRepository,
     StructuredArrestReportService,
@@ -54,6 +55,15 @@ from arrest_report_agent.structured_arrest_reports.discord import (
     _replace_deferred_with_ephemeral_error,
     _thread_name,
     build_submission_view,
+)
+from arrest_report_agent.structured_arrest_reports.image_management import (
+    ReportImageManager,
+    ReportImageManagerView,
+    _display_names,
+    can_manage_images,
+    changed_assets,
+    ordered_assets,
+    validate_counts,
 )
 from arrest_report_agent.structured_arrest_reports.render import (
     _charge_badge,
@@ -462,6 +472,214 @@ def test_command_requires_enabled_feature_configured_channel_and_operational_rol
     )
     outsider = SimpleNamespace(roles=(SimpleNamespace(id=8),))
     assert _availability_denial(_bundle(), outsider, 3) is not None  # type: ignore[arg-type]
+
+
+def _image_asset(category: ArrestReportAssetCategory, position: int, filename: str) -> ArrestReportAsset:
+    return ArrestReportAsset(
+        id=uuid.uuid4(),
+        submission_id=_SUBMISSION_ID,
+        category=category,
+        position=position,
+        object_key=filename,
+        sha256="a" * 64,
+        filename=filename,
+        content_type="image/png",
+        size_bytes=10,
+        created_at=datetime.now(UTC),
+    )
+
+
+def test_image_manager_permissions_categories_and_required_photo() -> None:
+    suspect = _image_asset(ArrestReportAssetCategory.SUSPECT_PHOTO, 0, "photo.png")
+    support = _image_asset(ArrestReportAssetCategory.SUPPORTING_IMAGE, 0, "photo.png")
+    submission = _submission().model_copy(update={"assets": (support, suspect)})
+    assert ordered_assets(submission) == (suspect, support)
+    settings = SimpleNamespace(
+        supervisor_role_ids=(20,),
+        ftp_request_options=SimpleNamespace(management_role_ids=(30, 40)),
+        warrant_notification_options=None,
+    )
+    member = lambda user_id, roles: SimpleNamespace(  # noqa: E731
+        id=user_id, roles=tuple(SimpleNamespace(id=role) for role in roles)
+    )
+    assert can_manage_images(submission, member(submission.owner_user_id, ()), settings)  # type: ignore[arg-type]
+    for role_id in (20, 30, 40):
+        assert can_manage_images(submission, member(999, (role_id,)), settings)  # type: ignore[arg-type]
+    assert not can_manage_images(submission, member(999, (50,)), settings)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="una o dos fotografías"):
+        validate_counts(
+            changed_assets(
+                (suspect, support),
+                action="eliminó",
+                category=ArrestReportAssetCategory.SUSPECT_PHOTO,
+                target_id=suspect.id,
+            ),
+            generated_report=False,
+        )
+    with pytest.raises(ValueError, match="respaldo"):
+        validate_counts(
+            changed_assets(
+                (suspect, support),
+                action="eliminó",
+                category=ArrestReportAssetCategory.SUPPORTING_IMAGE,
+                target_id=support.id,
+            ),
+            generated_report=False,
+        )
+    validate_counts((suspect,), generated_report=True)
+
+    new_suspect = PendingArrestReportAsset(
+        category=ArrestReportAssetCategory.SUSPECT_PHOTO,
+        position=1,
+        object_key="new-suspect.png",
+        sha256="b" * 64,
+        filename="new-suspect.png",
+        content_type="image/png",
+        size_bytes=8,
+    )
+    added = changed_assets(
+        (suspect, support),
+        action="agregó",
+        category=ArrestReportAssetCategory.SUSPECT_PHOTO,
+        replacement=new_suspect,
+    )
+    assert added == (suspect, new_suspect, support)
+    validate_counts(added, generated_report=False)
+    replaced = changed_assets(
+        (suspect, support),
+        action="reemplazó",
+        category=ArrestReportAssetCategory.SUSPECT_PHOTO,
+        target_id=suspect.id,
+        replacement=new_suspect.model_copy(update={"position": 0}),
+    )
+    assert replaced[1] is support
+    with pytest.raises(ValueError, match="ya no existe"):
+        changed_assets(
+            (suspect, support),
+            action="eliminó",
+            category=ArrestReportAssetCategory.SUSPECT_PHOTO,
+            target_id=uuid.uuid4(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_image_manager_flat_selector_previews_both_categories(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    suspect = _image_asset(ArrestReportAssetCategory.SUSPECT_PHOTO, 0, "same.png")
+    support = _image_asset(ArrestReportAssetCategory.SUPPORTING_IMAGE, 0, "same.png")
+    submission = _submission().model_copy(update={"assets": (suspect, support)})
+    assert _display_names(submission, generated=False) == {
+        suspect.id: "same.png",
+        support.id: "2-same.png",
+    }
+    view = ReportImageManagerView(SimpleNamespace(), submission, requester_id=123)  # type: ignore[arg-type]
+    select = next(item for item in view.children if isinstance(item, discord.ui.Select))
+    assert [option.label for option in select.options] == ["Sospechoso 1", "Respaldo 1"]
+    root = SimpleNamespace(
+        attachments=[
+            SimpleNamespace(filename="same.png", url="https://example.com/suspect.png"),
+            SimpleNamespace(filename="2-same.png", url="https://example.com/support.png"),
+        ]
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.structured_arrest_reports.image_management._generated_attachment",
+        lambda _root, _submission: None,
+    )
+    view.selected_id = support.id
+    preview = view.render(root)  # type: ignore[arg-type]
+    assert "Imagen de respaldo 1" in preview.description
+    assert preview.image.url == "https://example.com/support.png"
+    assert view.remove.disabled is True
+
+
+@pytest.mark.asyncio
+async def test_image_edit_keeps_generated_report_and_posts_actor_notice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    suspect = _image_asset(ArrestReportAssetCategory.SUSPECT_PHOTO, 0, "suspect.png")
+    support = _image_asset(ArrestReportAssetCategory.SUPPORTING_IMAGE, 0, "support.png")
+    submission = _submission().model_copy(update={"assets": (suspect, support)})
+    edited: list[dict[str, Any]] = []
+    notices: list[dict[str, Any]] = []
+
+    class Root:
+        async def edit(self, **kwargs: Any) -> Root:
+            edited.append(kwargs)
+            return self
+
+    class Generated:
+        filename = "reporte-pcu-actual-321.png"
+        content_type = "image/png"
+        size = 6
+
+        async def read(self) -> bytes:
+            return b"report"
+
+    class Repository:
+        async def sync_assets(self, _id: uuid.UUID, **kwargs: Any) -> ArrestReportSubmission:
+            assert kwargs["expected_ids"] == frozenset({suspect.id, support.id})
+            assert kwargs["assets"] == (suspect,)
+            return submission.model_copy(update={"assets": (suspect,)})
+
+    class Storage:
+        async def get(self, key: str) -> bytes:
+            return {"suspect.png": b"suspect", "support.png": b"support"}[key]
+
+    class Thread:
+        id = 5
+
+        async def send(self, **kwargs: Any) -> None:
+            notices.append(kwargs)
+
+    class Provider:
+        async def cached(self, _guild_id: int) -> SimpleNamespace:
+            return SimpleNamespace(settings=SimpleNamespace(max_total_file_bytes=1000))
+
+    manager = ReportImageManager(
+        SimpleNamespace(
+            provider=Provider(),
+            service=SimpleNamespace(repository=Repository(), storage=Storage()),
+        )  # type: ignore[arg-type]
+    )
+    root = Root()
+    thread = Thread()
+
+    async def resolve(_interaction: object) -> tuple[ArrestReportSubmission, Thread, Root]:
+        return submission, thread, root
+
+    monkeypatch.setattr(manager, "resolve", resolve)
+    monkeypatch.setattr(
+        "arrest_report_agent.structured_arrest_reports.image_management._generated_attachment",
+        lambda _root, _submission: Generated(),
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.structured_arrest_reports.image_management._card_state",
+        lambda _root: (discord.Color.green(), datetime(2026, 9, 17, tzinfo=UTC)),
+    )
+    view = SimpleNamespace(
+        submission=submission,
+        requester_id=88,
+        asset_ids=frozenset({suspect.id, support.id}),
+    )
+    interaction = SimpleNamespace(user=SimpleNamespace(id=88))
+    updated, _ = await manager.apply(
+        interaction,  # type: ignore[arg-type]
+        view,  # type: ignore[arg-type]
+        action="eliminó",
+        category=ArrestReportAssetCategory.SUPPORTING_IMAGE,
+        target_id=support.id,
+        upload=None,
+    )
+    assert updated.assets == (suspect,)
+    assert len(edited) == 1
+    assert [file.filename for file in edited[0]["files"]] == ["suspect.png", "reporte-pcu-actual-321.png"]
+    container = edited[0]["view"].children[0]
+    assert container.color == discord.Color.green()
+    assert notices[0]["embed"].description == "<@88> eliminó una imagen de respaldo."
+    assert notices[0]["allowed_mentions"].users is False
+    assert notices[0]["allowed_mentions"].roles is False
 
 
 @pytest.mark.asyncio

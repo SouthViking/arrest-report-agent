@@ -296,6 +296,87 @@ class StructuredArrestReportRepository:
                 rows.append(row)
         return tuple(_asset(row) for row in rows)
 
+    async def sync_assets(
+        self,
+        submission_id: uuid.UUID,
+        *,
+        expected_ids: frozenset[uuid.UUID],
+        assets: tuple[ArrestReportAsset | PendingArrestReportAsset, ...],
+    ) -> ArrestReportSubmission:
+        """Apply one image edit while retaining IDs of all unchanged assets."""
+
+        async with self.client.transaction() as connection:
+            await connection.execute(
+                sa.select(arrest_report_submissions.c.id)
+                .where(arrest_report_submissions.c.id == submission_id)
+                .with_for_update()
+            )
+            current = (
+                (
+                    await connection.execute(
+                        sa.select(arrest_report_assets.c.id)
+                        .where(arrest_report_assets.c.submission_id == submission_id)
+                        .with_for_update()
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            if frozenset(current) != expected_ids:
+                raise ValueError("Los adjuntos cambiaron. Abre el gestor nuevamente.")
+            retained_ids = {asset.id for asset in assets if isinstance(asset, ArrestReportAsset)}
+            if not retained_ids.issubset(expected_ids) or len(retained_ids) != sum(
+                isinstance(asset, ArrestReportAsset) for asset in assets
+            ):
+                raise ValueError("La selección de adjuntos ya no es válida.")
+            await connection.execute(
+                arrest_report_assets.delete().where(
+                    arrest_report_assets.c.submission_id == submission_id,
+                    arrest_report_assets.c.id.not_in(retained_ids),
+                )
+            )
+            # Positions are unique per category; move retained rows aside first.
+            for index, asset in enumerate(assets):
+                if isinstance(asset, ArrestReportAsset):
+                    await connection.execute(
+                        arrest_report_assets.update()
+                        .where(arrest_report_assets.c.id == asset.id)
+                        .values(position=100 + index)
+                    )
+            for index, asset in enumerate(assets):
+                position = sum(prior.category == asset.category for prior in assets[:index])
+                if isinstance(asset, ArrestReportAsset):
+                    await connection.execute(
+                        arrest_report_assets.update()
+                        .where(arrest_report_assets.c.id == asset.id)
+                        .values(position=position)
+                    )
+                else:
+                    await connection.execute(
+                        arrest_report_assets.insert().values(
+                            id=uuid.uuid4(),
+                            submission_id=submission_id,
+                            **asset.model_copy(update={"position": position}).model_dump(mode="json"),
+                        )
+                    )
+            await connection.execute(
+                arrest_report_submissions.update()
+                .where(arrest_report_submissions.c.id == submission_id)
+                .values(updated_at=sa.func.now())
+            )
+            row = (
+                (
+                    await connection.execute(
+                        sa.select(arrest_report_submissions).where(
+                            arrest_report_submissions.c.id == submission_id
+                        )
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            return await self._with_assets(connection, row)
+
     async def mark_published(
         self,
         submission_id: uuid.UUID,
