@@ -1,20 +1,18 @@
 {
   "schema_version": 3,
-  "version": "0.38.18",
-  "title": "Resumen automático de reportes pendientes",
-  "summary": "El bot puede publicar periódicamente los reportes de arresto pendientes y avisar a los agentes cuyo plazo se acerca o ya venció.",
+  "version": "0.38.19",
+  "title": "Imágenes de los reportes de arresto",
+  "summary": "Ahora puedes corregir o completar las imágenes de una revisión de arresto desde su propio hilo.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
       "type": "added",
-      "text": "El resumen reutiliza /reportes-pendientes, admite frecuencia y destinos configurables, y no se publica si no hay casos pendientes."
+      "text": "Usa /adjuntos-reporte en el hilo para agregar, reemplazar o quitar fotografías del sospechoso e imágenes de respaldo."
     },
     {
       "type": "improved",
-      "text": "Las menciones se agrupan por urgencia, reconocen usuarios con varios PJ y evitan recordatorios repetidos hasta una escalada o al menos un día después."
+      "text": "Puedes ver cada imagen antes de cambiarla. El reporte se actualiza y el cambio queda registrado en el hilo."
     }
   ],
   "acknowledgements": []
