@@ -1545,9 +1545,6 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
             "digest_interval_hours": 6,
             "digest_lookback_days": 7,
             "digest_targets": [{"channel_id": 1537203701893169254, "mention_users": True}],
-            "supervisor_alerts_enabled": True,
-            "supervisor_alert_channel_ids": [1234678185124298853],
-            "supervisor_alert_role_id": 1234676131240869949,
         }
         assert pending[999]["enabled"] is False
         assert pending[999]["payload"] == {}
