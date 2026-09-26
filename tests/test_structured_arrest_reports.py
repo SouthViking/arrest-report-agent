@@ -60,6 +60,8 @@ from arrest_report_agent.structured_arrest_reports.image_management import (
     ReportImageManager,
     ReportImageManagerView,
     _display_names,
+    _generated_attachment,
+    _generated_media,
     can_manage_images,
     changed_assets,
     ordered_assets,
@@ -584,8 +586,8 @@ async def test_image_manager_flat_selector_previews_both_categories(
         ]
     )
     monkeypatch.setattr(
-        "arrest_report_agent.structured_arrest_reports.image_management._generated_attachment",
-        lambda _root, _submission: None,
+        "arrest_report_agent.structured_arrest_reports.image_management._generated_media",
+        lambda _root: None,
     )
     view.selected_id = support.id
     preview = view.render(root)  # type: ignore[arg-type]
@@ -595,8 +597,166 @@ async def test_image_manager_flat_selector_previews_both_categories(
 
 
 @pytest.mark.asyncio
+async def test_image_manager_finds_generated_report_by_gallery_attachment_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    submission = _submission()
+    card = build_submission_view(
+        submission,
+        suspect_filenames=("suspect.png",),
+        supporting_filenames=(),
+        report_filename="reporte-pcu-actual-321.png",
+    )
+    container = card.children[0]
+    report_gallery = next(
+        item
+        for index, item in enumerate(container.items[1:], start=1)
+        if isinstance(container.items[index - 1], discord.ui.TextDisplay)
+        and container.items[index - 1].content == "### 📄 Reporte de arresto"
+    )
+    report_gallery.items[0].media.attachment_id = 99
+    monkeypatch.setattr(
+        discord.ui.DesignerView,
+        "from_message",
+        classmethod(lambda _cls, _message, *, timeout=None: card),
+    )
+    attachment = SimpleNamespace(id=99, filename="renamed-by-discord.png")
+    root = SimpleNamespace(attachments=[attachment])
+
+    media = _generated_media(root)  # type: ignore[arg-type]
+    assert media is report_gallery.items[0]
+    assert _generated_attachment(root, submission, media) is attachment  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_image_manager_previews_gallery_image_when_attachment_list_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    suspect = _image_asset(ArrestReportAssetCategory.SUSPECT_PHOTO, 0, "suspect.png")
+    support = _image_asset(ArrestReportAssetCategory.SUPPORTING_IMAGE, 0, "support.png")
+    submission = _submission().model_copy(update={"assets": (suspect, support)})
+    card = build_submission_view(
+        submission,
+        suspect_filenames=("suspect.png",),
+        supporting_filenames=("support.png",),
+        report_filename="reporte-pcu-actual-321.png",
+    )
+    container = card.children[0]
+    galleries = [item for item in container.items if isinstance(item, discord.ui.MediaGallery)]
+    galleries[0].items[0].media.url = "https://cdn.discordapp.com/suspect.png"
+    galleries[1].items[0].media.url = "https://cdn.discordapp.com/reporte-pcu-actual-321.png"
+    galleries[2].items[0].media.url = "https://cdn.discordapp.com/support.png"
+    monkeypatch.setattr(
+        discord.ui.DesignerView,
+        "from_message",
+        classmethod(lambda _cls, _message, *, timeout=None: card),
+    )
+    root = SimpleNamespace(attachments=[])
+    view = ReportImageManagerView(SimpleNamespace(), submission, requester_id=123)  # type: ignore[arg-type]
+    view.selected_id = support.id
+
+    preview = view.render(root)  # type: ignore[arg-type]
+
+    assert preview.image.url == "https://cdn.discordapp.com/support.png"
+    assert view.remove.disabled is False
+
+
+@pytest.mark.asyncio
+async def test_image_manager_opens_from_gallery_without_message_attachments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    suspect = _image_asset(ArrestReportAssetCategory.SUSPECT_PHOTO, 0, "suspect.png")
+    submission = _submission().model_copy(update={"assets": (suspect,)})
+    card = build_submission_view(
+        submission,
+        suspect_filenames=("suspect.png",),
+        supporting_filenames=(),
+        report_filename="reporte-pcu-actual-321.png",
+    )
+    gallery = next(
+        item for item in card.children[0].items if isinstance(item, discord.ui.MediaGallery)
+    )
+    gallery.items[0].media.url = "https://cdn.discordapp.com/suspect.png"
+    monkeypatch.setattr(
+        discord.ui.DesignerView,
+        "from_message",
+        classmethod(lambda _cls, _message, *, timeout=None: card),
+    )
+    manager = ReportImageManager(SimpleNamespace())  # type: ignore[arg-type]
+    root = SimpleNamespace(id=123, attachments=[])
+    responses: list[dict[str, Any]] = []
+
+    async def resolve(_interaction: object) -> tuple[ArrestReportSubmission, object, object]:
+        return submission, object(), root
+
+    async def defer(*, ephemeral: bool) -> None:
+        assert ephemeral
+
+    async def edit(**kwargs: Any) -> object:
+        responses.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(manager, "resolve", resolve)
+    ctx = SimpleNamespace(
+        interaction=object(),
+        guild_id=submission.guild_id,
+        author=SimpleNamespace(id=submission.owner_user_id),
+        defer=defer,
+        edit=edit,
+    )
+
+    await manager.open(ctx)  # type: ignore[arg-type]
+
+    assert len(responses) == 1
+    assert responses[0]["embed"].image.url == "https://cdn.discordapp.com/suspect.png"
+    assert responses[0]["view"].add_support.disabled is False
+
+
+@pytest.mark.asyncio
+async def test_image_manager_open_responds_when_preview_cannot_be_rendered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    suspect = _image_asset(ArrestReportAssetCategory.SUSPECT_PHOTO, 0, "suspect.png")
+    submission = _submission().model_copy(update={"assets": (suspect,)})
+    manager = ReportImageManager(SimpleNamespace())  # type: ignore[arg-type]
+    root = SimpleNamespace(id=123)
+    responses: list[dict[str, Any]] = []
+    deferred: list[bool] = []
+
+    async def resolve(_interaction: object) -> tuple[ArrestReportSubmission, object, object]:
+        return submission, object(), root
+
+    async def defer(*, ephemeral: bool) -> None:
+        deferred.append(ephemeral)
+
+    async def edit(**kwargs: Any) -> None:
+        responses.append(kwargs)
+
+    def failed_render(_view: object, _root: object) -> None:
+        raise ValueError("Broken gallery")
+
+    monkeypatch.setattr(manager, "resolve", resolve)
+    monkeypatch.setattr(ReportImageManagerView, "render", failed_render)
+    ctx = SimpleNamespace(
+        interaction=object(),
+        guild_id=submission.guild_id,
+        author=SimpleNamespace(id=submission.owner_user_id),
+        defer=defer,
+        edit=edit,
+    )
+
+    await manager.open(ctx)  # type: ignore[arg-type]
+
+    assert len(responses) == 1
+    assert deferred == [True]
+    assert responses[0]["embed"].title == "No pude actualizar las imágenes"
+
+
+@pytest.mark.parametrize("listed_attachment", (True, False))
+@pytest.mark.asyncio
 async def test_image_edit_keeps_generated_report_and_posts_actor_notice(
     monkeypatch: pytest.MonkeyPatch,
+    listed_attachment: bool,
 ) -> None:
     suspect = _image_asset(ArrestReportAssetCategory.SUSPECT_PHOTO, 0, "suspect.png")
     support = _image_asset(ArrestReportAssetCategory.SUPPORTING_IMAGE, 0, "support.png")
@@ -613,9 +773,10 @@ async def test_image_edit_keeps_generated_report_and_posts_actor_notice(
         filename = "reporte-pcu-actual-321.png"
         content_type = "image/png"
         size = 6
+        attachment_id = None
 
         async def read(self) -> bytes:
-            return b"report"
+            return b"\x89PNG\r\n\x1a\nreport"
 
     class Repository:
         async def sync_assets(self, _id: uuid.UUID, **kwargs: Any) -> ArrestReportSubmission:
@@ -635,7 +796,7 @@ async def test_image_edit_keeps_generated_report_and_posts_actor_notice(
 
     class Provider:
         async def cached(self, _guild_id: int) -> SimpleNamespace:
-            return SimpleNamespace(settings=SimpleNamespace(max_total_file_bytes=1000))
+            return SimpleNamespace(settings=SimpleNamespace(max_file_bytes=1000, max_total_file_bytes=1000))
 
     manager = ReportImageManager(
         SimpleNamespace(
@@ -651,8 +812,12 @@ async def test_image_edit_keeps_generated_report_and_posts_actor_notice(
 
     monkeypatch.setattr(manager, "resolve", resolve)
     monkeypatch.setattr(
+        "arrest_report_agent.structured_arrest_reports.image_management._generated_media",
+        lambda _root: SimpleNamespace(media=Generated()),
+    )
+    monkeypatch.setattr(
         "arrest_report_agent.structured_arrest_reports.image_management._generated_attachment",
-        lambda _root, _submission: Generated(),
+        lambda _root, _submission, _media: Generated() if listed_attachment else None,
     )
     monkeypatch.setattr(
         "arrest_report_agent.structured_arrest_reports.image_management._card_state",

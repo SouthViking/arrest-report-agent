@@ -24,6 +24,7 @@ from .models import (
     PendingArrestReportAsset,
     PublicationStatus,
 )
+from .render import generated_report_filename
 from .service import ALLOWED_IMAGE_TYPES, StructuredReportFile
 
 if TYPE_CHECKING:
@@ -151,6 +152,7 @@ class ReportImageManager:
         return submission, thread, root
 
     async def open(self, ctx: discord.ApplicationContext) -> None:
+        await ctx.defer(ephemeral=True)
         try:
             resolved = await self.resolve(ctx.interaction)
         except Exception as error:
@@ -162,25 +164,34 @@ class ReportImageManager:
                 guild_id=ctx.guild_id,
                 **exception_fields(error),
             )
-            await ctx.respond(
-                embed=_error("No pude abrir los adjuntos ahora. Inténtalo de nuevo."), ephemeral=True
-            )
+            await ctx.edit(embed=_error("No pude abrir los adjuntos ahora. Inténtalo de nuevo."))
             return
         if resolved is None:
-            await ctx.respond(
-                embed=_error("Usa este comando en el hilo de tu reporte o en uno que puedas supervisar."),
-                ephemeral=True,
+            await ctx.edit(
+                embed=_error("Usa este comando en el hilo de tu reporte o en uno que puedas supervisar.")
             )
             return
         submission, _, root = resolved
-        view = ReportImageManagerView(self, submission, ctx.author.id)
-        await ctx.respond(
-            embed=view.render(root),
+        try:
+            view = ReportImageManagerView(self, submission, ctx.author.id)
+            preview = view.render(root)
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "warning",
+                "report_image_manager_render_failed",
+                exc_info=error,
+                guild_id=ctx.guild_id,
+                root_message_id=root.id,
+                **exception_fields(error),
+            )
+            await ctx.edit(embed=_error("No pude mostrar los adjuntos ahora. Inténtalo de nuevo."))
+            return
+        view.message = await ctx.edit(
+            embed=preview,
             view=view,
-            ephemeral=True,
             allowed_mentions=discord.AllowedMentions.none(),
         )
-        view.message = await ctx.interaction.original_response()
 
     async def apply(
         self,
@@ -206,8 +217,30 @@ class ReportImageManager:
             assets = ordered_assets(submission)
             if frozenset(asset.id for asset in assets) != view.asset_ids:
                 raise ValueError("Los adjuntos cambiaron. Abre el gestor nuevamente.")
-            generated = _generated_attachment(root, submission)
+            generated_media = _generated_media(root)
+            generated = _generated_attachment(root, submission, generated_media)
             bundle = await self.cog.provider.cached(submission.guild_id)
+            generated_file: StructuredReportFile | None = None
+            if generated_media is not None:
+                if submission.sarp_arrest_id is None:
+                    raise ValueError("El reporte no tiene un ID de PCU válido.")
+                try:
+                    # Components V2 can retain the gallery media when Message.attachments omits it.
+                    payload = await (
+                        generated.read() if generated is not None else generated_media.media.read()
+                    )
+                except discord.DiscordException as error:
+                    raise ValueError(
+                        "No pude recuperar la imagen del reporte. Inténtalo de nuevo más tarde."
+                    ) from error
+                if (
+                    not payload.startswith(b"\x89PNG\r\n\x1a\n")
+                    or len(payload) > bundle.settings.max_file_bytes
+                ):
+                    raise ValueError("La imagen del reporte no está disponible o supera el tamaño permitido.")
+                generated_file = StructuredReportFile(
+                    generated_report_filename(submission.sarp_arrest_id), "image/png", payload
+                )
             pending: PendingArrestReportAsset | None = None
             if upload is not None:
                 content_type = (upload.content_type or "").partition(";")[0].strip().casefold()
@@ -235,8 +268,10 @@ class ReportImageManager:
                     target_id=target_id,
                     replacement=provisional,
                 )
-                validate_counts(preview, generated_report=generated is not None)
-                if sum(asset.size_bytes for asset in preview) + (generated.size if generated else 0) > (
+                validate_counts(preview, generated_report=generated_media is not None)
+                if sum(asset.size_bytes for asset in preview) + (
+                    len(generated_file.payload) if generated_file else 0
+                ) > (
                     bundle.settings.max_total_file_bytes
                 ):
                     raise ValueError("Los adjuntos superan el tamaño total permitido.")
@@ -263,16 +298,13 @@ class ReportImageManager:
             candidate = changed_assets(
                 assets, action=action, category=category, target_id=target_id, replacement=pending
             )
-            validate_counts(candidate, generated_report=generated is not None)
-            total_bytes = sum(asset.size_bytes for asset in candidate) + (generated.size if generated else 0)
+            validate_counts(candidate, generated_report=generated_media is not None)
+            total_bytes = sum(asset.size_bytes for asset in candidate) + (
+                len(generated_file.payload) if generated_file else 0
+            )
             if total_bytes > bundle.settings.max_total_file_bytes:
                 raise ValueError("Los adjuntos superan el tamaño total permitido.")
             card = _card_state(root)
-            generated_file = (
-                StructuredReportFile(generated.filename, generated.content_type, await generated.read())
-                if generated is not None
-                else None
-            )
             edited_root = await self._edit_root(root, submission, candidate, generated_file, card)
             try:
                 updated = await self.cog.service.repository.sync_assets(
@@ -367,24 +399,32 @@ class ReportImageManager:
         )
 
 
-def _generated_attachment(
-    root: discord.Message, submission: ArrestReportSubmission
-) -> discord.Attachment | None:
-    filename = f"reporte-pcu-actual-{submission.sarp_arrest_id}.png"
+def _generated_media(root: discord.Message) -> discord.MediaGalleryItem | None:
     card = discord.ui.DesignerView.from_message(root, timeout=None)
     container = next(item for item in card.children if isinstance(item, discord.ui.Container))
-    has_report = any(
-        isinstance(item, discord.ui.TextDisplay) and item.content == "### 📄 Reporte de arresto"
-        for item in container.items
-    )
-    if not has_report:
+    for index, item in enumerate(container.items[:-1]):
+        if isinstance(item, discord.ui.TextDisplay) and item.content == "### 📄 Reporte de arresto":
+            gallery = container.items[index + 1]
+            if isinstance(gallery, discord.ui.MediaGallery) and gallery.items:
+                return gallery.items[0]
+    return None
+
+
+def _generated_attachment(
+    root: discord.Message,
+    submission: ArrestReportSubmission,
+    media: discord.MediaGalleryItem | None = None,
+) -> discord.Attachment | None:
+    media = media if media is not None else _generated_media(root)
+    if media is None or submission.sarp_arrest_id is None:
         return None
-    attachment = next(
-        (attachment for attachment in root.attachments if attachment.filename == filename), None
-    )
-    if attachment is None:
-        raise ValueError("La imagen generada del reporte no está disponible. No se modificaron los adjuntos.")
-    return attachment
+    attachment_id = media.media.attachment_id
+    if attachment_id is not None:
+        matching_id = next((item for item in root.attachments if item.id == attachment_id), None)
+        if matching_id is not None:
+            return matching_id
+    filename = generated_report_filename(submission.sarp_arrest_id)
+    return next((item for item in root.attachments if item.filename == filename), None)
 
 
 def _card_state(root: discord.Message) -> tuple[discord.Color | None, datetime | None]:
@@ -404,8 +444,11 @@ def _card_state(root: discord.Message) -> tuple[discord.Color | None, datetime |
 
 def _display_names(submission: ArrestReportSubmission, generated: bool) -> dict[UUID, str]:
     assets = ordered_assets(submission)
-    report_name = f"reporte-pcu-actual-{submission.sarp_arrest_id}.png"
-    used = {report_name.casefold()} if generated else set()
+    used = (
+        {generated_report_filename(submission.sarp_arrest_id).casefold()}
+        if generated and submission.sarp_arrest_id is not None
+        else set()
+    )
     names: dict[UUID, str] = {}
     for index, asset in enumerate(assets, start=1):
         name = safe_filename(asset.filename)
@@ -414,6 +457,40 @@ def _display_names(submission: ArrestReportSubmission, generated: bool) -> dict[
         used.add(name.casefold())
         names[asset.id] = name
     return names
+
+
+def _gallery_preview_url(
+    root: discord.Message,
+    submission: ArrestReportSubmission,
+    selected: ArrestReportAsset,
+) -> str | None:
+    card = discord.ui.DesignerView.from_message(root, timeout=None)
+    container = next(item for item in card.children if isinstance(item, discord.ui.Container))
+    heading = (
+        "### 📸 Fotografías del sospechoso"
+        if selected.category is ArrestReportAssetCategory.SUSPECT_PHOTO
+        else "### 📎 Respaldos adicionales"
+    )
+    for index, item in enumerate(container.items[:-1]):
+        if not isinstance(item, discord.ui.TextDisplay):
+            continue
+        if item.content != heading and not (
+            selected.category is ArrestReportAssetCategory.SUPPORTING_IMAGE
+            and item.content == "### 📎 Reporte y respaldos"
+        ):
+            continue
+        gallery = container.items[index + 1]
+        if not isinstance(gallery, discord.ui.MediaGallery):
+            return None
+        category_assets = tuple(
+            asset for asset in ordered_assets(submission) if asset.category is selected.category
+        )
+        position = next((i for i, asset in enumerate(category_assets) if asset.id == selected.id), None)
+        if position is None or position >= len(gallery.items):
+            return None
+        url = gallery.items[position].url
+        return url if url.startswith("https://") else None
+    return None
 
 
 class ImageSelect(discord.ui.Select["ReportImageManagerView"]):
@@ -483,7 +560,7 @@ class ReportImageManagerView(discord.ui.View):
         select.options = _select_options(self.submission)
         for option in select.options:
             option.default = option.value == str(selected.id)
-        generated = _generated_attachment(root, self.submission) is not None
+        generated = _generated_media(root) is not None
         names = _display_names(self.submission, generated)
         attachment = next((item for item in root.attachments if item.filename == names[selected.id]), None)
         label = _category_name(selected.category).capitalize()
@@ -494,6 +571,8 @@ class ReportImageManagerView(discord.ui.View):
         )
         if attachment is not None:
             embed.set_image(url=attachment.url)
+        elif (url := _gallery_preview_url(root, self.submission, selected)) is not None:
+            embed.set_image(url=url)
         else:
             embed.add_field(name="Vista previa", value="No disponible. Abre el gestor nuevamente.")
         suspect_count = sum(a.category is ArrestReportAssetCategory.SUSPECT_PHOTO for a in assets)

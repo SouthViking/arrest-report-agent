@@ -1,18 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.38.19",
-  "title": "Imágenes de los reportes de arresto",
-  "summary": "Ahora puedes corregir o completar las imágenes de una revisión de arresto desde su propio hilo.",
+  "version": "0.38.20",
+  "title": "Corrección de adjuntos en revisiones de arresto",
+  "summary": "Se corrigió /adjuntos-reporte para abrir y administrar las imágenes en reportes que incluyen una imagen de PCU generada automáticamente.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
-      "type": "added",
-      "text": "Usa /adjuntos-reporte en el hilo para agregar, reemplazar o quitar fotografías del sospechoso e imágenes de respaldo."
+      "type": "fixed",
+      "text": "El gestor ya no falla al abrir un reporte cuya imagen de PCU está en la galería de Discord, pero no figura en la lista de adjuntos."
     },
     {
       "type": "improved",
-      "text": "Puedes ver cada imagen antes de cambiarla. El reporte se actualiza y el cambio queda registrado en el hilo."
+      "text": "La vista previa muestra fotografías del sospechoso y respaldos desde la galería; la imagen de PCU sigue gestionándose solo mediante las revisiones."
     }
   ],
   "acknowledgements": []
