@@ -551,6 +551,32 @@ class ReportImageManagerView(discord.ui.View):
         )
         return False
 
+    async def dismiss_after_success(self, interaction: discord.Interaction) -> None:
+        """Remove the private manager after the public thread notice was sent."""
+
+        self.stop()
+        if self.message is None:
+            log_event(
+                LOGGER,
+                "warning",
+                "report_image_manager_message_missing",
+                guild_id=interaction.guild_id,
+            )
+            return
+        try:
+            await self.message.delete()
+        except discord.NotFound:
+            pass
+        except discord.HTTPException as error:
+            log_event(
+                LOGGER,
+                "warning",
+                "report_image_manager_dismiss_failed",
+                exc_info=error,
+                guild_id=interaction.guild_id,
+                **exception_fields(error),
+            )
+
     def render(self, root: discord.Message) -> discord.Embed:
         assets = ordered_assets(self.submission)
         self.asset_ids = frozenset(asset.id for asset in assets)
@@ -653,7 +679,7 @@ class ReportImageManagerView(discord.ui.View):
         selected = next(asset for asset in self.submission.assets if asset.id == self.selected_id)
         await interaction.response.defer(invisible=True)
         try:
-            updated, root = await self.manager.apply(
+            await self.manager.apply(
                 interaction,
                 self,
                 action="eliminó",
@@ -675,9 +701,7 @@ class ReportImageManagerView(discord.ui.View):
             )
             await interaction.followup.send(embed=_error("Inténtalo nuevamente más tarde."), ephemeral=True)
             return
-        self.submission = updated
-        self.confirm_delete_id = None
-        await interaction.edit_original_response(embed=self.render(root), view=self)
+        await self.dismiss_after_success(interaction)
 
 
 class ImageUploadModal(discord.ui.DesignerModal):
@@ -702,7 +726,7 @@ class ImageUploadModal(discord.ui.DesignerModal):
             await interaction.followup.send(embed=_error("Adjunta una imagen válida."), ephemeral=True)
             return
         try:
-            updated, root = await self.manager_view.manager.apply(
+            await self.manager_view.manager.apply(
                 interaction,
                 self.manager_view,
                 action=self.action,
@@ -724,10 +748,4 @@ class ImageUploadModal(discord.ui.DesignerModal):
             )
             await interaction.followup.send(embed=_error("Inténtalo nuevamente más tarde."), ephemeral=True)
             return
-        previous_ids = self.manager_view.asset_ids
-        self.manager_view.submission = updated
-        self.manager_view.confirm_delete_id = None
-        added = next((asset for asset in updated.assets if asset.id not in previous_ids), None)
-        if added is not None:
-            self.manager_view.selected_id = added.id
-        await interaction.edit_original_response(embed=self.manager_view.render(root), view=self.manager_view)
+        await self.manager_view.dismiss_after_success(interaction)

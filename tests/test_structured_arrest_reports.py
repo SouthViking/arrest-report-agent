@@ -57,6 +57,7 @@ from arrest_report_agent.structured_arrest_reports.discord import (
     build_submission_view,
 )
 from arrest_report_agent.structured_arrest_reports.image_management import (
+    ImageUploadModal,
     ReportImageManager,
     ReportImageManagerView,
     _display_names,
@@ -750,6 +751,114 @@ async def test_image_manager_open_responds_when_preview_cannot_be_rendered(
     assert len(responses) == 1
     assert deferred == [True]
     assert responses[0]["embed"].title == "No pude actualizar las imágenes"
+
+
+@pytest.mark.asyncio
+async def test_image_manager_removes_ephemeral_panel_after_confirmed_delete() -> None:
+    suspect = _image_asset(ArrestReportAssetCategory.SUSPECT_PHOTO, 0, "suspect.png")
+    support = _image_asset(ArrestReportAssetCategory.SUPPORTING_IMAGE, 0, "support.png")
+    submission = _submission().model_copy(update={"assets": (suspect, support)})
+    events: list[str] = []
+
+    class Manager:
+        async def resolve(self, _interaction: object) -> tuple[ArrestReportSubmission, object, object]:
+            return submission, object(), object()
+
+        async def apply(self, _interaction: object, _view: object, **_kwargs: Any) -> tuple[object, object]:
+            events.append("public notice")
+            return object(), object()
+
+    class Response:
+        async def defer(self, **_kwargs: Any) -> None:
+            events.append("defer")
+
+    class PanelMessage:
+        async def delete(self) -> None:
+            events.append("delete panel")
+
+    view = ReportImageManagerView(Manager(), submission, requester_id=6)  # type: ignore[arg-type]
+    view.selected_id = support.id
+    view.confirm_delete_id = support.id
+    view.message = PanelMessage()  # type: ignore[assignment]
+    interaction = SimpleNamespace(response=Response(), guild_id=submission.guild_id)
+
+    await view.remove.callback(interaction)  # type: ignore[arg-type]
+
+    assert events == ["defer", "public notice", "delete panel"]
+    assert view.is_finished()
+
+
+@pytest.mark.parametrize("action", ("agregó", "reemplazó"))
+@pytest.mark.asyncio
+async def test_image_manager_removes_ephemeral_panel_after_confirmed_upload(
+    action: str,
+) -> None:
+    suspect = _image_asset(ArrestReportAssetCategory.SUSPECT_PHOTO, 0, "suspect.png")
+    submission = _submission().model_copy(update={"assets": (suspect,)})
+    events: list[str] = []
+
+    class Manager:
+        async def apply(self, _interaction: object, _view: object, **kwargs: Any) -> tuple[object, object]:
+            assert kwargs["action"] == action
+            events.append("public notice")
+            return object(), object()
+
+    class Response:
+        async def defer(self, **_kwargs: Any) -> None:
+            events.append("defer")
+
+    class PanelMessage:
+        async def delete(self) -> None:
+            events.append("delete panel")
+
+    view = ReportImageManagerView(Manager(), submission, requester_id=6)  # type: ignore[arg-type]
+    view.message = PanelMessage()  # type: ignore[assignment]
+    modal = ImageUploadModal(view, ArrestReportAssetCategory.SUPPORTING_IMAGE, action)  # type: ignore[arg-type]
+    modal.upload._attachments = [object.__new__(discord.Attachment)]  # noqa: SLF001
+    interaction = SimpleNamespace(response=Response(), guild_id=submission.guild_id)
+
+    await modal.callback(interaction)  # type: ignore[arg-type]
+
+    assert events == ["defer", "public notice", "delete panel"]
+    assert view.is_finished()
+
+
+@pytest.mark.asyncio
+async def test_image_manager_keeps_panel_when_upload_fails() -> None:
+    suspect = _image_asset(ArrestReportAssetCategory.SUSPECT_PHOTO, 0, "suspect.png")
+    submission = _submission().model_copy(update={"assets": (suspect,)})
+    errors: list[str] = []
+    deleted: list[bool] = []
+
+    class Manager:
+        async def apply(self, _interaction: object, _view: object, **_kwargs: Any) -> None:
+            raise ValueError("La imagen no es válida.")
+
+    class Response:
+        async def defer(self, **_kwargs: Any) -> None:
+            pass
+
+    class Followup:
+        async def send(self, **kwargs: Any) -> None:
+            errors.append(kwargs["embed"].description)
+
+    class PanelMessage:
+        async def delete(self) -> None:
+            deleted.append(True)
+
+    view = ReportImageManagerView(Manager(), submission, requester_id=6)  # type: ignore[arg-type]
+    view.message = PanelMessage()  # type: ignore[assignment]
+    modal = ImageUploadModal(view, ArrestReportAssetCategory.SUPPORTING_IMAGE, "agregó")
+    modal.upload._attachments = [object.__new__(discord.Attachment)]  # noqa: SLF001
+    interaction = SimpleNamespace(
+        response=Response(), followup=Followup(), guild_id=submission.guild_id
+    )
+
+    await modal.callback(interaction)  # type: ignore[arg-type]
+
+    assert errors == ["La imagen no es válida."]
+    assert deleted == []
+    assert not view.is_finished()
 
 
 @pytest.mark.parametrize("listed_attachment", (True, False))
