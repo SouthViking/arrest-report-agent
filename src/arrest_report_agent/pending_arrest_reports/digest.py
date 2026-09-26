@@ -37,11 +37,10 @@ LOGGER = logging.getLogger(__name__)
 CHECK_SECONDS = 60
 MEMBER_PAGE_SIZE = 100
 MAX_MEMBER_PAGES = 50
-REMINDER_INTERVAL = timedelta(days=1)
 
 
 def reminder_stage(report: PendingArrestReport) -> int:
-    """2 is overdue, 1 is approaching a deadline, 0 must not be pinged."""
+    """2 is overdue, 1 is approaching a deadline, 0 is pending but on time."""
 
     if (report.pcu_reason is not None and report.age_hours >= PCU_DEADLINE_HOURS) or (
         report.review_status is not ArrestReviewStatus.APPROVED and report.age_hours >= REVIEW_DEADLINE_HOURS
@@ -77,24 +76,18 @@ def unique_member_match(
 def due_mentions(
     reports: tuple[PendingArrestReport, ...],
     matches: dict[int, int],
-    history: dict[tuple[int, int], tuple[int, datetime]],
-    *,
-    now: datetime,
 ) -> tuple[tuple[int, int, int], ...]:
-    due: list[tuple[int, int, int]] = []
-    for report in reports:
-        stage = reminder_stage(report)
-        user_id = matches.get(report.report_id)
-        if not stage or user_id is None:
-            continue
-        previous = history.get((report.report_id, user_id))
-        if previous is None or stage > previous[0] or now - previous[1] >= REMINDER_INTERVAL:
-            due.append((report.report_id, user_id, stage))
-    return tuple(due)
+    """Mention every currently pending report with a resolved member each cycle."""
+
+    return tuple(
+        (report.report_id, matches[report.report_id], reminder_stage(report))
+        for report in reports
+        if report.report_id in matches
+    )
 
 
 def grouped_reply_chunks(guild: discord.Guild, mentions: tuple[tuple[int, int, int], ...]) -> tuple[str, ...]:
-    """Render two global groups; split only when Discord's message cap requires it."""
+    """Group current debtors by urgency; split only when Discord's message cap requires it."""
 
     by_user: dict[int, int] = {}
     for _, user_id, stage in mentions:
@@ -102,13 +95,14 @@ def grouped_reply_chunks(guild: discord.Guild, mentions: tuple[tuple[int, int, i
     groups = (
         (2, "parca", "💀", "Fuera de plazo"),
         (1, "conodelaverguenza", "🚧", "Próximos a vencer"),
+        (0, "", "📝", "Pendientes"),
     )
     lines: list[str] = []
     for stage, emoji_name, fallback, title in groups:
         user_ids = sorted(user_id for user_id, level in by_user.items() if level == stage)
         if not user_ids:
             continue
-        emoji = discord.utils.get(guild.emojis, name=emoji_name)
+        emoji = discord.utils.get(guild.emojis, name=emoji_name) if emoji_name else None
         prefix = f"{emoji or fallback} **{title}:**"
         line = prefix
         for user_id in user_ids:
@@ -134,6 +128,69 @@ def grouped_reply_chunks(guild: discord.Guild, mentions: tuple[tuple[int, int, i
     if current:
         chunks.append(current)
     return tuple(chunks)
+
+
+def overdue_reasons(report: PendingArrestReport) -> tuple[str, ...]:
+    """Describe only the PCU and review deadlines that have actually expired."""
+
+    reasons: list[str] = []
+    if report.pcu_reason is not None and report.age_hours >= PCU_DEADLINE_HOURS:
+        hours = report.age_hours - PCU_DEADLINE_HOURS
+        reasons.append(f"Sin PCU ({hours} h fuera de plazo)" if hours else "Sin PCU (plazo vencido)")
+    if report.review_status is not ArrestReviewStatus.APPROVED and report.age_hours >= REVIEW_DEADLINE_HOURS:
+        hours = report.age_hours - REVIEW_DEADLINE_HOURS
+        label = "Sin revisión" if report.review_status is ArrestReviewStatus.MISSING else "Revisión pendiente"
+        reasons.append(f"{label} ({hours} h fuera de plazo)" if hours else f"{label} (plazo vencido)")
+    return tuple(reasons)
+
+
+def build_supervisor_alert_embed(
+    reports: tuple[PendingArrestReport, ...],
+    matches: dict[int, int],
+    *,
+    summary_url: str,
+) -> discord.Embed:
+    """Summarize expired cases, with a direct link to the full command digest."""
+
+    overdue = tuple(report for report in reports if overdue_reasons(report))
+    by_officer: dict[int | str, tuple[str, list[str]]] = {}
+    for report in overdue:
+        user_id = matches.get(report.report_id)
+        key = user_id if user_id is not None else " ".join(report.officer_name.split()).casefold()
+        label = (
+            f"<@{user_id}>"
+            if user_id is not None
+            else discord.utils.escape_markdown(discord.utils.escape_mentions(report.officer_name))
+        )
+        if key not in by_officer:
+            by_officer[key] = (label, [])
+        by_officer[key][1].append(f"• **#{report.report_id}** · {' · '.join(overdue_reasons(report))}")
+    header = f"**{len(overdue)} reportes vencidos · {len(by_officer)} agentes**"
+    link = f"🔎 [Ver el resumen completo en comandos]({summary_url})"
+    sections: list[str] = []
+    shown = 0
+    for label, report_lines in by_officer.values():
+        section_lines = [f"👮 **{label}**"]
+        for line in report_lines:
+            candidate = "\n\n".join((*sections, "\n".join((*section_lines, line))))
+            if len(header) + len(candidate) + len(link) + 8 > 3900:
+                break
+            section_lines.append(line)
+            shown += 1
+        if len(section_lines) > 1:
+            sections.append("\n".join(section_lines))
+        if len(section_lines) - 1 < len(report_lines):
+            break
+    remaining = len(overdue) - shown
+    if remaining:
+        sections.append(f"…y {remaining} reportes más en el resumen completo.")
+    details = "\n\n".join(sections)
+    embed = discord.Embed(
+        title="🚨 Reportes de arresto fuera de plazo",
+        description=f"{header}\n\n{details}\n\n{link}",
+        color=discord.Color.red(),
+    )
+    return embed
 
 
 class PendingArrestDigestWorker:
@@ -307,8 +364,13 @@ class PendingArrestDigestWorker:
             raise RuntimeError("Pending digest guild is unavailable")
         deliveries = await self.repository.deliveries(guild_id, cycle_id)
         mention_target = next((target for target in options.digest_targets if target.mention_users), None)
+        overdue = tuple(report for report in result.pending_reports if overdue_reasons(report))
+        matches: dict[int, int] = {}
         mentions: tuple[tuple[int, int, int], ...] = ()
-        if mention_target is not None and not deliveries.get(mention_target.channel_id, (0, False))[1]:
+        mention_reply_due = mention_target is not None and not deliveries.get(
+            mention_target.channel_id, (0, False)
+        )[1]
+        if mention_reply_due or (options.supervisor_alerts_enabled and overdue):
             try:
                 members = await self._members(guild_id, bundle.settings.operational_staff_role_ids)
             except Exception as error:
@@ -321,17 +383,14 @@ class PendingArrestDigestWorker:
                     exc_info=error,
                     **exception_fields(error),
                 )
-            matched: dict[int, int] = {}
             ambiguous = 0
             for report in result.pending_reports:
-                if reminder_stage(report) == 0:
-                    continue
                 profile, is_ambiguous = unique_member_match(report.officer_name, members)
                 ambiguous += int(is_ambiguous)
                 if profile is not None:
-                    matched[report.report_id] = profile.user_id
-            history = await self.repository.mention_history(guild_id, tuple(matched))
-            mentions = due_mentions(result.pending_reports, matched, history, now=now)
+                    matches[report.report_id] = profile.user_id
+            if mention_reply_due:
+                mentions = due_mentions(result.pending_reports, matches)
             if ambiguous:
                 log_event(
                     LOGGER,
@@ -360,6 +419,7 @@ class PendingArrestDigestWorker:
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
                     await self.repository.record_delivery(guild_id, cycle_id, target.channel_id, message.id)
+                    deliveries[target.channel_id] = (message.id, False)
                 elif target.mention_users and not existing[1] and mentions:
                     message = await channel.fetch_message(existing[0])
                 else:
@@ -378,6 +438,7 @@ class PendingArrestDigestWorker:
                     await self.repository.record_mentions(guild_id, mentions, now=now)
                 if target.mention_users:
                     await self.repository.record_reply(guild_id, cycle_id, target.channel_id)
+                    deliveries[target.channel_id] = (message.id, True)
             except Exception as error:
                 log_event(
                     LOGGER,
@@ -385,6 +446,52 @@ class PendingArrestDigestWorker:
                     "pending_digest_delivery_failed",
                     guild_id=guild_id,
                     channel_id=target.channel_id,
+                    exc_info=error,
+                    **exception_fields(error),
+                )
+                raise
+
+        if not options.supervisor_alerts_enabled or not overdue:
+            return
+        if mention_target is None or options.supervisor_alert_role_id is None:
+            raise ValueError("Supervisor alert requires a mentioning digest target and role")
+        source = deliveries.get(mention_target.channel_id)
+        if source is None:
+            raise RuntimeError("Supervisor alert requires a published command digest")
+        role = guild.get_role(options.supervisor_alert_role_id)
+        if role is None:
+            raise ValueError("Supervisor alert role is unavailable")
+        summary_url = (
+            f"https://discord.com/channels/{guild_id}/{mention_target.channel_id}/{source[0]}"
+        )
+        embed = build_supervisor_alert_embed(overdue, matches, summary_url=summary_url)
+        allowed = discord.AllowedMentions(
+            everyone=False,
+            roles=[discord.Object(id=role.id)],
+            users=False,
+            replied_user=False,
+        )
+        for channel_id in options.supervisor_alert_channel_ids:
+            if channel_id in deliveries:
+                continue
+            try:
+                channel = await self._channel(guild, channel_id)
+                if not role.mentionable and not channel.permissions_for(guild.me).mention_everyone:
+                    raise ValueError("Bot cannot mention the supervisor alert role in this channel")
+                message = await channel.send(
+                    content=role.mention,
+                    embed=embed,
+                    allowed_mentions=allowed,
+                )
+                await self.repository.record_delivery(guild_id, cycle_id, channel_id, message.id)
+                deliveries[channel_id] = (message.id, False)
+            except Exception as error:
+                log_event(
+                    LOGGER,
+                    "error",
+                    "pending_digest_supervisor_delivery_failed",
+                    guild_id=guild_id,
+                    channel_id=channel_id,
                     exc_info=error,
                     **exception_fields(error),
                 )

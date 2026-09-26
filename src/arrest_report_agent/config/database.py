@@ -324,6 +324,9 @@ class PendingArrestReportsOptions(FrozenConfigModel):
     digest_interval_hours: int = Field(default=6, ge=1, le=168)
     digest_lookback_days: int = Field(default=7, ge=1, le=90)
     digest_targets: tuple[PendingArrestDigestTarget, ...] = Field(default=(), max_length=10)
+    supervisor_alerts_enabled: bool = False
+    supervisor_alert_channel_ids: tuple[int, ...] = Field(default=(), max_length=10)
+    supervisor_alert_role_id: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def validate_digest_targets(self) -> PendingArrestReportsOptions:
@@ -334,6 +337,18 @@ class PendingArrestReportsOptions(FrozenConfigModel):
             raise ValueError("only one digest target can mention users")
         if self.digest_lookback_days > self.max_range_days:
             raise ValueError("digest lookback cannot exceed max range")
+        if any(channel_id <= 0 for channel_id in self.supervisor_alert_channel_ids):
+            raise ValueError("supervisor alert channels must contain positive IDs")
+        if len(set(self.supervisor_alert_channel_ids)) != len(self.supervisor_alert_channel_ids):
+            raise ValueError("supervisor alert channels must be unique")
+        if set(self.supervisor_alert_channel_ids).intersection(channel_ids):
+            raise ValueError("supervisor alert channels must differ from digest targets")
+        if self.supervisor_alerts_enabled and (
+            not self.supervisor_alert_channel_ids or self.supervisor_alert_role_id is None
+        ):
+            raise ValueError("enabled supervisor alerts require channels and a role")
+        if self.supervisor_alerts_enabled and not any(target.mention_users for target in self.digest_targets):
+            raise ValueError("enabled supervisor alerts require a mentioning digest target")
         return self
 
 

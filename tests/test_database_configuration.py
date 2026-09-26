@@ -92,6 +92,8 @@ def test_pending_arrest_reports_options_are_bounded() -> None:
     assert options.max_records == 1000
     assert options.digest_interval_hours == 6
     assert options.digest_targets == ()
+    assert options.supervisor_alerts_enabled is False
+    assert options.supervisor_alert_channel_ids == ()
     with pytest.raises(ValueError, match="less than or equal to 365"):
         PendingArrestReportsOptions(faction_id=3, max_range_days=366)
     with pytest.raises(ValueError, match="greater than or equal to 50"):
@@ -109,6 +111,34 @@ def test_pending_arrest_reports_options_are_bounded() -> None:
                 {"channel_id": 456, "mention_users": True},
             ),
         )
+    digest = ({"channel_id": 123, "mention_users": True},)
+    with pytest.raises(ValueError, match="require channels and a role"):
+        PendingArrestReportsOptions(
+            faction_id=3, digest_targets=digest, supervisor_alerts_enabled=True
+        )
+    with pytest.raises(ValueError, match="require a mentioning digest target"):
+        PendingArrestReportsOptions(
+            faction_id=3,
+            digest_targets=({"channel_id": 123},),
+            supervisor_alerts_enabled=True,
+            supervisor_alert_channel_ids=(456,),
+            supervisor_alert_role_id=789,
+        )
+    with pytest.raises(ValueError, match="must be unique"):
+        PendingArrestReportsOptions(
+            faction_id=3, supervisor_alert_channel_ids=(456, 456)
+        )
+    with pytest.raises(ValueError, match="must differ"):
+        PendingArrestReportsOptions(
+            faction_id=3, digest_targets=digest, supervisor_alert_channel_ids=(123,)
+        )
+    assert PendingArrestReportsOptions(
+        faction_id=3,
+        digest_targets=digest,
+        supervisor_alerts_enabled=True,
+        supervisor_alert_channel_ids=(456, 457),
+        supervisor_alert_role_id=789,
+    ).supervisor_alerts_enabled
 
 
 def test_arrest_statistics_options_are_bounded() -> None:
@@ -1515,6 +1545,9 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
             "digest_interval_hours": 6,
             "digest_lookback_days": 7,
             "digest_targets": [{"channel_id": 1537203701893169254, "mention_users": True}],
+            "supervisor_alerts_enabled": True,
+            "supervisor_alert_channel_ids": [1234678185124298853],
+            "supervisor_alert_role_id": 1234676131240869949,
         }
         assert pending[999]["enabled"] is False
         assert pending[999]["payload"] == {}

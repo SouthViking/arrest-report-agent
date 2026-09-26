@@ -1,4 +1,4 @@
-"""Durable schedule, per-channel deliveries and restrained mention history."""
+"""Durable schedule, per-channel deliveries and mention history."""
 
 from __future__ import annotations
 
@@ -110,20 +110,6 @@ class PendingArrestDigestRepository:
             )
             .values(reply_sent=True)
         )
-
-    async def mention_history(
-        self, guild_id: int, report_ids: tuple[int, ...]
-    ) -> dict[tuple[int, int], tuple[int, datetime]]:
-        if not report_ids:
-            return {}
-        table = pending_arrest_digest_mentions
-        rows = await self.client.fetch_all(
-            sa.select(table).where(table.c.guild_id == guild_id, table.c.report_id.in_(report_ids))
-        )
-        return {
-            (int(row["report_id"]), int(row["user_id"])): (int(row["stage"]), row["mentioned_at"])
-            for row in rows
-        }
 
     async def record_mentions(
         self, guild_id: int, mentions: tuple[tuple[int, int, int], ...], *, now: datetime

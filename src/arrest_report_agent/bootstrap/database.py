@@ -21,7 +21,11 @@ from arrest_report_agent.config import (
     GuildFeatureSnapshot,
     PackagedPersonaProvider,
 )
-from arrest_report_agent.config.bootstrap_defaults import ftp_defaults, role_request_review_defaults
+from arrest_report_agent.config.bootstrap_defaults import (
+    ftp_defaults,
+    pending_arrest_supervisor_alert_defaults,
+    role_request_review_defaults,
+)
 from arrest_report_agent.infrastructure.postgres import (
     ConfigurationRepository,
     PostgresClient,
@@ -271,6 +275,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
     for guild_id in guild_ids:
         review_defaults = role_request_review_defaults(guild_id)
         configured_ftp = ftp_defaults(guild_id)
+        supervisor_alert_defaults = pending_arrest_supervisor_alert_defaults(guild_id)
         ftp_enabled = configured_ftp is not None and bool(supervisor_roles[guild_id])
         reviewer_ids = (
             review_defaults.reviewer_role_ids if review_defaults is not None else reviewer_roles[guild_id]
@@ -648,6 +653,17 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                                 "digest_targets": [
                                     {"channel_id": 1537203701893169254, "mention_users": True}
                                 ],
+                                "supervisor_alerts_enabled": supervisor_alert_defaults is not None,
+                                "supervisor_alert_channel_ids": (
+                                    list(supervisor_alert_defaults.channel_ids)
+                                    if supervisor_alert_defaults is not None
+                                    else []
+                                ),
+                                "supervisor_alert_role_id": (
+                                    supervisor_alert_defaults.role_id
+                                    if supervisor_alert_defaults is not None
+                                    else None
+                                ),
                             }
                             if guild_id == 1234674521416663070
                             else {}

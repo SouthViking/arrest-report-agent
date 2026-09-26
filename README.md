@@ -716,10 +716,15 @@ PCU sin completar, revisiones ausentes o pendientes y plazos de 24 y 48 horas. L
 naranjo, amarillo y verde exponen la urgencia sin mostrar el score. No guarda narrativas ni resultados:
 PostgreSQL conserva configuración, referencias de revisión y metadatos de programación/avisos. El
 formulario permite publicar el embed en el canal o recibirlo de forma efímera. El envío periódico
-guarda solo el estado de programación, las entregas y los avisos: menciona de forma agrupada a los
-agentes próximos a vencer (18/36 h) o fuera de plazo (24/48 h), cruza alias de múltiples PJ y no
-repite un aviso hasta que cambie de nivel o pase un día. La primera publicación ocurre después del
-intervalo configurado, no inmediatamente al arrancar.
+guarda solo el estado de programación, las entregas y los avisos: en cada ciclo menciona de forma
+agrupada a los agentes que sigan pendientes, incluidos los que aún están dentro de plazo, y cruza
+alias de múltiples PJ para no repetir una mención por persona en el mismo aviso. Cuando
+`supervisor_alerts_enabled` está activo, `supervisor_alert_channel_ids` y
+`supervisor_alert_role_id` configuran una alerta adicional solo si hay PCU vencido (24 h) o revisión
+sin aprobar fuera de plazo (48 h). Se publica después del resumen general, enlaza directamente a ese
+mensaje y menciona únicamente al rol; los agentes figuran en el embed sin recibir otra notificación.
+Estos valores se administran desde `/config`. La primera publicación ocurre después del intervalo
+configurado, no inmediatamente al arrancar.
 
 El módulo dinámico `service_calls` consulta `GET /police/emergency-calls` únicamente cuando la
 política `service_call_channels` contiene al menos un canal explícito. La primera sincronización fija

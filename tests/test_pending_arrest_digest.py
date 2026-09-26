@@ -18,8 +18,10 @@ from arrest_report_agent.pending_arrest_reports import (
 )
 from arrest_report_agent.pending_arrest_reports.digest import (
     PendingArrestDigestWorker,
+    build_supervisor_alert_embed,
     due_mentions,
     grouped_reply_chunks,
+    overdue_reasons,
     reminder_stage,
     unique_member_match,
 )
@@ -87,27 +89,51 @@ def test_name_match_handles_multiple_characters_accents_and_ambiguity() -> None:
     assert unique_member_match("Different Person", members) == (None, False)
 
 
-def test_mentions_only_repeat_after_escalation_or_one_day() -> None:
-    reports = (_report(1, age_hours=18, pcu_missing=True),)
-    matches = {1: 11}
-    assert due_mentions(reports, matches, {}, now=NOW) == ((1, 11, 1),)
-    history = {(1, 11): (1, NOW - timedelta(hours=6))}
-    assert due_mentions(reports, matches, history, now=NOW) == ()
-    assert due_mentions((_report(1, age_hours=24, pcu_missing=True),), matches, history, now=NOW) == (
-        (1, 11, 2),
+def test_mentions_include_all_current_pending_reports_with_resolved_members() -> None:
+    reports = (
+        _report(1, age_hours=1),
+        _report(2, age_hours=18, pcu_missing=True),
+        _report(3, age_hours=48),
+        _report(4, age_hours=48),
     )
-    history = {(1, 11): (2, NOW - timedelta(days=1))}
-    assert due_mentions((_report(1, age_hours=48),), matches, history, now=NOW) == ((1, 11, 2),)
+    matches = {1: 11, 2: 11, 3: 22}
+    expected = ((1, 11, 0), (2, 11, 1), (3, 22, 2))
+    assert due_mentions(reports, matches) == expected
+    assert due_mentions(reports, matches) == expected
 
 
 def test_grouped_reply_uses_one_mention_per_person_and_no_extra_header() -> None:
     guild = SimpleNamespace(emojis=[])
-    chunks = grouped_reply_chunks(guild, ((1, 11, 1), (2, 11, 2), (3, 22, 1)))
+    chunks = grouped_reply_chunks(guild, ((1, 11, 0), (2, 11, 2), (3, 22, 1), (4, 33, 0)))
     assert len(chunks) == 1
     assert "💀 **Fuera de plazo:** <@11>" in chunks[0]
     assert "🚧 **Próximos a vencer:** <@22>" in chunks[0]
+    assert "📝 **Pendientes:** <@33>" in chunks[0]
     assert chunks[0].count("<@11>") == 1
-    assert "Hay pendientes" not in chunks[0]
+
+
+def test_supervisor_alert_includes_only_expired_reasons_and_source_link() -> None:
+    pcu_only = _report(1, age_hours=30, pcu_missing=True)
+    review_only = _report(2, age_hours=51)
+    both = _report(3, age_hours=52, pcu_missing=True)
+    on_time = _report(4, age_hours=1)
+    assert overdue_reasons(pcu_only) == ("Sin PCU (6 h fuera de plazo)",)
+    assert overdue_reasons(review_only) == ("Sin revisión (3 h fuera de plazo)",)
+    assert overdue_reasons(both) == (
+        "Sin PCU (28 h fuera de plazo)",
+        "Sin revisión (4 h fuera de plazo)",
+    )
+    assert overdue_reasons(on_time) == ()
+    embed = build_supervisor_alert_embed(
+        (pcu_only, review_only, both, on_time),
+        {1: 11, 2: 22, 3: 22},
+        summary_url="https://discord.com/channels/1/55/1000",
+    )
+    assert "3 reportes vencidos · 2 agentes" in embed.description
+    assert "<@11>" in embed.description
+    assert "<@22>" in embed.description
+    assert "#4" not in embed.description
+    assert "https://discord.com/channels/1/55/1000" in embed.description
 
 
 class _FakeRepository:
@@ -121,11 +147,6 @@ class _FakeRepository:
 
     async def deliveries(self, guild_id: int, cycle_id: uuid.UUID) -> dict[int, tuple[int, bool]]:
         return self.delivered.setdefault(cycle_id, {})
-
-    async def mention_history(
-        self, guild_id: int, report_ids: tuple[int, ...]
-    ) -> dict[tuple[int, int], tuple[int, datetime]]:
-        return {key: value for key, value in self.history.items() if key[0] in report_ids}
 
     async def record_delivery(
         self, guild_id: int, cycle_id: uuid.UUID, channel_id: int, message_id: int
@@ -150,7 +171,7 @@ class _FakeRepository:
 
 
 @pytest.mark.asyncio
-async def test_worker_scans_once_for_multiple_channels_and_replies_only_when_due(persona) -> None:
+async def test_worker_scans_once_for_multiple_channels_and_replies_each_cycle(persona) -> None:
     options = PendingArrestReportsOptions(
         faction_id=3,
         digest_targets=(
@@ -173,10 +194,11 @@ async def test_worker_scans_once_for_multiple_channels_and_replies_only_when_due
         faction_id=3,
         date_from=date(2026, 9, 19),
         date_to=NOW.date(),
-        total_reports=2,
+        total_reports=3,
         pending_reports=(
             _report(1, age_hours=49, officer="Malcolm_Crawford"),
             _report(2, age_hours=18, pcu_missing=True, officer="Malcolm_Crawford"),
+            _report(3, age_hours=1, officer="R. Castellanos"),
         ),
     )
     messages: dict[int, list[SimpleNamespace]] = {55: [], 66: []}
@@ -210,7 +232,9 @@ async def test_worker_scans_once_for_multiple_channels_and_replies_only_when_due
         enabled_guild_ids=(1,),
     )
     worker._channel = AsyncMock(side_effect=lambda _guild, channel_id: channels[channel_id])
-    worker._members = AsyncMock(return_value=(_member(11, "C. Harrington / M. Cráwford"),))
+    worker._members = AsyncMock(
+        return_value=(_member(11, "C. Harrington / M. Cráwford"), _member(22, "R. Castellanos"))
+    )
 
     await worker.process_once(now=NOW)
     assert scan.await_count == 1
@@ -222,12 +246,183 @@ async def test_worker_scans_once_for_multiple_channels_and_replies_only_when_due
     assert reply_options["mention_author"] is False
     assert repository.history[(1, 11)][0] == 2
     assert repository.history[(2, 11)][0] == 1
+    assert repository.history[(3, 22)][0] == 0
+    assert "<@22>" in reply_text
 
     await worker.process_once(now=NOW + timedelta(hours=6))
     assert scan.await_count == 2
     assert len(messages[55]) == len(messages[66]) == 2
-    assert messages[55][1].replies == []
+    assert len(messages[55][1].replies) == 1
+    assert "<@11>" in messages[55][1].replies[0][0]
+    assert "<@22>" in messages[55][1].replies[0][0]
+    assert messages[66][1].replies == []
     assert repository.finished == 2
+
+
+@pytest.mark.asyncio
+async def test_supervisor_alert_follows_command_digest_without_notifying_officers(persona) -> None:
+    options = PendingArrestReportsOptions(
+        faction_id=3,
+        digest_targets=({"channel_id": 55, "mention_users": True},),
+        supervisor_alerts_enabled=True,
+        supervisor_alert_channel_ids=(66, 77),
+        supervisor_alert_role_id=999,
+    )
+    bundle = SimpleNamespace(
+        snapshot=SimpleNamespace(guild_id=1),
+        settings=SimpleNamespace(
+            pending_arrest_reports_options=options,
+            operational_staff_role_ids=(100,),
+        ),
+        persona=SimpleNamespace(profile=persona),
+    )
+    result = PendingArrestReportScan(
+        faction_id=3,
+        date_from=NOW.date(),
+        date_to=NOW.date(),
+        total_reports=2,
+        pending_reports=(
+            _report(1, age_hours=52, pcu_missing=True),
+            _report(2, age_hours=1, officer="R. Castellanos"),
+        ),
+    )
+    events: list[tuple[int, object]] = []
+    fail_last_channel = True
+
+    def channel_for(channel_id: int) -> SimpleNamespace:
+        async def send(**kwargs: object) -> SimpleNamespace:
+            nonlocal fail_last_channel
+            if channel_id == 77 and fail_last_channel:
+                fail_last_channel = False
+                raise RuntimeError("Supervisor channel temporarily unavailable")
+            events.append((channel_id, kwargs))
+            message = SimpleNamespace(id=1000 + channel_id)
+            message.reply = AsyncMock()
+            return message
+
+        return SimpleNamespace(
+            send=AsyncMock(side_effect=send),
+            permissions_for=lambda _member: SimpleNamespace(mention_everyone=False),
+        )
+
+    channels = {channel_id: channel_for(channel_id) for channel_id in (55, 66, 77)}
+    role = SimpleNamespace(id=999, mention="<@&999>", mentionable=True)
+    guild = SimpleNamespace(id=1, emojis=[], get_role=lambda _id: role, me=SimpleNamespace())
+    repository = _FakeRepository()
+    worker = PendingArrestDigestWorker(
+        SimpleNamespace(get_guild=lambda _id: guild),
+        SimpleNamespace(),
+        repository,
+        SimpleNamespace(),
+        SimpleNamespace(),
+    )
+    worker._channel = AsyncMock(side_effect=lambda _guild, channel_id: channels[channel_id])
+    worker._members = AsyncMock(
+        return_value=(_member(11, "Malcolm Crawford"), _member(22, "R. Castellanos"))
+    )
+    cycle_id = uuid.uuid4()
+    with pytest.raises(RuntimeError, match="temporarily unavailable"):
+        await worker._publish(bundle, options, result, cycle_id=cycle_id, now=NOW)
+    assert [channel_id for channel_id, _ in events] == [55, 66]
+    await worker._publish(bundle, options, result, cycle_id=cycle_id, now=NOW)
+
+    assert [channel_id for channel_id, _ in events] == [55, 66, 77]
+    for channel_id, kwargs in events[1:]:
+        assert kwargs["content"] == "<@&999>"
+        assert "<@11>" in kwargs["embed"].description
+        assert "<@22>" not in kwargs["embed"].description
+        assert "https://discord.com/channels/1/55/1055" in kwargs["embed"].description
+        assert kwargs["allowed_mentions"].users is False
+        assert [role.id for role in kwargs["allowed_mentions"].roles] == [999]
+        assert repository.delivered[cycle_id][channel_id][0] == 1000 + channel_id
+
+    await worker._publish(bundle, options, result, cycle_id=cycle_id, now=NOW)
+    assert len(events) == 3
+    await worker._publish(bundle, options, result, cycle_id=uuid.uuid4(), now=NOW + timedelta(hours=6))
+    assert [channel_id for channel_id, _ in events[3:]] == [55, 66, 77]
+
+
+@pytest.mark.asyncio
+async def test_supervisor_alert_is_skipped_when_no_deadline_has_expired(persona) -> None:
+    options = PendingArrestReportsOptions(
+        faction_id=3,
+        digest_targets=({"channel_id": 55, "mention_users": True},),
+        supervisor_alerts_enabled=True,
+        supervisor_alert_channel_ids=(66,),
+        supervisor_alert_role_id=999,
+    )
+    bundle = SimpleNamespace(
+        snapshot=SimpleNamespace(guild_id=1),
+        settings=SimpleNamespace(
+            pending_arrest_reports_options=options,
+            operational_staff_role_ids=(100,),
+        ),
+        persona=SimpleNamespace(profile=persona),
+    )
+    result = PendingArrestReportScan(
+        faction_id=3,
+        date_from=NOW.date(),
+        date_to=NOW.date(),
+        total_reports=1,
+        pending_reports=(_report(1, age_hours=1),),
+    )
+    message = SimpleNamespace(id=1055, reply=AsyncMock())
+    command = SimpleNamespace(send=AsyncMock(return_value=message))
+    repository = _FakeRepository()
+    worker = PendingArrestDigestWorker(
+        SimpleNamespace(get_guild=lambda _id: SimpleNamespace(id=1, emojis=[])),
+        SimpleNamespace(),
+        repository,
+        SimpleNamespace(),
+        SimpleNamespace(),
+    )
+    worker._channel = AsyncMock(return_value=command)
+    worker._members = AsyncMock(return_value=(_member(11, "Malcolm Crawford"),))
+    await worker._publish(bundle, options, result, cycle_id=uuid.uuid4(), now=NOW)
+    assert worker._channel.await_count == 1
+    assert command.send.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_supervisor_alert_is_not_sent_if_command_digest_fails(persona) -> None:
+    options = PendingArrestReportsOptions(
+        faction_id=3,
+        digest_targets=({"channel_id": 55, "mention_users": True},),
+        supervisor_alerts_enabled=True,
+        supervisor_alert_channel_ids=(66,),
+        supervisor_alert_role_id=999,
+    )
+    bundle = SimpleNamespace(
+        snapshot=SimpleNamespace(guild_id=1),
+        settings=SimpleNamespace(
+            pending_arrest_reports_options=options,
+            operational_staff_role_ids=(100,),
+        ),
+        persona=SimpleNamespace(profile=persona),
+    )
+    result = PendingArrestReportScan(
+        faction_id=3,
+        date_from=NOW.date(),
+        date_to=NOW.date(),
+        total_reports=1,
+        pending_reports=(_report(1, age_hours=52),),
+    )
+    command = SimpleNamespace(send=AsyncMock(side_effect=RuntimeError("Command channel unavailable")))
+    supervisor = SimpleNamespace(send=AsyncMock())
+    worker = PendingArrestDigestWorker(
+        SimpleNamespace(get_guild=lambda _id: SimpleNamespace(id=1, emojis=[])),
+        SimpleNamespace(),
+        _FakeRepository(),
+        SimpleNamespace(),
+        SimpleNamespace(),
+    )
+    worker._channel = AsyncMock(
+        side_effect=lambda _guild, channel_id: command if channel_id == 55 else supervisor
+    )
+    worker._members = AsyncMock(return_value=(_member(11, "Malcolm Crawford"),))
+    with pytest.raises(RuntimeError, match="Command channel unavailable"):
+        await worker._publish(bundle, options, result, cycle_id=uuid.uuid4(), now=NOW)
+    supervisor.send.assert_not_awaited()
 
 
 @pytest.mark.asyncio
