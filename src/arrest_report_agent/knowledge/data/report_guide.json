@@ -1,5 +1,5 @@
 {
-  "version": "2026-09-23",
+  "version": "2026-09-27",
   "source": "Manual de procedimientos LSSD proporcionado para el MVP",
   "sections": {
     "overview": {
@@ -23,7 +23,7 @@
     },
     "narrative_structure": {
       "recommended_order": [
-        "Identificación inicial del agente redactor con su rango y nombre; después, asignación o callsign si corresponde.",
+        "Identificación inicial del agente redactor con su rango y nombre; después, asignación o callsign abreviado si corresponde (por ejemplo, 282S en lugar de 282 Sam).",
         "Situación previa y motivo por el cual se acercó o respondió a escena.",
         "Localización y llegada.",
         "Hechos relevantes en orden entendible.",
@@ -44,6 +44,7 @@
         "Resultado del incidente cuando su omisión impida saber materialmente cómo terminó la actuación; no se exige una conclusión explícita o separada."
       ],
       "conditional": [
+        "Si se incluye cualquier callsign en la narrativa del reporte, debe estar abreviado: sustituir la palabra fonética por su letra y conservar los demás componentes válidos (por ejemplo, 282 Sam se escribe 282S y 281 Adam se escribe 281A). Estos ejemplos no limitan la regla. No es obligatorio agregar un callsign cuando el reporte no lo menciona; la forma completa puede seguir usándose en comunicaciones radiales.",
         "Número de llamada 911: puede omitirse si no existe sistema o si el incidente no nació de una llamada.",
         "Unidades adicionales y quién tomó el manejo: solo cuando participaron o sea relevante.",
         "Números de bolsas de evidencia: cuando hubo evidencia asociada al arresto.",
@@ -104,10 +105,11 @@
       ],
       "blocking_threshold": [
         "Si falta el rango del agente redactor en la identificación inicial de la narrativa, solicitar corrección obligatoria aunque pueda inferirse de otros datos. Aceptar «ayudante» cuando era Deputy Sheriff al momento del arresto; si existe evidencia concreta de que tenía otro rango, solicitar que lo indique en español. Si declara otro rango únicamente en inglés, pedir su denominación española como corrección obligatoria, sin cuestionar por ello el grado. No rechazar solo por una diferencia con el rango actual de SARP, que puede haber cambiado. No aplicar esta regla a los compañeros mencionados ni a una revisión limitada a cargos.",
+        "Cualquier callsign escrito con una palabra fonética completa dentro de la narrativa del reporte de arresto requiere corrección obligatoria a su forma abreviada; por ejemplo, 282 Sam a 282S o 281 Adam a 281A. Aplicar en revisiones completas o de narrativa; en una revisión focalizada, solo si el callsign está dentro del foco. No evaluar este formato en una revisión limitada a cargos ni en comunicaciones radiales.",
         "Solicitar corrección obligatoria solo cuando el problema corregible afecte la comprensión de los hechos, el fundamento documentado del arresto, la identificación relevante o la trazabilidad de evidencia física.",
         "Toda falta verificable de ortografía, gramática, puntuación o redacción debe corregirse y bloquea la aprobación.",
         "Citar ejemplos representativos y agrupar errores lingüísticos del mismo tipo en un solo hallazgo accionable.",
-        "Una preferencia de formato, como el diseño, el formato horario o el callsign, no bloquea si la guía no la exige y el dato continúa siendo inequívoco.",
+        "Una preferencia de formato, como el diseño o el formato horario, no bloquea si la guía no la exige y el dato continúa siendo inequívoco. La abreviatura del callsign cuando figura en la narrativa del reporte sí es obligatoria.",
         "La ausencia de un cierre o una conclusión separada no genera un hallazgo si el desarrollo y el resultado del incidente ya son comprensibles; solo es material cuando realmente queda ambiguo cómo terminó la actuación.",
         "Una referencia numérica descrita como serial, número, ID o referencia de ítems o elementos en evidencia satisface la trazabilidad sin tener que llamarse explícitamente bolsa.",
         "Agrupar observaciones relacionadas y omitir preferencias editoriales sin impacto operativo."

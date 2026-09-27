@@ -992,7 +992,7 @@ async def test_narrative_only_review_does_not_require_or_assess_charges(
             "user",
             """Revisa únicamente la narrativa; no evalúes los cargos.
 
-Yo, Deputy Sheriff Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las 22:15
+Yo, ayudante Elena Torres, bajo la asignación 241W, patrullaba Jefferson el 05/08/2026 a las 22:15
 cuando observé un Sultan negro circulando sin luces. Le ordené detenerse mediante luces y sirena.
 El conductor se detuvo en Forum Drive, pero volvió a encender el vehículo y huyó cuando me acerqué.
 Inicié una persecución que duró ocho minutos y terminó en Idlewood, donde el vehículo quedó
@@ -1573,6 +1573,68 @@ async def test_structured_review_requires_rank_in_preloaded_sarp_narrative(
         finding.severity.value == "required" and "rango" in (finding.title + " " + finding.detail).lower()
         for finding in publication.findings
     ), publication.model_dump(mode="json")
+
+
+@pytest.mark.parametrize(
+    ("callsign", "abbreviated", "companion", "expected_verdict"),
+    [
+        ("282 Sam", "282S", False, ReviewVerdict.CORRECTIONS_REQUIRED),
+        ("282S", "282S", False, ReviewVerdict.APPROVED),
+        ("281 Adam", "281A", True, ReviewVerdict.CORRECTIONS_REQUIRED),
+        ("281A", "281A", True, ReviewVerdict.APPROVED),
+    ],
+)
+async def test_structured_arrest_review_requires_abbreviated_callsign(
+    ai_eval_settings: AppSettings,
+    callsign: str,
+    abbreviated: str,
+    companion: bool,
+    expected_verdict: ReviewVerdict,
+) -> None:
+    arrest_lookup = RecordingArrestReportLookup()
+    primary_callsign = "282S" if companion else callsign
+    companion_sentence = (
+        f"El ayudante Marco Ruiz, de la unidad {callsign}, llegó en apoyo y aseguró la escena. "
+        if companion else ""
+    )
+    report = replace(
+        arrest_lookup.report,
+        description=(
+            f"Yo, sargento Charles Harrington, bajo la asignación {primary_callsign}, patrullaba Jefferson "
+            "el 05/08/2026 a las 22:15. Observé a Terry McKenzie conducir a alta velocidad, "
+            "cruzar al carril contrario y obligar a otros vehículos a frenar. Le ordené detenerse "
+            "con luces y sirena. Se detuvo, pero huyó al acercarme y lo seguí hasta Idlewood, "
+            f"donde se detuvo de nuevo. {companion_sentence}"
+            "Lo arresté sin lesiones y lo trasladé a la estación de "
+            "Ganton. No se recolectó evidencia física."
+        ),
+    )
+    case = _case(
+        ("user", "Revisa únicamente la narrativa de este reporte estructurado de arresto."),
+        initial_channel_id=4002,
+        structured_submission_id=UUID("00000000-0000-0000-0000-000000000756"),
+        structured_report_id=report.report_id,
+        structured_suspect_name=report.suspect_name,
+    )
+
+    _, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        arrest_report_lookup=arrest_lookup,
+        preloaded_arrest_report=report,
+    )
+    publication = _single_publication(publisher)
+
+    assert publication.review_scope is ReviewScope.NARRATIVE
+    assert publication.verdict is expected_verdict, publication.model_dump(mode="json")
+    if expected_verdict is ReviewVerdict.CORRECTIONS_REQUIRED:
+        assert any(
+            finding.severity.value == "required"
+            and callsign in f"{finding.title} {finding.detail} {finding.recommendation} {finding.evidence}"
+            and abbreviated in f"{finding.title} {finding.detail} {finding.recommendation} {finding.evidence}"
+            for finding in publication.findings
+        ), publication.model_dump(mode="json")
 
 
 class RecordingOfficerRankLookup:

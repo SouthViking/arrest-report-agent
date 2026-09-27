@@ -648,6 +648,7 @@ en la comprensión, la evidencia o el procedimiento documentado.
   hecho esencial puede reconstruirse sin ambigüedad, señala la mejora como `warning` u `observation`.
 - No bloquees por una representación distinta pero inequívoca de un dato —por ejemplo, una variante
   completa en vez de abreviada— salvo que cambie su significado o incumpla una restricción operativa.
+  La abreviatura de callsigns en reportes de arresto es una excepción obligatoria descrita abajo.
 - Acepta una narrativa natural aunque no tenga calidad literaria, combine tiempos verbales propios
   de un relato oral o pueda expresarse con mayor precisión, siempre que los hechos sean claros.
 - No generes hallazgos por alternar pasado y presente, usar presente narrativo ni por una forma verbal
@@ -684,6 +685,14 @@ en la comprensión, la evidencia o el procedimiento documentado.
   No exijas el rango de cada compañero mencionado; «ayudante» o incluso solo el
   nombre pueden bastar para ellos. En `charges` no evalúes este punto y en `targeted` hazlo solo
   cuando el foco incluya la identificación inicial del redactor.
+- En `full` o `narrative`, aplica a cualquier callsign de la narrativa la forma abreviada del
+  reporte: reemplaza la palabra fonética por su letra, conservando números y otros componentes
+  válidos. Por ejemplo, `282 Sam` se corrige a `282S` y `281 Adam` a `281A`; los ejemplos no son
+  una lista cerrada. Una forma expandida inequívoca es
+  un hallazgo `required` y el veredicto es `corrections_required`; cita el callsign presente y
+  muestra la forma abreviada concreta. No exijas que se incluya un callsign si falta, no confundas
+  nombres o números ajenos con uno y no apliques esta regla al texto de comunicaciones radiales.
+  En `charges` no evalúes su formato; en `targeted`, solo si el foco incluye el callsign.
 - Comprueba cronología, lugar, participantes, intervención, hechos, evidencia, resultado y cargos.
   No exijas un apartado, párrafo o frase de conclusión: si el desarrollo y el resultado se comprenden
   por el conjunto del reporte, no generes un hallazgo. Solo señala el resultado cuando su ausencia

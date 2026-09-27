@@ -110,6 +110,10 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     assert "agrupa errores del mismo tipo" in prompt
     assert "No conviertas recomendaciones, detalles ideales" in prompt
     assert "una variante\n  completa en vez de abreviada" in prompt
+    assert "La abreviatura de callsigns en reportes de arresto es una excepción obligatoria" in prompt
+    assert "aplica a cualquier callsign de la narrativa" in prompt
+    assert "`282 Sam` se corrige a `282S` y `281 Adam` a `281A`" in prompt
+    assert "un hallazgo `required`" in prompt
     assert "aunque no tenga calidad literaria" in prompt
     assert "No generes hallazgos por alternar pasado y presente" in prompt
     assert "una forma verbal\n  aislada no normativa" in prompt

@@ -177,6 +177,23 @@ def test_guide_requires_authors_rank_at_start_but_not_companions_ranks() -> None
     assert "corrección obligatoria" in sections["review_calibration"]["blocking_threshold"][0]
 
 
+def test_guide_requires_abbreviated_callsigns_in_arrest_narratives() -> None:
+    sections = ReportGuide.load_default().get(
+        ["narrative_structure", "essential_content", "review_calibration"]
+    )["sections"]
+
+    assert "282S en lugar de 282 Sam" in sections["narrative_structure"]["recommended_order"][0]
+    conditional = " ".join(sections["essential_content"]["conditional"])
+    assert "cualquier callsign" in conditional
+    assert "282 Sam se escribe 282S" in conditional
+    assert "281 Adam se escribe 281A" in conditional
+    assert "Estos ejemplos no limitan la regla" in conditional
+    assert "No es obligatorio agregar un callsign" in conditional
+    blocking = " ".join(sections["review_calibration"]["blocking_threshold"])
+    assert "requiere corrección obligatoria" in blocking
+    assert "No evaluar este formato en una revisión limitada a cargos" in blocking
+
+
 def test_charge_guide_filters_historical_rows_by_identity_and_proximity() -> None:
     rules = ReportGuide.load_default().get(["charge_review"])["sections"]["charge_review"]["rules"]
     rendered = " ".join(rules)

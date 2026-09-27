@@ -1,14 +1,16 @@
 {
   "schema_version": 3,
-  "version": "0.38.24",
-  "title": "Nuevo comando /rumor",
-  "summary": "Ya puedes publicar noticias y ambientación de forma anónima en los canales de GNT y DLM.",
+  "version": "0.38.25",
+  "title": "Callsigns abreviados en reportes de arresto",
+  "summary": "La revisión de reportes ahora señala los callsigns escritos sin abreviar.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
-      "type": "added",
-      "text": "Usa /rumor para compartir el mensaje; el bot avisará automáticamente a la estación correspondiente."
+      "type": "improved",
+      "text": "Un callsign como 282 Sam se pide corregir a 282S; la regla aplica a cualquier callsign del reporte."
     }
   ],
   "acknowledgements": []
