@@ -471,6 +471,10 @@ Comandos disponibles:
   auditoría interna.
 - `/blacklist info`: guía pública con los comandos, permisos y tipos habilitados. También aparece
   en `/ayuda` cuando el módulo de blacklists está activo.
+- `/rumor`: abre un formulario con aviso de uso responsable y publica un embed anónimo en el
+  canal configurado. Cada canal determina el rol que se menciona mediante una única lista de
+  pares canal–rol; el autor no aparece en la publicación y queda registrado solo para auditoría
+  interna. El comando aparece en `/ayuda` únicamente dentro de los canales habilitados.
 - `/info-bitacora`: explica públicamente el flujo en un canal de bitácora habilitado. `/ayuda`
   solo muestra esta guía cuando se ejecuta dentro de uno de esos canales.
 - `/guia-bitacora`: muestra una referencia compacta e indentada de todas las categorías y

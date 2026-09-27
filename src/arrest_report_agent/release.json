@@ -1,16 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.38.23",
-  "title": "Corrección de avisos de reportes pendientes",
-  "summary": "Se corrigió la repetición de menciones al publicar los reportes pendientes.",
+  "version": "0.38.24",
+  "title": "Nuevo comando /rumor",
+  "summary": "Ya puedes publicar noticias y ambientación de forma anónima en los canales de GNT y DLM.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
-      "type": "improved",
-      "text": "Los avisos de reportes pendientes ya no se repiten por un fallo al registrar su publicación."
+      "type": "added",
+      "text": "Usa /rumor para compartir el mensaje; el bot avisará automáticamente a la estación correspondiente."
     }
   ],
   "acknowledgements": []

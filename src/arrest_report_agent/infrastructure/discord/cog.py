@@ -1324,6 +1324,15 @@ class ReviewCog(commands.Cog):
                     extra_feature_lines.append(
                         "• `/blacklist info`: cómo registrar, consultar y administrar blacklists."
                     )
+                rumor_options = bundle.settings.rumor_options
+                if (
+                    rumor_options is not None
+                    and ctx.channel is not None
+                    and rumor_options.target_for_channel(ctx.channel.id) is not None
+                ):
+                    extra_feature_lines.append(
+                        "• `/rumor`: publica un mensaje anónimo en este canal."
+                    )
                 radio_feature = bundle.snapshot.features.get("radio_audit")
                 if (
                     radio_feature is not None

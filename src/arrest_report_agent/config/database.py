@@ -352,6 +352,25 @@ class PendingArrestReportsOptions(FrozenConfigModel):
         return self
 
 
+class RumorChannelOptions(FrozenConfigModel):
+    channel_id: int = Field(gt=0)
+    role_id: int = Field(gt=0)
+
+
+class RumorOptions(FrozenConfigModel):
+    channels: tuple[RumorChannelOptions, ...] = Field(min_length=1, max_length=25)
+
+    @model_validator(mode="after")
+    def validate_channels(self) -> RumorOptions:
+        channel_ids = [item.channel_id for item in self.channels]
+        if len(channel_ids) != len(set(channel_ids)):
+            raise ValueError("rumor channels must be unique")
+        return self
+
+    def target_for_channel(self, channel_id: int) -> RumorChannelOptions | None:
+        return next((item for item in self.channels if item.channel_id == channel_id), None)
+
+
 class FactionReportOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
     max_range_days: int = Field(default=366, ge=1, le=730)
@@ -666,6 +685,11 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if pending_reports_feature.schema_version != 1:
                 raise ValueError("pending_arrest_reports requires feature schema version 1")
             PendingArrestReportsOptions.model_validate(pending_reports_feature.payload)
+        rumors_feature = self.features.get("rumors")
+        if rumors_feature is not None and rumors_feature.enabled:
+            if rumors_feature.schema_version != 1:
+                raise ValueError("rumors requires feature schema version 1")
+            RumorOptions.model_validate(rumors_feature.payload)
         faction_report_feature = self.features.get("faction_reports")
         if faction_report_feature is not None and faction_report_feature.enabled:
             if faction_report_feature.schema_version != 1:
@@ -951,6 +975,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return PendingArrestReportsOptions.model_validate(feature.payload)
+
+    @property
+    def rumor_options(self) -> RumorOptions | None:
+        feature = self.snapshot.features.get("rumors")
+        if feature is None or not feature.enabled:
+            return None
+        return RumorOptions.model_validate(feature.payload)
 
     @property
     def pending_arrest_reports_faction_id(self) -> int | None:

@@ -89,6 +89,7 @@ FEATURE_LABELS = {
     "pending_arrest_reports": "Reportes de arresto pendientes",
     "logbook": "Bitácora",
     "blacklists": "Blacklists",
+    "rumors": "Rumores",
     "radio_audit": "Consulta y auditoría de radios",
 }
 MODE_LABELS = {
@@ -1005,6 +1006,7 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     label="Reportes de arresto pendientes",
                     value="pending_arrest_reports",
                 ),
+                discord.SelectOption(label="Rumores", value="rumors"),
                 discord.SelectOption(
                     label="Consulta y auditoría de radios",
                     value="radio_audit",

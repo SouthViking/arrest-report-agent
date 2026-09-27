@@ -124,6 +124,7 @@ from arrest_report_agent.role_requests import (
     RoleRequestService,
     RoleRequestServiceRegistry,
 )
+from arrest_report_agent.rumors import RumorCog, RumorRepository
 from arrest_report_agent.service_calls import ServiceCallFeedWorker, ServiceCallRepository
 from arrest_report_agent.stolen_vehicles import (
     StolenVehicleCog,
@@ -733,6 +734,7 @@ async def build_runtime(
         for bundle in all_bundles
     )
     bot.add_cog(BlacklistCog(config_provider, BlacklistRepository(postgres)))
+    bot.add_cog(RumorCog(config_provider, RumorRepository(postgres)))
     log_event(
         LOGGER,
         "info",

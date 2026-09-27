@@ -32,6 +32,8 @@ from .database import (
     RoleRequestFttWelcomeOptions,
     RoleRequestOptions,
     RoleRequestStationOption,
+    RumorChannelOptions,
+    RumorOptions,
     WarrantNotificationOptions,
 )
 from .model_catalog import ModelCatalog, ResolvedModel
@@ -113,6 +115,8 @@ __all__ = [
     "RoleRequestFttWelcomeOptions",
     "RoleRequestOptions",
     "RoleRequestStationOption",
+    "RumorChannelOptions",
+    "RumorOptions",
     "WarrantNotificationOptions",
     "LoadedPersona",
     "ModelCatalog",

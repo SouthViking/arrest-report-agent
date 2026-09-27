@@ -58,6 +58,31 @@ pending_arrest_digest_mentions = sa.Table(
 )
 
 
+rumor_publications = sa.Table(
+    "rumor_publications",
+    metadata,
+    sa.Column("interaction_id", sa.BigInteger, primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("channel_id", sa.BigInteger, nullable=False),
+    sa.Column("role_id", sa.BigInteger, nullable=False),
+    sa.Column("author_user_id", sa.BigInteger, nullable=False),
+    sa.Column("message_id", sa.BigInteger),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.UniqueConstraint("guild_id", "channel_id", "message_id", name="uq_rumor_message"),
+)
+sa.Index(
+    "ix_rumor_author",
+    rumor_publications.c.guild_id,
+    rumor_publications.c.author_user_id,
+    rumor_publications.c.created_at,
+)
+
+
 def uuid_column(name: str = "id", *, primary_key: bool = False) -> sa.Column[uuid.UUID]:
     return sa.Column(
         name,
