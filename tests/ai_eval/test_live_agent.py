@@ -1601,7 +1601,7 @@ class RecordingOfficerRankLookup:
         return tuple([await self.find(name, fuzzy=fuzzy) for name in officer_names])
 
 
-async def test_structured_review_rejects_generic_ayudante_even_with_rank_lookup_available(
+async def test_structured_review_accepts_ayudante_for_deputy_sheriff(
     ai_eval_settings: AppSettings,
 ) -> None:
     arrest_lookup = RecordingArrestReportLookup()
@@ -1636,19 +1636,58 @@ async def test_structured_review_rejects_generic_ayudante_even_with_rank_lookup_
 
     assert rank_lookup.calls == [("Charles Harrington", True)]
     assert publication.review_scope is ReviewScope.FULL
-    assert publication.verdict is ReviewVerdict.CORRECTIONS_REQUIRED
     rank_findings = [
         finding for finding in publication.findings
         if finding.severity.value == "required"
         and "rango" in (finding.title + " " + finding.detail).lower()
     ]
-    assert rank_findings, publication.model_dump(mode="json")
-    recommendation = rank_findings[0].recommendation.casefold()
-    assert "deputy sheriff" in recommendation, publication.model_dump(mode="json")
-    assert "charles harrington" in recommendation, publication.model_dump(mode="json")
-    assert any(term in recommendation for term in ("fecha", "momento", "entonces")), (
-        publication.model_dump(mode="json")
+    assert not rank_findings, publication.model_dump(mode="json")
+
+
+async def test_structured_review_requires_spanish_rank_when_ayudante_conflicts_with_known_rank(
+    ai_eval_settings: AppSettings,
+) -> None:
+    arrest_lookup = RecordingArrestReportLookup()
+    rank_lookup = RecordingOfficerRankLookup(current_rank="Sergeant")
+    report = replace(
+        arrest_lookup.report,
+        description=(
+            "Yo, ayudante Charles Harrington, bajo la asignación 280L, detuve a Terry McKenzie "
+            "en Jefferson el 05/08/2026 a las 22:15 "
+            "después de que huyera de una intervención vehicular. La persecución terminó en "
+            "Idlewood, donde lo arresté sin lesiones y lo trasladé a la estación de Ganton. "
+            "No se recolectó evidencia física. En la fecha del arresto mi rango formal era "
+            "sargento, no Deputy Sheriff."
+        ),
     )
+    case = _case(
+        ("user", "Revisa únicamente la narrativa de este reporte estructurado."),
+        root_author_display="C. Harrington",
+        initial_channel_id=4002,
+        structured_submission_id=UUID("00000000-0000-0000-0000-000000000756"),
+        structured_report_id=report.report_id,
+        structured_suspect_name=report.suspect_name,
+    )
+
+    _, publisher = await _run_agent(
+        ai_eval_settings,
+        case,
+        access_level=AgentAccessLevel.REPORT_OWNER,
+        arrest_report_lookup=arrest_lookup,
+        preloaded_arrest_report=report,
+        faction_officer_rank_lookup=rank_lookup,
+    )
+    publication = _single_publication(publisher)
+
+    assert rank_lookup.calls == [("Charles Harrington", True)]
+    assert publication.review_scope is ReviewScope.NARRATIVE
+    assert publication.verdict is ReviewVerdict.CORRECTIONS_REQUIRED
+    assert any(
+        finding.severity.value == "required"
+        and "rango" in (finding.title + " " + finding.detail).lower()
+        and "sargento" in finding.recommendation.lower()
+        for finding in publication.findings
+    ), publication.model_dump(mode="json")
 
 
 async def test_structured_review_checks_current_officer_rank_without_rejecting_historical_difference(

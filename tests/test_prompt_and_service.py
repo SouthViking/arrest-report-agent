@@ -153,10 +153,12 @@ def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
 def test_review_prompt_checks_only_the_authors_opening_rank(persona) -> None:
     prompt = build_agent_instructions(persona)
 
-    assert "declare su propio rango\n  formal y nombre al comienzo de la narrativa" in prompt
-    assert "«Yo, ayudante Nombre Apellido» NO satisface el requisito" in prompt
-    assert "clasifícalo como `required` y entrega `corrections_required`" in prompt
-    assert "del rango SARP actual, de roles de Discord" in prompt
+    assert "declare su propio rango\n  y nombre al comienzo de la narrativa" in prompt
+    assert "«Ayudante» identifica válidamente SOLO a quien era `Deputy Sheriff`" in prompt
+    assert "debe escribir el correspondiente en español" in prompt
+    assert "otro rango únicamente en inglés" in prompt
+    assert "clasifícalo como `required` y entrega\n  `corrections_required`" in prompt
+    assert "del rango\n  SARP actual, de roles de Discord" in prompt
     assert "No exijas el rango de cada compañero mencionado" in prompt
     assert "En `charges` no evalúes este punto" in prompt
 
@@ -263,8 +265,14 @@ def test_report_officer_rank_instructions_are_conditional_and_available_to_owner
     assert "hasta 37 nombres completos" in configured
     assert "`queried_name`" in full
     assert "`possible_match`" in full
-    assert "jamás\n  conviertas esa sola diferencia en `required`" in full
+    assert "jamás conviertas esa sola diferencia\n  en `required`" in full
     assert "incluye ese rango vigente en la recomendación como ejemplo concreto" in full
+    assert (
+        "Si la coincidencia\n  exacta muestra `Deputy Sheriff`, acepta «Yo, ayudante Nombre Apellido»"
+        in full
+    )
+    assert "`Sergeant` corresponde a «sargento», no a «ayudante»" in full
+    assert "`Sergeant` → «sargento»" in full
     assert "sin presentar el rango actual como certeza histórica" in full
     assert "Si no hay coincidencia confirmada\n  o rango conocido" in full
     assert "get_report_officer_rank" in owner

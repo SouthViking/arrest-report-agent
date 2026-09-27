@@ -35,7 +35,7 @@
     },
     "essential_content": {
       "generally_required": [
-        "El agente redactor debe declarar su propio rango formal y nombre al comienzo de la narrativa, por ejemplo «Yo, sargento Nombre Apellido» o «Yo, Deputy Sheriff Nombre Apellido». Aceptar una formulación equivalente, sin exigir esas frases literales. «Yo, ayudante Nombre Apellido» no basta: ayudante es una referencia genérica, no el rango formal declarado. El rango no se suple con datos de la API ni roles de Discord; no exigir el rango de cada compañero mencionado.",
+        "El agente redactor debe declarar su propio rango y nombre al comienzo de la narrativa, por ejemplo «Yo, sargento Nombre Apellido» o «Yo, ayudante Nombre Apellido». Aceptar una formulación equivalente, sin exigir esas frases literales. «Ayudante» equivale a Deputy Sheriff solo si ese era su rango al momento del arresto; para cualquier otro rango debe indicar el correspondiente en español. El rango ausente no se suple con datos de la API ni roles de Discord; no exigir el rango de cada compañero mencionado.",
         "Cuándo ocurrió o cuándo se involucró el agente: fecha y hora aproximadas cuando estén disponibles.",
         "Quiénes participaron: agente redactor y otros ayudantes cuya actuación individual sea material para comprender o atribuir los hechos.",
         "Cómo se inició: llamada 911, observación propia, apoyo a otra unidad u otro origen.",
@@ -103,7 +103,7 @@
         "La narrativa vigente y el listado o captura de cargos son materiales esenciales para una revisión completa."
       ],
       "blocking_threshold": [
-        "Si falta el rango formal del agente redactor en la identificación inicial de la narrativa, o solo figura el genérico «ayudante», solicitar corrección obligatoria aunque su nombre o rango pueda inferirse de otros datos. No aplicar esta regla a los compañeros mencionados ni a una revisión limitada a cargos.",
+        "Si falta el rango del agente redactor en la identificación inicial de la narrativa, solicitar corrección obligatoria aunque pueda inferirse de otros datos. Aceptar «ayudante» cuando era Deputy Sheriff al momento del arresto; si existe evidencia concreta de que tenía otro rango, solicitar que lo indique en español. Si declara otro rango únicamente en inglés, pedir su denominación española como corrección obligatoria, sin cuestionar por ello el grado. No rechazar solo por una diferencia con el rango actual de SARP, que puede haber cambiado. No aplicar esta regla a los compañeros mencionados ni a una revisión limitada a cargos.",
         "Solicitar corrección obligatoria solo cuando el problema corregible afecte la comprensión de los hechos, el fundamento documentado del arresto, la identificación relevante o la trazabilidad de evidencia física.",
         "Toda falta verificable de ortografía, gramática, puntuación o redacción debe corregirse y bloquea la aprobación.",
         "Citar ejemplos representativos y agrupar errores lingüísticos del mismo tipo en un solo hallazgo accionable.",

@@ -166,8 +166,12 @@ def test_guide_requires_authors_rank_at_start_but_not_companions_ranks() -> None
 
     assert "rango y nombre" in sections["narrative_structure"]["recommended_order"][0]
     identification = sections["essential_content"]["generally_required"][0]
-    assert "propio rango formal y nombre al comienzo" in identification
-    assert "«Yo, ayudante Nombre Apellido» no basta" in identification
+    assert "propio rango y nombre al comienzo" in identification
+    assert "«Ayudante» equivale a Deputy Sheriff solo si ese era su rango" in identification
+    assert "para cualquier otro rango debe indicar el correspondiente en español" in identification
+    assert "otro rango únicamente en inglés" in " ".join(
+        sections["review_calibration"]["blocking_threshold"]
+    )
     assert "no exigir el rango de cada compañero" in identification
     assert "API ni roles de Discord" in identification
     assert "corrección obligatoria" in sections["review_calibration"]["blocking_threshold"][0]
