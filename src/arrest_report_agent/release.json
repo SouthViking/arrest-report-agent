@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "0.38.22",
-  "title": "Identificación en revisiones de arresto",
-  "summary": "La revisión acepta «ayudante» para Deputy Sheriff y pide los demás rangos en español, considerando el rango que tenía el agente al momento del arresto.",
+  "version": "0.38.23",
+  "title": "Corrección de avisos de reportes pendientes",
+  "summary": "Se corrigió la repetición de menciones al publicar los reportes pendientes.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,7 +10,7 @@
   "changes": [
     {
       "type": "improved",
-      "text": "Un Deputy Sheriff puede identificarse como «ayudante» en la narrativa. Si tenía otro rango, debe indicar ese rango en español; el rango actual en PCU no invalida por sí solo un reporte antiguo."
+      "text": "Los avisos de reportes pendientes ya no se repiten por un fallo al registrar su publicación."
     }
   ],
   "acknowledgements": []

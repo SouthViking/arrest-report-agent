@@ -435,8 +435,12 @@ class PendingArrestDigestWorker:
                     )
                     for content in grouped_reply_chunks(guild, mentions):
                         await message.reply(content, mention_author=False, allowed_mentions=allowed)
+                    # Discord has already delivered the reply. Persist that fact before
+                    # updating mention history so a history failure cannot resend it.
+                    await self.repository.record_reply(guild_id, cycle_id, target.channel_id)
+                    deliveries[target.channel_id] = (message.id, True)
                     await self.repository.record_mentions(guild_id, mentions, now=now)
-                if target.mention_users:
+                elif target.mention_users:
                     await self.repository.record_reply(guild_id, cycle_id, target.channel_id)
                     deliveries[target.channel_id] = (message.id, True)
             except Exception as error:

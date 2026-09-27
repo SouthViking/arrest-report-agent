@@ -54,7 +54,7 @@ pending_arrest_digest_mentions = sa.Table(
     sa.Column("user_id", sa.BigInteger, primary_key=True),
     sa.Column("stage", sa.SmallInteger, nullable=False),
     sa.Column("mentioned_at", sa.DateTime(timezone=True), nullable=False),
-    sa.CheckConstraint("stage IN (1,2)", name="ck_pending_digest_mention_stage"),
+    sa.CheckConstraint("stage IN (0,1,2)", name="ck_pending_digest_mention_stage"),
 )
 
 

@@ -260,6 +260,53 @@ async def test_worker_scans_once_for_multiple_channels_and_replies_each_cycle(pe
 
 
 @pytest.mark.asyncio
+async def test_retry_does_not_repeat_delivered_reply_when_mention_history_fails(persona) -> None:
+    options = PendingArrestReportsOptions(
+        faction_id=3, digest_targets=({"channel_id": 55, "mention_users": True},)
+    )
+    bundle = SimpleNamespace(
+        snapshot=SimpleNamespace(guild_id=1),
+        settings=SimpleNamespace(operational_staff_role_ids=(100,)),
+        persona=SimpleNamespace(profile=persona),
+    )
+    result = PendingArrestReportScan(
+        faction_id=3,
+        date_from=NOW.date(),
+        date_to=NOW.date(),
+        total_reports=1,
+        pending_reports=(_report(1, age_hours=1),),
+    )
+    message = SimpleNamespace(id=1001, reply=AsyncMock())
+    channel = SimpleNamespace(send=AsyncMock(return_value=message))
+
+    class FailingMentionRepository(_FakeRepository):
+        async def record_mentions(
+            self, guild_id: int, mentions: tuple[tuple[int, int, int], ...], *, now: datetime
+        ) -> None:
+            raise RuntimeError("Mention history unavailable")
+
+    repository = FailingMentionRepository()
+    worker = PendingArrestDigestWorker(
+        SimpleNamespace(get_guild=lambda _id: SimpleNamespace(id=1, emojis=[])),
+        SimpleNamespace(),
+        repository,
+        SimpleNamespace(),
+        SimpleNamespace(),
+    )
+    worker._channel = AsyncMock(return_value=channel)
+    worker._members = AsyncMock(return_value=(_member(11, "Malcolm Crawford"),))
+    cycle_id = uuid.uuid4()
+
+    with pytest.raises(RuntimeError, match="Mention history unavailable"):
+        await worker._publish(bundle, options, result, cycle_id=cycle_id, now=NOW)
+    assert repository.delivered[cycle_id][55] == (1001, True)
+
+    await worker._publish(bundle, options, result, cycle_id=cycle_id, now=NOW)
+    channel.send.assert_awaited_once()
+    message.reply.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_supervisor_alert_follows_command_digest_without_notifying_officers(persona) -> None:
     options = PendingArrestReportsOptions(
         faction_id=3,
