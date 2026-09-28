@@ -1023,6 +1023,32 @@ report_owner_round_grants = sa.Table(
     ),
 )
 
+report_owner_quota_exhaustion_notifications = sa.Table(
+    "report_owner_quota_exhaustion_notifications",
+    metadata,
+    uuid_column(primary_key=True),
+    sa.Column(
+        "guild_id",
+        sa.BigInteger,
+        sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("root_message_id", sa.BigInteger, nullable=False),
+    sa.Column("owner_user_id", sa.BigInteger, nullable=False),
+    sa.Column("max_rounds", sa.Integer, nullable=False),
+    sa.Column("message_id", sa.BigInteger),
+    sa.Column("claimed_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("sent_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint("max_rounds > 0", name="ck_report_owner_quota_notification_max"),
+    sa.UniqueConstraint(
+        "guild_id",
+        "root_message_id",
+        "owner_user_id",
+        "max_rounds",
+        name="uq_report_owner_quota_notification_threshold",
+    ),
+)
+
 manual_quiz_questions = sa.Table(
     "manual_quiz_questions",
     metadata,

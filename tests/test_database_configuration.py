@@ -507,7 +507,11 @@ def test_report_owner_access_requires_explicit_channels_and_bounded_rounds(setti
                 key="report_owner_access",
                 enabled=True,
                 schema_version=1,
-                payload={"max_rounds": 5},
+                payload={
+                    "max_rounds": 5,
+                    "quota_grant_role_ids": [200, 201],
+                    "quota_exhausted_notification_channel_id": 300,
+                },
             )
         },
         persona_revision_id=uuid4(),
@@ -516,6 +520,23 @@ def test_report_owner_access_requires_explicit_channels_and_bounded_rounds(setti
     )
 
     assert GuildRuntimeSettings(settings, snapshot).report_owner_access_max_rounds == 5
+    assert GuildRuntimeSettings(settings, snapshot).report_owner_quota_grant_role_ids == (200, 201)
+    assert (
+        GuildRuntimeSettings(settings, snapshot).report_owner_quota_exhausted_notification_channel_id
+        == 300
+    )
+    invalid = snapshot.model_dump()
+    invalid["features"]["report_owner_access"]["payload"]["quota_grant_role_ids"] = [200, 200]
+    with pytest.raises(ValueError, match="quota grant role IDs must be unique"):
+        GuildConfigSnapshot.model_validate(invalid)
+    invalid = snapshot.model_dump()
+    invalid["features"]["report_owner_access"]["payload"]["quota_grant_role_ids"] = [-1]
+    with pytest.raises(ValueError, match="quota grant role IDs must be positive"):
+        GuildConfigSnapshot.model_validate(invalid)
+    invalid = snapshot.model_dump()
+    invalid["features"]["report_owner_access"]["payload"]["quota_exhausted_notification_channel_id"] = -1
+    with pytest.raises(ValueError, match="greater than 0"):
+        GuildConfigSnapshot.model_validate(invalid)
     invalid = snapshot.model_dump()
     invalid["features"]["report_owner_access"]["payload"] = {"max_rounds": 21}
     with pytest.raises(ValueError, match="less than or equal to 20"):
@@ -684,6 +705,14 @@ async def test_lssd_legacy_import_uses_command_and_executive_role_request_review
         1234678029662294047,
         1234678238182244414,
     )
+    report_owner_feature = next(
+        feature for feature in plan.guilds[0].features if feature.key == "report_owner_access"
+    )
+    assert report_owner_feature.payload["quota_grant_role_ids"] == [
+        1234678029662294047,
+        1234678238182244414,
+    ]
+    assert report_owner_feature.payload["quota_exhausted_notification_channel_id"] == 1261076248541532240
     assert plan.guilds[0].features[0].enabled is True
 
 
@@ -1050,6 +1079,91 @@ def test_executive_role_request_reviewer_migration_appends_only_to_lssd() -> Non
             os.environ.pop("DATABASE_URL", None)
         else:
             os.environ["DATABASE_URL"] = previous
+
+
+def test_report_quota_grant_role_migration_is_guild_scoped() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = database_url
+    alembic = Config("alembic.ini")
+    try:
+        command.downgrade(alembic, "base")
+        command.upgrade(alembic, "20260927_0081")
+        asyncio.run(_seed_report_quota_grant_configurations(database_url))
+        command.upgrade(alembic, "head")
+        asyncio.run(_assert_report_quota_grant_configurations(database_url))
+    finally:
+        command.downgrade(alembic, "base")
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
+
+
+async def _seed_report_quota_grant_configurations(database_url: str) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        async with client.transaction() as tx:
+            for guild_id in (1234674521416663070, 999):
+                revision_id = uuid.uuid4()
+                await tx.execute(
+                    sa.text("INSERT INTO discord_guilds (discord_id, name) VALUES (:guild_id, 'QA')"),
+                    {"guild_id": guild_id},
+                )
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO guild_config_revisions "
+                        "(id, guild_id, revision, status, published_at) "
+                        "VALUES (:id, :guild_id, 1, 'published', now())"
+                    ),
+                    {"id": revision_id, "guild_id": guild_id},
+                )
+                await tx.execute(
+                    sa.text(
+                        "INSERT INTO guild_feature_settings "
+                        "(id, config_revision_id, feature_key, enabled, schema_version, payload) "
+                        "VALUES (:id, :revision_id, 'report_owner_access', true, 1, "
+                        "CAST(:payload AS jsonb))"
+                    ),
+                    {
+                        "id": uuid.uuid4(),
+                        "revision_id": revision_id,
+                        "payload": json.dumps({"max_rounds": 5}),
+                    },
+                )
+    finally:
+        await client.close()
+
+
+async def _assert_report_quota_grant_configurations(database_url: str) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(
+            sa.text(
+                "SELECT revision.guild_id, feature.payload "
+                "FROM guild_feature_settings AS feature "
+                "JOIN guild_config_revisions AS revision "
+                "ON revision.id = feature.config_revision_id "
+                "WHERE feature.feature_key = 'report_owner_access'"
+            )
+        )
+        by_guild = {int(row["guild_id"]): row["payload"] for row in rows}
+        assert by_guild[1234674521416663070]["quota_grant_role_ids"] == [
+            1234678029662294047,
+            1234678238182244414,
+        ]
+        assert by_guild[1234674521416663070]["quota_exhausted_notification_channel_id"] == (
+            1261076248541532240
+        )
+        assert "quota_grant_role_ids" not in by_guild[999]
+        assert "quota_exhausted_notification_channel_id" not in by_guild[999]
+    finally:
+        await client.close()
 
 
 async def _seed_role_request_reviewer_configuration(database_url: str) -> None:

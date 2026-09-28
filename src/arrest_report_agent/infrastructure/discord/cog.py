@@ -343,6 +343,22 @@ def build_owner_invalid_report_message(
     )
 
 
+def build_owner_quota_exhausted_staff_embed(
+    *, guild_id: int, thread_id: int, owner_user_id: int, max_rounds: int
+) -> discord.Embed:
+    thread_url = f"https://discord.com/channels/{guild_id}/{thread_id}"
+    return discord.Embed(
+        title="🎟️ Turnos de revisión agotados",
+        description=(
+            f"El autor <@{owner_user_id}> alcanzó el límite de {max_rounds} turnos "
+            "en la revisión de su reporte de arresto.\n\n"
+            f"[📋 Abrir el hilo de revisión]({thread_url}) y usa `/ampliar-cupo` "
+            "para concederle de 1 a 10 turnos adicionales."
+        ),
+        color=discord.Color.orange(),
+    )
+
+
 class ReviewCog(commands.Cog):
     def __init__(
         self,
@@ -758,6 +774,13 @@ class ReviewCog(commands.Cog):
                             message,
                             max_rounds=owner_reservation.max_rounds,
                         )
+                        await self._notify_owner_quota_exhausted(
+                            guild=message.guild,
+                            root_message_id=case.root_message_id,
+                            owner_user_id=case.requester_user_id,
+                            thread_id=case.thread_id,
+                            base_max_rounds=max_rounds,
+                        )
                         return False
                 run_context = ReviewRunContext(
                     case=case,
@@ -860,6 +883,14 @@ class ReviewCog(commands.Cog):
                                 owner_round=owner_reservation.round_number,
                                 max_rounds=owner_reservation.max_rounds,
                                 **exception_fields(error),
+                            )
+                        if owner_reservation.used_rounds >= owner_reservation.max_rounds:
+                            await self._notify_owner_quota_exhausted(
+                                guild=message.guild,
+                                root_message_id=case.root_message_id,
+                                owner_user_id=case.requester_user_id,
+                                thread_id=case.thread_id,
+                                base_max_rounds=max_rounds,
                             )
                 return run_context.published or run_context.messages_sent_count > 0
         finally:
@@ -1163,6 +1194,131 @@ class ReviewCog(commands.Cog):
             event_prefix="report_owner_quota_exhausted",
         )
 
+    async def _notify_owner_quota_exhausted(
+        self,
+        *,
+        guild: discord.Guild | None,
+        root_message_id: int,
+        owner_user_id: int,
+        thread_id: int | None,
+        base_max_rounds: int,
+    ) -> None:
+        repository = self.report_owner_run_repository
+        channel_id = getattr(self.settings, "report_owner_quota_exhausted_notification_channel_id", None)
+        role_ids = getattr(self.settings, "report_owner_quota_grant_role_ids", ())
+        if guild is None or repository is None or channel_id is None or not role_ids or thread_id is None:
+            return
+        try:
+            max_rounds = await repository.claim_exhaustion_notification(
+                guild_id=guild.id,
+                root_message_id=root_message_id,
+                owner_user_id=owner_user_id,
+                base_max_rounds=base_max_rounds,
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "report_owner_quota_alert_claim_failed",
+                exc_info=error,
+                guild_id=guild.id,
+                root_message_id=root_message_id,
+                owner_user_id=owner_user_id,
+                **exception_fields(error),
+            )
+            return
+        if max_rounds is None:
+            return
+        try:
+            channel = guild.get_channel(channel_id)
+            if channel is None:
+                channel = await guild.fetch_channel(channel_id)
+            if not isinstance(channel, discord.TextChannel):
+                raise LookupError("Quota notification channel is not a text channel")
+            bot_member = guild.me
+            if bot_member is None:
+                raise LookupError("Bot member is unavailable for quota notification")
+            permissions = channel.permissions_for(bot_member)
+            if not permissions.view_channel or not permissions.send_messages or not permissions.embed_links:
+                raise PermissionError("Bot cannot send quota notifications to the configured channel")
+            roles = [guild.get_role(role_id) for role_id in role_ids]
+            if any(role is None for role in roles):
+                raise LookupError("A configured quota notification role is missing")
+            if not permissions.mention_everyone and any(
+                not role.mentionable for role in roles if role is not None
+            ):
+                raise PermissionError("Bot cannot mention a quota notification role")
+            notification = await channel.send(
+                content=" ".join(f"<@&{role_id}>" for role_id in role_ids),
+                embed=build_owner_quota_exhausted_staff_embed(
+                    guild_id=guild.id,
+                    thread_id=thread_id,
+                    owner_user_id=owner_user_id,
+                    max_rounds=max_rounds,
+                ),
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=False,
+                    roles=[discord.Object(id=role_id) for role_id in role_ids],
+                    users=False,
+                    replied_user=False,
+                ),
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "report_owner_quota_alert_delivery_failed",
+                exc_info=error,
+                guild_id=guild.id,
+                channel_id=channel_id,
+                root_message_id=root_message_id,
+                owner_user_id=owner_user_id,
+                max_rounds=max_rounds,
+                **exception_fields(error),
+            )
+            try:
+                await repository.release_exhaustion_notification(
+                    guild_id=guild.id,
+                    root_message_id=root_message_id,
+                    owner_user_id=owner_user_id,
+                    max_rounds=max_rounds,
+                )
+            except Exception as release_error:
+                log_event(
+                    LOGGER,
+                    "error",
+                    "report_owner_quota_alert_release_failed",
+                    exc_info=release_error,
+                    guild_id=guild.id,
+                    root_message_id=root_message_id,
+                    owner_user_id=owner_user_id,
+                    max_rounds=max_rounds,
+                    **exception_fields(release_error),
+                )
+            return
+        try:
+            await repository.mark_exhaustion_notification_sent(
+                guild_id=guild.id,
+                root_message_id=root_message_id,
+                owner_user_id=owner_user_id,
+                max_rounds=max_rounds,
+                message_id=notification.id,
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "report_owner_quota_alert_record_failed",
+                exc_info=error,
+                guild_id=guild.id,
+                channel_id=channel_id,
+                root_message_id=root_message_id,
+                owner_user_id=owner_user_id,
+                max_rounds=max_rounds,
+                message_id=notification.id,
+                **exception_fields(error),
+            )
+
     async def _redirect_owner_invalid_report(
         self,
         message: discord.Message,
@@ -1459,7 +1615,10 @@ class ReviewCog(commands.Cog):
         ctx: discord.ApplicationContext,
         cantidad: int,
     ) -> None:
-        if ctx.author.id not in self.settings.report_owner_quota_admin_user_ids:
+        authorized_by_id = ctx.author.id in self.settings.report_owner_quota_admin_user_ids
+        grant_role_ids = getattr(self.settings, "report_owner_quota_grant_role_ids", ())
+        authorized_by_role = any(role.id in grant_role_ids for role in getattr(ctx.author, "roles", ()))
+        if not (authorized_by_id or authorized_by_role):
             await ctx.respond(
                 embed=discord.Embed(
                     title="Acceso restringido",

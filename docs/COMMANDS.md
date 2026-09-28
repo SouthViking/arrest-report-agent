@@ -94,7 +94,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 |---|---|---|---|
 | `/ayuda` | Todos | Pública | Persona seleccionada y configuración del bot |
 | `/info-reportes` | Acceso completo o acceso del propietario habilitado | Pública; rechazo efímero | Persona, canales y configuración de acceso del propietario |
-| `/ampliar-cupo cantidad` | ID incluido en `REPORT_OWNER_QUOTA_ADMIN_USER_IDS`; acceso del propietario habilitado; dentro del hilo de un reporte | Embed público en el hilo; errores y acuse efímeros | PostgreSQL; añade de 1 a 10 rondas al cupo del autor de ese reporte |
+| `/ampliar-cupo cantidad` | Rol configurado en `quota_grant_role_ids` o ID incluido en `REPORT_OWNER_QUOTA_ADMIN_USER_IDS`; acceso del propietario habilitado; dentro del hilo de un reporte | Embed público en el hilo; errores y acuse efímeros | PostgreSQL; añade de 1 a 10 rondas al cupo del autor de ese reporte |
 | `/revisar-arresto` | `operational_staff_roles`; módulo `arrest_report_lookup` activo; solo en `report_channels` | Formulario; expediente e hilo públicos; errores efímeros | Reporte vigente de SARP, fotografías en Railway Bucket y tarjeta de Discord; el reporte puede adjuntarse manualmente o generarse según la configuración de la guild |
 | `/guia` | Todos | Efímera | `report_guide.json` |
 | `/cargos` | Todos | Efímera | Catálogo SARP con fallback `delitos.json` |
@@ -165,7 +165,13 @@ pasos que no funcionarían.
 Las concesiones se suman al límite base, no modifican el historial de rondas consumidas y registran
 el ID de quien las otorgó. El embed público muestra únicamente los turnos disponibles en ese momento,
 no el total ni los ya consumidos. `REPORT_OWNER_QUOTA_ADMIN_USER_IDS` acepta IDs separados por comas,
-sin `*`; si está vacío, nadie puede usarlo.
+sin `*`. Los roles autorizados se configuran por servidor en `report_owner_access.quota_grant_role_ids`;
+en LSSD son Command Staff y Executive Staff. Si ambas listas están vacías, nadie puede usarlo.
+Al consumirse el último turno, o ante un nuevo intento con el cupo agotado, el bot envía un aviso
+al canal `report_owner_access.quota_exhausted_notification_channel_id` mencionando a esos roles y
+enlazando el hilo. El aviso se publica una sola vez por cada límite alcanzado; una ampliación permite
+un nuevo aviso si también se consumen los turnos adicionales. En LSSD el destino inicial es el canal
+privado de Command Staff.
 
 La tarjeta estructurada se publica con franja amarilla. Solo un `review_scope=full` puede actualizar
 esa franja: verde para `approved`, rojo para `corrections_required` y naranja para `inconclusive`.

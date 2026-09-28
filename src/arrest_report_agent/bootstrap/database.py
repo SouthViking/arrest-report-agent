@@ -464,9 +464,17 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                     ),
                     GuildFeatureSnapshot(
                         key="report_owner_access",
-                        enabled=guild_id == 1234674521416663070,
+                        enabled=guild_id == LSSD_GUILD_ID,
                         schema_version=1,
-                        payload=({"max_rounds": 5} if guild_id == 1234674521416663070 else {}),
+                        payload=(
+                            {
+                                "max_rounds": 5,
+                                "quota_grant_role_ids": list(LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS),
+                                "quota_exhausted_notification_channel_id": 1261076248541532240,
+                            }
+                            if guild_id == LSSD_GUILD_ID
+                            else {}
+                        ),
                     ),
                     GuildFeatureSnapshot(
                         key="service_calls",

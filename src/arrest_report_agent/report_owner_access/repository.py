@@ -8,11 +8,13 @@ from typing import cast
 from uuid import UUID
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from arrest_report_agent.infrastructure.postgres import PostgresClient
 from arrest_report_agent.infrastructure.postgres.schema import (
     report_owner_agent_runs,
+    report_owner_quota_exhaustion_notifications,
     report_owner_round_grants,
 )
 
@@ -146,6 +148,82 @@ class ReportOwnerRunRepository:
                 used_rounds=used,
                 max_rounds=base_max_rounds + extra + amount,
             )
+
+    async def claim_exhaustion_notification(
+        self,
+        *,
+        guild_id: int,
+        root_message_id: int,
+        owner_user_id: int,
+        base_max_rounds: int,
+    ) -> int | None:
+        """Claim one staff alert per exhausted quota ceiling; return the current ceiling."""
+
+        if not 1 <= base_max_rounds <= 20:
+            raise ValueError("Report-owner base rounds must be between 1 and 20")
+        async with self.client.transaction() as connection:
+            await self._lock_owner_report(connection, guild_id, root_message_id, owner_user_id)
+            used = await self._used_rounds(connection, guild_id, root_message_id, owner_user_id)
+            max_rounds = base_max_rounds + await self._extra_rounds(
+                connection, guild_id, root_message_id, owner_user_id
+            )
+            if used < max_rounds:
+                return None
+            result = await connection.execute(
+                pg_insert(report_owner_quota_exhaustion_notifications)
+                .values(
+                    id=uuid.uuid4(),
+                    guild_id=guild_id,
+                    root_message_id=root_message_id,
+                    owner_user_id=owner_user_id,
+                    max_rounds=max_rounds,
+                )
+                .on_conflict_do_nothing(
+                    constraint="uq_report_owner_quota_notification_threshold"
+                )
+            )
+            return max_rounds if result.rowcount else None
+
+    async def mark_exhaustion_notification_sent(
+        self,
+        *,
+        guild_id: int,
+        root_message_id: int,
+        owner_user_id: int,
+        max_rounds: int,
+        message_id: int,
+    ) -> None:
+        await self.client.execute(
+            report_owner_quota_exhaustion_notifications.update()
+            .where(
+                report_owner_quota_exhaustion_notifications.c.guild_id == guild_id,
+                report_owner_quota_exhaustion_notifications.c.root_message_id == root_message_id,
+                report_owner_quota_exhaustion_notifications.c.owner_user_id == owner_user_id,
+                report_owner_quota_exhaustion_notifications.c.max_rounds == max_rounds,
+                report_owner_quota_exhaustion_notifications.c.message_id.is_(None),
+            )
+            .values(message_id=message_id, sent_at=datetime.now(UTC))
+        )
+
+    async def release_exhaustion_notification(
+        self,
+        *,
+        guild_id: int,
+        root_message_id: int,
+        owner_user_id: int,
+        max_rounds: int,
+    ) -> None:
+        """Allow a later attempt to retry when delivery failed before sending."""
+
+        await self.client.execute(
+            report_owner_quota_exhaustion_notifications.delete().where(
+                report_owner_quota_exhaustion_notifications.c.guild_id == guild_id,
+                report_owner_quota_exhaustion_notifications.c.root_message_id == root_message_id,
+                report_owner_quota_exhaustion_notifications.c.owner_user_id == owner_user_id,
+                report_owner_quota_exhaustion_notifications.c.max_rounds == max_rounds,
+                report_owner_quota_exhaustion_notifications.c.message_id.is_(None),
+            )
+        )
 
     @staticmethod
     async def _lock_owner_report(

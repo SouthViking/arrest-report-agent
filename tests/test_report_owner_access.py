@@ -12,6 +12,7 @@ from arrest_report_agent.infrastructure.postgres import PostgresClient, Postgres
 from arrest_report_agent.infrastructure.postgres.schema import (
     discord_guilds,
     report_owner_agent_runs,
+    report_owner_quota_exhaustion_notifications,
     report_owner_round_grants,
 )
 from arrest_report_agent.report_owner_access import (
@@ -65,6 +66,26 @@ async def test_report_owner_reservations_are_persistent_idempotent_and_concurren
             item.round_number for item in reservations if item.round_number is not None
         ) == [1, 2, 3, 4, 5]
 
+        assert await repository.claim_exhaustion_notification(
+            guild_id=guild_id,
+            root_message_id=root_message_id,
+            owner_user_id=owner_user_id,
+            base_max_rounds=5,
+        ) == 5
+        assert await repository.claim_exhaustion_notification(
+            guild_id=guild_id,
+            root_message_id=root_message_id,
+            owner_user_id=owner_user_id,
+            base_max_rounds=5,
+        ) is None
+        await repository.mark_exhaustion_notification_sent(
+            guild_id=guild_id,
+            root_message_id=root_message_id,
+            owner_user_id=owner_user_id,
+            max_rounds=5,
+            message_id=965432101234568900,
+        )
+
         first = next(
             item for item in reservations if item.result is OwnerRunReservationResult.RESERVED
         )
@@ -115,6 +136,12 @@ async def test_report_owner_reservations_are_persistent_idempotent_and_concurren
         assert grant.used_rounds == 5
         assert grant.max_rounds == 7
         assert grant.remaining_rounds == 2
+        assert await after_restart.claim_exhaustion_notification(
+            guild_id=guild_id,
+            root_message_id=root_message_id,
+            owner_user_id=owner_user_id,
+            base_max_rounds=5,
+        ) is None
 
         repeated = await after_restart.grant_extra_rounds(
             guild_id=guild_id,
@@ -145,6 +172,30 @@ async def test_report_owner_reservations_are_persistent_idempotent_and_concurren
         assert sum(item.result is OwnerRunReservationResult.RESERVED for item in after_grant) == 2
         assert sum(item.result is OwnerRunReservationResult.EXHAUSTED for item in after_grant) == 1
         assert sorted(item.round_number for item in after_grant if item.round_number is not None) == [6, 7]
+        assert await after_restart.claim_exhaustion_notification(
+            guild_id=guild_id,
+            root_message_id=root_message_id,
+            owner_user_id=owner_user_id,
+            base_max_rounds=5,
+        ) == 7
+        await after_restart.release_exhaustion_notification(
+            guild_id=guild_id,
+            root_message_id=root_message_id,
+            owner_user_id=owner_user_id,
+            max_rounds=7,
+        )
+        assert await after_restart.claim_exhaustion_notification(
+            guild_id=guild_id,
+            root_message_id=root_message_id,
+            owner_user_id=owner_user_id,
+            base_max_rounds=5,
+        ) == 7
+        notification_rows = await client.fetch_all(
+            sa.select(report_owner_quota_exhaustion_notifications.c.max_rounds).where(
+                report_owner_quota_exhaustion_notifications.c.guild_id == guild_id
+            )
+        )
+        assert {int(row["max_rounds"]) for row in notification_rows} == {5, 7}
         grant_rows = await client.fetch_all(
             sa.select(report_owner_round_grants.c.amount).where(
                 report_owner_round_grants.c.guild_id == guild_id

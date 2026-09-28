@@ -140,6 +140,16 @@ class GuildFeatureSnapshot(FrozenConfigModel):
 
 class ReportOwnerAccessOptions(FrozenConfigModel):
     max_rounds: int = Field(ge=1, le=20)
+    quota_grant_role_ids: tuple[int, ...] = Field(default=(), max_length=10)
+    quota_exhausted_notification_channel_id: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_quota_grant_roles(self) -> ReportOwnerAccessOptions:
+        if any(role_id <= 0 for role_id in self.quota_grant_role_ids):
+            raise ValueError("quota grant role IDs must be positive")
+        if len(self.quota_grant_role_ids) != len(set(self.quota_grant_role_ids)):
+            raise ValueError("quota grant role IDs must be unique")
+        return self
 
 
 class RoleRequestStationOption(FrozenConfigModel):
@@ -1039,6 +1049,22 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return ReportOwnerAccessOptions.model_validate(feature.payload).max_rounds
+
+    @property
+    def report_owner_quota_grant_role_ids(self) -> tuple[int, ...]:
+        feature = self.snapshot.features.get("report_owner_access")
+        if feature is None or not feature.enabled:
+            return ()
+        return ReportOwnerAccessOptions.model_validate(feature.payload).quota_grant_role_ids
+
+    @property
+    def report_owner_quota_exhausted_notification_channel_id(self) -> int | None:
+        feature = self.snapshot.features.get("report_owner_access")
+        if feature is None or not feature.enabled:
+            return None
+        return ReportOwnerAccessOptions.model_validate(
+            feature.payload
+        ).quota_exhausted_notification_channel_id
 
     @property
     def openai_model(self) -> str:

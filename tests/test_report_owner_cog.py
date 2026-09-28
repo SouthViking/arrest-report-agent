@@ -11,7 +11,7 @@ import pytest
 
 from arrest_report_agent.domain import AgentAccessLevel, InteractionMode, ReviewCase
 from arrest_report_agent.domain.errors import ReportOwnerSubmissionError
-from arrest_report_agent.infrastructure.discord.cog import ReviewCog
+from arrest_report_agent.infrastructure.discord.cog import ReviewCog, build_owner_quota_exhausted_staff_embed
 from arrest_report_agent.infrastructure.discord.context import (
     DiscordResponseRoute,
     ReviewTarget,
@@ -120,7 +120,7 @@ class _Repository:
 
 
 @pytest.mark.asyncio
-async def test_grant_report_owner_rounds_requires_exact_admin_id(settings, persona) -> None:
+async def test_grant_report_owner_rounds_rejects_other_members(settings, persona) -> None:
     repository = SimpleNamespace(grant_extra_rounds=AsyncMock())
     cog = ReviewCog(
         SimpleNamespace(user=SimpleNamespace(id=999)),  # type: ignore[arg-type]
@@ -133,10 +133,14 @@ async def test_grant_report_owner_rounds_requires_exact_admin_id(settings, perso
         cog._default_runtime,  # noqa: SLF001
         settings=SimpleNamespace(
             report_owner_quota_admin_user_ids=(123, 125),
+            report_owner_quota_grant_role_ids=(200, 201),
             report_owner_access_max_rounds=5,
         ),
     )
-    context = SimpleNamespace(author=SimpleNamespace(id=124), respond=AsyncMock())
+    context = SimpleNamespace(
+        author=SimpleNamespace(id=124, roles=[SimpleNamespace(id=202)]),
+        respond=AsyncMock(),
+    )
 
     await ReviewCog.grant_report_owner_rounds.callback(cog, context, 2)  # type: ignore[arg-type]
 
@@ -147,11 +151,11 @@ async def test_grant_report_owner_rounds_requires_exact_admin_id(settings, perso
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("admin_id", "used_rounds", "available"),
-    [(123, 5, 2), (125, 2, 5)],
+    ("admin_id", "role_id", "used_rounds", "available"),
+    [(123, None, 5, 2), (125, None, 2, 5), (124, 200, 3, 4), (124, 201, 1, 6)],
 )
 async def test_grant_report_owner_rounds_publishes_current_availability(
-    settings, persona, admin_id: int, used_rounds: int, available: int
+    settings, persona, admin_id: int, role_id: int | None, used_rounds: int, available: int
 ) -> None:
     repository = SimpleNamespace(
         grant_extra_rounds=AsyncMock(
@@ -170,6 +174,7 @@ async def test_grant_report_owner_rounds_publishes_current_availability(
         cog._default_runtime,  # noqa: SLF001
         settings=SimpleNamespace(
             report_owner_quota_admin_user_ids=(123, 125),
+            report_owner_quota_grant_role_ids=(200, 201),
             report_owner_access_max_rounds=5,
         ),
         context_builder=builder,  # type: ignore[arg-type]
@@ -178,7 +183,10 @@ async def test_grant_report_owner_rounds_publishes_current_availability(
     thread.id = 700
     thread.send = AsyncMock(return_value=SimpleNamespace(id=900))
     context = SimpleNamespace(
-        author=SimpleNamespace(id=admin_id),
+        author=SimpleNamespace(
+            id=admin_id,
+            roles=[SimpleNamespace(id=role_id)] if role_id is not None else [],
+        ),
         guild=SimpleNamespace(id=100),
         channel=thread,
         interaction=SimpleNamespace(id=800),
@@ -484,6 +492,7 @@ async def test_exhausted_owner_gets_specific_notice_without_running_agent(
         context_builder=_OwnerContextBuilder(target, case),  # type: ignore[arg-type]
     )
     cog.presence = _Presence()  # type: ignore[assignment]
+    cog._notify_owner_quota_exhausted = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     monkeypatch.setattr(
         "arrest_report_agent.infrastructure.discord.cog.DiscordReviewPublisher",
         _Publisher,
@@ -496,6 +505,176 @@ async def test_exhausted_owner_gets_specific_notice_without_running_agent(
     assert len(replies) == 1
     assert "5" in replies[0]
     assert "habilitación" not in replies[0]
+    cog._notify_owner_quota_exhausted.assert_awaited_once_with(  # type: ignore[attr-defined]  # noqa: SLF001
+        guild=message.guild,
+        root_message_id=case.root_message_id,
+        owner_user_id=case.requester_user_id,
+        thread_id=case.thread_id,
+        base_max_rounds=5,
+    )
+
+
+@pytest.mark.asyncio
+async def test_last_owner_round_triggers_staff_notification(settings, persona, monkeypatch) -> None:
+    restricted = settings.model_copy(update={"authorized_user_ids_csv": "999999"})
+    message, target, case, _ = _event(restricted)
+    service = _Service()
+    repository = _Repository(
+        OwnerRunReservation(
+            result=OwnerRunReservationResult.RESERVED,
+            used_rounds=5,
+            max_rounds=5,
+            run_id=uuid4(),
+        )
+    )
+    cog = ReviewCog(
+        SimpleNamespace(user=SimpleNamespace(id=999)),
+        restricted,
+        service,  # type: ignore[arg-type]
+        persona,
+        report_owner_run_repository=repository,  # type: ignore[arg-type]
+    )
+    cog._default_runtime = replace(  # noqa: SLF001
+        cog._default_runtime,  # noqa: SLF001
+        settings=SimpleNamespace(report_owner_access_max_rounds=5),
+        context_builder=_OwnerContextBuilder(target, case),  # type: ignore[arg-type]
+    )
+    cog.presence = _Presence()  # type: ignore[assignment]
+    cog._notify_owner_quota_exhausted = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.cog.DiscordReviewPublisher", _Publisher
+    )
+
+    await cog._handle_message(message)  # type: ignore[arg-type]  # noqa: SLF001
+
+    assert repository.reservations == 1
+    assert len(service.contexts) == 1
+    cog._notify_owner_quota_exhausted.assert_awaited_once_with(  # type: ignore[attr-defined]  # noqa: SLF001
+        guild=message.guild,
+        root_message_id=case.root_message_id,
+        owner_user_id=case.requester_user_id,
+        thread_id=case.thread_id,
+        base_max_rounds=5,
+    )
+
+
+@pytest.mark.asyncio
+async def test_quota_alert_mentions_both_roles_and_links_to_thread(settings, persona) -> None:
+    repository = SimpleNamespace(
+        claim_exhaustion_notification=AsyncMock(side_effect=[5, None]),
+        mark_exhaustion_notification_sent=AsyncMock(),
+        release_exhaustion_notification=AsyncMock(),
+    )
+    cog = ReviewCog(
+        SimpleNamespace(user=SimpleNamespace(id=999)),  # type: ignore[arg-type]
+        settings,
+        _Service(),  # type: ignore[arg-type]
+        persona,
+        report_owner_run_repository=repository,  # type: ignore[arg-type]
+    )
+    cog._default_runtime = replace(  # noqa: SLF001
+        cog._default_runtime,  # noqa: SLF001
+        settings=SimpleNamespace(
+            report_owner_quota_grant_role_ids=(200, 201),
+            report_owner_quota_exhausted_notification_channel_id=300,
+        ),
+    )
+    channel = MagicMock(spec=discord.TextChannel)
+    channel.permissions_for.return_value = SimpleNamespace(
+        view_channel=True, send_messages=True, embed_links=True, mention_everyone=False
+    )
+    channel.send = AsyncMock(return_value=SimpleNamespace(id=400))
+    guild = SimpleNamespace(
+        id=100,
+        me=SimpleNamespace(id=999),
+        get_channel=lambda channel_id: channel if channel_id == 300 else None,
+        get_role=lambda role_id: SimpleNamespace(id=role_id, mentionable=True),
+    )
+
+    for _ in range(2):
+        await cog._notify_owner_quota_exhausted(  # noqa: SLF001
+            guild=guild,  # type: ignore[arg-type]
+            root_message_id=700,
+            owner_user_id=123,
+            thread_id=701,
+            base_max_rounds=5,
+        )
+
+    channel.send.assert_awaited_once()
+    kwargs = channel.send.await_args.kwargs
+    assert kwargs["content"] == "<@&200> <@&201>"
+    assert "https://discord.com/channels/100/701" in kwargs["embed"].description
+    assert "<@123>" in kwargs["embed"].description
+    assert kwargs["allowed_mentions"].users is False
+    assert len(kwargs["allowed_mentions"].roles) == 2
+    repository.mark_exhaustion_notification_sent.assert_awaited_once_with(
+        guild_id=100,
+        root_message_id=700,
+        owner_user_id=123,
+        max_rounds=5,
+        message_id=400,
+    )
+    repository.release_exhaustion_notification.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_failed_quota_alert_can_be_retried(settings, persona) -> None:
+    repository = SimpleNamespace(
+        claim_exhaustion_notification=AsyncMock(return_value=5),
+        mark_exhaustion_notification_sent=AsyncMock(),
+        release_exhaustion_notification=AsyncMock(),
+    )
+    cog = ReviewCog(
+        SimpleNamespace(user=SimpleNamespace(id=999)),  # type: ignore[arg-type]
+        settings,
+        _Service(),  # type: ignore[arg-type]
+        persona,
+        report_owner_run_repository=repository,  # type: ignore[arg-type]
+    )
+    cog._default_runtime = replace(  # noqa: SLF001
+        cog._default_runtime,  # noqa: SLF001
+        settings=SimpleNamespace(
+            report_owner_quota_grant_role_ids=(200, 201),
+            report_owner_quota_exhausted_notification_channel_id=300,
+        ),
+    )
+    channel = MagicMock(spec=discord.TextChannel)
+    channel.permissions_for.return_value = SimpleNamespace(
+        view_channel=True, send_messages=True, embed_links=True, mention_everyone=True
+    )
+    channel.send = AsyncMock(side_effect=RuntimeError("Discord unavailable"))
+    guild = SimpleNamespace(
+        id=100,
+        me=SimpleNamespace(id=999),
+        get_channel=lambda _channel_id: channel,
+        get_role=lambda role_id: SimpleNamespace(id=role_id, mentionable=False),
+    )
+
+    await cog._notify_owner_quota_exhausted(  # noqa: SLF001
+        guild=guild,  # type: ignore[arg-type]
+        root_message_id=700,
+        owner_user_id=123,
+        thread_id=701,
+        base_max_rounds=5,
+    )
+
+    repository.release_exhaustion_notification.assert_awaited_once_with(
+        guild_id=100,
+        root_message_id=700,
+        owner_user_id=123,
+        max_rounds=5,
+    )
+    repository.mark_exhaustion_notification_sent.assert_not_awaited()
+
+
+def test_staff_quota_alert_uses_readable_thread_link() -> None:
+    embed = build_owner_quota_exhausted_staff_embed(
+        guild_id=100, thread_id=701, owner_user_id=123, max_rounds=7
+    )
+    assert embed.title == "🎟️ Turnos de revisión agotados"
+    assert "límite de 7 turnos" in embed.description
+    assert "[📋 Abrir el hilo de revisión](https://discord.com/channels/100/701)" in embed.description
+    assert "usa `/ampliar-cupo` para concederle de 1 a 10 turnos adicionales" in embed.description
 
 
 @pytest.mark.asyncio

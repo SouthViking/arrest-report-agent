@@ -1,18 +1,20 @@
 {
   "schema_version": 3,
-  "version": "0.38.26",
-  "title": "Rumores con avisos opcionales",
-  "summary": "Ahora puedes publicar rumores sin avisar a todos y ver fácilmente hace cuánto se compartieron.",
+  "version": "0.38.27",
+  "title": "Gestión de cupos de revisión",
+  "summary": "Command Staff y Executive Staff pueden ampliar los turnos de revisión de arrestos y reciben un aviso cuando se agotan.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
       "type": "improved",
-      "text": "Al publicar un rumor, eliges si quieres avisar al personal. Por defecto, se publica sin mención."
+      "text": "Command Staff y Executive Staff ya pueden usar /ampliar-cupo dentro del hilo del reporte."
     },
     {
       "type": "improved",
-      "text": "Cada rumor muestra hace cuánto se compartió."
+      "text": "Al agotarse los turnos, reciben un aviso con acceso al hilo y el comando para ampliarlos, sin menciones repetidas por el mismo límite."
     }
   ],
   "acknowledgements": []
