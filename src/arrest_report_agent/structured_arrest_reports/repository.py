@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import timedelta
 
 import sqlalchemy as sa
@@ -311,7 +312,7 @@ class StructuredArrestReportRepository:
                 .where(arrest_report_submissions.c.id == submission_id)
                 .with_for_update()
             )
-            current = (
+            current: Sequence[uuid.UUID] = (
                 (
                     await connection.execute(
                         sa.select(arrest_report_assets.c.id)

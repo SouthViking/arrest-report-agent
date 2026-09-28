@@ -1,16 +1,18 @@
 {
   "schema_version": 3,
-  "version": "0.38.25",
-  "title": "Callsigns abreviados en reportes de arresto",
-  "summary": "La revisión de reportes ahora señala los callsigns escritos sin abreviar.",
+  "version": "0.38.26",
+  "title": "Rumores con avisos opcionales",
+  "summary": "Ahora puedes publicar rumores sin avisar a todos y ver fácilmente hace cuánto se compartieron.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
       "type": "improved",
-      "text": "Un callsign como 282 Sam se pide corregir a 282S; la regla aplica a cualquier callsign del reporte."
+      "text": "Al publicar un rumor, eliges si quieres avisar al personal. Por defecto, se publica sin mención."
+    },
+    {
+      "type": "improved",
+      "text": "Cada rumor muestra hace cuánto se compartió."
     }
   ],
   "acknowledgements": []

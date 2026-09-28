@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import suppress
+from datetime import UTC, datetime
 
 import discord
 from discord.ext import commands
@@ -19,8 +20,7 @@ MIN_MESSAGE_LENGTH = 10
 MAX_MESSAGE_LENGTH = 1_500
 MODAL_TIMEOUT_SECONDS = 600
 WARNING = (
-    "⚠️ El uso indebido de este comando puede conllevar sanciones. "
-    "El mensaje se publicará de forma anónima."
+    "⚠️ El uso indebido de este comando puede conllevar sanciones. El mensaje se publicará de forma anónima."
 )
 
 
@@ -31,9 +31,10 @@ def normalize_message(value: str) -> str:
     return message
 
 
-def build_rumor_embed(message: str) -> discord.Embed:
+def build_rumor_embed(message: str, *, published_at: datetime | None = None) -> discord.Embed:
+    timestamp = int((published_at or datetime.now(UTC)).timestamp())
     return discord.Embed(
-        description=f"🗣️ {discord.utils.escape_mentions(message)}",
+        description=f"🗣️ {discord.utils.escape_mentions(message)}\n\n🕒 <t:{timestamp}:R>",
         color=discord.Color.blurple(),
     )
 
@@ -50,6 +51,7 @@ class RumorCog(commands.Cog):
         channel: object,
         user: discord.User | discord.Member | None,
         expected_role_id: int | None = None,
+        require_mention_permission: bool = False,
     ) -> tuple[discord.TextChannel, RumorChannelOptions, discord.Role]:
         if guild is None or not isinstance(channel, discord.TextChannel):
             raise ValueError("Este comando solo funciona en los canales de rumor configurados.")
@@ -71,7 +73,7 @@ class RumorCog(commands.Cog):
         permissions = channel.permissions_for(bot_member)
         if not permissions.send_messages or not permissions.embed_links:
             raise ValueError("El bot no puede publicar embeds en este canal.")
-        if not role.mentionable and not permissions.mention_everyone:
+        if require_mention_permission and not role.mentionable and not permissions.mention_everyone:
             raise ValueError("El bot no puede mencionar el rol asociado a este canal.")
         return channel, target, role
 
@@ -123,6 +125,7 @@ class RumorCog(commands.Cog):
         channel_id: int,
         role_id: int,
         raw_message: str,
+        mention_role: bool = False,
     ) -> None:
         if (
             interaction.guild is None
@@ -141,6 +144,7 @@ class RumorCog(commands.Cog):
                 channel=interaction.channel,
                 user=interaction.user,
                 expected_role_id=role_id,
+                require_mention_permission=mention_role,
             )
             await interaction.response.defer(ephemeral=True)
             created = await self.repository.reserve(
@@ -155,25 +159,14 @@ class RumorCog(commands.Cog):
                     await interaction.delete_original_response()
                 return
             published = await channel.send(
-                content=role.mention,
+                content=role.mention if mention_role else None,
                 embed=build_rumor_embed(message_text),
                 allowed_mentions=discord.AllowedMentions(
                     everyone=False,
-                    roles=[discord.Object(id=role.id)],
+                    roles=[discord.Object(id=role.id)] if mention_role else False,
                     users=False,
                     replied_user=False,
                 ),
-            )
-            log_event(
-                LOGGER,
-                "info",
-                "rumor_published",
-                guild_id=guild_id,
-                channel_id=channel_id,
-                role_id=role.id,
-                user_id=requester_id,
-                message_id=published.id,
-                interaction_id=interaction.id,
             )
             try:
                 await self.repository.mark_published(interaction.id, published.id)
@@ -190,6 +183,34 @@ class RumorCog(commands.Cog):
                     exc_info=error,
                     **exception_fields(error),
                 )
+                try:
+                    await published.delete()
+                except Exception as delete_error:
+                    log_event(
+                        LOGGER,
+                        "critical",
+                        "rumor_unaudited_message_cleanup_failed",
+                        guild_id=guild_id,
+                        channel_id=channel_id,
+                        user_id=requester_id,
+                        message_id=published.id,
+                        interaction_id=interaction.id,
+                        exc_info=delete_error,
+                        **exception_fields(delete_error),
+                    )
+                raise
+            log_event(
+                LOGGER,
+                "info",
+                "rumor_published",
+                guild_id=guild_id,
+                channel_id=channel_id,
+                role_id=role.id,
+                user_id=requester_id,
+                message_id=published.id,
+                interaction_id=interaction.id,
+                mentioned_role=mention_role,
+            )
             with suppress(discord.HTTPException):
                 await interaction.delete_original_response()
         except ValueError as error:
@@ -250,9 +271,28 @@ class RumorModal(discord.ui.DesignerModal):
             max_length=MAX_MESSAGE_LENGTH,
             required=True,
         )
+        self.mention_select = discord.ui.StringSelect(  # type: ignore[type-var]
+            custom_id="rumors:v1:mention",
+            options=[
+                discord.SelectOption(
+                    label="No",
+                    value="silent",
+                    emoji="🔕",
+                    default=True,
+                ),
+                discord.SelectOption(
+                    label="Sí",
+                    value="mention",
+                    emoji="🔔",
+                ),
+            ],
+            min_values=1,
+            max_values=1,
+        )
         super().__init__(
             discord.ui.TextDisplay(WARNING),
             discord.ui.Label("Mensaje", self.message_input),
+            discord.ui.Label("¿Mencionar al personal?", self.mention_select),
             title="Publicar rumor",
             timeout=MODAL_TIMEOUT_SECONDS,
         )
@@ -265,4 +305,5 @@ class RumorModal(discord.ui.DesignerModal):
             channel_id=self.channel_id,
             role_id=self.role_id,
             raw_message=self.message_input.value or "",
+            mention_role=next(iter(self.mention_select.values or ()), "silent") == "mention",
         )
