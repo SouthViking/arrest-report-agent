@@ -7,18 +7,28 @@ from unittest.mock import AsyncMock, Mock
 
 import discord
 import pytest
+from pydantic import ValidationError
 
 from arrest_report_agent.application.member_names import load_member_profiles, unique_profile_match
 from arrest_report_agent.application.ports import GuildMemberProfile, GuildMemberSearchResult
 from arrest_report_agent.config import FleetOptions
 from arrest_report_agent.fleet.discord import FleetCog, FleetModal, FleetModelView, FleetResultView
-from arrest_report_agent.fleet.rendering import fleet_embed, metric, vehicle_embed
+from arrest_report_agent.fleet.rendering import fleet_embed, fleet_info_embed, metric, vehicle_embed
 from arrest_report_agent.fleet.service import AlprFilter, FleetService, FleetSnapshot, FleetView
+from arrest_report_agent.infrastructure.discord.cog import ReviewCog
 from arrest_report_agent.infrastructure.sarp import SarpInvalidResponseError
 from arrest_report_agent.infrastructure.sarp.models import SarpFactionVehicle, SarpFactionVehiclePage
 
 NOW = datetime(2026, 9, 29, 12, tzinfo=UTC)
 DEFAULT_OPTIONS = FleetOptions(faction_id=3)
+EQUIPMENT_LEVELS = {
+    "fuel_tank_level": "⛽ Tanque",
+    "armour_level": "🛡️ Blindaje",
+    "gps_level": "📡 GPS",
+    "alarm_level": "🚨 Alarma",
+    "lock_level": "🔒 Cerradura",
+    "ignition_level": "🔑 Encendido",
+}
 
 
 def vehicle(identifier=1, **kwargs):
@@ -186,6 +196,51 @@ def test_vehicle_presentation_uses_raw_metrics_mentions_and_relative_time():
     assert metric(None) == "Sin dato" and metric(0) == "0" and metric(100) == "100"
 
 
+def test_vehicle_presents_all_equipment_levels_in_three_compact_lines():
+    values = dict(zip(EQUIPMENT_LEVELS, (3, 2, 1, 4, 3, 4), strict=True))
+    embed = vehicle_embed(vehicle(**values), {})
+    equipment = next(field for field in embed.fields if field.name == "🧰 Niveles de equipamiento")
+    assert equipment.inline is False
+    assert equipment.value.splitlines() == [
+        "⛽ Tanque: **nivel 3** · 🛡️ Blindaje: **nivel 2**",
+        "📡 GPS: **nivel 1** · 🚨 Alarma: **nivel 4**",
+        "🔒 Cerradura: **nivel 3** · 🔑 Encendido: **nivel 4**",
+    ]
+    assert len(equipment.value) <= 1024 and len(embed) <= 6000
+    text = str(embed.to_dict())
+    assert "Combustible: **85**" in text
+    assert not any(word in text for word in ("litros", "%", "capacidad"))
+
+
+@pytest.mark.parametrize("field,label", EQUIPMENT_LEVELS.items())
+def test_vehicle_only_shows_positive_equipment_levels(field, label):
+    values = dict.fromkeys(EQUIPMENT_LEVELS, 0)
+    values[field] = 1
+    embed = vehicle_embed(vehicle(**values), {})
+    equipment = next(item for item in embed.fields if item.name == "🧰 Niveles de equipamiento")
+    assert equipment.value == f"{label}: **nivel 1**"
+
+
+@pytest.mark.parametrize("values", [{}, dict.fromkeys(EQUIPMENT_LEVELS), dict.fromkeys(EQUIPMENT_LEVELS, 0)])
+def test_vehicle_omits_empty_equipment_section(values):
+    embed = vehicle_embed(vehicle(**values), {})
+    assert all(field.name != "🧰 Niveles de equipamiento" for field in embed.fields)
+
+
+@pytest.mark.parametrize("field", EQUIPMENT_LEVELS)
+@pytest.mark.parametrize("value", [-1, 1.5])
+def test_vehicle_rejects_invalid_equipment_levels(field, value):
+    with pytest.raises(ValidationError):
+        vehicle(**{field: value})
+
+
+@pytest.mark.parametrize("view", list(FleetView))
+def test_fleet_list_remains_compact_without_per_vehicle_levels(view):
+    row = vehicle(**dict.fromkeys(EQUIPMENT_LEVELS, 3))
+    embed = fleet_embed(snapshot(row), (row,), view, model=None, alpr=AlprFilter.ALL, page=0, drivers={})
+    assert "nivel" not in str(embed.to_dict()).lower()
+
+
 @pytest.mark.parametrize("view", list(FleetView))
 def test_embeds_stay_within_discord_limits_without_omitting_rows(view):
     rows = tuple(vehicle(i, name="*" * 199 + str(i), last_driver="*" * 99) for i in range(1, 10))
@@ -205,7 +260,7 @@ def test_empty_results_are_explicit(view):
     assert "No hay vehículos" in embed.description
 
 
-@pytest.mark.parametrize("command", ["fleet", "vehicle"])
+@pytest.mark.parametrize("command", ["fleet", "vehicle", "fleet_info"])
 @pytest.mark.parametrize("disabled,roles", [(False, (999,)), (True, (200,))])
 async def test_commands_deny_without_operational_role_or_config(command, disabled, roles):
     cog, ctx = cog_and_context(options=None if disabled else FleetOptions(faction_id=3), roles=roles)
@@ -216,11 +271,14 @@ async def test_commands_deny_without_operational_role_or_config(command, disable
 
 
 async def test_vehicle_is_public_and_never_pings_driver():
-    cog, ctx = cog_and_context()
+    cog, ctx = cog_and_context(rows=[vehicle(fuel_tank_level=3, armour_level=2, alarm_level=1)])
     await FleetCog.vehicle.callback(cog, ctx, "2414803")
     ctx.defer.assert_awaited_once_with(ephemeral=False)
     sent = ctx.followup.send.call_args.kwargs
     assert "<@11>" in str(sent["embed"].to_dict())
+    text = str(sent["embed"].to_dict())
+    assert "Tanque: **nivel 3**" in text and "Blindaje: **nivel 2**" in text
+    assert "Alarma: **nivel 1**" in text
     assert sent["allowed_mentions"].users is False
     cog.service.snapshot.assert_awaited_once_with(3, cache_seconds=120)
 
@@ -232,6 +290,7 @@ async def test_slash_registration_preserves_plate_option_constraints():
         bot.add_cog(cog)
         commands = {command.name: command for command in cog.get_commands()}
         assert commands["flota"].options == []
+        assert commands["info-flota"].options == []
         options = [option.to_dict() for option in commands["vehiculo"].options]
         assert len(options) == 1
         assert options[0]["name"] == "matricula"
@@ -239,6 +298,70 @@ async def test_slash_registration_preserves_plate_option_constraints():
         assert options[0]["min_length"] == 1 and options[0]["max_length"] == 32
     finally:
         await bot.close()
+
+
+@pytest.mark.parametrize("role_id", [200, 201, 202, 203])
+async def test_info_allows_each_operational_role_and_is_public_without_loading_data(role_id):
+    cog, ctx = cog_and_context(roles=(role_id,))
+    cog.provider.cached.return_value.settings.operational_staff_role_ids = (200, 201, 202, 203)
+    await FleetCog.fleet_info.callback(cog, ctx)
+    cog.provider.cached.assert_awaited_once_with(1)
+    sent = ctx.respond.call_args.kwargs
+    assert sent["ephemeral"] is False
+    assert sent["embed"].title == "🚓 Guía de vehículos y flota"
+    assert sent["allowed_mentions"].users is False
+    cog.service.snapshot.assert_not_called()
+    cog.directory.search_members.assert_not_called()
+
+
+async def test_info_rejects_direct_messages_before_loading_config():
+    cog, ctx = cog_and_context()
+    ctx.guild = None
+    await FleetCog.fleet_info.callback(cog, ctx)
+    assert ctx.respond.call_args.kwargs["ephemeral"] is True
+    cog.provider.cached.assert_not_called()
+    cog.service.snapshot.assert_not_called()
+
+
+async def test_info_config_failure_is_reported_without_loading_fleet(caplog):
+    cog, ctx = cog_and_context()
+    cog.provider.cached.side_effect = RuntimeError("configuration unavailable")
+    ctx.interaction.response.is_done.return_value = False
+    await FleetCog.fleet_info.callback(cog, ctx)
+    assert ctx.interaction.response.send_message.call_args.kwargs["ephemeral"] is True
+    assert "fleet_command_failed" in caplog.text
+    cog.service.snapshot.assert_not_called()
+
+
+def test_info_copy_matches_controls_and_avoids_internal_details():
+    embed = fleet_info_embed()
+    text = str(embed.to_dict())
+    for label in ("/vehiculo", "/flota", "Configurar consulta", "Solo para mí", "Publicar en este canal"):
+        assert label in text
+    for internal in ("API", "SARP", "PostgreSQL", "caché", "TTL", "operational_staff_roles"):
+        assert internal not in text
+    for equipment in ("tanque", "blindaje", "GPS", "alarma", "cerradura", "encendido"):
+        assert equipment in text
+    assert len(embed) < 6000
+    assert all(len(field.value) <= 1024 for field in embed.fields)
+
+
+@pytest.mark.parametrize("enabled,roles,visible", [(True, (200,), True), (True, (999,), False),
+                                                 (False, (200,), False)])
+async def test_help_only_lists_fleet_info_for_operational_staff_when_enabled(settings, persona,
+                                                                           enabled, roles, visible):
+    fleet, ctx = cog_and_context(roles=roles)
+    bundle = fleet.provider.cached.return_value
+    bundle.snapshot = SimpleNamespace(features={"fleet": SimpleNamespace(enabled=enabled)})
+    bundle.settings.rumor_options = None
+    bot = SimpleNamespace(user=SimpleNamespace(display_avatar=SimpleNamespace(url="https://example.com/a.png")))
+    cog = ReviewCog(bot, settings, SimpleNamespace(), persona, config_provider=fleet.provider)
+    ctx.channel = SimpleNamespace(id=222)
+    await ReviewCog.review_help.callback(cog, ctx)
+    rendered = str(ctx.respond.call_args.kwargs["embed"].to_dict())
+    assert ("`/info-flota`" in rendered) is visible
+    assert ("`/vehiculo`" in rendered) is visible
+    assert ("`/flota`" in rendered) is visible
 
 
 async def test_vehicle_driver_failure_falls_back_and_api_failure_is_friendly(caplog):

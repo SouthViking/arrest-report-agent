@@ -609,6 +609,12 @@ class SarpFactionVehicle(BaseModel):
     fuel: float | None = Field(default=None, allow_inf_nan=False)
     oil: float | None = Field(default=None, allow_inf_nan=False)
     health: float | None = Field(default=None, allow_inf_nan=False)
+    fuel_tank_level: int | None = Field(default=None, ge=0)
+    armour_level: int | None = Field(default=None, ge=0)
+    gps_level: int | None = Field(default=None, ge=0)
+    alarm_level: int | None = Field(default=None, ge=0)
+    lock_level: int | None = Field(default=None, ge=0)
+    ignition_level: int | None = Field(default=None, ge=0)
     alpr: bool | None = None
     siren: bool | None = None
     locked: bool | None = None

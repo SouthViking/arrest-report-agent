@@ -515,6 +515,8 @@ async def test_faction_vehicles_endpoint_scopes_pages_and_preserves_units() -> N
             "message": "OK", "httpCode": 200, "source": "pcu", "payload": {
                 "items": [{"id": 26290, "faction": 3, "name": "LSSD CVPI", "model": 598,
                            "plate": "2414803", "alpr": 1, "fuel": 153, "health": 1183.38,
+                           "fuel_tank_level": 3, "armour_level": 2, "gps_level": 0,
+                           "alarm_level": 1, "lock_level": 3, "ignition_level": 4,
                            "last_driver": "Charles Harrington", "updated_at": "2026-09-29 03:47:38"}],
                 "total": 154, "page": 2, "pages": 2, "limit": 100,
             },
@@ -529,6 +531,12 @@ async def test_faction_vehicles_endpoint_scopes_pages_and_preserves_units() -> N
         assert result.items[0].health == 1183.38
         assert result.items[0].alpr is True
         assert result.items[0].oil is None
+        assert result.items[0].fuel_tank_level == 3
+        assert result.items[0].armour_level == 2
+        assert result.items[0].gps_level == 0
+        assert result.items[0].alarm_level == 1
+        assert result.items[0].lock_level == 3
+        assert result.items[0].ignition_level == 4
         with pytest.raises(ValueError):
             await client.list_faction_vehicles(0)
 

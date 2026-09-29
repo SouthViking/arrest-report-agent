@@ -1,26 +1,18 @@
 {
   "schema_version": 3,
-  "version": "0.39.0",
-  "title": "Consulta de vehículos y flota",
-  "summary": "Nuevas consultas para conocer el estado de los vehículos de la facción desde Discord.",
+  "version": "0.39.1",
+  "title": "Más información sobre tus vehículos",
+  "summary": "Ahora puedes consultar más detalles del equipamiento y una guía para revisar la flota.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
       "type": "added",
-      "text": "/vehiculo: busca por matrícula y revisa combustible, aceite, estado, equipamiento y último conductor."
+      "text": "/info-flota: una guía para usar /vehiculo y /flota, aplicar filtros y compartir los resultados. Disponible para el personal operativo."
     },
     {
-      "type": "added",
-      "text": "/flota: consulta el resumen de la facción y ordena sus vehículos por salud, combustible o aceite."
-    },
-    {
-      "type": "added",
-      "text": "En /flota puedes filtrar por modelo o ALPR y elegir si quieres ver el resultado solo tú o compartirlo en el canal."
-    },
-    {
-      "type": "added",
-      "text": "Ambos comandos están disponibles para todos los miembros del personal operativo."
+      "type": "improved",
+      "text": "/vehiculo ahora muestra los niveles disponibles de tanque, blindaje, GPS, alarma, cerradura y encendido."
     }
   ],
   "acknowledgements": []

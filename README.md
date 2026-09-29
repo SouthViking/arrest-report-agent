@@ -61,8 +61,13 @@ también sin ejecutar el agente.
 
 ## Consultas de flota
 
+- `/info-flota` publica una guía de uso de `/vehiculo` y `/flota`. Solo puede ejecutarlo el
+  personal operativo, con el módulo habilitado; no consulta vehículos ni carga la lista de miembros.
 - `/vehiculo matricula` publica el estado de un vehículo de la facción: combustible, aceite,
   salud, ALPR, sirena, cierre, incautación y último conductor. Acepta matrícula real o visible.
+  Incluye los niveles positivos de tanque, blindaje, GPS, alarma, cerradura y encendido en una
+  sección compacta; omite niveles cero o ausentes. No convierte el nivel del tanque a capacidad
+  ni supone cuál es el nivel estándar de seguridad. Usa el mismo listado cacheado, sin consultas extra.
 - `/flota` abre un panel privado para elegir un modelo (selector paginado), seguido de un
   formulario de vista, filtro ALPR y visibilidad. Incluye resumen y rankings de menor salud,
   combustible o aceite; por defecto el resultado es privado. La paginación no vuelve a consultar SARP.

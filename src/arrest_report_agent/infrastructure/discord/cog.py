@@ -1501,6 +1501,7 @@ class ReviewCog(commands.Cog):
                     )
                 ):
                     extra_feature_lines.append(
+                        "• `/info-flota`: cómo consultar vehículos, filtros y rankings.\n"
                         "• `/vehiculo`: consulta un vehículo de la facción por matrícula.\n"
                         "• `/flota`: consulta el resumen de la flota y sus necesidades de mantenimiento."
                     )

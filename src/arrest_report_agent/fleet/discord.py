@@ -16,7 +16,7 @@ from arrest_report_agent.config import FleetOptions
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
-from .rendering import VIEW_LABELS, fleet_embed, fleet_page_count, safe_text, vehicle_embed
+from .rendering import VIEW_LABELS, fleet_embed, fleet_info_embed, fleet_page_count, safe_text, vehicle_embed
 from .service import AlprFilter, FleetService, FleetSnapshot, FleetView
 
 LOGGER = logging.getLogger(__name__)
@@ -131,6 +131,23 @@ class FleetCog(commands.Cog):
             )
         except Exception as error:
             await self.failed(ctx.interaction, error)
+
+    @discord.slash_command(name="info-flota", description="Explica cómo consultar vehículos y la flota")
+    async def fleet_info(self, ctx: discord.ApplicationContext) -> None:
+        if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+            await ctx.respond(embed=alert("Utiliza este comando dentro del servidor."), ephemeral=True)
+            return
+        try:
+            await self.authorize(ctx.guild.id, ctx.author)
+        except PermissionError as error:
+            await ctx.respond(embed=alert(str(error)), ephemeral=True)
+            return
+        except Exception as error:
+            await self.failed(ctx.interaction, error)
+            return
+        await ctx.respond(
+            embed=fleet_info_embed(), ephemeral=False, allowed_mentions=discord.AllowedMentions.none(),
+        )
 
     async def failed(self, interaction: discord.Interaction, error: Exception) -> None:
         log_event(

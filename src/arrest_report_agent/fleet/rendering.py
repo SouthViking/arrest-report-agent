@@ -21,6 +21,45 @@ VIEW_LABELS = {
 }
 
 
+def fleet_info_embed() -> discord.Embed:
+    """Explain the fleet commands in member-facing language, without implementation details."""
+    embed = discord.Embed(
+        title="🚓 Guía de vehículos y flota",
+        description="Consulta los vehículos de la facción y revisa su estado desde aquí.",
+        color=discord.Color.blurple(),
+    )
+    embed.add_field(
+        name="🔎 Consultar un vehículo",
+        value=(
+            "Usa `/vehiculo` e introduce su matrícula.\n"
+            "Verás combustible, aceite, salud, equipamiento y último conductor. "
+            "También los niveles de tanque, blindaje, GPS, alarma, cerradura y encendido disponibles. "
+            "El resultado se publica en el canal."
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="📋 Revisar la flota",
+        value=(
+            "Usa `/flota`, elige un modelo o deja todos y pulsa **Configurar consulta**.\n"
+            "Selecciona el resumen o una lista ordenada por menor salud, combustible o aceite. "
+            "También puedes filtrar por ALPR (lector de matrículas)."
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="👁️ Elegir quién lo ve",
+        value=(
+            "En `/flota`, la opción predeterminada es **Solo para mí**. "
+            "Elige **Publicar en este canal** si quieres compartir el resultado.\n"
+            "Usa **Anterior** y **Siguiente** para recorrer los resultados."
+        ),
+        inline=False,
+    )
+    embed.set_footer(text="Disponible para personal operativo · En cualquier canal del servidor")
+    return embed
+
+
 def safe_text(value: str) -> str:
     return discord.utils.escape_markdown(discord.utils.escape_mentions(value.replace("\n", " ")))
 
@@ -73,6 +112,25 @@ def vehicle_embed(vehicle: SarpFactionVehicle, drivers: Mapping[str, int]) -> di
         ),
         inline=True,
     )
+    # Keep raw levels: neither tank capacity nor a baseline for security upgrades is documented.
+    levels = [
+        f"{label}: **nivel {level}**"
+        for label, level in (
+            ("⛽ Tanque", vehicle.fuel_tank_level),
+            ("🛡️ Blindaje", vehicle.armour_level),
+            ("📡 GPS", vehicle.gps_level),
+            ("🚨 Alarma", vehicle.alarm_level),
+            ("🔒 Cerradura", vehicle.lock_level),
+            ("🔑 Encendido", vehicle.ignition_level),
+        )
+        if level is not None and level >= 1
+    ]
+    if levels:
+        embed.add_field(
+            name="🧰 Niveles de equipamiento",
+            value="\n".join(" · ".join(levels[start : start + 2]) for start in range(0, len(levels), 2)),
+            inline=False,
+        )
     if vehicle.visible_plate and vehicle.visible_plate != vehicle.plate:
         embed.add_field(name="Matrícula visible", value=safe_text(vehicle.visible_plate), inline=False)
     if vehicle.updated_at is not None:

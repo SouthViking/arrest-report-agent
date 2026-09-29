@@ -106,6 +106,9 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/fichas-activas` | `operational_staff_roles`; módulo `ftp_requests` activo | Pública en cualquier canal; rechazo efímero | Solicitudes FTP pendientes en PostgreSQL |
 | `/ver-evidencia` | `operational_staff_roles`; módulo `arrest_report_lookup` activo | Pública; rechazo efímero | Bolsa de evidencias en SARP |
 | `/vehiculos-robados` | `operational_staff_roles`; módulo `stolen_vehicles` activo | Modal privado; resultado público o efímero | Denuncias recientes de vehículos en SARP |
+| `/info-flota` | `operational_staff_roles`; módulo `fleet` activo | Pública; rechazo efímero | Guía de `/vehiculo`, `/flota`, filtros y visibilidad |
+| `/vehiculo` | `operational_staff_roles`; módulo `fleet` activo | Pública; rechazo de acceso efímero | Estado, equipamiento y niveles disponibles del vehículo por matrícula real o visible |
+| `/flota` | `operational_staff_roles`; módulo `fleet` activo | Panel privado; resultado privado por defecto o público | Resumen y rankings de la flota por modelo y ALPR |
 | `/recursos` | `operational_staff_roles`; módulo `operational_resources` activo | Pública; rechazo efímero | Configuración de PostgreSQL y API SARP |
 | `/foro` | Todos; módulo `forum_shortcuts` activo | Pública | Catálogo institucional configurado en PostgreSQL |
 | `/reportes-pendientes` | `operational_staff_roles`; módulo `pending_arrest_reports` activo | Modal privado; resultado público o efímero | Reportes de la facción en SARP |
