@@ -43,6 +43,8 @@ from arrest_report_agent.faction_member_analysis import (
 )
 from arrest_report_agent.faction_reports import FactionReportCog, FactionReportService
 from arrest_report_agent.faction_status import FactionStatusCog, FactionStatusService
+from arrest_report_agent.fleet.discord import FleetCog
+from arrest_report_agent.fleet.service import FleetService
 from arrest_report_agent.forum_shortcuts import ForumShortcutsCog
 from arrest_report_agent.ftp_requests import (
     FtpRequestCog,
@@ -582,6 +584,7 @@ async def build_runtime(
             cache_seconds=settings.sarp_online_players_cache_seconds,
         )
         bot.add_cog(MdcCog(config_provider, MdcService(sarp_client), persona.profile))
+        bot.add_cog(FleetCog(config_provider, FleetService(sarp_client), DiscordGuildMemberDirectory(bot)))
         bot.add_cog(
             EvidenceBagCog(
                 config_provider,

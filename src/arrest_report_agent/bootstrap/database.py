@@ -495,6 +495,14 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         payload={},
                     ),
                     GuildFeatureSnapshot(
+                        key="fleet",
+                        enabled=(guild_id == LSSD_GUILD_ID and bool(supervisor_roles[guild_id])),
+                        schema_version=1,
+                        payload=(
+                            {"faction_id": 3, "cache_seconds": 120} if guild_id == LSSD_GUILD_ID else {}
+                        ),
+                    ),
+                    GuildFeatureSnapshot(
                         key="ftp_status",
                         enabled=ftp_enabled,
                         schema_version=1,

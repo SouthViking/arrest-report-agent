@@ -45,6 +45,7 @@ from .models import (
     SarpFactionFrequency,
     SarpFactionRadioLogPage,
     SarpFactionRank,
+    SarpFactionVehiclePage,
     SarpFinePage,
     SarpGlobalMetrics,
     SarpOnlineCharacter,
@@ -81,6 +82,7 @@ FACTION_ARREST_SEARCH_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionArrestSearchPaylo
 FACTION_BANK_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionBankPage)
 EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpEmergencyCallPage)
 STOLEN_VEHICLE_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpStolenVehiclePage)
+FACTION_VEHICLE_PAGE_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionVehiclePage)
 FACTION_DETAIL_PAYLOAD_ADAPTER = TypeAdapter(SarpFactionDetail)
 FACTION_DIVISIONS_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionDivision])
 FACTION_FREQUENCIES_PAYLOAD_ADAPTER = TypeAdapter(list[SarpFactionFrequency])
@@ -602,6 +604,24 @@ class SarpClient:
             "/police/emergency-calls",
             params={"page": page, "limit": limit},
             payload_adapter=EMERGENCY_CALL_PAGE_PAYLOAD_ADAPTER,
+        )
+        return response.payload
+
+    async def list_faction_vehicles(
+        self,
+        faction_id: int,
+        *,
+        page: int = 1,
+        limit: int = 100,
+    ) -> SarpFactionVehiclePage:
+        """Fetch faction-scoped fleet pages, including condition and equipment."""
+        _require_positive_id(faction_id, "faction_id")
+        _validate_page(page, limit)
+        response = await self.request(
+            "GET",
+            "/police/vehicles",
+            params={"faction": faction_id, "page": page, "limit": limit},
+            payload_adapter=FACTION_VEHICLE_PAGE_PAYLOAD_ADAPTER,
         )
         return response.payload
 

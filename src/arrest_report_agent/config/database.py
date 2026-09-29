@@ -207,6 +207,11 @@ class FactionStatusOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
 
 
+class FleetOptions(FrozenConfigModel):
+    faction_id: int = Field(gt=0)
+    cache_seconds: int = Field(default=120, ge=1, le=3600, strict=True)
+
+
 class FtpStatusOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
     supervisory_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
@@ -641,6 +646,14 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if faction_status_feature.schema_version != 1:
                 raise ValueError("faction_status requires feature schema version 1")
             FactionStatusOptions.model_validate(faction_status_feature.payload)
+        fleet_feature = self.features.get("fleet")
+        if fleet_feature is not None and fleet_feature.enabled:
+            if fleet_feature.schema_version != 1:
+                raise ValueError("fleet requires feature schema version 1")
+            FleetOptions.model_validate(fleet_feature.payload)
+            roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
+            if roles.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError("enabled fleet requires restricted operational staff roles")
         ftp_status_feature = self.features.get("ftp_status")
         if ftp_status_feature is not None and ftp_status_feature.enabled:
             if ftp_status_feature.schema_version != 1:
@@ -915,6 +928,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return FactionStatusOptions.model_validate(feature.payload).faction_id
+
+    @property
+    def fleet_options(self) -> FleetOptions | None:
+        feature = self.snapshot.features.get("fleet")
+        if feature is None or not feature.enabled:
+            return None
+        return FleetOptions.model_validate(feature.payload)
 
     @property
     def ftp_status_options(self) -> FtpStatusOptions | None:

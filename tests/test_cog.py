@@ -245,6 +245,19 @@ def test_operational_commands_are_registered_at_the_root() -> None:
     assert not hasattr(ReviewCog, "config")
 
 
+def test_help_keeps_extended_command_directory_within_discord_limits(persona) -> None:
+    commands = "\n".join(
+        f"• `/consulta-{index}`: consulta la información de la facción." for index in range(30)
+    )
+    commands += "\n• `/vehiculo`: consulta por matrícula.\n• `/flota`: resumen y rankings."
+    embed = build_help_embed(persona=persona, extra_feature_guides=commands)
+    assert all(len(field.value) <= 1024 for field in embed.fields)
+    guides = "\n".join(
+        field.value for field in embed.fields if field.name == persona.messages.help.feature_guides_title
+    )
+    assert guides == f"{persona.messages.help.feature_guides}\n{commands}"
+
+
 def test_help_embed_is_a_compact_feature_directory(persona) -> None:
     embed = build_help_embed(
         persona=persona,

@@ -59,6 +59,24 @@ también sin ejecutar el agente.
   tratamiento; no envía IDs de roles y nunca altera el rigor de la revisión por jerarquía.
 - Conserva metadata útil en traces sin incluir contenidos sensibles por defecto.
 
+## Consultas de flota
+
+- `/vehiculo matricula` publica el estado de un vehículo de la facción: combustible, aceite,
+  salud, ALPR, sirena, cierre, incautación y último conductor. Acepta matrícula real o visible.
+- `/flota` abre un panel privado para elegir un modelo (selector paginado), seguido de un
+  formulario de vista, filtro ALPR y visibilidad. Incluye resumen y rankings de menor salud,
+  combustible o aceite; por defecto el resultado es privado. La paginación no vuelve a consultar SARP.
+- Ambos requieren los roles de `operational_staff_roles`. El último conductor se cruza con
+  nombres completos, abreviados o múltiples de Discord solo ante una coincidencia inequívoca;
+  si no se puede resolver, se muestra el nombre original sin notificar a nadie.
+- La opción `fleet` de `/config` admite `{"faction_id":3,"cache_seconds":120}`. El TTL es
+  configurable entre 1 y 3600 segundos y se aplica al publicar la configuración, sin reiniciar.
+  La migración habilita LSSD; otras guilds deben configurar su facción y permisos.
+- Se cachean todas las páginas de `/police/vehicles` por facción, compartidas por ambos comandos.
+  Las solicitudes simultáneas se agrupan; no hay sondeo periódico ni variables de entorno nuevas.
+  Combustible, aceite y salud conservan las unidades informadas por SARP, sin convertirlas a porcentajes
+  ni clasificar un vehículo como seguro/dañado. No se muestra kilometraje ni se infiere disponibilidad.
+
 ## Requisitos
 
 - Python 3.12–3.14.

@@ -1,20 +1,26 @@
 {
   "schema_version": 3,
-  "version": "0.38.27",
-  "title": "Gestión de cupos de revisión",
-  "summary": "Command Staff y Executive Staff pueden ampliar los turnos de revisión de arrestos y reciben un aviso cuando se agotan.",
+  "version": "0.39.0",
+  "title": "Consulta de vehículos y flota",
+  "summary": "Nuevas consultas para conocer el estado de los vehículos de la facción desde Discord.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "changelog_targets": "all",
   "changes": [
     {
-      "type": "improved",
-      "text": "Command Staff y Executive Staff ya pueden usar /ampliar-cupo dentro del hilo del reporte."
+      "type": "added",
+      "text": "/vehiculo: busca por matrícula y revisa combustible, aceite, estado, equipamiento y último conductor."
     },
     {
-      "type": "improved",
-      "text": "Al agotarse los turnos, reciben un aviso con acceso al hilo y el comando para ampliarlos, sin menciones repetidas por el mismo límite."
+      "type": "added",
+      "text": "/flota: consulta el resumen de la facción y ordena sus vehículos por salud, combustible o aceite."
+    },
+    {
+      "type": "added",
+      "text": "En /flota puedes filtrar por modelo o ALPR y elegir si quieres ver el resultado solo tú o compartirlo en el canal."
+    },
+    {
+      "type": "added",
+      "text": "Ambos comandos están disponibles para todos los miembros del personal operativo."
     }
   ],
   "acknowledgements": []

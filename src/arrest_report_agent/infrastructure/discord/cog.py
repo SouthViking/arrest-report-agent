@@ -156,13 +156,15 @@ def build_help_embed(
         ),
         color=discord.Color.gold(),
     )
-    embed.add_field(
-        name=copy.feature_guides_title,
-        value=(
-            f"{copy.feature_guides}\n{extra_feature_guides}" if extra_feature_guides else copy.feature_guides
-        ),
-        inline=False,
-    )
+    guides = f"{copy.feature_guides}\n{extra_feature_guides}" if extra_feature_guides else copy.feature_guides
+    while guides:
+        end = min(1024, len(guides))
+        if end < len(guides):
+            newline = guides.rfind("\n", 0, end + 1)
+            if newline > 0:
+                end = newline
+        embed.add_field(name=copy.feature_guides_title, value=guides[:end], inline=False)
+        guides = guides[end:].lstrip("\n")
     embed.add_field(
         name=copy.quick_references_title,
         value=copy.quick_references,
@@ -1490,6 +1492,18 @@ class ReviewCog(commands.Cog):
                         "• `/rumor`: publica un mensaje anónimo en este canal."
                     )
                 radio_feature = bundle.snapshot.features.get("radio_audit")
+                fleet_feature = bundle.snapshot.features.get("fleet")
+                if (
+                    fleet_feature is not None and fleet_feature.enabled
+                    and isinstance(ctx.author, discord.Member)
+                    and any(
+                        role.id in bundle.settings.operational_staff_role_ids for role in ctx.author.roles
+                    )
+                ):
+                    extra_feature_lines.append(
+                        "• `/vehiculo`: consulta un vehículo de la facción por matrícula.\n"
+                        "• `/flota`: consulta el resumen de la flota y sus necesidades de mantenimiento."
+                    )
                 if (
                     radio_feature is not None
                     and radio_feature.enabled

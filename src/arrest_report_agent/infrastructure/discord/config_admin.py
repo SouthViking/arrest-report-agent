@@ -20,6 +20,7 @@ from arrest_report_agent.config import (
     BlacklistTypeOptions,
     BotPersona,
     FactionMemberAnalysisOptions,
+    FleetOptions,
     ForumShortcutsOptions,
     FtpRequestOptions,
     FtpStatusOptions,
@@ -79,6 +80,7 @@ FEATURE_LABELS = {
     "service_calls": "Llamadas de servicio",
     "stolen_vehicles": "Vehículos robados",
     "faction_status": "Estado de facción",
+    "fleet": "Flota de la facción",
     "ftp_status": "FTP conectado",
     "ftp_requests": "Solicitudes FTP",
     "warrant_notifications": "Notificación de órdenes",
@@ -974,6 +976,7 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     label="Estado de facción",
                     value="faction_status",
                 ),
+                discord.SelectOption(label="Flota de la facción", value="fleet"),
                 discord.SelectOption(
                     label="FTP conectado",
                     value="ftp_status",
@@ -1074,6 +1077,8 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                         "FTP conectado requiere `faction_id` y los IDs de roles de "
                         "Supervisory Staff, MFTO, FTO y FTT."
                     ) from error
+            if key == "fleet" and self.enabled.values[0] == "true":
+                FleetOptions.model_validate(payload)
             if key == "ftp_requests" and self.enabled.values[0] == "true":
                 try:
                     FtpRequestOptions.model_validate(payload)

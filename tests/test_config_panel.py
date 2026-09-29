@@ -331,6 +331,8 @@ async def test_panel_exposes_forms_instead_of_inline_arguments(settings, persona
         option.value for option in feature_modal.key.options
     }
     assert "radio_audit" in {option.value for option in feature_modal.key.options}
+    assert "fleet" in {option.value for option in feature_modal.key.options}
+    assert len(feature_modal.key.options) <= 25
     assert "warrant_notifications" in {
         option.value for option in feature_modal.key.options
     }

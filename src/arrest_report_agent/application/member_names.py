@@ -6,6 +6,53 @@ import re
 import unicodedata
 from collections.abc import Iterable
 from enum import IntEnum
+from typing import Protocol
+
+from .ports import GuildMemberProfile, GuildMemberSearchQuery, GuildMemberSearchResult
+
+
+class MemberSearchDirectory(Protocol):
+    async def search_members(
+        self,
+        guild_id: int,
+        query: GuildMemberSearchQuery,
+    ) -> GuildMemberSearchResult: ...
+
+
+async def load_member_profiles(
+    directory: MemberSearchDirectory,
+    guild_id: int,
+    *,
+    role_ids: tuple[int, ...] = (),
+) -> tuple[GuildMemberProfile, ...]:
+    """Collect complete guild-local candidates so partial caches cannot imply uniqueness."""
+    members: list[GuildMemberProfile] = []
+    cursor: str | None = None
+    for _ in range(50):
+        result = await directory.search_members(
+            guild_id,
+            GuildMemberSearchQuery(
+                query=None,
+                user_ids=(),
+                role_ids_any=role_ids,
+                role_ids_all=(),
+                role_ids_none=(),
+                is_bot=False,
+                joined_after=None,
+                joined_before=None,
+                sort_by="display_name",
+                sort_direction="asc",
+                limit=100,
+                cursor=cursor,
+            ),
+        )
+        if result.error is not None:
+            raise RuntimeError(f"Discord member directory failed: {result.error}")
+        members.extend(result.members)
+        cursor = result.next_cursor
+        if cursor is None:
+            return tuple(members)
+    raise RuntimeError("Discord member directory exceeded the pagination limit")
 
 
 class PersonNameMatchStrength(IntEnum):
@@ -57,6 +104,31 @@ def person_name_match_strength(character_name: str, aliases: Iterable[str]) -> i
         if _initial_and_surname_match(query_tokens, alias_tokens):
             best = max(best, PersonNameMatchStrength.INITIAL_AND_SURNAME)
     return int(best)
+
+
+def unique_profile_match(
+    character_name: str,
+    candidates: Iterable[GuildMemberProfile],
+) -> tuple[GuildMemberProfile | None, bool]:
+    """Resolve only a unique strongest match; the second value signals ambiguity."""
+    ranked = {
+        candidate.user_id: (
+            person_name_match_strength(
+                character_name,
+                person_name_aliases(candidate.display_name, candidate.username),
+            ),
+            candidate,
+        )
+        for candidate in candidates
+        if not candidate.is_bot
+    }
+    strongest = max((strength for strength, _ in ranked.values()), default=0)
+    if strongest <= 0:
+        return None, False
+    matches = [candidate for strength, candidate in ranked.values() if strength == strongest]
+    if len(matches) != 1:
+        return None, True
+    return matches[0], False
 
 
 def _initial_and_surname_match(

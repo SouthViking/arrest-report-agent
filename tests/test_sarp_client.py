@@ -506,6 +506,33 @@ async def test_emergency_call_endpoint_is_typed_and_treats_naive_dates_as_utc() 
     assert page.items[0].location == "Mulholland Drive"
 
 
+async def test_faction_vehicles_endpoint_scopes_pages_and_preserves_units() -> None:
+    async def handler(request: web.Request) -> web.Response:
+        assert request.path == "/api/police/vehicles"
+        assert request.query == {"faction": "3", "page": "2", "limit": "100"}
+        assert request.headers["Authorization"] == "Bearer sarp_test"
+        return web.json_response({
+            "message": "OK", "httpCode": 200, "source": "pcu", "payload": {
+                "items": [{"id": 26290, "faction": 3, "name": "LSSD CVPI", "model": 598,
+                           "plate": "2414803", "alpr": 1, "fuel": 153, "health": 1183.38,
+                           "last_driver": "Charles Harrington", "updated_at": "2026-09-29 03:47:38"}],
+                "total": 154, "page": 2, "pages": 2, "limit": 100,
+            },
+        })
+
+    async with (
+        serve_sarp(handler) as base_url,
+        SarpClient(SarpClientConfig(token="sarp_test", base_url=base_url, max_retries=0)) as client,
+    ):
+        result = await client.list_faction_vehicles(3, page=2)
+        assert result.items[0].fuel == 153
+        assert result.items[0].health == 1183.38
+        assert result.items[0].alpr is True
+        assert result.items[0].oil is None
+        with pytest.raises(ValueError):
+            await client.list_faction_vehicles(0)
+
+
 async def test_stolen_vehicle_endpoint_uses_filters_and_parses_typed_payload() -> None:
     async def handler(request: web.Request) -> web.Response:
         assert request.path == "/api/police/stolen-vehicles"

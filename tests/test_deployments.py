@@ -64,11 +64,12 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
 
     assert manifest.version == __version__
     assert manifest.repository_url == "https://github.com/SouthViking/arrest-report-agent"
-    assert manifest.changelog_targets == (1241206587079524442,)
+    assert manifest.changelog_targets == "all"
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "/ampliar-cupo" in rendered_changes
-    assert "sin menciones repetidas" in rendered_changes
+    assert "/vehiculo" in rendered_changes
+    assert "/flota" in rendered_changes
+    assert "personal operativo" in rendered_changes
     assert manifest.acknowledgements == ()
 
 
