@@ -299,6 +299,13 @@ o protegidos, separa altas de bajas según el estado actual del miembro y divide
 25 elementos sin superar los cinco campos del modal. Los valores recibidos del cliente se vuelven a
 resolver y validar contra el catálogo antes de publicar.
 
+Los turnos configurados en `role_requests.shifts` tienen un selector exclusivo y quedan fuera del
+catálogo general. Cada solicitud guarda `shift_change` (destino y turnos anteriores) junto con las
+operaciones ordinarias; el codec v1 también lo conserva en un campo propio. El ingreso exige turno
+cuando está configurado; un cambio normal puede omitirlo. La aprobación parcial trata el reemplazo
+como una sola unidad. Antes de editar al miembro se comprueba que no haya aparecido un turno distinto
+del solicitado o de los anteriores, evitando quitar roles no autorizados o acumular turnos.
+
 Las solicitudes nuevas se reservan de forma idempotente en `role_requests`. El canal de origen recibe
 un embed saneado y cada canal de `role_request_review_channels` recibe una referencia en
 `role_request_review_messages` con el detalle y los controles. La decisión se reclama mediante una

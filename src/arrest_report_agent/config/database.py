@@ -193,9 +193,27 @@ class RoleRequestFttEntryOptions(FrozenConfigModel):
         return self
 
 
+class RoleRequestShiftOption(RoleRequestStationOption):
+    description: str = Field(min_length=1, max_length=100)
+
+
 class RoleRequestOptions(FrozenConfigModel):
     retired_role_id: int | None = Field(default=None, gt=0)
     ftt_entry: RoleRequestFttEntryOptions | None = None
+    shifts: tuple[RoleRequestShiftOption, ...] = Field(default=(), max_length=25)
+
+    @model_validator(mode="after")
+    def validate_shifts(self) -> RoleRequestOptions:
+        ids = [shift.role_id for shift in self.shifts]
+        if len(set(ids)) != len(ids) or len({shift.key for shift in self.shifts}) != len(ids):
+            raise ValueError("Shift keys and roles must be unique")
+        other_ids = {self.retired_role_id}
+        if self.ftt_entry:
+            other_ids.update(self.ftt_entry.base_role_ids)
+            other_ids.update(station.role_id for station in self.ftt_entry.stations)
+        if other_ids.intersection(ids):
+            raise ValueError("Shift roles must be distinct from entry and retirement roles")
+        return self
 
 
 class PagerOptions(FrozenConfigModel):
@@ -569,6 +587,12 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if role_requests_feature.schema_version != 1:
                 raise ValueError("role_requests requires feature schema version 1")
             options = RoleRequestOptions.model_validate(role_requests_feature.payload)
+            if options.shifts:
+                allowed_roles = self.policies[AccessPolicyKey.ROLE_REQUEST_ALLOWED_ROLES]
+                if allowed_roles.mode is not AccessPolicyMode.RESTRICTED or not {
+                    shift.role_id for shift in options.shifts
+                } <= set(allowed_roles.ids):
+                    raise ValueError("Shift roles require an explicit managed-role catalog")
             if options.retired_role_id is not None or options.ftt_entry is not None:
                 operational_roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
                 if operational_roles.mode is not AccessPolicyMode.RESTRICTED or not operational_roles.ids:
@@ -856,6 +880,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return RoleRequestOptions.model_validate(feature.payload).ftt_entry
+
+    @property
+    def role_request_shifts(self) -> tuple[RoleRequestShiftOption, ...]:
+        feature = self.snapshot.features.get("role_requests")
+        if feature is None or not feature.enabled:
+            return ()
+        return RoleRequestOptions.model_validate(feature.payload).shifts
 
     @property
     def pager_channel_allowlist(self) -> SnowflakeAllowlist:

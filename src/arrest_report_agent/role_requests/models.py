@@ -49,6 +49,26 @@ class StoredRoleRequestStatus(StrEnum):
         }
 
 
+class RoleRequestShiftChange(BaseModel):
+    """Snapshot of a mutually exclusive shift change, approved as one unit."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    target_role_id: Snowflake
+    previous_role_ids: tuple[Snowflake, ...] = Field(default=(), max_length=25)
+
+    @model_validator(mode="after")
+    def validate_previous(self) -> RoleRequestShiftChange:
+        if self.target_role_id in self.previous_role_ids or len(set(self.previous_role_ids)) != len(
+            self.previous_role_ids
+        ):
+            raise ValueError("Previous shifts must be unique and exclude the target")
+        return self
+
+    @property
+    def role_ids(self) -> frozenset[int]:
+        return frozenset((self.target_role_id, *self.previous_role_ids))
+
+
 class StoredRoleRequest(BaseModel):
     """Database-backed request used by the v2 public/private flow."""
 
@@ -59,6 +79,7 @@ class StoredRoleRequest(BaseModel):
     interaction_id: Snowflake
     requester_id: Snowflake
     kind: RoleRequestKind
+    shift_change: RoleRequestShiftChange | None = None
     add_role_ids: tuple[Snowflake, ...] = Field(max_length=MAX_ROLES_PER_OPERATION)
     remove_role_ids: tuple[Snowflake, ...] = Field(max_length=MAX_ROLES_PER_OPERATION)
     reason: str | None = Field(default=None, max_length=1000)
@@ -88,7 +109,8 @@ class StoredRoleRequest(BaseModel):
     @model_validator(mode="after")
     def validate_guided_entry(self) -> StoredRoleRequest:
         if self.kind is RoleRequestKind.FTT_ENTRY and (
-            self.remove_role_ids or not self.reason
+            set(self.remove_role_ids) - set(self.shift_change.previous_role_ids if self.shift_change else ())
+            or not self.reason
         ):
             raise ValueError("an FTT entry request requires a station and cannot remove roles")
         return self
@@ -102,6 +124,7 @@ class StoredRoleRequest(BaseModel):
             channel_id=source_channel_id,
             requester_id=self.requester_id,
             kind=self.kind,
+            shift_change=self.shift_change,
             add_role_ids=self.add_role_ids,
             remove_role_ids=self.remove_role_ids,
             reason=self.reason,
@@ -129,6 +152,7 @@ class RoleRequest(BaseModel):
     channel_id: int = Field(gt=0)
     requester_id: int = Field(gt=0)
     kind: RoleRequestKind = RoleRequestKind.NORMAL
+    shift_change: RoleRequestShiftChange | None = None
     add_role_ids: tuple[Snowflake, ...] = Field(max_length=MAX_ROLES_PER_OPERATION)
     remove_role_ids: tuple[Snowflake, ...] = Field(max_length=MAX_ROLES_PER_OPERATION)
     reason: str | None = Field(default=None, max_length=1000)
@@ -140,8 +164,17 @@ class RoleRequest(BaseModel):
             raise ValueError("role request must contain at least one role change")
         if self.kind is RoleRequestKind.RETIREMENT and len(self.add_role_ids) != 1:
             raise ValueError("a retirement request must add exactly one role")
-        if self.kind is RoleRequestKind.FTT_ENTRY and self.remove_role_ids:
+        if self.kind is RoleRequestKind.FTT_ENTRY and set(self.remove_role_ids) - set(
+            self.shift_change.previous_role_ids if self.shift_change else ()
+        ):
             raise ValueError("an FTT entry request cannot remove roles")
+        if self.shift_change and (
+            self.kind is RoleRequestKind.RETIREMENT
+            or not set(self.shift_change.previous_role_ids) <= set(self.remove_role_ids)
+            or self.shift_change.target_role_id in self.remove_role_ids
+            or set(self.shift_change.previous_role_ids).intersection(self.add_role_ids)
+        ):
+            raise ValueError("Shift change does not match the requested operations")
         if self.kind is RoleRequestKind.FTT_ENTRY and not self.reason:
             raise ValueError("an FTT entry request must identify its station")
         if len(set(self.add_role_ids)) != len(self.add_role_ids):

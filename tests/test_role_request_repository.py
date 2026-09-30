@@ -13,6 +13,7 @@ from arrest_report_agent.infrastructure.postgres.schema import discord_guilds
 from arrest_report_agent.role_requests.models import (
     RoleRequestDecision,
     RoleRequestKind,
+    RoleRequestShiftChange,
     RoleRequestStatus,
     StoredRoleRequestStatus,
 )
@@ -106,13 +107,19 @@ async def test_role_request_repository_is_idempotent_concurrent_and_mirrored(
             interaction_id=303,
             requester_id=requester_id,
             kind=RoleRequestKind.FTT_ENTRY,
-            add_role_ids=(101, 103, 104, 105, 106),
-            remove_role_ids=(),
+            add_role_ids=(101, 103, 104, 105, 106, 108),
+            remove_role_ids=(107,),
+            shift_change=RoleRequestShiftChange(target_role_id=108, previous_role_ids=(107,)),
             reason="Ganton · <@&106>",
             public_channel_id=201,
         )
         assert ftt_created is True
         assert ftt_entry.kind is RoleRequestKind.FTT_ENTRY
+        restored_entry = await RoleRequestRepository(client).get(ftt_entry.id)
+        assert restored_entry is not None
+        assert restored_entry.shift_change == ftt_entry.shift_change
+        adapted = restored_entry.as_legacy_request(source_channel_id=201, source_message_id=402)
+        assert adapted.shift_change == ftt_entry.shift_change
     finally:
         await client.execute(discord_guilds.delete().where(discord_guilds.c.discord_id == guild_id))
         await client.close()

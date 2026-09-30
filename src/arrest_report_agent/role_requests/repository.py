@@ -19,6 +19,7 @@ from .models import (
     RoleRequestDecision,
     RoleRequestKind,
     RoleRequestReviewMessage,
+    RoleRequestShiftChange,
     StoredRoleRequest,
     StoredRoleRequestStatus,
 )
@@ -55,6 +56,7 @@ class RoleRequestRepository:
         remove_role_ids: tuple[int, ...],
         reason: str | None,
         public_channel_id: int,
+        shift_change: RoleRequestShiftChange | None = None,
     ) -> tuple[StoredRoleRequest, bool]:
         now = datetime.now(UTC)
         async with self.client.transaction() as connection:
@@ -91,6 +93,7 @@ class RoleRequestRepository:
                             interaction_id=interaction_id,
                             requester_id=requester_id,
                             kind=kind.value,
+                            shift_change=shift_change.model_dump(mode="json") if shift_change else None,
                             add_role_ids=list(add_role_ids),
                             remove_role_ids=list(remove_role_ids),
                             reason=reason,
@@ -310,6 +313,7 @@ class RoleRequestRepository:
             interaction_id=int(row["interaction_id"]),
             requester_id=int(row["requester_id"]),
             kind=RoleRequestKind(str(row["kind"])),
+            shift_change=row.get("shift_change"),
             add_role_ids=tuple(int(value) for value in row["add_role_ids"]),
             remove_role_ids=tuple(int(value) for value in row["remove_role_ids"]),
             reason=row["reason"],

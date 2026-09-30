@@ -43,9 +43,9 @@ permisos por nombre en lugar de conservar un número de forma manual.
 admitidos por `ROLE_REQUEST_ALLOWED_ROLE_IDS`; Discord no permite administrar roles iguales o
 superiores. Los selectores solo muestran roles admitidos que el bot puede administrar. En cada canal
 admitido por `ROLE_REQUEST_ALLOWED_CHANNEL_IDS` también necesita `View Channel`, `Read Message
-History`, `Send Messages` y `Embed Links`.
+History`, `Send Messages`, `Embed Links` y `Attach Files`.
 Los canales privados definidos en `role_request_review_channels` requieren también `View Channel`,
-`Read Message History`, `Send Messages` y `Embed Links`; los botones solo se publican allí.
+`Read Message History`, `Send Messages`, `Embed Links` y `Attach Files`; los botones solo se publican allí.
 
 `Change Nickname` es opcional. La persona `walter_vigil` configura `nickname: null`, por lo que su
 identidad global se sincroniza sin ese permiso. Solo una persona futura con nickname gestionado lo

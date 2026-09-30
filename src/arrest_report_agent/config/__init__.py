@@ -32,6 +32,7 @@ from .database import (
     RoleRequestFttEntryOptions,
     RoleRequestFttWelcomeOptions,
     RoleRequestOptions,
+    RoleRequestShiftOption,
     RoleRequestStationOption,
     RumorChannelOptions,
     RumorOptions,
@@ -82,6 +83,7 @@ from .persona import (
 from .settings import AppSettings, SnowflakeAllowlist, load_settings
 
 __all__ = [
+    "RoleRequestShiftOption",
     "AppSettings",
     "AccessPolicyKey",
     "AccessPolicyMode",

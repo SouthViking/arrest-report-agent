@@ -10,7 +10,14 @@ import discord
 
 from arrest_report_agent.config import PersonaRoleRequestMessages
 
-from .models import RoleRequest, RoleRequestDecision, RoleRequestKind, RoleRequestStatus
+from .media import DELIVERY_THUMBNAIL_URL
+from .models import (
+    RoleRequest,
+    RoleRequestDecision,
+    RoleRequestKind,
+    RoleRequestShiftChange,
+    RoleRequestStatus,
+)
 
 CODEC_VERSION = "role-request:v1"
 APPROVE_ALL_CUSTOM_ID = f"{CODEC_VERSION}:approve-all"
@@ -24,6 +31,7 @@ LEGACY_RETIREMENT_REQUEST_VALUE = "Retiro de la facción · se retirarán los ro
 FTT_ENTRY_REQUEST_VALUE = "Ingreso a la facción · Field Training Trainee"
 FTT_ENTRY_PENDING_TITLE = "📋 Solicitud de ingreso FTT"
 STATION_FIELD_TITLE = "📍 Estación de destino"
+SHIFT_FIELD_TITLE = "🕒 Turno solicitado"
 ADD_FIELD_TITLE = "➕ Roles para agregar"
 REMOVE_FIELD_TITLE = "➖ Roles para retirar"
 REASON_FIELD_TITLE = "📝 Motivo"
@@ -38,6 +46,7 @@ REMOVE_CHANGE_PREFIX = "Retirar"
 PENDING_FIELD_ORDER = (
     REQUEST_KIND_FIELD_TITLE,
     STATION_FIELD_TITLE,
+    SHIFT_FIELD_TITLE,
     ADD_FIELD_TITLE,
     REMOVE_FIELD_TITLE,
     REASON_FIELD_TITLE,
@@ -62,6 +71,7 @@ def build_pending_embed(
     created_at: datetime,
     message_id: int | None = None,
     kind: RoleRequestKind = RoleRequestKind.NORMAL,
+    shift_change: RoleRequestShiftChange | None = None,
 ) -> discord.Embed:
     """Build the polished pending request; the draft intentionally has no valid footer."""
 
@@ -71,6 +81,7 @@ def build_pending_embed(
         color=discord.Color.gold(),
         timestamp=created_at,
     )
+    embed.set_thumbnail(url=DELIVERY_THUMBNAIL_URL)
     avatar = getattr(getattr(requester, "display_avatar", None), "url", None)
     embed.set_author(
         name=requester.display_name,
@@ -95,6 +106,8 @@ def build_pending_embed(
                 value=reason,
                 inline=False,
             )
+    if shift_change:
+        embed.add_field(name=SHIFT_FIELD_TITLE, value=render_shift_change(shift_change), inline=False)
     additions = tuple(add_role_ids)
     removals = tuple(remove_role_ids)
     if additions:
@@ -130,6 +143,7 @@ def build_public_pending_embed(
     created_at: datetime,
     kind: RoleRequestKind,
     reason: str | None = None,
+    shift_change: RoleRequestShiftChange | None = None,
 ) -> discord.Embed:
     """Render the public audit card without the requester's private reason."""
 
@@ -141,6 +155,7 @@ def build_public_pending_embed(
         ui=ui,
         created_at=created_at,
         kind=kind,
+        shift_change=shift_change,
     )
     embed.description = "La solicitud quedó registrada y este mensaje se actualizará cuando sea resuelta."
     return embed
@@ -156,6 +171,7 @@ def build_private_pending_embed(
     created_at: datetime,
     public_jump_url: str,
     kind: RoleRequestKind,
+    shift_change: RoleRequestShiftChange | None = None,
 ) -> discord.Embed:
     """Render the complete review card for authorized private channels."""
 
@@ -167,6 +183,7 @@ def build_private_pending_embed(
         ui=ui,
         created_at=created_at,
         kind=kind,
+        shift_change=shift_change,
     )
     embed.add_field(
         name=PUBLIC_REQUEST_FIELD_TITLE,
@@ -193,6 +210,7 @@ def build_decision_embed(
         color=color,
         timestamp=request.created_at,
     )
+    embed.set_thumbnail(url=DELIVERY_THUMBNAIL_URL)
     embed.set_author(
         name=requester_name,
         url=f"https://discord.com/users/{request.requester_id}",
@@ -216,6 +234,8 @@ def build_decision_embed(
                 value=request.reason,
                 inline=False,
             )
+    if request.shift_change:
+        embed.add_field(name=SHIFT_FIELD_TITLE, value=render_shift_change(request.shift_change), inline=False)
     if request.add_role_ids:
         embed.add_field(
             name=ADD_FIELD_TITLE,
@@ -319,6 +339,7 @@ def build_requester_decision_embed(
         color=color,
         timestamp=decision.decided_at,
     )
+    embed.set_thumbnail(url=DELIVERY_THUMBNAIL_URL)
     embed.add_field(name=STATUS_FIELD_TITLE, value=status, inline=False)
     approved = _render_changes(
         decision.approved_add_role_ids,
@@ -401,10 +422,31 @@ def decode_pending_message(
         channel_id=message.channel.id,
         requester_id=int(author_match.group("user_id")),
         kind=request_kind,
+        shift_change=_parse_shift_change(fields.get(SHIFT_FIELD_TITLE)),
         add_role_ids=add_role_ids,
         remove_role_ids=remove_role_ids,
         reason=None if reason_value in {EMPTY_VALUE, ""} else reason_value,
         created_at=created_at,
+    )
+
+
+def render_shift_change(change: RoleRequestShiftChange) -> str:
+    previous = ", ".join(f"<@&{role_id}>" for role_id in change.previous_role_ids) or EMPTY_VALUE
+    return f"{previous} → <@&{change.target_role_id}>"
+
+
+def _parse_shift_change(value: str | None) -> RoleRequestShiftChange | None:
+    if value is None:
+        return None
+    parts = value.split(" → ")
+    if len(parts) != 2 or not (target := ROLE_MENTION_PATTERN.fullmatch(parts[1])):
+        raise RoleRequestCodecError("Invalid shift change")
+    previous = () if parts[0] == EMPTY_VALUE else tuple(parts[0].split(", "))
+    if any(ROLE_MENTION_PATTERN.fullmatch(item) is None for item in previous):
+        raise RoleRequestCodecError("Invalid previous shifts")
+    return RoleRequestShiftChange(
+        target_role_id=int(target.group("role_id")),
+        previous_role_ids=tuple(int(item[3:-1]) for item in previous),
     )
 
 

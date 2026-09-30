@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
@@ -11,6 +12,8 @@ import pytest
 from arrest_report_agent.config import (
     RoleRequestFttEntryOptions,
     RoleRequestFttWelcomeOptions,
+    RoleRequestOptions,
+    RoleRequestShiftOption,
     RoleRequestStationOption,
 )
 from arrest_report_agent.role_requests.codec import (
@@ -25,6 +28,7 @@ from arrest_report_agent.role_requests.codec import (
     REMOVE_FIELD_TITLE,
     REQUEST_KIND_FIELD_TITLE,
     REVIEWER_FIELD_TITLE,
+    SHIFT_FIELD_TITLE,
     STATION_FIELD_TITLE,
     STATUS_FIELD_TITLE,
     UNAPPROVED_CHANGES_TITLE,
@@ -49,11 +53,17 @@ from arrest_report_agent.role_requests.discord import (
     RoleRequestStartView,
     RoleRequestValidationError,
 )
+from arrest_report_agent.role_requests.media import (
+    DELIVERY_THUMBNAIL_FILENAME,
+    DELIVERY_THUMBNAIL_URL,
+    delivery_thumbnail_attachment,
+)
 from arrest_report_agent.role_requests.models import (
     RoleRequest,
     RoleRequestDecision,
     RoleRequestKind,
     RoleRequestReviewMessage,
+    RoleRequestShiftChange,
     RoleRequestStatus,
     StoredRoleRequest,
     StoredRoleRequestStatus,
@@ -84,6 +94,7 @@ class FakePermissions:
         self.view_channel = True
         self.send_messages = True
         self.embed_links = True
+        self.attach_files = True
         self.read_message_history = True
 
 
@@ -172,6 +183,7 @@ class FakeChannel:
             message_id=message_id,
             channel=self,
             embed=kwargs["embed"],
+            file=kwargs.get("file"),
         )
 
     def history(self, **_kwargs):
@@ -254,12 +266,14 @@ class FakeMessage:
         embed: discord.Embed,
         author_id: int = BOT_ID,
         enabled: bool = True,
+        file: discord.File | None = None,
     ) -> None:
         self.id = message_id
         self.channel = channel
         self.guild = channel.guild
         self.author = SimpleNamespace(id=author_id)
         self.embeds = [embed]
+        self.attachments = [SimpleNamespace(filename=file.filename)] if file else []
         self.created_at = datetime(2026, 8, 8, 12, tzinfo=UTC)
         self.components = [_component_row(enabled=enabled)]
         self.edit_calls: list[dict[str, object]] = []
@@ -269,6 +283,8 @@ class FakeMessage:
 
     async def edit(self, **kwargs) -> None:
         self.edit_calls.append(kwargs)
+        if file := kwargs.get("file"):
+            self.attachments.append(SimpleNamespace(filename=file.filename))
         if embed := kwargs.get("embed"):
             self.embeds = [embed]
         if view := kwargs.get("view"):
@@ -334,6 +350,7 @@ class FakeRoleRequestRepository:
             interaction_id=values["interaction_id"],
             requester_id=values["requester_id"],
             kind=values["kind"],
+            shift_change=values.get("shift_change"),
             add_role_ids=values["add_role_ids"],
             remove_role_ids=values["remove_role_ids"],
             reason=values["reason"],
@@ -558,6 +575,10 @@ def _interaction(env, message: FakeMessage, *, user=None):
         response=FakeResponse(),
         followup=FakeFollowup(),
     )
+
+
+def _select_modal_values(select, values):
+    select.refresh_from_modal(SimpleNamespace(data={}), {"values": values})
 
 
 def _retirement_service(env, retired_role_id: int = 704) -> tuple[RoleRequestService, FakeRole]:
@@ -850,6 +871,8 @@ async def test_resolution_is_visible_only_to_requester_or_authorized_reviewer(
         assert response["embed"].description != service.ui.reviewer_unauthorized
         assert response["embed"].title != service.ui.alert_title
         assert APPROVED_CHANGES_TITLE in {field.name for field in response["embed"].fields}
+        assert response["embed"].thumbnail.url == DELIVERY_THUMBNAIL_URL
+        assert response["file"].filename == DELIVERY_THUMBNAIL_FILENAME
 
 
 def test_pending_codec_round_trip_supports_retirement(role_request_env) -> None:
@@ -2032,3 +2055,331 @@ def test_role_request_status_is_terminal_after_each_decision() -> None:
         RoleRequestStatus.REJECTED,
         RoleRequestStatus.FAILED,
     }
+
+
+def _configure_shifts(env, service=None):
+    service = service or env.service
+    options = []
+    roles = []
+    for index, key in enumerate(("am", "pm", "em")):
+        role = FakeRole(720 + index, name=f"{key.upper()} Shift", position=2)
+        role.guild = env.guild
+        env.guild.roles.append(role)
+        env.guild._roles[role.id] = role
+        roles.append(role)
+        options.append(RoleRequestShiftOption(
+            key=key, label=role.name, role_id=role.id, description=f"Horario {key} ARG",
+        ))
+    service.shift_options = tuple(options)
+    service.shift_role_ids = frozenset(role.id for role in roles)
+    service.allowed_role_order = (*service.allowed_role_order, *(role.id for role in roles))
+    configured = service.settings.model_copy(update={
+        "role_request_allowed_role_ids_csv": ",".join(str(role_id) for role_id in service.allowed_role_order),
+    })
+    service.allowed_roles = configured.role_request_allowed_role_allowlist
+    return roles
+
+
+def _enable_private_requests(env, service):
+    repository = FakeRoleRequestRepository()
+    service.repository = repository
+    channel = FakeChannel(210)
+    channel.guild = env.guild
+    env.guild._channels[channel.id] = channel
+    env.guild.text_channels.append(channel)
+    service.review_channel_ids = (channel.id,)
+    return repository, channel
+
+
+@pytest.mark.asyncio
+async def test_shift_forms_are_separate_required_for_entry_optional_for_changes(role_request_env):
+    env = role_request_env
+    service, _ = _ftt_entry_service(env)
+    _configure_shifts(env, service)
+    entry = FttEntryRoleRequestModal(service, member=env.requester, channel=env.channel)
+    normal = CreateRoleRequestModal(service, member=env.requester, channel=env.channel)
+    assert entry.shift_select.required and entry.shift_select.min_values == 1
+    assert normal.shift_select.required is False and normal.shift_select.min_values == 0
+    for modal in (entry, normal):
+        assert modal.shift_select.max_values == 1
+        assert [option.value for option in modal.shift_select.options] == ["am", "pm", "em"]
+        assert all("ARG" in option.description for option in modal.shift_select.options)
+        assert len(modal.children) <= 5
+    general = {option.value for select in (*normal.add_selects, *normal.remove_selects)
+               for option in select.options}
+    assert not general.intersection({"720", "721", "722"})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("private", (False, True))
+@pytest.mark.parametrize("previous", ((), (720,), (720, 722)))
+async def test_shift_entry_approves_package_and_replaces_previous(role_request_env, private, previous):
+    env = role_request_env
+    service, _ = _ftt_entry_service(env)
+    _configure_shifts(env, service)
+    env.requester.roles.extend(env.guild.get_role(role_id) for role_id in previous)
+    repository, review = _enable_private_requests(env, service) if private else (None, env.channel)
+    creation = _interaction(env, SimpleNamespace(id=0), user=env.requester)
+    await service.create_ftt_entry_request(
+        creation, member=env.requester, channel=env.channel, station_key="ganton", shift_key="pm",
+    )
+    message = next(iter(review.messages.values()))
+    fields = {field.name: field.value for field in message.embeds[0].fields}
+    assert fields[SHIFT_FIELD_TITLE].endswith("→ <@&721>")
+    await service.approve_all(_interaction(env, message))
+    ids = {role.id for role in env.requester.roles}
+    assert {710, 711, 712, 713, 714, 721} <= ids
+    assert ids & {720, 721, 722} == {721}
+    if repository:
+        assert repository.request.shift_change.target_role_id == 721
+        assert repository.request.status is StoredRoleRequestStatus.APPROVED
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("key", (None, "wrong"))
+async def test_entry_rejects_missing_or_unknown_shift(role_request_env, key):
+    env = role_request_env
+    service, _ = _ftt_entry_service(env)
+    _configure_shifts(env, service)
+    interaction = _interaction(env, SimpleNamespace(id=0), user=env.requester)
+    await service.create_ftt_entry_request(
+        interaction, member=env.requester, channel=env.channel, station_key="ganton", shift_key=key,
+    )
+    assert not env.channel.messages
+    assert interaction.followup.messages[-1]["embed"].description == ROLE_REQUEST_MODAL_COPY.shift_required
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("private", (False, True))
+async def test_shift_only_request_persists_and_approves_as_one_unit(role_request_env, private):
+    env = role_request_env
+    roles = _configure_shifts(env)
+    env.requester.roles.append(roles[0])
+    service = env.service
+    repository, review = _enable_private_requests(env, service) if private else (None, env.channel)
+    creation = _interaction(env, SimpleNamespace(id=0), user=env.requester)
+    await service.create_request(
+        creation, member=env.requester, channel=env.channel,
+        add_roles=(), remove_roles=(), reason="Privado", shift_key="em",
+    )
+    message = next(iter(review.messages.values()))
+    request, _ = await service.resolve_interaction_request(_interaction(env, message))
+    assert request.shift_change == RoleRequestShiftChange(target_role_id=722, previous_role_ids=(720,))
+    partial = PartialApprovalModal(service, request=request, guild=env.guild)
+    assert partial.add_select is None and partial.remove_select is None
+    assert partial.shift_select is not None
+    invalid = _interaction(env, message)
+    await service.approve_partial(
+        invalid, guild_id=GUILD_ID, channel_id=review.id, message_id=message.id,
+        selected_add=(722,), selected_remove=(), comment="Incompleto",
+    )
+    assert not env.requester.edit_calls
+    assert invalid.followup.messages[-1]["embed"].description == ROLE_REQUEST_MODAL_COPY.shift_partial_blocked
+    if repository:
+        assert repository.request.status is StoredRoleRequestStatus.PENDING
+    await service.approve_all(_interaction(env, message))
+    assert {role.id for role in env.requester.roles} & {720, 721, 722} == {722}
+    assert len(env.requester.edit_calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("shift_key", (None, "am"))
+async def test_unchanged_shift_does_not_change_it_or_require_a_selection(role_request_env, shift_key):
+    env = role_request_env
+    roles = _configure_shifts(env)
+    env.requester.roles.append(roles[0])
+    creation = _interaction(env, SimpleNamespace(id=0), user=env.requester)
+    await env.service.create_request(
+        creation, member=env.requester, channel=env.channel, add_roles=(env.add_one,),
+        remove_roles=(), reason=None, shift_key=shift_key,
+    )
+    message = next(iter(env.channel.messages.values()))
+    assert SHIFT_FIELD_TITLE not in {field.name for field in message.embeds[0].fields}
+    await env.service.approve_all(_interaction(env, message))
+    assert {role.id for role in env.requester.roles} & {720, 721, 722} == {720}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("private", (False, True))
+async def test_shift_approval_rejects_new_conflicting_shift_since_submission(role_request_env, private):
+    env = role_request_env
+    roles = _configure_shifts(env)
+    env.requester.roles.append(roles[0])
+    repository, review = _enable_private_requests(env, env.service) if private else (None, env.channel)
+    await env.service.create_request(
+        _interaction(env, SimpleNamespace(id=0), user=env.requester), member=env.requester,
+        channel=env.channel, add_roles=(), remove_roles=(), reason=None, shift_key="pm",
+    )
+    env.requester.roles.append(roles[2])
+    message = next(iter(review.messages.values()))
+    approval = _interaction(env, message)
+    await env.service.approve_all(approval)
+    assert not env.requester.edit_calls
+    assert approval.followup.messages[-1]["embed"].description == ROLE_REQUEST_MODAL_COPY.shift_stale
+    if repository:
+        assert repository.request.status is StoredRoleRequestStatus.PENDING
+
+
+def test_shift_options_reject_duplicates_and_other_role_overlap():
+    option = {"key": "am", "label": "AM", "role_id": 720, "description": "AM ARG"}
+    with pytest.raises(ValueError, match="unique"):
+        RoleRequestOptions(shifts=(option, option))
+    with pytest.raises(ValueError, match="distinct"):
+        RoleRequestOptions(retired_role_id=720, shifts=(option,))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("approve_shift", (False, True))
+async def test_partial_modal_callback_groups_shift_and_preserves_other_roles(role_request_env, approve_shift):
+    env = role_request_env
+    roles = _configure_shifts(env)
+    env.requester.roles.append(roles[0])
+    repository, review = _enable_private_requests(env, env.service)
+    normal = CreateRoleRequestModal(env.service, member=env.requester, channel=env.channel)
+    for select in (*normal.add_selects, *normal.remove_selects):
+        _select_modal_values(select, [])
+    _select_modal_values(normal.add_selects[0], ["701", "702"])
+    _select_modal_values(normal.shift_select, ["pm"])
+    await normal.callback(_interaction(env, SimpleNamespace(id=0), user=env.requester))
+    message = next(iter(review.messages.values()))
+    request, _ = await env.service.resolve_interaction_request(_interaction(env, message))
+    partial = PartialApprovalModal(env.service, request=request, guild=env.guild)
+    _select_modal_values(partial.add_select, ["701"])
+    _select_modal_values(partial.shift_select, ["approve"] if approve_shift else [])
+    partial.comment_input.refresh_state({"value": "Solo estos cambios"})
+    await partial.callback(_interaction(env, message))
+    assert repository.request.status is StoredRoleRequestStatus.PARTIALLY_APPROVED
+    ids = {role.id for role in env.requester.roles}
+    assert 701 in ids and 702 not in ids
+    assert ids & {720, 721, 722} == ({721} if approve_shift else {720})
+    assert 703 in ids  # An unrelated existing role must survive.
+
+
+@pytest.mark.asyncio
+async def test_entry_modal_callback_and_info_include_shifts(role_request_env):
+    env = role_request_env
+    service, _ = _ftt_entry_service(env)
+    _configure_shifts(env, service)
+    modal = FttEntryRoleRequestModal(service, member=env.requester, channel=env.channel)
+    _select_modal_values(modal.station_select, ["dillimore"])
+    _select_modal_values(modal.shift_select, ["am"])
+    await modal.callback(_interaction(env, SimpleNamespace(id=0), user=env.requester))
+    message = next(iter(env.channel.messages.values()))
+    assert "<@&720>" in str(message.embeds[0].to_dict())
+    responses = []
+
+    async def respond(**kwargs):
+        responses.append(kwargs)
+
+    ctx = SimpleNamespace(guild=env.guild, author=env.requester, channel=env.channel, respond=respond)
+    cog = RoleRequestCog(service)
+    await cog.info_roles.callback(cog, ctx)
+    rendered = str(responses[-1]["embed"].to_dict())
+    assert all(text in rendered for text in ("AM Shift", "PM Shift", "EM Shift", "ARG", "reemplazará"))
+    assert responses[-1]["ephemeral"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fault", ("protected", "missing", "foreign"))
+async def test_shift_selection_rejects_unmanageable_unknown_and_foreign_roles(role_request_env, fault):
+    env = role_request_env
+    roles = _configure_shifts(env)
+    key = "am"
+    if fault == "protected":
+        roles[0].position = 100
+    elif fault == "missing":
+        del env.guild._roles[720]
+    else:
+        key = "other_guild_shift"
+    creation = _interaction(env, SimpleNamespace(id=0), user=env.requester)
+    await env.service.create_request(
+        creation, member=env.requester, channel=env.channel, add_roles=(), remove_roles=(),
+        reason=None, shift_key=key,
+    )
+    assert not env.channel.send_calls and not env.requester.edit_calls
+    assert creation.followup.messages[-1]["ephemeral"] is True
+
+
+def test_delivery_thumbnail_keeps_original_bytes_and_uses_independent_streams():
+    first = delivery_thumbnail_attachment()["file"]
+    second = delivery_thumbnail_attachment()["file"]
+    try:
+        assert first.filename == second.filename == DELIVERY_THUMBNAIL_FILENAME
+        assert first.fp is not second.fp
+        original = first.fp.read()
+        assert len(original) == 24150
+        assert hashlib.sha256(original).hexdigest() == (
+            "e5d0f19f95b886225b3911169d7ad558675dc43e107897452b2f294835a1d63b"
+        )
+        assert second.fp.read() == original
+    finally:
+        first.close()
+        second.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("private", (False, True))
+@pytest.mark.parametrize("decision", ("approve", "partial", "reject"))
+async def test_role_request_thumbnail_survives_decisions_without_duplicate_uploads(
+    role_request_env, private, decision,
+):
+    env = role_request_env
+    service = env.service
+    review = _enable_private_requests(env, service)[1] if private else env.channel
+    await service.create_request(
+        _interaction(env, SimpleNamespace(id=0), user=env.requester), member=env.requester,
+        channel=env.channel, add_roles=(env.add_one, env.add_two), remove_roles=(), reason=None,
+    )
+    channels = [env.channel, review] if private else [env.channel]
+    for channel in channels:
+        sent = channel.send_calls[0]
+        assert sent["embed"].thumbnail.url == DELIVERY_THUMBNAIL_URL
+        assert sent["file"].filename == DELIVERY_THUMBNAIL_FILENAME
+    message = next(iter(review.messages.values()))
+    interaction = _interaction(env, message)
+    if decision == "approve":
+        await service.approve_all(interaction)
+    elif decision == "partial":
+        await service.approve_partial(
+            interaction, guild_id=env.guild.id, channel_id=review.id, message_id=message.id,
+            selected_add=(env.add_one.id,), selected_remove=(), comment="Solo uno",
+        )
+    else:
+        await service.reject(
+            interaction, guild_id=env.guild.id, channel_id=review.id, message_id=message.id,
+            reason="No corresponde",
+        )
+    for channel in channels:
+        card = next(iter(channel.messages.values()))
+        assert card.embeds[0].thumbnail.url == DELIVERY_THUMBNAIL_URL
+        assert len(card.attachments) == 1
+        assert all("file" not in edit for edit in card.edit_calls)
+        assert card.embeds[0].color != discord.Color.gold()
+    if private:
+        assert env.requester.dm_calls[-1]["file"].filename == DELIVERY_THUMBNAIL_FILENAME
+        assert env.requester.dm_calls[-1]["embed"].thumbnail.url == DELIVERY_THUMBNAIL_URL
+
+
+@pytest.mark.asyncio
+async def test_legacy_request_without_thumbnail_gets_one_on_resolution(role_request_env):
+    env = role_request_env
+    message = _pending_message(env)
+    message.embeds[0].remove_thumbnail()
+    other = SimpleNamespace(filename="existing.png")
+    message.attachments = [other]
+    await env.service.approve_all(_interaction(env, message))
+    assert message.embeds[0].thumbnail.url == DELIVERY_THUMBNAIL_URL
+    assert message.edit_calls[-1]["file"].filename == DELIVERY_THUMBNAIL_FILENAME
+    assert message.attachments[0] is other
+    assert len(message.attachments) == 2
+
+
+def test_role_request_checks_attachment_permissions(role_request_env, monkeypatch):
+    env = role_request_env
+    permissions = FakePermissions()
+    permissions.attach_files = False
+    monkeypatch.setattr(env.channel, "permissions_for", lambda _: permissions)
+    with pytest.raises(RoleRequestValidationError):
+        env.service.validate_channel_permissions(env.guild, env.channel)
+    env.service.review_channel_ids = (env.channel.id,)
+    assert env.service.resolve_review_channels(env.guild) == ()

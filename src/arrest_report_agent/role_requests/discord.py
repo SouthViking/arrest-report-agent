@@ -20,6 +20,7 @@ from arrest_report_agent.config import (
     GuildRuntimeSettings,
     RoleRequestFttEntryOptions,
     RoleRequestFttWelcomeOptions,
+    RoleRequestShiftOption,
 )
 from arrest_report_agent.config.logging import exception_fields, log_event
 
@@ -37,12 +38,14 @@ from .codec import (
     build_requester_decision_embed,
     decode_pending_message,
 )
+from .media import delivery_thumbnail_attachment
 from .models import (
     MAX_MANUAL_ROLES_PER_OPERATION,
     MAX_ROLES_PER_OPERATION,
     RoleRequest,
     RoleRequestDecision,
     RoleRequestKind,
+    RoleRequestShiftChange,
     RoleRequestStatus,
     StoredRoleRequest,
     StoredRoleRequestStatus,
@@ -75,6 +78,12 @@ class RoleRequestModalCopy:
     ftt_entry_title: str = "Solicitar ingreso FTT"
     ftt_entry_station_label: str = "Estación de destino"
     ftt_entry_station_placeholder: str = "Selecciona Ganton o Dillimore."
+    shift_label: str = "Turno"
+    shift_change_label: str = "Cambiar turno (opcional)"
+    shift_description: str = "Es el turno de tu personaje; no limita cuándo puedes conectarte."
+    shift_required: str = "Selecciona uno de los turnos disponibles."
+    shift_partial_blocked: str = "El cambio de turno debe aprobarse completo o dejarse sin aprobar."
+    shift_stale: str = "Los turnos del solicitante cambiaron. Rechaza esta solicitud y pide una nueva."
     ftt_entry_already_complete: str = "Ya tienes todos los roles de este ingreso FTT."
     ftt_entry_already_member: str = "Ya perteneces a la facción. Usa Cambiar roles si necesitas un ajuste."
     ftt_entry_retired: str = "El reingreso de personal retirado debe gestionarse con Command Staff."
@@ -175,6 +184,8 @@ class RoleRequestService:
             getattr(settings, "operational_staff_role_ids", ())
         )
         self.retired_role_id = getattr(settings, "role_request_retired_role_id", None)
+        self.shift_options: tuple[RoleRequestShiftOption, ...] = getattr(settings, "role_request_shifts", ())
+        self.shift_role_ids = frozenset(shift.role_id for shift in self.shift_options)
         self.ftt_entry_options: RoleRequestFttEntryOptions | None = getattr(
             settings,
             "role_request_ftt_entry",
@@ -279,6 +290,7 @@ class RoleRequestService:
                 permissions.view_channel
                 and permissions.send_messages
                 and permissions.embed_links
+                and permissions.attach_files
                 and permissions.read_message_history
             ):
                 channels.append(channel)
@@ -303,6 +315,7 @@ class RoleRequestService:
             permissions.view_channel
             and permissions.send_messages
             and permissions.embed_links
+            and permissions.attach_files
             and permissions.read_message_history
             and bot_member.guild_permissions.manage_roles
         ):
@@ -318,7 +331,10 @@ class RoleRequestService:
         removals = _unique_roles(remove_roles)
         if not additions and not removals:
             raise RoleRequestValidationError(self.ui.no_changes)
-        if len(additions) > MAX_MANUAL_ROLES_PER_OPERATION or len(removals) > MAX_MANUAL_ROLES_PER_OPERATION:
+        if any(
+            sum(role.id not in self.shift_role_ids for role in changes) > MAX_MANUAL_ROLES_PER_OPERATION
+            for changes in (additions, removals)
+        ):
             raise RoleRequestValidationError(
                 self.ui.too_many_roles.format(limit=MAX_MANUAL_ROLES_PER_OPERATION)
             )
@@ -382,6 +398,8 @@ class RoleRequestService:
         else:
             candidates = tuple(reversed(member.guild.roles))
         for role in candidates:
+            if role.id in self.shift_role_ids:
+                continue
             if self._role_is_protected(role, bot_member):
                 if self.allowed_roles.is_restricted:
                     unavailable_ids.append(role.id)
@@ -396,7 +414,7 @@ class RoleRequestService:
                 role_ids=unavailable_ids,
                 role_count=len(unavailable_ids),
             )
-        if not catalog:
+        if not catalog and not self.shift_options:
             raise RoleRequestValidationError(self.ui.no_requestable_roles)
         current_ids = {role.id for role in member.roles}
         additions = tuple(
@@ -405,10 +423,12 @@ class RoleRequestService:
         removals = tuple(
             role for role in catalog if role.id in current_ids and role.id != self.retired_role_id
         )
-        if not additions and not removals:
+        if not additions and not removals and not self.shift_options:
             raise RoleRequestValidationError(self.ui.no_changes)
         select_count = _role_select_count(additions) + _role_select_count(removals)
-        if len(catalog) > MAX_REQUESTABLE_ROLES_PER_GUILD or select_count > MAX_ROLE_SELECTS_PER_MODAL:
+        if len(catalog) > MAX_REQUESTABLE_ROLES_PER_GUILD or select_count > (
+            MAX_ROLE_SELECTS_PER_MODAL - bool(self.shift_options)
+        ):
             log_event(
                 LOGGER,
                 "error",
@@ -528,6 +548,54 @@ class RoleRequestService:
             raise RoleRequestValidationError(ROLE_REQUEST_MODAL_COPY.ftt_entry_already_complete)
         validated, _ = self.validate_submission(member, additions, ())
         return f"{station.label} · <@&{station.role_id}>", validated
+
+    def shift_changes(
+        self, member: discord.Member, key: str | None, *, required: bool = False,
+    ) -> tuple[RoleRequestShiftChange | None, tuple[discord.Role, ...], tuple[discord.Role, ...]]:
+        if not key:
+            if required and self.shift_options:
+                raise RoleRequestValidationError(ROLE_REQUEST_MODAL_COPY.shift_required)
+            return None, (), ()
+        option = next((shift for shift in self.shift_options if shift.key == key), None)
+        if option is None:
+            raise RoleRequestValidationError(ROLE_REQUEST_MODAL_COPY.shift_required)
+        current = {role.id for role in member.roles}
+        previous = tuple(sorted((current & self.shift_role_ids) - {option.role_id}))
+        ids = (option.role_id, *previous)
+        roles = tuple(member.guild.get_role(role_id) for role_id in ids)
+        bot_member = member.guild.me
+        if bot_member is None or any(
+            role is None or not self.allowed_roles.allows(role.id)
+            or self._role_is_protected(role, bot_member)
+            for role in roles
+        ):
+            raise RoleRequestValidationError(self.ui.request_unavailable)
+        additions = tuple(role for role in roles[:1] if role is not None and role.id not in current)
+        removals = tuple(role for role in roles[1:] if role is not None)
+        if not additions and not removals and not required:
+            return None, (), ()
+        change = RoleRequestShiftChange(target_role_id=option.role_id, previous_role_ids=previous)
+        return change, additions, removals
+
+    def _validate_shift_approval(
+        self, request: RoleRequest | StoredRoleRequest, member: discord.Member,
+        approved_add: set[int], approved_remove: set[int],
+    ) -> None:
+        change = request.shift_change
+        if change is None:
+            return
+        grouped = change.role_ids & set((*request.add_role_ids, *request.remove_role_ids))
+        selected = change.role_ids & (approved_add | approved_remove)
+        if selected and selected != grouped:
+            raise RoleRequestValidationError(ROLE_REQUEST_MODAL_COPY.shift_partial_blocked)
+        if not selected and request.kind is RoleRequestKind.NORMAL:
+            return
+        current = {role.id for role in member.roles} & self.shift_role_ids
+        if not change.role_ids <= self.shift_role_ids or current - change.role_ids:
+            raise RoleRequestValidationError(ROLE_REQUEST_MODAL_COPY.shift_stale)
+        resulting = (current | approved_add) - approved_remove
+        if resulting & self.shift_role_ids != {change.target_role_id}:
+            raise RoleRequestValidationError(ROLE_REQUEST_MODAL_COPY.shift_stale)
 
     def _retirement_removals(
         self,
@@ -659,17 +727,24 @@ class RoleRequestService:
         add_roles: Iterable[discord.Role],
         remove_roles: Iterable[discord.Role],
         reason: str | None,
+        shift_key: str | None = None,
     ) -> None:
         await interaction.response.defer(ephemeral=True)
         try:
             async with self._creation_lock(member.guild.id, member.id):
+                member = await member.guild.fetch_member(member.id)
+                add_roles, remove_roles = tuple(add_roles), tuple(remove_roles)
+                if self.shift_role_ids.intersection(role.id for role in (*add_roles, *remove_roles)):
+                    raise RoleRequestValidationError("Usa el selector de turno para solicitar ese cambio.")
+                shift_change, shift_add, shift_remove = self.shift_changes(member, shift_key)
                 message, additions, removals = await self._publish_new_request(
                     interaction_id=getattr(interaction, "id", None),
                     member=member,
                     channel=channel,
-                    add_roles=add_roles,
-                    remove_roles=remove_roles,
+                    add_roles=(*add_roles, *shift_add),
+                    remove_roles=(*remove_roles, *shift_remove),
                     reason=reason,
+                    shift_change=shift_change,
                 )
             log_event(
                 LOGGER,
@@ -681,6 +756,7 @@ class RoleRequestService:
                 requester_id=member.id,
                 add_role_count=len(additions),
                 remove_role_count=len(removals),
+                shift_role_id=shift_change.target_role_id if shift_change else None,
             )
             try:
                 await interaction.followup.send(
@@ -795,6 +871,7 @@ class RoleRequestService:
         member: discord.Member,
         channel: discord.TextChannel,
         station_key: str,
+        shift_key: str | None = None,
     ) -> None:
         """Create one complete, deterministic faction-entry request."""
 
@@ -803,14 +880,16 @@ class RoleRequestService:
             async with self._creation_lock(member.guild.id, member.id):
                 member = await member.guild.fetch_member(member.id)
                 station, additions = self.ftt_entry_changes(member, station_key)
+                shift_change, shift_add, shift_remove = self.shift_changes(member, shift_key, required=True)
                 message, additions, _ = await self._publish_new_request(
                     interaction_id=getattr(interaction, "id", None),
                     member=member,
                     channel=channel,
-                    add_roles=additions,
-                    remove_roles=(),
+                    add_roles=(*additions, *shift_add),
+                    remove_roles=shift_remove,
                     reason=station,
                     kind=RoleRequestKind.FTT_ENTRY,
+                    shift_change=shift_change,
                 )
             log_event(
                 LOGGER,
@@ -822,6 +901,7 @@ class RoleRequestService:
                 requester_id=member.id,
                 station_key=station_key,
                 add_role_count=len(additions),
+                shift_role_id=shift_change.target_role_id if shift_change else None,
             )
             with suppress(discord.Forbidden, discord.HTTPException):
                 await interaction.followup.send(
@@ -900,7 +980,10 @@ class RoleRequestService:
             created_at=created_at,
             kind=RoleRequestKind.RETIREMENT,
         )
-        message = await channel.send(embed=draft, allowed_mentions=discord.AllowedMentions.none())
+        message = await channel.send(
+            embed=draft, allowed_mentions=discord.AllowedMentions.none(),
+            **delivery_thumbnail_attachment(),
+        )
         embed = build_pending_embed(
             requester=member,
             add_role_ids=(retired_role.id,),
@@ -937,6 +1020,7 @@ class RoleRequestService:
         remove_roles: Iterable[discord.Role],
         reason: str | None,
         kind: RoleRequestKind = RoleRequestKind.NORMAL,
+        shift_change: RoleRequestShiftChange | None = None,
     ) -> tuple[discord.Message, tuple[discord.Role, ...], tuple[discord.Role, ...]]:
         if (
             channel.guild.id != member.guild.id
@@ -955,6 +1039,7 @@ class RoleRequestService:
                 remove_roles=removals,
                 reason=reason,
                 kind=kind,
+                shift_change=shift_change,
             )
             return message, additions, removals
         pending = await self.find_pending_request(member.guild, member.id)
@@ -971,10 +1056,12 @@ class RoleRequestService:
             ui=self.ui,
             created_at=created_at,
             kind=kind,
+            shift_change=shift_change,
         )
         message = await channel.send(
             embed=draft,
             allowed_mentions=discord.AllowedMentions.none(),
+            **delivery_thumbnail_attachment(),
         )
         embed = build_pending_embed(
             requester=member,
@@ -985,6 +1072,7 @@ class RoleRequestService:
             created_at=created_at,
             message_id=message.id,
             kind=kind,
+            shift_change=shift_change,
         )
         try:
             await message.edit(
@@ -1013,6 +1101,7 @@ class RoleRequestService:
         remove_roles: tuple[discord.Role, ...],
         reason: str | None,
         kind: RoleRequestKind,
+        shift_change: RoleRequestShiftChange | None = None,
     ) -> discord.Message:
         """Publish a sanitized public card and complete private review mirrors."""
 
@@ -1042,6 +1131,7 @@ class RoleRequestService:
                 remove_role_ids=remove_ids,
                 reason=normalized_reason,
                 public_channel_id=channel.id,
+                shift_change=shift_change,
             )
         except PendingRoleRequestError as error:
             existing = error.request
@@ -1073,8 +1163,10 @@ class RoleRequestService:
                     created_at=stored.created_at,
                     kind=kind,
                     reason=normalized_reason,
+                    shift_change=shift_change,
                 ),
                 allowed_mentions=discord.AllowedMentions.none(),
+                **delivery_thumbnail_attachment(),
             )
             private_embed = build_private_pending_embed(
                 requester=member,
@@ -1085,6 +1177,7 @@ class RoleRequestService:
                 created_at=stored.created_at,
                 public_jump_url=public_message.jump_url,
                 kind=kind,
+                shift_change=shift_change,
             )
             reviewer_mentions = " ".join(role.mention for role in reviewer_roles)
             reviewer_allowed_mentions = discord.AllowedMentions(
@@ -1105,6 +1198,7 @@ class RoleRequestService:
                                 kind=kind,
                             ),
                             allowed_mentions=reviewer_allowed_mentions,
+                            **delivery_thumbnail_attachment(),
                         )
                     )
                 except (discord.Forbidden, discord.HTTPException) as error:
@@ -1373,6 +1467,15 @@ class RoleRequestService:
                     return
                 guild, member = context
 
+                try:
+                    self._validate_shift_approval(request, member, approved_add, approved_remove)
+                except RoleRequestValidationError as error:
+                    await interaction.followup.send(
+                        embed=self.build_alert_embed(error.public_message), ephemeral=True,
+                        allowed_mentions=discord.AllowedMentions.none(),
+                    )
+                    return
+
                 current_ids = {role.id for role in member.roles if role.id != guild.default_role.id}
                 verification_note: str | None = None
                 if request.kind is RoleRequestKind.RETIREMENT:
@@ -1528,6 +1631,15 @@ class RoleRequestService:
                 return
 
             current_ids = {role.id for role in member.roles if role.id != guild.default_role.id}
+            try:
+                self._validate_shift_approval(claimed, member, approved_add, approved_remove)
+            except RoleRequestValidationError as error:
+                await repository.release_decision(claimed.id)
+                await interaction.followup.send(
+                    embed=self.build_alert_embed(error.public_message), ephemeral=True,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+                return
             verification_note: str | None = None
             if claimed.kind is RoleRequestKind.RETIREMENT:
                 retired_role_id = self.retired_role_id
@@ -1797,6 +1909,7 @@ class RoleRequestService:
                 await requester.send(
                     embed=build_requester_decision_embed(public_request, decision, ui=self.ui),
                     allowed_mentions=discord.AllowedMentions.none(),
+                    **delivery_thumbnail_attachment(),
                 )
                 dm_delivered = True
             except (discord.Forbidden, discord.HTTPException):
@@ -1817,6 +1930,7 @@ class RoleRequestService:
                     ),
                     view=(None if dm_delivered else RoleRequestResolutionView(self, registry=self.registry)),
                     allowed_mentions=discord.AllowedMentions.none(),
+                    **delivery_thumbnail_attachment(public_message),
                 )
             except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
                 log_event(
@@ -1862,6 +1976,7 @@ class RoleRequestService:
                         kind=stored.kind,
                     ),
                     allowed_mentions=discord.AllowedMentions.none(),
+                    **delivery_thumbnail_attachment(review_message),
                 )
             except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
                 log_event(
@@ -2057,6 +2172,7 @@ class RoleRequestService:
                 kind=request.kind,
             ),
             allowed_mentions=discord.AllowedMentions.none(),
+            **delivery_thumbnail_attachment(message),
         )
 
     async def _close_failed(
@@ -2393,6 +2509,7 @@ class RoleRequestResolutionView(discord.ui.View):
             embed=build_requester_decision_embed(request, decision, ui=service.ui),
             ephemeral=True,
             allowed_mentions=discord.AllowedMentions.none(),
+            **delivery_thumbnail_attachment(),
         )
 
 
@@ -2532,6 +2649,11 @@ class CreateRoleRequestModal(discord.ui.DesignerModal):
         children: list[discord.ui.Item] = []
         children.extend(_labeled_role_selects(copy.add_roles_label, self.add_selects))
         children.extend(_labeled_role_selects(copy.remove_roles_label, self.remove_selects))
+        self.shift_select = _shift_select(service, required=False)
+        if self.shift_select is not None:
+            children.append(discord.ui.Label(
+                copy.shift_change_label, self.shift_select, description=copy.shift_description,
+            ))
         children.append(discord.ui.Label(copy.request_reason_label, self.reason_input))
         super().__init__(
             *children,
@@ -2572,11 +2694,12 @@ class CreateRoleRequestModal(discord.ui.DesignerModal):
             add_roles=add_roles,
             remove_roles=remove_roles,
             reason=self.reason_input.value,
+            shift_key=self.shift_select.values[0] if self.shift_select and self.shift_select.values else None,
         )
 
 
 class FttEntryRoleRequestModal(discord.ui.DesignerModal):
-    """Reduced entry form where the member chooses only a destination station."""
+    """Guided entry with a destination station and one configured shift."""
 
     def __init__(
         self,
@@ -2607,8 +2730,14 @@ class FttEntryRoleRequestModal(discord.ui.DesignerModal):
             max_values=1,
             required=True,
         )
+        children = [discord.ui.Label(copy.ftt_entry_station_label, self.station_select)]
+        self.shift_select = _shift_select(service, required=True)
+        if self.shift_select is not None:
+            children.append(discord.ui.Label(
+                copy.shift_label, self.shift_select, description=copy.shift_description,
+            ))
         super().__init__(
-            discord.ui.Label(copy.ftt_entry_station_label, self.station_select),
+            *children,
             title=copy.ftt_entry_title,
             custom_id=f"role-request:v1:ftt-entry:{member.id}",
             timeout=MODAL_TIMEOUT_SECONDS,
@@ -2629,6 +2758,7 @@ class FttEntryRoleRequestModal(discord.ui.DesignerModal):
             member=member,
             channel=self.channel,
             station_key=station_key,
+            shift_key=self.shift_select.values[0] if self.shift_select and self.shift_select.values else None,
         )
 
 
@@ -2706,22 +2836,37 @@ class PartialApprovalModal(discord.ui.DesignerModal):
         children = []
         self.add_select: discord.ui.StringSelect | None = None
         self.remove_select: discord.ui.StringSelect | None = None
-        if request.add_role_ids:
+        shift_ids = request.shift_change.role_ids if request.shift_change else frozenset()
+        add_ids = tuple(role_id for role_id in request.add_role_ids if role_id not in shift_ids)
+        remove_ids = tuple(role_id for role_id in request.remove_role_ids if role_id not in shift_ids)
+        if add_ids:
             self.add_select = _requested_role_select(
                 guild,
-                request.add_role_ids,
+                add_ids,
                 custom_id="role-request:v1:partial:add",
                 unknown_role_label=ui.unknown_role_label,
             )
             children.append(discord.ui.Label(copy.partial_add_label, self.add_select))
-        if request.remove_role_ids:
+        if remove_ids:
             self.remove_select = _requested_role_select(
                 guild,
-                request.remove_role_ids,
+                remove_ids,
                 custom_id="role-request:v1:partial:remove",
                 unknown_role_label=ui.unknown_role_label,
             )
             children.append(discord.ui.Label(copy.partial_remove_label, self.remove_select))
+        self.shift_select: discord.ui.StringSelect | None = None
+        if request.shift_change:
+            role = guild.get_role(request.shift_change.target_role_id)
+            self.shift_select = discord.ui.StringSelect(
+                custom_id="role-request:v1:partial:shift",
+                options=[discord.SelectOption(
+                    label=f"Aprobar turno: {role.name if role else 'no disponible'}"[:100], value="approve",
+                )],
+                min_values=0, max_values=1, required=False,
+                placeholder="Dejar vacío para no aprobar el cambio de turno.",
+            )
+            children.append(discord.ui.Label("Cambio de turno completo", self.shift_select))
         self.comment_input = discord.ui.InputText(
             custom_id="role-request:v1:partial:comment",
             style=discord.InputTextStyle.long,
@@ -2739,15 +2884,19 @@ class PartialApprovalModal(discord.ui.DesignerModal):
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
+        add_ids = tuple(int(value) for value in self.add_select.values) if self.add_select else ()
+        remove_ids = tuple(int(value) for value in self.remove_select.values) if self.remove_select else ()
+        if self.shift_select and self.shift_select.values and self.request.shift_change:
+            shift_ids = self.request.shift_change.role_ids
+            add_ids += tuple(role_id for role_id in self.request.add_role_ids if role_id in shift_ids)
+            remove_ids += tuple(role_id for role_id in self.request.remove_role_ids if role_id in shift_ids)
         await self.service.approve_partial(
             interaction,
             guild_id=self.request.guild_id,
             channel_id=self.request.channel_id,
             message_id=self.request.message_id,
-            selected_add=tuple(int(value) for value in self.add_select.values) if self.add_select else (),
-            selected_remove=tuple(int(value) for value in self.remove_select.values)
-            if self.remove_select
-            else (),
+            selected_add=add_ids,
+            selected_remove=remove_ids,
             comment=self.comment_input.value,
         )
 
@@ -2953,10 +3102,21 @@ class RoleRequestCog(commands.Cog):
                 name="🎓 Ingreso FTT",
                 value=(
                     "Si aún no perteneces a la facción, elige **Ingreso FTT**, selecciona "
-                    "tu estación y el bot preparará "
-                    "automáticamente todos los roles iniciales necesarios."
+                    + ("tu estación y tu turno. El bot preparará " if service.shift_options
+                       else "tu estación y el bot preparará ")
+                    + "automáticamente todos los roles iniciales necesarios."
                 ),
                 inline=False,
+            )
+        if service.shift_options:
+            embed.add_field(
+                name="🕒 Turnos",
+                value=(
+                    "\n".join(f"**{shift.label}:** {shift.description}" for shift in service.shift_options)
+                    + "\nEs el turno de tu personaje; no limita cuándo puedes conectarte. "
+                    "Para cambiarlo, usa **Cambiar roles** y el selector de turno. "
+                    "Al aprobarlo se reemplazará el anterior; si lo dejas vacío, conservas el actual."
+                ), inline=False,
             )
         embed.add_field(name=ui.info_channels_title, value=channels, inline=False)
         embed.add_field(name=ui.info_outcomes_title, value=ui.info_outcomes, inline=False)
@@ -2968,6 +3128,19 @@ class RoleRequestCog(commands.Cog):
             ephemeral=False,
             allowed_mentions=discord.AllowedMentions.none(),
         )
+
+
+def _shift_select(service: RoleRequestService, *, required: bool) -> discord.ui.StringSelect | None:
+    if not service.shift_options:
+        return None
+    return discord.ui.StringSelect(
+        custom_id="role-request:v1:shift",
+        options=[discord.SelectOption(label=shift.label, value=shift.key,
+                                      description=shift.description, emoji=shift.emoji)
+                 for shift in service.shift_options],
+        placeholder="Selecciona tu turno." if required else "Sin selección: conservar el turno actual.",
+        min_values=1 if required else 0, max_values=1, required=required,
+    )
 
 
 def _requested_role_select(

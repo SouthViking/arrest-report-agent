@@ -67,10 +67,11 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     assert manifest.changelog_targets == "all"
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "/fichas-activas" in rendered_changes
-    assert "/info-ftp" in rendered_changes
-    assert "6 horas posteriores al horario solicitado" in rendered_changes
-    assert "Las que ya tienen evaluador no se verán afectadas" in rendered_changes
+    assert "ingreso FTT" in rendered_changes
+    assert "AM, PM o EM" in rendered_changes
+    assert "Cambiar roles" in rendered_changes
+    assert "/info-roles" in rendered_changes
+    assert all(word not in rendered_changes.lower() for word in ("thumbnail", "imagen", "migración"))
     assert manifest.acknowledgements == ()
 
 

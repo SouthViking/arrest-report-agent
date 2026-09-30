@@ -1405,6 +1405,7 @@ role_requests = sa.Table(
     sa.Column("interaction_id", sa.BigInteger, nullable=False, unique=True),
     sa.Column("requester_id", sa.BigInteger, nullable=False),
     sa.Column("kind", sa.String(20), nullable=False),
+    sa.Column("shift_change", postgresql.JSONB),
     sa.Column("add_role_ids", postgresql.ARRAY(sa.BigInteger), nullable=False),
     sa.Column("remove_role_ids", postgresql.ARRAY(sa.BigInteger), nullable=False),
     sa.Column("reason", sa.Text),

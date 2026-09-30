@@ -157,13 +157,20 @@ El subsistema de solicitudes de roles se habilita al configurar uno o más IDs e
 `ROLE_REQUEST_REVIEWER_ROLE_IDS`. `ROLE_REQUEST_ALLOWED_ROLE_IDS` sigue la regla uniforme de las
 allowlists: ausente, vacío o `*` permite todos los roles seguros; un CSV define un catálogo cerrado.
 `/solicitar-roles` publica un estado saneado en el mismo canal de texto donde se ejecuta. Cuando la
-guild configura un ingreso FTT, ofrece un flujo guiado que solo solicita la estación y prepara el
-paquete completo de roles iniciales;
+guild configura un ingreso FTT, ofrece un flujo guiado que solicita la estación y, si hay turnos
+configurados, uno de ellos, y prepara el paquete completo de roles iniciales;
 `ROLE_REQUEST_ALLOWED_CHANNEL_IDS` puede abrir todos esos canales con `*` o restringirlos mediante
 CSV. El motivo y los controles se replican únicamente en los canales privados de la política
 `role_request_review_channels`. No aplica `AUTHORIZED_USER_IDS`, no funciona dentro de hilos, no usa
 IA y persiste el expediente y sus referencias en PostgreSQL. `/info-roles` permanece disponible en
 cualquier canal o hilo de una guild habilitada.
+
+`role_requests.shifts` configura opciones de turno por guild (`key`, `label`, `role_id`, `description`
+y `emoji` opcional). El turno es obligatorio en el ingreso y opcional en cambios de roles; omitirlo
+conserva el actual. Estos roles no se duplican en el selector general. Un cambio de turno reemplaza
+los anteriores y se aprueba como una unidad, también al aprobar parcialmente otros cambios.
+Las descripciones de AM, PM y EM indican horarios ARG como referencia interpretativa, no como
+restricciones de conexión. La migración configura los tres roles de LSSD; no requiere variables nuevas.
 
 Cuando `role_requests` define `retired_role_id`, `/solicitar-roles` ofrece un flujo separado para
 miembros con alguno de los `operational_staff_roles`. Ese formulario no solicita bajas manuales:

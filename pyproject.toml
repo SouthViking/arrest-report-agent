@@ -34,6 +34,7 @@ arrest_report_agent = [
     "config/personas/assets/*.jpeg",
     "config/personas/assets/*.gif",
     "knowledge/data/*.json",
+    "role_requests/assets/*.jpg",
 ]
 
 [tool.setuptools.dynamic]

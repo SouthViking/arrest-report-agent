@@ -1,22 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.40.0",
-  "title": "Solicitudes de fichas más ordenadas",
-  "summary": "Las solicitudes que quedan sin tomar ya no se acumularán entre las fichas activas.",
+  "version": "0.41.0",
+  "title": "Turnos en las solicitudes de roles",
+  "summary": "Ahora puedes elegir tu turno al ingresar a la facción o solicitar un cambio desde el formulario de roles.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
-      "type": "improved",
-      "text": "Las solicitudes pendientes se cancelarán automáticamente si nadie las toma dentro de las 6 horas posteriores al horario solicitado. Las que ya tienen evaluador no se verán afectadas."
+      "type": "added",
+      "text": "Al solicitar ingreso FTT, elige tu turno: AM, PM o EM. Cada opción muestra su horario."
     },
     {
       "type": "improved",
-      "text": "La tarjeta indicará la cancelación y la solicitud dejará de aparecer en /fichas-activas. Si aún necesitas la ficha, puedes crear una nueva."
+      "text": "Para cambiar de turno, usa Cambiar roles y selecciona el nuevo. Al aprobarse, reemplazará el anterior. Si no seleccionas ninguno, conservarás tu turno actual."
     },
     {
       "type": "improved",
-      "text": "/info-ftp ahora explica el plazo para que una solicitud sea tomada."
+      "text": "/info-roles ahora explica los turnos disponibles y cómo solicitar un cambio."
     }
   ],
   "acknowledgements": []
