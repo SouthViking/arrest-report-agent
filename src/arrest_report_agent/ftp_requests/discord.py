@@ -1017,7 +1017,23 @@ def build_ftp_request_embed(
     if comments := _safe_user_text(request.reason):
         embed.add_field(name="Comentarios", value=comments, inline=False)
     embed.add_field(name="Estado", value=status, inline=True)
-    if request.status is FtpRequestStatus.CLAIMED and request.claimed_by_user_id is not None:
+    if request.auto_cancelled_at is not None:
+        embed.color = discord.Color.dark_grey()
+        # Keep automatic cancellation distinct from a decision made by a member.
+        embed.set_field_at(
+            len(embed.fields) - 1, name="Estado", value="⌛ Cancelada automáticamente", inline=True,
+        )
+        embed.add_field(
+            name="Motivo",
+            value=(
+                ("El horario solicitado pasó y nadie tomó la solicitud dentro del plazo. "
+                 if request.scheduled_for is not None
+                 else "La solicitud quedó sin tomar durante el plazo disponible. ")
+                + "Puedes crear otra si aún necesitas la ficha."
+            ),
+            inline=False,
+        )
+    elif request.status is FtpRequestStatus.CLAIMED and request.claimed_by_user_id is not None:
         embed.add_field(
             name="Instructor asignado",
             value=f"<@{request.claimed_by_user_id}>",
@@ -1074,7 +1090,12 @@ def build_ftp_info_embed(service: FtpRequestService) -> discord.Embed:
     )
     embed.add_field(
         name="4️⃣ Cancelación",
-        value="Mientras siga pendiente, puedes cancelarla desde la propia solicitud.",
+        value=(
+            "Mientras siga pendiente, puedes cancelarla desde la propia solicitud."
+            + (f" Si nadie la toma, se cancelará automáticamente después de "
+               f"{options.expiry_grace_hours} horas desde el horario solicitado."
+               if options.expiry_enabled else "")
+        ),
         inline=False,
     )
     embed.add_field(

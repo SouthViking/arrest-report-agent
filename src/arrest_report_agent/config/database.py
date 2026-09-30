@@ -249,6 +249,9 @@ class FtpRequestOptions(FrozenConfigModel):
     additional_command_channel_ids: tuple[int, ...] = Field(default=(), max_length=10)
     command_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
     executive_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
+    expiry_enabled: bool = True
+    expiry_check_minutes: int = Field(default=10, ge=1, le=1440)
+    expiry_grace_hours: int = Field(default=6, ge=1, le=168)
 
     @model_validator(mode="after")
     def validate_management_roles(self) -> FtpRequestOptions:

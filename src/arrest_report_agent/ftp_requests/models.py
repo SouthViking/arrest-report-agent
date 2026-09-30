@@ -65,6 +65,8 @@ class FtpTrainingRequest(BaseModel):
     created_at: datetime
     updated_at: datetime
     resolved_at: datetime | None = None
+    auto_cancelled_at: datetime | None = None
+    expiry_sync_due_at: datetime | None = None
 
     @property
     def jump_url(self) -> str | None:

@@ -67,11 +67,10 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     assert manifest.changelog_targets == "all"
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "/vehiculo" in rendered_changes
-    assert "/flota" in rendered_changes
-    assert "/info-flota" in rendered_changes
-    assert "tanque, blindaje, GPS, alarma, cerradura y encendido" in rendered_changes
-    assert "personal operativo" in rendered_changes
+    assert "/fichas-activas" in rendered_changes
+    assert "/info-ftp" in rendered_changes
+    assert "6 horas posteriores al horario solicitado" in rendered_changes
+    assert "Las que ya tienen evaluador no se verán afectadas" in rendered_changes
     assert manifest.acknowledgements == ()
 
 

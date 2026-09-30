@@ -460,6 +460,13 @@ ftp_training_requests = sa.Table(
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     sa.Column("resolved_at", sa.DateTime(timezone=True)),
+    sa.Column("auto_cancelled_at", sa.DateTime(timezone=True)),
+    sa.Column("expiry_sync_due_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(
+        "(auto_cancelled_at IS NULL AND expiry_sync_due_at IS NULL) OR "
+        "(auto_cancelled_at IS NOT NULL AND status = 'cancelled')",
+        name="ck_ftp_auto_cancellation",
+    ),
     sa.CheckConstraint(
         "status IN ('publishing','pending','claimed','cancelled','failed')",
         name="ck_ftp_training_request_status",
@@ -487,6 +494,14 @@ ftp_training_requests = sa.Table(
         "guild_id",
         "status",
         "created_at",
+    ),
+    sa.Index(
+        "ix_ftp_pending_expiry", "guild_id", sa.text("COALESCE(scheduled_for, created_at)"),
+        postgresql_where=sa.text("status = 'pending'"),
+    ),
+    sa.Index(
+        "ix_ftp_expiry_sync", "guild_id", "expiry_sync_due_at",
+        postgresql_where=sa.text("expiry_sync_due_at IS NOT NULL"),
     ),
 )
 

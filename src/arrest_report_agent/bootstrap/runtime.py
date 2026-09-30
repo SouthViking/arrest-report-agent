@@ -9,6 +9,7 @@ import discord
 from agents import set_default_openai_key
 
 from arrest_report_agent.agent_sessions import AgentSessionManager
+from arrest_report_agent.application.maintenance import MaintenanceScheduler
 from arrest_report_agent.arrest_statistics import ArrestStatisticsCog, ArrestStatisticsService
 from arrest_report_agent.blacklists import BlacklistCog, BlacklistRepository
 from arrest_report_agent.ci_notifications import (
@@ -53,6 +54,7 @@ from arrest_report_agent.ftp_requests import (
     FtpRequestRepository,
     FtpRequestServiceRegistry,
 )
+from arrest_report_agent.ftp_requests.maintenance import FtpRequestMaintenance
 from arrest_report_agent.ftp_status import FtpStatusCog, FtpStatusService
 from arrest_report_agent.infrastructure.discord import (
     ConfigurationAdminCog,
@@ -185,6 +187,7 @@ class Runtime:
     service_call_worker: ServiceCallFeedWorker | None
     stolen_vehicle_worker: StolenVehicleFeedWorker | None
     pending_digest_worker: PendingArrestDigestWorker | None
+    maintenance: MaintenanceScheduler
     postgres: PostgresClient
     config_provider: DatabaseConfigProvider
 
@@ -240,9 +243,11 @@ class Runtime:
             "pending_arrest_digest": (
                 self.pending_digest_worker.running if self.pending_digest_worker is not None else False
             ),
+            "maintenance": self.maintenance.running,
         }
 
     async def close(self) -> None:
+        await self.maintenance.close()
         await self.deployment_worker.close()
         await self.ci_notification_worker.close()
         if self.cost_monitoring is not None:
@@ -536,15 +541,22 @@ async def build_runtime(
         for bundle in all_bundles
         if (feature := bundle.snapshot.features.get("ftp_requests")) is not None and feature.enabled
     ]
+    ftp_request_repository = FtpRequestRepository(postgres)
     ftp_request_registry = FtpRequestServiceRegistry(
         bot,
         config_provider,
-        FtpRequestRepository(postgres),
+        ftp_request_repository,
     )
     bot.ftp_request_registry = ftp_request_registry  # type: ignore[attr-defined]
     bot.add_view(FtpRequestControlsView())
     bot.add_view(FtpRequestPanelView())
     bot.add_cog(FtpRequestCog(ftp_request_registry, persona.profile))
+    maintenance = MaintenanceScheduler(bot.is_ready)
+    ftp_maintenance = FtpRequestMaintenance(bot, config_provider, ftp_request_repository, maintenance)
+    config_provider.register_guild_callback(ftp_maintenance.configuration_updated)
+    for bundle in all_bundles:
+        await ftp_maintenance.configuration_updated(bundle)
+    maintenance.start()
     log_event(
         LOGGER,
         "info",
@@ -854,6 +866,7 @@ async def build_runtime(
         service_call_worker=service_call_worker,
         stolen_vehicle_worker=stolen_vehicle_worker,
         pending_digest_worker=pending_digest_worker,
+        maintenance=maintenance,
         postgres=postgres,
         config_provider=config_provider,
     )

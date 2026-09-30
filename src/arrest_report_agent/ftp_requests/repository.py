@@ -191,6 +191,62 @@ class FtpRequestRepository:
             claimed_by_user_id=actor_user_id,
         )
 
+    async def expire_pending(
+        self, guild_id: int, *, cutoff: datetime, now: datetime, limit: int = 50,
+    ) -> tuple[FtpTrainingRequest, ...]:
+        """Atomically cancel only still-pending rows; never race a successful claim.
+
+        Old, unstructured requests without a schedule use their creation date.
+        The retry marker commits with the cancellation before any Discord calls.
+        """
+        if cutoff.tzinfo is None or now.tzinfo is None or not 1 <= limit <= 100:
+            raise ValueError("Expiry requires aware timestamps and a bounded batch")
+        table = ftp_training_requests
+        due_at = sa.func.coalesce(table.c.scheduled_for, table.c.created_at)
+        candidates = (
+            sa.select(table.c.id)
+            .where(table.c.guild_id == guild_id, table.c.status == FtpRequestStatus.PENDING.value,
+                   due_at <= cutoff)
+            .order_by(due_at, table.c.id)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+            .cte("ftp_expiry_candidates")
+            .prefix_with("MATERIALIZED")
+        )
+        async with self.client.transaction() as tx:
+            result = await tx.execute(
+                table.update()
+                .where(table.c.id.in_(sa.select(candidates.c.id)),
+                       table.c.status == FtpRequestStatus.PENDING.value)
+                .values(status=FtpRequestStatus.CANCELLED.value, resolved_at=now, updated_at=now,
+                        resolved_by_user_id=None, auto_cancelled_at=now, expiry_sync_due_at=now)
+                .returning(table)
+            )
+            return tuple(self._from_row(row) for row in result.mappings())
+
+    async def list_expiry_sync(
+        self, guild_id: int, *, now: datetime, limit: int = 50,
+    ) -> tuple[FtpTrainingRequest, ...]:
+        rows = await self.client.fetch_all(
+            sa.select(ftp_training_requests)
+            .where(ftp_training_requests.c.guild_id == guild_id,
+                   ftp_training_requests.c.expiry_sync_due_at <= now)
+            .order_by(ftp_training_requests.c.expiry_sync_due_at, ftp_training_requests.c.id)
+            .limit(limit)
+        )
+        return tuple(self._from_row(row) for row in rows)
+
+    async def set_expiry_sync_due(self, request: FtpTrainingRequest, due_at: datetime | None) -> None:
+        """Acknowledge an edit or defer its retry without changing the cancellation."""
+        await self.client.execute(
+            ftp_training_requests.update()
+            .where(ftp_training_requests.c.id == request.id,
+                   ftp_training_requests.c.guild_id == request.guild_id,
+                   ftp_training_requests.c.auto_cancelled_at == request.auto_cancelled_at,
+                   ftp_training_requests.c.expiry_sync_due_at == request.expiry_sync_due_at)
+            .values(expiry_sync_due_at=due_at)
+        )
+
     async def cancel(
         self,
         request_id: UUID,
@@ -218,6 +274,7 @@ class FtpRequestRepository:
                 .where(
                     ftp_training_requests.c.id == request_id,
                     ftp_training_requests.c.status == expected_status.value,
+                    ftp_training_requests.c.auto_cancelled_at.is_(None),
                 )
                 .values(
                     status=FtpRequestStatus.PENDING.value,

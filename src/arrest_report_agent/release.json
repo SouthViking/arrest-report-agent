@@ -1,18 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.39.1",
-  "title": "Más información sobre tus vehículos",
-  "summary": "Ahora puedes consultar más detalles del equipamiento y una guía para revisar la flota.",
+  "version": "0.40.0",
+  "title": "Solicitudes de fichas más ordenadas",
+  "summary": "Las solicitudes que quedan sin tomar ya no se acumularán entre las fichas activas.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": "all",
   "changes": [
     {
-      "type": "added",
-      "text": "/info-flota: una guía para usar /vehiculo y /flota, aplicar filtros y compartir los resultados. Disponible para el personal operativo."
+      "type": "improved",
+      "text": "Las solicitudes pendientes se cancelarán automáticamente si nadie las toma dentro de las 6 horas posteriores al horario solicitado. Las que ya tienen evaluador no se verán afectadas."
     },
     {
       "type": "improved",
-      "text": "/vehiculo ahora muestra los niveles disponibles de tanque, blindaje, GPS, alarma, cerradura y encendido."
+      "text": "La tarjeta indicará la cancelación y la solicitud dejará de aparecer en /fichas-activas. Si aún necesitas la ficha, puedes crear una nueva."
+    },
+    {
+      "type": "improved",
+      "text": "/info-ftp ahora explica el plazo para que una solicitud sea tomada."
     }
   ],
   "acknowledgements": []

@@ -201,9 +201,22 @@ solo vincula coincidencias únicas. La prioridad Supervisory Staff → MFTO → 
 persona con varios roles aparezca más de una vez.
 
 El subsistema `ftp_requests` comparte el catálogo de roles de `ftp_status`, pero no depende de la API
-SARP. Una transición atómica impide que dos instructores tomen la misma solicitud y un índice parcial
-limita a una solicitud pendiente por autor. Si Discord no puede reflejar una resolución, el repositorio
-restaura el estado pendiente para mantener consistencia entre el mensaje y PostgreSQL.
+SARP. Una transición atómica impide que dos instructores tomen la misma solicitud; se permiten varias
+solicitudes por autor. Si Discord no puede reflejar una resolución manual, el repositorio restaura
+el estado pendiente para mantener consistencia entre el mensaje y PostgreSQL.
+
+`MaintenanceScheduler` es un ejecutor genérico in-process: espera de forma asíncrona 60 segundos entre
+comprobaciones, tiene intervalos por tarea y no solapa ejecuciones. Registra tareas por nombre y permite
+actualizarlas o retirarlas en caliente. Los fallos se aíslan por tarea y se limita su duración. Los
+temporizadores no se persisten: los consumidores reconstruyen trabajo idempotente desde PostgreSQL.
+Su primer consumidor es `FtpRequestMaintenance`, una tarea por guild habilitada que lee el snapshot
+actual. Cada 10 minutos cancela solicitudes aún pendientes cuyo horario pasó hace 6 horas (ambos
+valores configurables en `ftp_requests`). Solo para solicitudes legacy sin horario se usa su creación.
+La transición usa bloqueo de filas y condiciones de estado; una ficha tomada no se cancela.
+`auto_cancelled_at` y `expiry_sync_due_at` se guardan junto a la cancelación. Así una caída de Discord
+no devuelve una ficha vencida al listado: las ediciones se reintentan, sobreviven reinicios y no hacen
+ping. Un 404 termina la sincronización sin recrear la tarjeta. Cada ciclo procesa lotes acotados y
+registra acciones/errores, sin logs periódicos vacíos. El cierre detiene el ejecutor antes de cerrar BD.
 
 `/verguenza` comparte el finder determinista: abre un modal privado para elegir mes actual o los
 últimos 7, 30 o 90 días y después publica un top 10 visible para el canal. Filtra primero todo reporte

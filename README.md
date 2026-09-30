@@ -726,6 +726,23 @@ panel y roles se resuelven desde PostgreSQL, sin nuevos environment vars.
 `/fichas-activas` reutiliza esos registros para publicar en cualquier canal un resumen paginado de las
 solicitudes pendientes, ordenado por horario y restringido a `operational_staff_roles`.
 
+Las fichas pendientes vencen automáticamente 6 horas después de `scheduled_for` (UTC);
+las solicitudes antiguas sin horario usan `created_at`. Cada solicitud se evalúa por separado,
+sin impedir solicitudes múltiples ni fechas futuras. `/config` permite modificar en caliente el
+payload de `ftp_requests`: `expiry_enabled` (por defecto `true`), `expiry_check_minutes` (10;
+entre 1 y 1440) y `expiry_grace_hours` (6; entre 1 y 168). Desactivar el vencimiento no revierte
+cancelaciones previas y permite terminar las ediciones pendientes mientras el módulo siga habilitado.
+Las tarjetas vencidas se actualizan sin menciones, en gris y con botones deshabilitados; las ediciones
+fallidas quedan pendientes en PostgreSQL para reintentar después de reinicios. Una tarjeta eliminada
+no se vuelve a crear. `/info-ftp` muestra el plazo configurado y `/fichas-activas` deja de incluirlas.
+
+El ejecutor genérico `MaintenanceScheduler` comprueba tareas cada 60 segundos dentro del proceso
+existente. Cada tarea tiene nombre, intervalo y callback propios, sin solapamientos; los errores y
+timeouts de una no interrumpen las demás. Al reiniciar se ejecutan al quedar Discord listo. No persiste
+el temporizador: cada consumidor debe ser idempotente y guardar su trabajo pendiente. FTP es el primer
+consumidor, con lotes máximos de 50 cancelaciones y 50 ediciones por ejecución; no consulta SARP ni IA.
+Los demás workers existentes mantienen sus frecuencias y comportamiento.
+
 `/recursos` usa el módulo dinámico `operational_resources` y la misma política
 `operational_staff_roles`. Reúne en un panel público los enlaces oficiales, las direcciones de juego
 y TeamSpeak, y los contadores de servidor, facción y servicio. Reutiliza la caché de `/conectados`
