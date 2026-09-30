@@ -38,7 +38,6 @@ from .codec import (
     build_requester_decision_embed,
     decode_pending_message,
 )
-from .media import delivery_thumbnail_attachment
 from .models import (
     MAX_MANUAL_ROLES_PER_OPERATION,
     MAX_ROLES_PER_OPERATION,
@@ -290,7 +289,6 @@ class RoleRequestService:
                 permissions.view_channel
                 and permissions.send_messages
                 and permissions.embed_links
-                and permissions.attach_files
                 and permissions.read_message_history
             ):
                 channels.append(channel)
@@ -315,7 +313,6 @@ class RoleRequestService:
             permissions.view_channel
             and permissions.send_messages
             and permissions.embed_links
-            and permissions.attach_files
             and permissions.read_message_history
             and bot_member.guild_permissions.manage_roles
         ):
@@ -980,10 +977,7 @@ class RoleRequestService:
             created_at=created_at,
             kind=RoleRequestKind.RETIREMENT,
         )
-        message = await channel.send(
-            embed=draft, allowed_mentions=discord.AllowedMentions.none(),
-            **delivery_thumbnail_attachment(),
-        )
+        message = await channel.send(embed=draft, allowed_mentions=discord.AllowedMentions.none())
         embed = build_pending_embed(
             requester=member,
             add_role_ids=(retired_role.id,),
@@ -1061,7 +1055,6 @@ class RoleRequestService:
         message = await channel.send(
             embed=draft,
             allowed_mentions=discord.AllowedMentions.none(),
-            **delivery_thumbnail_attachment(),
         )
         embed = build_pending_embed(
             requester=member,
@@ -1166,7 +1159,6 @@ class RoleRequestService:
                     shift_change=shift_change,
                 ),
                 allowed_mentions=discord.AllowedMentions.none(),
-                **delivery_thumbnail_attachment(),
             )
             private_embed = build_private_pending_embed(
                 requester=member,
@@ -1198,7 +1190,6 @@ class RoleRequestService:
                                 kind=kind,
                             ),
                             allowed_mentions=reviewer_allowed_mentions,
-                            **delivery_thumbnail_attachment(),
                         )
                     )
                 except (discord.Forbidden, discord.HTTPException) as error:
@@ -1909,7 +1900,6 @@ class RoleRequestService:
                 await requester.send(
                     embed=build_requester_decision_embed(public_request, decision, ui=self.ui),
                     allowed_mentions=discord.AllowedMentions.none(),
-                    **delivery_thumbnail_attachment(),
                 )
                 dm_delivered = True
             except (discord.Forbidden, discord.HTTPException):
@@ -1930,7 +1920,6 @@ class RoleRequestService:
                     ),
                     view=(None if dm_delivered else RoleRequestResolutionView(self, registry=self.registry)),
                     allowed_mentions=discord.AllowedMentions.none(),
-                    **delivery_thumbnail_attachment(public_message),
                 )
             except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
                 log_event(
@@ -1976,7 +1965,6 @@ class RoleRequestService:
                         kind=stored.kind,
                     ),
                     allowed_mentions=discord.AllowedMentions.none(),
-                    **delivery_thumbnail_attachment(review_message),
                 )
             except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
                 log_event(
@@ -2172,7 +2160,6 @@ class RoleRequestService:
                 kind=request.kind,
             ),
             allowed_mentions=discord.AllowedMentions.none(),
-            **delivery_thumbnail_attachment(message),
         )
 
     async def _close_failed(
@@ -2509,7 +2496,6 @@ class RoleRequestResolutionView(discord.ui.View):
             embed=build_requester_decision_embed(request, decision, ui=service.ui),
             ephemeral=True,
             allowed_mentions=discord.AllowedMentions.none(),
-            **delivery_thumbnail_attachment(),
         )
 
 

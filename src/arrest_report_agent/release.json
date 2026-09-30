@@ -1,22 +1,14 @@
 {
   "schema_version": 3,
-  "version": "0.41.0",
-  "title": "Turnos en las solicitudes de roles",
-  "summary": "Ahora puedes elegir tu turno al ingresar a la facción o solicitar un cambio desde el formulario de roles.",
+  "version": "0.41.1",
+  "title": "Corrección en las solicitudes de roles",
+  "summary": "Se corrige el bloqueo al abrir el formulario de solicitudes de roles.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "added",
-      "text": "Al solicitar ingreso FTT, elige tu turno: AM, PM o EM. Cada opción muestra su horario."
-    },
-    {
-      "type": "improved",
-      "text": "Para cambiar de turno, usa Cambiar roles y selecciona el nuevo. Al aprobarse, reemplazará el anterior. Si no seleccionas ninguno, conservarás tu turno actual."
-    },
-    {
-      "type": "improved",
-      "text": "/info-roles ahora explica los turnos disponibles y cómo solicitar un cambio."
+      "type": "fixed",
+      "text": "/solicitar-roles vuelve a funcionar en #pedir-roles sin requerir permisos adicionales. Se mantiene la selección de turnos AM, PM y EM."
     }
   ],
   "acknowledgements": []

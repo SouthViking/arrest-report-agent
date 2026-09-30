@@ -18,6 +18,7 @@ from arrest_report_agent.release import (
     ReleaseManifest,
 )
 
+from .media import CHANGELOG_THUMBNAIL_URL, changelog_thumbnail_file
 from .models import DeploymentEventType
 from .repository import (
     DeploymentDeliveryRecord,
@@ -187,9 +188,23 @@ class DeploymentNotificationWorker:
                 self.manifest,
                 bundle.persona.profile,
             )
+            files: list[discord.File] = []
+            if delivery.event.event_type is DeploymentEventType.DEPLOYED:
+                member = channel.guild.me
+                if member is not None and channel.permissions_for(member).attach_files:
+                    files.append(changelog_thumbnail_file())
+                else:
+                    # Decoration must never prevent delivery of the changelog.
+                    embed.remove_thumbnail()
+                    log_event(
+                        LOGGER, "warning", "deployment_changelog_thumbnail_skipped",
+                        guild_id=delivery.guild_id, channel_id=delivery.channel_id,
+                        reason="missing_attach_files_permission",
+                    )
             message = await channel.send(
                 embed=embed,
                 allowed_mentions=discord.AllowedMentions.none(),
+                files=files,
             )
         except Exception as error:
             retryable = not isinstance(error, (discord.Forbidden, discord.NotFound, ValueError))
@@ -271,6 +286,7 @@ def build_deployment_embed(
             color=discord.Color.green(),
             timestamp=event.timestamp,
         )
+        embed.set_thumbnail(url=CHANGELOG_THUMBNAIL_URL)
         changes = "\n".join(
             f"{CHANGE_ICONS[change.type]} {change.text}" for change in manifest.changes
         )

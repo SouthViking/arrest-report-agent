@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
@@ -53,11 +52,6 @@ from arrest_report_agent.role_requests.discord import (
     RoleRequestStartView,
     RoleRequestValidationError,
 )
-from arrest_report_agent.role_requests.media import (
-    DELIVERY_THUMBNAIL_FILENAME,
-    DELIVERY_THUMBNAIL_URL,
-    delivery_thumbnail_attachment,
-)
 from arrest_report_agent.role_requests.models import (
     RoleRequest,
     RoleRequestDecision,
@@ -94,7 +88,7 @@ class FakePermissions:
         self.view_channel = True
         self.send_messages = True
         self.embed_links = True
-        self.attach_files = True
+        self.attach_files = False  # Match #pedir-roles: roles do not need file uploads.
         self.read_message_history = True
 
 
@@ -871,8 +865,8 @@ async def test_resolution_is_visible_only_to_requester_or_authorized_reviewer(
         assert response["embed"].description != service.ui.reviewer_unauthorized
         assert response["embed"].title != service.ui.alert_title
         assert APPROVED_CHANGES_TITLE in {field.name for field in response["embed"].fields}
-        assert response["embed"].thumbnail.url == DELIVERY_THUMBNAIL_URL
-        assert response["file"].filename == DELIVERY_THUMBNAIL_FILENAME
+        assert not response["embed"].thumbnail
+        assert "file" not in response
 
 
 def test_pending_codec_round_trip_supports_retirement(role_request_env) -> None:
@@ -2300,27 +2294,10 @@ async def test_shift_selection_rejects_unmanageable_unknown_and_foreign_roles(ro
     assert creation.followup.messages[-1]["ephemeral"] is True
 
 
-def test_delivery_thumbnail_keeps_original_bytes_and_uses_independent_streams():
-    first = delivery_thumbnail_attachment()["file"]
-    second = delivery_thumbnail_attachment()["file"]
-    try:
-        assert first.filename == second.filename == DELIVERY_THUMBNAIL_FILENAME
-        assert first.fp is not second.fp
-        original = first.fp.read()
-        assert len(original) == 24150
-        assert hashlib.sha256(original).hexdigest() == (
-            "e5d0f19f95b886225b3911169d7ad558675dc43e107897452b2f294835a1d63b"
-        )
-        assert second.fp.read() == original
-    finally:
-        first.close()
-        second.close()
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("private", (False, True))
 @pytest.mark.parametrize("decision", ("approve", "partial", "reject"))
-async def test_role_request_thumbnail_survives_decisions_without_duplicate_uploads(
+async def test_role_requests_and_decisions_work_without_attachments(
     role_request_env, private, decision,
 ):
     env = role_request_env
@@ -2333,8 +2310,8 @@ async def test_role_request_thumbnail_survives_decisions_without_duplicate_uploa
     channels = [env.channel, review] if private else [env.channel]
     for channel in channels:
         sent = channel.send_calls[0]
-        assert sent["embed"].thumbnail.url == DELIVERY_THUMBNAIL_URL
-        assert sent["file"].filename == DELIVERY_THUMBNAIL_FILENAME
+        assert not sent["embed"].thumbnail
+        assert "file" not in sent
     message = next(iter(review.messages.values()))
     interaction = _interaction(env, message)
     if decision == "approve":
@@ -2351,35 +2328,50 @@ async def test_role_request_thumbnail_survives_decisions_without_duplicate_uploa
         )
     for channel in channels:
         card = next(iter(channel.messages.values()))
-        assert card.embeds[0].thumbnail.url == DELIVERY_THUMBNAIL_URL
-        assert len(card.attachments) == 1
+        assert not card.embeds[0].thumbnail
+        assert not card.attachments
         assert all("file" not in edit for edit in card.edit_calls)
         assert card.embeds[0].color != discord.Color.gold()
     if private:
-        assert env.requester.dm_calls[-1]["file"].filename == DELIVERY_THUMBNAIL_FILENAME
-        assert env.requester.dm_calls[-1]["embed"].thumbnail.url == DELIVERY_THUMBNAIL_URL
+        assert "file" not in env.requester.dm_calls[-1]
+        assert not env.requester.dm_calls[-1]["embed"].thumbnail
 
 
 @pytest.mark.asyncio
-async def test_legacy_request_without_thumbnail_gets_one_on_resolution(role_request_env):
+async def test_legacy_request_keeps_existing_attachments_on_resolution(role_request_env):
     env = role_request_env
     message = _pending_message(env)
     message.embeds[0].remove_thumbnail()
     other = SimpleNamespace(filename="existing.png")
     message.attachments = [other]
     await env.service.approve_all(_interaction(env, message))
-    assert message.embeds[0].thumbnail.url == DELIVERY_THUMBNAIL_URL
-    assert message.edit_calls[-1]["file"].filename == DELIVERY_THUMBNAIL_FILENAME
+    assert not message.embeds[0].thumbnail
+    assert "file" not in message.edit_calls[-1]
     assert message.attachments[0] is other
-    assert len(message.attachments) == 2
+    assert len(message.attachments) == 1
 
 
-def test_role_request_checks_attachment_permissions(role_request_env, monkeypatch):
+@pytest.mark.asyncio
+async def test_role_command_opens_without_attachment_permission(role_request_env, monkeypatch):
     env = role_request_env
     permissions = FakePermissions()
     permissions.attach_files = False
     monkeypatch.setattr(env.channel, "permissions_for", lambda _: permissions)
-    with pytest.raises(RoleRequestValidationError):
-        env.service.validate_channel_permissions(env.guild, env.channel)
+    env.service.validate_channel_permissions(env.guild, env.channel)
     env.service.review_channel_ids = (env.channel.id,)
-    assert env.service.resolve_review_channels(env.guild) == ()
+    assert env.service.resolve_review_channels(env.guild) == (env.channel,)
+    responses, modals = [], []
+
+    async def respond(**kwargs):
+        responses.append(kwargs)
+
+    async def send_modal(modal):
+        modals.append(modal)
+
+    ctx = SimpleNamespace(
+        guild=env.guild, author=env.requester, channel=env.channel, respond=respond, send_modal=send_modal,
+    )
+    cog = RoleRequestCog(env.service)
+    await cog.request_roles.callback(cog, ctx)
+    assert modals or any(isinstance(item.get("view"), RoleRequestStartView) for item in responses)
+    assert not any(item["embed"].description == env.service.ui.subsystem_unavailable for item in responses)

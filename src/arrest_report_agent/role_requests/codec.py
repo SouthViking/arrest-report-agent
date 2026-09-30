@@ -10,7 +10,6 @@ import discord
 
 from arrest_report_agent.config import PersonaRoleRequestMessages
 
-from .media import DELIVERY_THUMBNAIL_URL
 from .models import (
     RoleRequest,
     RoleRequestDecision,
@@ -81,7 +80,6 @@ def build_pending_embed(
         color=discord.Color.gold(),
         timestamp=created_at,
     )
-    embed.set_thumbnail(url=DELIVERY_THUMBNAIL_URL)
     avatar = getattr(getattr(requester, "display_avatar", None), "url", None)
     embed.set_author(
         name=requester.display_name,
@@ -210,7 +208,6 @@ def build_decision_embed(
         color=color,
         timestamp=request.created_at,
     )
-    embed.set_thumbnail(url=DELIVERY_THUMBNAIL_URL)
     embed.set_author(
         name=requester_name,
         url=f"https://discord.com/users/{request.requester_id}",
@@ -339,7 +336,6 @@ def build_requester_decision_embed(
         color=color,
         timestamp=decision.decided_at,
     )
-    embed.set_thumbnail(url=DELIVERY_THUMBNAIL_URL)
     embed.add_field(name=STATUS_FIELD_TITLE, value=status, inline=False)
     approved = _render_changes(
         decision.approved_add_role_ids,

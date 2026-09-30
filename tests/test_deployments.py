@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import UUID
 
 import discord
@@ -12,8 +14,13 @@ from arrest_report_agent import __version__
 from arrest_report_agent.bootstrap.health import create_http_application
 from arrest_report_agent.config import AccessPolicyKey, AccessPolicyMode
 from arrest_report_agent.deployments.discord import DeploymentNotificationWorker, build_deployment_embed
+from arrest_report_agent.deployments.media import (
+    CHANGELOG_THUMBNAIL_FILENAME,
+    CHANGELOG_THUMBNAIL_URL,
+    changelog_thumbnail_file,
+)
 from arrest_report_agent.deployments.models import DeploymentEventType, RailwayDeploymentEvent
-from arrest_report_agent.deployments.repository import DeploymentEventRecord
+from arrest_report_agent.deployments.repository import DeploymentDeliveryRecord, DeploymentEventRecord
 from arrest_report_agent.release import ReleaseManifest
 
 
@@ -64,13 +71,13 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
 
     assert manifest.version == __version__
     assert manifest.repository_url == "https://github.com/SouthViking/arrest-report-agent"
-    assert manifest.changelog_targets == "all"
+    assert manifest.changelog_targets == (1241206587079524442,)
+    assert manifest.targets_changelog_channel(1241206587079524442)
+    assert not manifest.targets_changelog_channel(1234675609536430152)
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "ingreso FTT" in rendered_changes
-    assert "AM, PM o EM" in rendered_changes
-    assert "Cambiar roles" in rendered_changes
-    assert "/info-roles" in rendered_changes
+    assert "/solicitar-roles" in rendered_changes
+    assert "#pedir-roles" in rendered_changes
     assert all(word not in rendered_changes.lower() for word in ("thumbnail", "imagen", "migración"))
     assert manifest.acknowledgements == ()
 
@@ -139,6 +146,7 @@ def test_deployment_embeds_keep_operational_data_and_persona_framing(persona) ->
         "abcdef1234567890)" in deployment_field.value
     )
     assert embed.colour == discord.Color.green()
+    assert embed.thumbnail.url == CHANGELOG_THUMBNAIL_URL
 
 
 def test_deployment_embed_does_not_link_untrusted_commit_metadata(persona) -> None:
@@ -163,6 +171,70 @@ def test_deployment_embed_does_not_link_untrusted_commit_metadata(persona) -> No
     deployment_field = next(field for field in embed.fields if field.name == "Despliegue")
     assert "**Commit:** `abcdef12`" in deployment_field.value
     assert "https://" not in deployment_field.value
+    assert not embed.thumbnail
+
+
+def test_changelog_thumbnail_keeps_original_bytes_and_uses_independent_streams():
+    first = changelog_thumbnail_file()
+    second = changelog_thumbnail_file()
+    try:
+        assert first.filename == second.filename == CHANGELOG_THUMBNAIL_FILENAME
+        assert first.fp is not second.fp
+        original = first.fp.read()
+        assert len(original) == 24150
+        assert hashlib.sha256(original).hexdigest() == (
+            "e5d0f19f95b886225b3911169d7ad558675dc43e107897452b2f294835a1d63b"
+        )
+        assert second.fp.read() == original
+    finally:
+        first.close()
+        second.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("event_type", tuple(DeploymentEventType))
+@pytest.mark.parametrize("can_attach", (False, True))
+async def test_deployment_delivery_thumbnail_is_only_for_changelog_and_optional(
+    persona, monkeypatch, caplog, event_type, can_attach,
+):
+    event = DeploymentEventRecord(
+        id=UUID(int=1), event_type=event_type, deployment_id="deploy",
+        project_id="project", environment_id="production", service_id="bot",
+        source="GitHub", branch="main", commit_hash="a" * 40, commit_message=None,
+        severity="INFO", timestamp=datetime.now(UTC),
+    )
+    delivery = DeploymentDeliveryRecord(
+        id=UUID(int=2), guild_id=123, channel_id=456,
+        kind="release" if event_type is DeploymentEventType.DEPLOYED else "incident",
+        attempts=1, event=event,
+    )
+    channel = SimpleNamespace(
+        guild=SimpleNamespace(me=object()),
+        permissions_for=lambda _: SimpleNamespace(attach_files=can_attach),
+        send=AsyncMock(return_value=SimpleNamespace(id=789)),
+    )
+    repository = SimpleNamespace(mark_delivery_sent=AsyncMock(), mark_delivery_failed=AsyncMock())
+    provider = SimpleNamespace(cached=AsyncMock(
+        return_value=SimpleNamespace(persona=SimpleNamespace(profile=persona)),
+    ))
+    worker = DeploymentNotificationWorker(
+        SimpleNamespace(), provider, repository, ReleaseManifest.load_packaged(), current_commit_sha="a" * 40,
+    )
+    monkeypatch.setattr(worker, "_resolve_channel", AsyncMock(return_value=channel))
+    await worker._deliver(delivery)
+    repository.mark_delivery_sent.assert_awaited_once_with(delivery.id, 789)
+    repository.mark_delivery_failed.assert_not_awaited()
+    message = channel.send.call_args.kwargs
+    if event_type is DeploymentEventType.DEPLOYED and can_attach:
+        assert message["embed"].thumbnail.url == CHANGELOG_THUMBNAIL_URL
+        assert len(message["files"]) == 1
+        assert message["files"][0].filename == CHANGELOG_THUMBNAIL_FILENAME
+        message["files"][0].close()
+    else:
+        assert not message["embed"].thumbnail
+        assert message["files"] == []
+    if event_type is DeploymentEventType.DEPLOYED and not can_attach:
+        assert "deployment_changelog_thumbnail_skipped" in caplog.text
 
 
 class FakeReceiver:
