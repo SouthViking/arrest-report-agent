@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "version": "0.43.0",
+  "version": "1.0.0",
   "title": "Disponibilidad de instructores FTP",
   "summary": "Los instructores pueden publicar bloques disponibles y los trainees reservar una ficha directamente desde la tarjeta. El flujo actual de solicitudes se mantiene.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
