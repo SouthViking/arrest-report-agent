@@ -77,7 +77,9 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
     assert "/solicitar-roles" in rendered_changes
-    assert "#pedir-roles" in rendered_changes
+    assert "cancelan las pendientes anteriores" in rendered_changes
+    assert "Command/Executive" in rendered_changes
+    assert "/info-roles" in rendered_changes
     assert all(word not in rendered_changes.lower() for word in ("thumbnail", "imagen", "migración"))
     assert manifest.acknowledgements == ()
 

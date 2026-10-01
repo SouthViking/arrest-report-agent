@@ -8,6 +8,7 @@ from typing import cast
 from uuid import UUID
 
 import sqlalchemy as sa
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from arrest_report_agent.infrastructure.postgres import PostgresClient
 from arrest_report_agent.infrastructure.postgres.schema import (
@@ -25,20 +26,19 @@ from .models import (
 )
 
 
-class PendingRoleRequestError(RuntimeError):
-    """Raised when a requester already owns a live v2 request."""
+class RoleRequestBusyError(RuntimeError):
+    """Do not replace a request while it is being published or applying roles."""
 
     def __init__(self, request: StoredRoleRequest) -> None:
-        super().__init__("Requester already has a pending role request")
+        super().__init__("A role request is being published or resolved")
         self.request = request
 
 
 class RoleRequestRepository:
     """Keep role-request SQL, idempotency and concurrency outside Discord."""
 
-    _LIVE_STATUSES = (
+    _BUSY_STATUSES = (
         StoredRoleRequestStatus.PUBLISHING.value,
-        StoredRoleRequestStatus.PENDING.value,
         StoredRoleRequestStatus.PROCESSING.value,
     )
 
@@ -60,10 +60,7 @@ class RoleRequestRepository:
     ) -> tuple[StoredRoleRequest, bool]:
         now = datetime.now(UTC)
         async with self.client.transaction() as connection:
-            await connection.execute(
-                sa.text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-                {"key": f"role-request:{guild_id}:{requester_id}"},
-            )
+            await self._lock_requester(connection, guild_id, requester_id)
             existing = await self._one_or_none(
                 sa.select(role_requests).where(role_requests.c.interaction_id == interaction_id),
                 connection,
@@ -75,14 +72,14 @@ class RoleRequestRepository:
                 .where(
                     role_requests.c.guild_id == guild_id,
                     role_requests.c.requester_id == requester_id,
-                    role_requests.c.status.in_(self._LIVE_STATUSES),
+                    role_requests.c.status.in_(self._BUSY_STATUSES),
                 )
                 .order_by(role_requests.c.created_at.desc())
                 .limit(1),
                 connection,
             )
             if pending is not None:
-                raise PendingRoleRequestError(self._request_from_row(pending))
+                raise RoleRequestBusyError(self._request_from_row(pending))
             row = (
                 (
                     await connection.execute(
@@ -122,6 +119,26 @@ class RoleRequestRepository:
             raise ValueError("At least one private review message is required")
         now = datetime.now(UTC)
         async with self.client.transaction() as connection:
+            draft = await self._locked_request(connection, request_id)
+            if draft is None or draft.status is not StoredRoleRequestStatus.PUBLISHING:
+                raise LookupError("Role request is not publishing")
+            # The requester lock is also acquired by claim_decision: either approval
+            # wins before reserve(), or publication prevents approval until it finishes.
+            await connection.execute(
+                role_requests.update().where(
+                    role_requests.c.guild_id == draft.guild_id,
+                    role_requests.c.requester_id == draft.requester_id,
+                    role_requests.c.status == StoredRoleRequestStatus.PENDING.value,
+                ).values(
+                    status=StoredRoleRequestStatus.CANCELLED.value,
+                    replaced_by_request_id=request_id,
+                    cancellation_sync_due=now,
+                    decision_comment="Reemplazada por una nueva solicitud.",
+                    unapproved_add_role_ids=role_requests.c.add_role_ids,
+                    unapproved_remove_role_ids=role_requests.c.remove_role_ids,
+                    decided_at=now, updated_at=now, version=role_requests.c.version + 1,
+                )
+            )
             row = (
                 (
                     await connection.execute(
@@ -221,6 +238,18 @@ class RoleRequestRepository:
     async def claim_decision(self, request_id: UUID) -> StoredRoleRequest | None:
         now = datetime.now(UTC)
         async with self.client.transaction() as connection:
+            request = await self._locked_request(connection, request_id)
+            if request is None or request.status is not StoredRoleRequestStatus.PENDING:
+                return None
+            publishing = await self._one_or_none(
+                sa.select(role_requests.c.id).where(
+                    role_requests.c.guild_id == request.guild_id,
+                    role_requests.c.requester_id == request.requester_id,
+                    role_requests.c.status == StoredRoleRequestStatus.PUBLISHING.value,
+                ), connection,
+            )
+            if publishing is not None:
+                return None
             row = (
                 (
                     await connection.execute(
@@ -300,6 +329,46 @@ class RoleRequestRepository:
             .values(requester_dm_delivered=delivered, updated_at=datetime.now(UTC))
         )
 
+    async def list_cancellation_sync(
+        self, *, replacement_id: UUID | None = None,
+    ) -> tuple[StoredRoleRequest, ...]:
+        statement = sa.select(role_requests).where(
+            role_requests.c.status == StoredRoleRequestStatus.CANCELLED.value,
+            role_requests.c.cancellation_sync_due <= datetime.now(UTC),
+            role_requests.c.replaced_by_request_id.is_not(None),
+        )
+        if replacement_id is not None:
+            statement = statement.where(role_requests.c.replaced_by_request_id == replacement_id)
+        rows = await self.client.fetch_all(
+            statement.order_by(role_requests.c.cancellation_sync_due, role_requests.c.id).limit(50)
+        )
+        return tuple(self._request_from_row(row) for row in rows)
+
+    async def set_cancellation_sync_due(self, request_id: UUID, due: datetime | None) -> None:
+        await self.client.execute(role_requests.update().where(
+            role_requests.c.id == request_id,
+            role_requests.c.status == StoredRoleRequestStatus.CANCELLED.value,
+        ).values(cancellation_sync_due=due))
+
+    @staticmethod
+    async def _lock_requester(connection: AsyncConnection, guild_id: int, requester_id: int) -> None:
+        await connection.execute(
+            sa.text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"role-request:{guild_id}:{requester_id}"},
+        )
+
+    async def _locked_request(
+        self, connection: AsyncConnection, request_id: UUID,
+    ) -> StoredRoleRequest | None:
+        statement = sa.select(role_requests).where(role_requests.c.id == request_id)
+        row = await self._one_or_none(statement, connection)
+        if row is None:
+            return None
+        await self._lock_requester(connection, int(row["guild_id"]), int(row["requester_id"]))
+        # Re-read after the lock; another worker may have cancelled/claimed it.
+        row = await self._one_or_none(statement, connection)
+        return None if row is None else self._request_from_row(row)
+
     @staticmethod
     async def _one_or_none(statement: sa.Executable, connection: object) -> sa.RowMapping | None:
         result = await connection.execute(statement)  # type: ignore[attr-defined]
@@ -331,6 +400,8 @@ class RoleRequestRepository:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             decided_at=row["decided_at"],
+            replaced_by_request_id=row["replaced_by_request_id"],
+            cancellation_sync_due=row["cancellation_sync_due"],
         )
 
     @staticmethod

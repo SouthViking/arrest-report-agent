@@ -1438,12 +1438,16 @@ role_requests = sa.Table(
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     sa.Column("decided_at", sa.DateTime(timezone=True)),
+    sa.Column("replaced_by_request_id", postgresql.UUID(as_uuid=True),
+              sa.ForeignKey("role_requests.id", ondelete="SET NULL")),
+    sa.Column("cancellation_sync_due", sa.DateTime(timezone=True)),
     sa.CheckConstraint(
         "kind IN ('normal','retirement','ftt_entry')",
         name="ck_role_request_kind",
     ),
     sa.CheckConstraint(
-        "status IN ('publishing','pending','processing','approved','partially_approved','rejected','failed')",
+        "status IN ('publishing','pending','processing','approved','partially_approved',"
+        "'rejected','failed','cancelled')",
         name="ck_role_request_status",
     ),
     sa.CheckConstraint("version > 0", name="ck_role_request_version_positive"),
@@ -1457,7 +1461,15 @@ role_requests = sa.Table(
         "guild_id",
         "requester_id",
         unique=True,
-        postgresql_where=sa.text("status IN ('publishing','pending','processing')"),
+        postgresql_where=sa.text("status IN ('pending','processing')"),
+    ),
+    sa.Index(
+        "uq_role_request_publishing_requester", "guild_id", "requester_id", unique=True,
+        postgresql_where=sa.text("status = 'publishing'"),
+    ),
+    sa.Index(
+        "ix_role_request_cancellation_sync", "cancellation_sync_due",
+        postgresql_where=sa.text("cancellation_sync_due IS NOT NULL"),
     ),
 )
 

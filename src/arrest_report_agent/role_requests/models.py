@@ -38,6 +38,7 @@ class StoredRoleRequestStatus(StrEnum):
     PARTIALLY_APPROVED = "partially_approved"
     REJECTED = "rejected"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
     @property
     def terminal(self) -> bool:
@@ -46,6 +47,7 @@ class StoredRoleRequestStatus(StrEnum):
             StoredRoleRequestStatus.PARTIALLY_APPROVED,
             StoredRoleRequestStatus.REJECTED,
             StoredRoleRequestStatus.FAILED,
+            StoredRoleRequestStatus.CANCELLED,
         }
 
 
@@ -105,6 +107,8 @@ class StoredRoleRequest(BaseModel):
     created_at: datetime
     updated_at: datetime
     decided_at: datetime | None = None
+    replaced_by_request_id: UUID | None = None
+    cancellation_sync_due: datetime | None = None
 
     @model_validator(mode="after")
     def validate_guided_entry(self) -> StoredRoleRequest:

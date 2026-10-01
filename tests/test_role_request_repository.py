@@ -18,7 +18,7 @@ from arrest_report_agent.role_requests.models import (
     StoredRoleRequestStatus,
 )
 from arrest_report_agent.role_requests.repository import (
-    PendingRoleRequestError,
+    RoleRequestBusyError,
     RoleRequestRepository,
 )
 
@@ -61,7 +61,7 @@ async def test_role_request_repository_is_idempotent_concurrent_and_mirrored(
             return_exceptions=True,
         )
         created = [outcome for outcome in outcomes if isinstance(outcome, tuple)]
-        blocked = [outcome for outcome in outcomes if isinstance(outcome, PendingRoleRequestError)]
+        blocked = [outcome for outcome in outcomes if isinstance(outcome, RoleRequestBusyError)]
         assert len(created) == 1
         assert len(blocked) == 1
         request, was_created = created[0]

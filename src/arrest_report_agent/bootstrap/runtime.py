@@ -552,6 +552,7 @@ async def build_runtime(
     bot.add_view(FtpRequestPanelView())
     bot.add_cog(FtpRequestCog(ftp_request_registry, persona.profile))
     maintenance = MaintenanceScheduler(bot.is_ready)
+    maintenance.register("role-request-cancellations", registry.sync_cancellations, interval_seconds=300)
     ftp_maintenance = FtpRequestMaintenance(bot, config_provider, ftp_request_repository, maintenance)
     config_provider.register_guild_callback(ftp_maintenance.configuration_updated)
     for bundle in all_bundles:

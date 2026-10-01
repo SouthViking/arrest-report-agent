@@ -7,7 +7,7 @@ import logging
 from collections.abc import Iterable
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import discord
 from discord.ext import commands
@@ -30,6 +30,7 @@ from .codec import (
     FTT_ENTRY_PENDING_TITLE,
     REJECT_CUSTOM_ID,
     RoleRequestCodecError,
+    build_cancelled_embed,
     build_decision_embed,
     build_pending_embed,
     build_private_pending_embed,
@@ -49,7 +50,7 @@ from .models import (
     StoredRoleRequest,
     StoredRoleRequestStatus,
 )
-from .repository import PendingRoleRequestError, RoleRequestRepository
+from .repository import RoleRequestBusyError, RoleRequestRepository
 
 LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
@@ -160,9 +161,22 @@ class RoleRequestServiceRegistry:
             self._services[key] = service
         return service
 
+    async def sync_cancellations(self) -> None:
+        """Retry durable card updates after a Discord outage or bot restart."""
+        if self.repository is None:
+            return
+        for request in await self.repository.list_cancellation_sync():
+            try:
+                service = await self.get(request.guild_id)
+                await service.sync_cancelled_request(request)
+            except Exception as error:
+                log_event(LOGGER, "warning", "role_request_cancellation_sync_failed",
+                          request_id=str(request.id), guild_id=request.guild_id,
+                          **exception_fields(error))
+
 
 class RoleRequestService:
-    """Orchestrate role requests while Discord messages remain the only storage."""
+    """Orchestrate persisted requests and their public/private Discord cards."""
 
     def __init__(
         self,
@@ -1107,10 +1121,6 @@ class RoleRequestService:
         reviewer_roles = self.resolve_reviewer_roles(member.guild)
         if not reviewer_roles:
             raise RoleRequestValidationError(self.ui.subsystem_unavailable)
-        pending = await self.find_pending_request(member.guild, member.id)
-        if pending is not None:
-            raise RoleRequestValidationError(self.ui.pending_exists.format(jump_url=pending.jump_url))
-
         normalized_reason = (reason or "").strip() or None
         add_ids = tuple(role.id for role in add_roles)
         remove_ids = tuple(role.id for role in remove_roles)
@@ -1126,15 +1136,11 @@ class RoleRequestService:
                 public_channel_id=channel.id,
                 shift_change=shift_change,
             )
-        except PendingRoleRequestError as error:
-            existing = error.request
-            if existing.public_message_id is not None:
-                jump_url = (
-                    f"https://discord.com/channels/{existing.guild_id}/"
-                    f"{existing.public_channel_id}/{existing.public_message_id}"
-                )
-                raise RoleRequestValidationError(self.ui.pending_exists.format(jump_url=jump_url)) from error
-            raise RoleRequestValidationError(self.ui.request_unavailable) from error
+        except RoleRequestBusyError as error:
+            raise RoleRequestValidationError(
+                "Tu solicitud anterior se está publicando o resolviendo. "
+                "Espera un momento e inténtalo de nuevo."
+            ) from error
         if not created:
             if stored.public_message_id is not None:
                 jump_url = (
@@ -1212,7 +1218,6 @@ class RoleRequestService:
                     (private_message.channel.id, private_message.id) for private_message in private_messages
                 ),
             )
-            return public_message
         except Exception:
             await repository.mark_failed(stored.id)
             for published in (*private_messages, public_message):
@@ -1220,6 +1225,66 @@ class RoleRequestService:
                     with suppress(discord.Forbidden, discord.HTTPException):
                         await published.delete()
             raise
+        # Publication committed: a card-edit failure must never delete the new request.
+        try:
+            for cancelled in await repository.list_cancellation_sync(replacement_id=stored.id):
+                log_event(LOGGER, "info", "role_request_replaced", guild_id=stored.guild_id,
+                          requester_id=stored.requester_id, request_id=str(cancelled.id),
+                          replacement_id=str(stored.id))
+                await self.sync_cancelled_request(cancelled)
+        except Exception as error:
+            log_event(LOGGER, "warning", "role_request_cancellation_sync_failed",
+                      replacement_id=str(stored.id), **exception_fields(error))
+        return public_message
+
+    async def sync_cancelled_request(self, request: StoredRoleRequest) -> None:
+        repository = self.repository
+        if repository is None or request.replaced_by_request_id is None:
+            return
+        replacement = await repository.get(request.replaced_by_request_id)
+        guild = self.bot.get_guild(request.guild_id)
+        if replacement is None or replacement.public_message_id is None or guild is None:
+            raise LookupError("Replacement request or guild is unavailable")
+        if (replacement.guild_id, replacement.requester_id) != (request.guild_id, request.requester_id):
+            raise ValueError("Replacement request owner mismatch")
+        replacement_url = (
+            f"https://discord.com/channels/{replacement.guild_id}/"
+            f"{replacement.public_channel_id}/{replacement.public_message_id}"
+        )
+        targets = [(mirror.channel_id, mirror.message_id, True)
+                   for mirror in await repository.review_messages(request.id)]
+        if request.public_message_id is not None:
+            targets.insert(0, (request.public_channel_id, request.public_message_id, False))
+        retry = False
+        for channel_id, message_id, private in targets:
+            try:
+                channel = guild.get_channel(channel_id) or await guild.fetch_channel(channel_id)
+                if not isinstance(channel, discord.TextChannel):
+                    raise LookupError("Role request channel is unavailable")
+                message = await channel.fetch_message(message_id)
+                if self.bot.user is None or message.author.id != self.bot.user.id:
+                    raise PermissionError("Role request message is not owned by the bot")
+                await message.edit(
+                    embed=build_cancelled_embed(
+                        message.embeds[0] if message.embeds else None, replacement_url=replacement_url,
+                    ),
+                    view=(RoleRequestDecisionView(
+                        self, registry=self.registry, disabled=True,
+                        include_partial=request.kind is RoleRequestKind.NORMAL, kind=request.kind,
+                    ) if private else None),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            except discord.NotFound:
+                # Deleted messages/channels are permanent, not a reason to block the user.
+                continue
+            except Exception as error:
+                retry = True
+                log_event(LOGGER, "warning", "role_request_cancellation_card_failed",
+                          request_id=str(request.id), channel_id=channel_id, message_id=message_id,
+                          **exception_fields(error))
+        await repository.set_cancellation_sync_due(
+            request.id, datetime.now(UTC) + timedelta(minutes=5) if retry else None,
+        )
 
     async def authorize_reviewer_interaction(
         self,
@@ -3064,7 +3129,10 @@ class RoleRequestCog(commands.Cog):
             color=discord.Color.blurple(),
         )
         embed.add_field(name=ui.info_usage_title, value=ui.info_usage, inline=False)
-        embed.add_field(name=ui.info_rules_title, value=ui.info_rules, inline=False)
+        rules = ui.info_rules
+        if service.repository is not None:
+            rules += "\n• Si envías otra solicitud, la nueva reemplaza y cancela la anterior pendiente."
+        embed.add_field(name=ui.info_rules_title, value=rules, inline=False)
         embed.add_field(
             name="🔒 Privacidad de la revisión",
             value=(

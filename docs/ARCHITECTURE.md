@@ -312,6 +312,21 @@ un embed saneado y cada canal de `role_request_review_channels` recibe una refer
 transición atómica `pending → processing`, luego se persiste y se replica en todos los mensajes. Las
 solicitudes v1 conservan su codec estricto basado en el mensaje para poder resolverse tras el cambio.
 
+El reemplazo v2 usa PostgreSQL como fuente de verdad, sin escanear el historial del canal. Se permite
+un borrador `publishing` mientras la solicitud previa sigue `pending`; al completar la publicación,
+una única transacción cancela todas las pendientes del mismo usuario/guild, guarda su
+`replaced_by_request_id` y activa la nueva. Índices parciales mantienen una única solicitud revisable
+(`pending`/`processing`) y un único borrador por usuario/guild. Un advisory lock compartido entre
+reserva, publicación y claim impide aprobar durante el reemplazo o interrumpir una aprobación que
+ya aplica roles. Un fallo de publicación no cancela la anterior.
+
+Las tarjetas canceladas se sincronizan después del commit, preservando los datos privados solo en
+sus copias privadas. Se editan en gris con el enlace nuevo y controles deshabilitados; un 404 se
+considera definitivo y se omite. Otros errores se registran y se reintentan con el scheduler genérico
+cada cinco minutos, usando `cancellation_sync_due` persistido para sobrevivir a reinicios. Ningún
+fallo en estas ediciones revierte ni elimina la solicitud nueva. No se cambian roles ni se envían MD
+por una cancelación de reemplazo.
+
 Cada decisión v2 usa un claim en PostgreSQL; v1 conserva un lock por ID. Ambas revalidan al revisor
 autorizado,
 miembro, roles protegidos y jerarquía. La aprobación completa o parcial calcula el conjunto final desde los roles actuales y lo

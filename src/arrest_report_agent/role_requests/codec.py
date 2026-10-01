@@ -60,6 +60,19 @@ class RoleRequestCodecError(ValueError):
     """Raised when a Discord message is not a trustworthy role request."""
 
 
+def build_cancelled_embed(original: discord.Embed | None, *, replacement_url: str) -> discord.Embed:
+    """Retain the public/private card's own fields without exposing private reasons."""
+    embed = original.copy() if original is not None else discord.Embed()
+    embed.title = "Solicitud cancelada"
+    embed.color = discord.Color.dark_grey()
+    embed.description = f"Reemplazada por una nueva solicitud.\n[Abrir nueva solicitud]({replacement_url})"
+    for index in reversed(range(len(embed.fields))):
+        if embed.fields[index].name == STATUS_FIELD_TITLE:
+            embed.remove_field(index)
+    embed.add_field(name=STATUS_FIELD_TITLE, value="Cancelada · reemplazada", inline=False)
+    return embed
+
+
 def build_pending_embed(
     *,
     requester: discord.Member,

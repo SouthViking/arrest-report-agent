@@ -1,14 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.41.1",
-  "title": "Corrección en las solicitudes de roles",
-  "summary": "Se corrige el bloqueo al abrir el formulario de solicitudes de roles.",
+  "version": "0.42.0",
+  "title": "Reemplazo de solicitudes de roles",
+  "summary": "Ahora puedes enviar una nueva solicitud de roles sin esperar a que se resuelva la anterior.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "fixed",
-      "text": "/solicitar-roles vuelve a funcionar en #pedir-roles sin requerir permisos adicionales. Se mantiene la selección de turnos AM, PM y EM."
+      "type": "improved",
+      "text": "Al enviar una nueva solicitud con /solicitar-roles, se cancelan las pendientes anteriores del mismo usuario y queda únicamente la nueva activa, aunque sus mensajes hayan sido eliminados."
+    },
+    {
+      "type": "improved",
+      "text": "La tarjeta original y las notificaciones a Command/Executive se actualizan en gris, con el motivo de cancelación, los botones deshabilitados y un enlace a la nueva solicitud."
+    },
+    {
+      "type": "improved",
+      "text": "Se conserva el historial. Si falla la publicación de la nueva solicitud, la anterior sigue pendiente; no se interrumpen aprobaciones en curso. /info-roles explica el nuevo funcionamiento."
     }
   ],
   "acknowledgements": []

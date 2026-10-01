@@ -618,7 +618,11 @@ criterios se vuelven a comprobar al enviar y aprobar. No existe aprobación parc
 La solicitud deja en el mismo canal un embed público sin motivo, revisor ni comentario. PostgreSQL
 conserva el expediente y las referencias a sus copias privadas; cada canal configurado en
 `role_request_review_channels` recibe el detalle completo y los botones persistentes. Solo se admite
-una solicitud pendiente por miembro en la guild. Las solicitudes antiguas basadas únicamente en el
+una solicitud pendiente por miembro en la guild. Enviar otra solicitud válida reemplaza las anteriores
+pendientes, aunque sus mensajes hayan sido eliminados. Las tarjetas conservadas se muestran canceladas,
+en gris, con sus controles deshabilitados y un enlace a la nueva solicitud. Si falla la publicación de
+la nueva, la anterior permanece pendiente. Si una solicitud ya está publicándose o resolviéndose, se
+debe esperar a que termine antes de volver a enviar. Las solicitudes antiguas basadas únicamente en el
 mensaje público siguen resolviéndose con su codec v1.
 El embed omite altas, bajas, motivo, comentarios y grupos de cambios cuando no contienen información;
 nunca utiliza una raya como valor de relleno. El codec sigue aceptando solicitudes antiguas que sí la

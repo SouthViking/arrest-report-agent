@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import discord
@@ -49,6 +50,7 @@ from arrest_report_agent.role_requests.discord import (
     RoleRequestDecisionView,
     RoleRequestResolutionView,
     RoleRequestService,
+    RoleRequestServiceRegistry,
     RoleRequestStartView,
     RoleRequestValidationError,
 )
@@ -335,9 +337,15 @@ class FakeRoleRequestRepository:
         self.request: StoredRoleRequest | None = None
         self.mirrors: tuple[RoleRequestReviewMessage, ...] = ()
         self.dm_delivered: bool | None = None
+        self.history: dict[object, StoredRoleRequest] = {}
+        self.historical_mirrors: dict[object, tuple[RoleRequestReviewMessage, ...]] = {}
+        self.cancellation_due: dict[object, datetime | None] = {}
 
     async def reserve(self, **values) -> tuple[StoredRoleRequest, bool]:
         now = datetime.now(UTC)
+        if self.request is not None:
+            self.history[self.request.id] = self.request
+            self.historical_mirrors[self.request.id] = self.mirrors
         self.request = StoredRoleRequest(
             id=uuid4(),
             guild_id=values["guild_id"],
@@ -365,6 +373,12 @@ class FakeRoleRequestRepository:
     ) -> StoredRoleRequest:
         assert self.request is not None and self.request.id == request_id
         now = datetime.now(UTC)
+        for key, previous in tuple(self.history.items()):
+            if previous.status is StoredRoleRequestStatus.PENDING:
+                self.history[key] = previous.model_copy(update={
+                    "status": StoredRoleRequestStatus.CANCELLED,
+                    "replaced_by_request_id": request_id, "cancellation_sync_due": now,
+                })
         self.request = self.request.model_copy(
             update={
                 "public_message_id": public_message_id,
@@ -385,11 +399,32 @@ class FakeRoleRequestRepository:
         )
         return self.request
 
+    async def get(self, request_id):
+        if self.request and self.request.id == request_id:
+            return self.request
+        return self.history.get(request_id)
+
+    async def list_cancellation_sync(self, *, replacement_id=None):
+        return tuple(request for request in self.history.values()
+                     if request.status is StoredRoleRequestStatus.CANCELLED
+                     and request.cancellation_sync_due is not None
+                     and (replacement_id is None or request.replaced_by_request_id == replacement_id))
+
+    async def set_cancellation_sync_due(self, request_id, due):
+        self.cancellation_due[request_id] = due
+        self.history[request_id] = self.history[request_id].model_copy(update={"cancellation_sync_due": due})
+
     async def mark_failed(self, _request_id) -> None:
         if self.request is not None:
             self.request = self.request.model_copy(update={"status": StoredRoleRequestStatus.FAILED})
 
     async def get_by_review_message(self, guild_id: int, channel_id: int, message_id: int):
+        for request_id, mirrors in self.historical_mirrors.items():
+            previous = self.history[request_id]
+            if previous.guild_id == guild_id and any(
+                mirror.channel_id == channel_id and mirror.message_id == message_id for mirror in mirrors
+            ):
+                return previous
         if self.request is None or self.request.guild_id != guild_id:
             return None
         return (
@@ -441,8 +476,8 @@ class FakeRoleRequestRepository:
         )
         return self.request
 
-    async def review_messages(self, _request_id):
-        return self.mirrors
+    async def review_messages(self, request_id):
+        return self.historical_mirrors.get(request_id, self.mirrors)
 
     async def mark_dm_delivery(self, _request_id, delivered: bool) -> None:
         self.dm_delivered = delivered
@@ -2083,6 +2118,113 @@ def _enable_private_requests(env, service):
     env.guild.text_channels.append(channel)
     service.review_channel_ids = (channel.id,)
     return repository, channel
+
+
+async def _publish_replacement_test_request(env, interaction_id):
+    return await env.service._publish_new_request(
+        interaction_id=interaction_id, member=env.requester, channel=env.channel,
+        add_roles=(env.add_one,), remove_roles=(), reason="Motivo privado QA",
+    )
+
+
+@pytest.mark.parametrize("missing", ("none", "public", "private", "all"))
+async def test_replacement_updates_remaining_cards_and_disables_old_controls(role_request_env, missing):
+    env = role_request_env
+    repo, first = _enable_private_requests(env, env.service)
+    second = FakeChannel(211)
+    second.guild = env.guild
+    env.guild._channels[second.id] = second
+    env.service.review_channel_ids = (first.id, second.id)
+    old_message, *_ = await _publish_replacement_test_request(env, 9100)
+    old = repo.request
+    old_mirrors = [next(iter(channel.messages.values())) for channel in (first, second)]
+    # A missing old message must not reuse its snowflake in the fake send().
+    if missing in ("public", "all"):
+        env.channel.fetch_message = AsyncMock(side_effect=_not_found())
+    if missing in ("private", "all"):
+        first.fetch_message = AsyncMock(side_effect=_not_found())
+    if missing == "all":
+        second.fetch_message = AsyncMock(side_effect=_not_found())
+    # DB-backed creation must never scan channel history to decide whether it can proceed.
+    env.service.find_pending_request = AsyncMock(
+        side_effect=AssertionError("Unexpected Discord history scan"),
+    )
+    new_message, *_ = await _publish_replacement_test_request(env, 9101)
+    assert repo.history[old.id].status is StoredRoleRequestStatus.CANCELLED
+    assert repo.request.status is StoredRoleRequestStatus.PENDING
+    assert repo.cancellation_due[old.id] is None
+    if missing not in ("public", "all"):
+        assert old_message.embeds[0].title == "Solicitud cancelada"
+        assert old_message.embeds[0].color == discord.Color.dark_grey()
+        assert new_message.jump_url in old_message.embeds[0].description
+        assert "Motivo privado QA" not in str(old_message.embeds[0].to_dict())
+    for index, mirror in enumerate(old_mirrors):
+        if missing == "all" or (missing == "private" and index == 0):
+            assert not mirror.edit_calls
+            continue
+        assert mirror.embeds[0].title == "Solicitud cancelada"
+        assert mirror.embeds[0].color == discord.Color.dark_grey()
+        assert new_message.jump_url in mirror.embeds[0].description
+        assert all(child.disabled for child in mirror.components[0].children)
+        assert mirror.edit_calls[-1]["allowed_mentions"].to_dict() == {"parse": []}
+    assert not env.requester.edit_calls and not env.requester.dm_calls
+    # Even an old modal/click cannot approve the cancelled request.
+    with pytest.raises(RoleRequestCodecError, match="no longer pending"):
+        await env.service.resolve_interaction_request(_interaction(env, old_mirrors[0]))
+
+
+async def test_replacement_card_failure_retries_without_removing_new_request(role_request_env, caplog):
+    env = role_request_env
+    repo, review = _enable_private_requests(env, env.service)
+    old_message, *_ = await _publish_replacement_test_request(env, 9200)
+    old = repo.request
+    original_edit = old_message.edit
+    old_message.edit = AsyncMock(side_effect=discord.Forbidden(
+        SimpleNamespace(status=403, reason="Forbidden"), "Cannot edit",
+    ))
+    new_message, *_ = await _publish_replacement_test_request(env, 9201)
+    assert repo.request.status is StoredRoleRequestStatus.PENDING
+    assert not new_message.deleted
+    assert repo.cancellation_due[old.id] is not None
+    assert repo.cancellation_due[old.id] > datetime.now(UTC)
+    assert "role_request_cancellation_card_failed" in caplog.text
+    assert next(iter(review.messages.values())).embeds[0].title == "Solicitud cancelada"
+    old_message.edit = original_edit
+    # The scheduler retrieves persisted cancellations after restarting.
+    registry = RoleRequestServiceRegistry(env.service.bot, None, repo)
+    registry.get = AsyncMock(return_value=env.service)
+    await registry.sync_cancellations()
+    assert repo.cancellation_due[old.id] is None
+    assert old_message.embeds[0].title == "Solicitud cancelada"
+
+
+async def test_failed_replacement_publication_leaves_old_cards_and_pending_state(role_request_env):
+    env = role_request_env
+    repo, review = _enable_private_requests(env, env.service)
+    old_message, *_ = await _publish_replacement_test_request(env, 9300)
+    old = repo.request
+    review.send = AsyncMock(side_effect=discord.Forbidden(
+        SimpleNamespace(status=403, reason="Forbidden"), "Cannot publish",
+    ))
+    with pytest.raises(RoleRequestValidationError):
+        await _publish_replacement_test_request(env, 9301)
+    assert repo.history[old.id].status is StoredRoleRequestStatus.PENDING
+    assert not old_message.edit_calls and not old_message.deleted
+    assert len(env.channel.messages) == 1
+
+
+async def test_invalid_replacement_does_not_reserve_or_cancel(role_request_env):
+    env = role_request_env
+    repo, _ = _enable_private_requests(env, env.service)
+    await _publish_replacement_test_request(env, 9400)
+    old = repo.request
+    with pytest.raises(RoleRequestValidationError):
+        await env.service._publish_new_request(
+            interaction_id=9401, member=env.requester, channel=env.channel,
+            add_roles=(), remove_roles=(), reason=None,
+        )
+    assert repo.request.id == old.id and repo.request.status is StoredRoleRequestStatus.PENDING
+    assert not repo.history
 
 
 @pytest.mark.asyncio

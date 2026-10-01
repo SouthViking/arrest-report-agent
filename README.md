@@ -165,6 +165,10 @@ CSV. El motivo y los controles se replican únicamente en los canales privados d
 IA y persiste el expediente y sus referencias en PostgreSQL. `/info-roles` permanece disponible en
 cualquier canal o hilo de una guild habilitada.
 
+Una nueva solicitud publicada correctamente reemplaza las pendientes del mismo usuario en la guild.
+El historial se conserva y sus tarjetas se actualizan como canceladas, incluso si algunas copias fueron
+eliminadas; `/info-roles` explica este comportamiento. No se interrumpe una aprobación en curso.
+
 `role_requests.shifts` configura opciones de turno por guild (`key`, `label`, `role_id`, `description`
 y `emoji` opcional). El turno es obligatorio en el ingreso y opcional en cambios de roles; omitirlo
 conserva el actual. Estos roles no se duplican en el selector general. Un cambio de turno reemplaza
