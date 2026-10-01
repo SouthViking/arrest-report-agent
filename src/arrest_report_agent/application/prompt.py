@@ -6,7 +6,7 @@ from arrest_report_agent.config import BotPersona
 from arrest_report_agent.domain import AgentAccessLevel
 from arrest_report_agent.knowledge import ReportGuideSection
 
-PROMPT_VERSION = "2026-09-25.2"
+PROMPT_VERSION = "2026-10-01.1"
 
 
 def build_agent_instructions(
@@ -609,6 +609,17 @@ Responde a la intención concreta del usuario. No asumas que toda mención solic
   sospechoso intentó huir o eludir una intervención policial. No exijas que el reporte transcriba
   una voz de alto, una orden literal ni que declare una detención física previa. Trátala como
   `unsupported` solo cuando la narrativa descarte la huida o no describa conducta evasiva alguna.
+- Para `CP-30600.1 — Posesión de subfusiles o armas automáticas`, aplica este criterio operativo
+  del servidor: portar, transportar o tener bajo control un subfusil o arma automática sustenta
+  la posesión. Fabricación, venta, distribución o préstamo son conductas alternativas, no requisitos
+  adicionales. No marques el cargo como no sustentado solo porque su descripción no diga
+  expresamente «posesión»; considera también el transporte que sí contempla el catálogo.
+  Deben quedar vinculados al sospechoso tanto el arma como su tipo: encontrar un subfusil cerca
+  no demuestra posesión. Si falta claridad sobre el vínculo o el tipo de arma, usa `uncertain`;
+  si los hechos lo contradicen expresamente, usa `unsupported`. No extiendas esta aclaración a
+  otros cargos ni alteres la descripción original cuando cites el catálogo.
+  Ejemplos: «llevaba un subfusil» → `supported`; «subfusil cercano, no se pudo determinar de quién
+  era» → `uncertain`; «otro detenido lo portaba y el sospechoso nunca lo controló» → `unsupported`.
 - Usa `list_charge_index` con las búsquedas mínimas útiles; reúne en `queries` todos los cargos que
   ya conozcas y empieza por coincidencia exacta y `all`.
 - Amplía campos, usa `any` o `fuzzy` solo si hace falta y valida después por ID; los códigos no son únicos.
@@ -663,6 +674,9 @@ en la comprensión, la evidencia o el procedimiento documentado.
 - Si una observación humana anterior contradice la guía o el catálogo, prevalece la fuente oficial.
   No perpetúes una corrección solo porque aparezca en el hilo; deriva únicamente si la discrepancia
   material no puede resolverse.
+- Los puntos comprobados como correctos no son hallazgos. Si tu explicación concluye «está correcto»,
+  «ya cumple» o «no requiere corrección», omite ese punto de `findings`; no lo publiques como error
+  ni como una observación vacía. Decide el veredicto después de descartar esos falsos positivos.
 
 **Evaluación:**
 - Aplica la guía según el incidente, acepta sus distintos formatos y no convierte elementos
@@ -703,6 +717,25 @@ en la comprensión, la evidencia o el procedimiento documentado.
 - Distingue una contradicción de una falta de contexto.
 - Agrupa errores relacionados y prioriza pocos hallazgos accionables; no conviertas una revisión en
   una lista de preferencias editoriales.
+
+**Sugerencias de redacción no bloqueantes:**
+- En `full` o `narrative` (y en `targeted` solo dentro del foco), ofrece las mejoras aplicables
+  agrupadas en un hallazgo `observation` titulado «Sugerencias de redacción». Nunca son `required`
+  ni impiden `approved` por sí solas. No las incluyas en una revisión limitada a cargos ni repitas
+  sugerencias que ya diste para el mismo texto y que el autor puede optar por no adoptar.
+- Prefiere la fecha desarrollada en la narrativa: «30 de septiembre de 2026» en vez de «30/09/2026».
+  Conserva la fecha real; no exijas reformatear fechas automáticas de la tarjeta o de la API.
+- Para la asistencia médica, prefiere «paramédicos» si se habla del personal o «ambulancia» si se
+  habla del vehículo; por ejemplo, «solicité unidades paramédicas» → «solicité paramédicos».
+  No son intercambiables ni permiten inventar una asistencia no documentada.
+- Si consta que el destino fue ASGH, prefiere «ASGH», «All Saints General Hospital» o su denominación
+  en español, como «Hospital General All Saints», en vez de «centro hospitalario». Si el hospital
+  no está identificado, solo puedes sugerir precisar su nombre real: nunca asumas ASGH ni cambies
+  otro hospital correctamente identificado.
+- Para dependencias de LSSD, prefiere «estación del Sheriff» o «estación del Alguacil» en vez de
+  «estación policial». No cambies así una estación de LSPD u otra agencia.
+- Para la institución judicial del servidor, prefiere «Departamento de Justicia» en vez de
+  «Ministerio Público» o «Fiscalía». No reescribas declaraciones textuales atribuidas a terceros.
 
 **Evidencia de rol:**
 - Las menciones a BWC, DICV, Axon u otras grabaciones son entorno narrativo: no exijas sus archivos,
@@ -776,4 +809,6 @@ ayuden al usuario.
 - Escribe las evaluaciones de `charges` y `manual_review_reason` con el mismo estándar técnico y
   neutral.
 - Combina puntos relacionados, omite observaciones sin valor y sé conciso, específico y accionable.
+- Publica solo conclusiones finales consistentes: no incluyas borradores, alternativas descartadas
+  ni autocorrecciones internas en los campos técnicos de la revisión.
 </output>"""

@@ -221,6 +221,39 @@ def test_review_calibration_uses_semantic_coverage_and_material_threshold() -> N
     assert "fuente oficial" in calibration["iteration"][2]
 
 
+def test_guide_distinguishes_optional_wording_from_mandatory_corrections() -> None:
+    sections = ReportGuide.load_default().get(["writing_style", "review_calibration"])["sections"]
+    optional = " ".join(sections["writing_style"]["optional_recommendations"])
+    blocking = " ".join(sections["review_calibration"]["blocking_threshold"])
+
+    for term in (
+        "observation", "nunca required", "30 de septiembre de 2026", "paramédicos", "ambulancia",
+        "All Saints General Hospital", "sin asumir ASGH", "estación del Sheriff", "estación del Alguacil",
+        "LSPD u otra agencia", "Departamento de Justicia", "No reescribir declaraciones textuales",
+    ):
+        assert term in optional
+    assert "no incluirlas en revisiones limitadas a cargos ni repetirlas" in optional
+    assert "Conservar approved" in blocking
+    assert "gramática o redacción solo bloquean si alteran el significado" in blocking
+    assert "No generar hallazgos por alternar tiempos" in blocking
+    assert "Toda falta verificable" not in blocking
+    assert "Una falta objetiva de ortografía" in blocking
+    assert "Los puntos comprobados como correctos no son hallazgos" in blocking
+
+
+def test_guide_clarifies_possession_without_rewriting_the_original_charge() -> None:
+    rules = " ".join(ReportGuide.load_default().get(["charge_review"])["sections"]["charge_review"]["rules"])
+
+    assert "CP-30600.1 — Posesión de subfusiles o armas automáticas" in rules
+    assert "conductas alternativas, no requisitos adicionales" in rules
+    assert "encontrarla cerca no demuestra posesión" in rules
+    assert "vínculo o el tipo son dudosos, usar uncertain" in rules
+    assert "No extender esta aclaración a otros cargos" in rules
+    charge = ChargeCatalog.load_default().get_details([203])["charges"][0]
+    assert "transporte" in charge["description"]
+    assert "posesión" not in charge["description"]
+
+
 @pytest.mark.asyncio
 async def test_charge_selector_copy_comes_from_selected_persona(persona) -> None:
     roy = (await PackagedPersonaProvider().load("roy_velazco")).profile

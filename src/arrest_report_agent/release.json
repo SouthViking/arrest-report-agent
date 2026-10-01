@@ -1,22 +1,22 @@
 {
   "schema_version": 3,
-  "version": "0.42.0",
-  "title": "Reemplazo de solicitudes de roles",
-  "summary": "Ahora puedes enviar una nueva solicitud de roles sin esperar a que se resuelva la anterior.",
+  "version": "0.42.1",
+  "title": "Ajustes en las revisiones de arresto",
+  "summary": "Afinamos la evaluación de posesión de subfusiles y las sugerencias de redacción, manteniendo la distinción entre mejoras opcionales y correcciones obligatorias.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "improved",
-      "text": "Al enviar una nueva solicitud con /solicitar-roles, se cancelan las pendientes anteriores del mismo usuario y queda únicamente la nueva activa, aunque sus mensajes hayan sido eliminados."
+      "type": "fixed",
+      "text": "CP-30600.1 admite posesión, porte o transporte documentados sin exigir venta o fabricación. Se distingue entre vínculo incierto y hechos que contradicen la posesión, sin alterar la descripción original del catálogo."
     },
     {
       "type": "improved",
-      "text": "La tarjeta original y las notificaciones a Command/Executive se actualizan en gris, con el motivo de cancelación, los botones deshabilitados y un enlace a la nueva solicitud."
+      "text": "Fecha desarrollada, paramédicos/ambulancia, hospital identificado, estación del Sheriff y Departamento de Justicia se agrupan como sugerencias no bloqueantes. No se asumen hospitales ni se cambian dependencias de otras agencias."
     },
     {
       "type": "improved",
-      "text": "Se conserva el historial. Si falla la publicación de la nueva solicitud, la anterior sigue pendiente; no se interrumpen aprobaciones en curso. /info-roles explica el nuevo funcionamiento."
+      "text": "Guía e instrucciones alineadas para evitar falsos positivos y conservar requisitos como el rango inicial. Validado con tests automatizados y 10 escenarios con IA real; las evaluaciones con IA quedan omitidas por defecto en CI."
     }
   ],
   "acknowledgements": []

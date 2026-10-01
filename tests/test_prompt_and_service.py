@@ -167,6 +167,27 @@ def test_review_prompt_checks_only_the_authors_opening_rank(persona) -> None:
     assert "En `charges` no evalúes este punto" in prompt
 
 
+@pytest.mark.parametrize("access_level", [AgentAccessLevel.FULL, AgentAccessLevel.REPORT_OWNER])
+def test_review_prompt_clarifies_submachine_gun_possession_and_optional_style(persona, access_level) -> None:
+    prompt = build_agent_instructions(persona, access_level)
+
+    assert "CP-30600.1 — Posesión de subfusiles o armas automáticas" in prompt
+    assert "conductas alternativas, no requisitos" in prompt
+    assert "encontrar un subfusil cerca\n  no demuestra posesión" in prompt
+    assert "vínculo o el tipo de arma, usa `uncertain`" in prompt
+    assert "ni alteres la descripción original" in prompt
+    assert "un hallazgo `observation` titulado «Sugerencias de redacción»" in prompt
+    assert "ni impiden `approved` por sí solas" in prompt
+    assert "No las incluyas en una revisión limitada a cargos" in prompt
+    assert "Conserva la fecha real" in prompt
+    assert "«paramédicos»" in prompt and "«ambulancia»" in prompt
+    assert "nunca asumas ASGH" in prompt
+    assert "No cambies así una estación de LSPD" in prompt
+    assert "«Departamento de Justicia»" in prompt
+    assert "No reescribas declaraciones textuales" in prompt
+    assert "Los puntos comprobados como correctos no son hallazgos" in prompt
+
+
 def test_report_owner_keeps_a_specialized_mission(persona) -> None:
     prompt = build_agent_instructions(persona, AgentAccessLevel.REPORT_OWNER)
 

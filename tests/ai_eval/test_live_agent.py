@@ -2213,3 +2213,196 @@ async def test_review_checks_overdue_unpaid_fine_at_report_time(
     assert facts_lookup.queries[0].checks == ("overdue_unpaid_fines",)
     assert facts_lookup.queries[0].reference_at == arrest_lookup.report.created_at
     assert facts_lookup.queries[0].exclude_arrest_id == arrest_lookup.report.report_id
+
+
+async def _run_calibration_review(
+    settings: AppSettings,
+    narrative: str,
+    *,
+    request: str = "Inicia la revisión completa del expediente estructurado.",
+    charge: ArrestReportCharge | None = None,
+    follow_up: bool = False,
+) -> ReviewPublication:
+    """Use production instructions/tools with synthetic SARP data and no Discord writes."""
+
+    lookup = RecordingArrestReportLookup()
+    lookup.report = replace(
+        lookup.report,
+        description=narrative,
+        created_at=datetime(2026, 9, 30, 12, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 9, 30, 13, 0, tzinfo=UTC),
+        charges=(charge or replace(lookup.report.charges[0], charge_id=115),),
+    )
+    turns = (
+        (("user", "Expediente de Terry McKenzie."), ("assistant", "Revisión anterior publicada."))
+        if follow_up else ()
+    ) + (("user", request),)
+    case = _case(
+        *turns,
+        root_author_display="C. Harrington / M. Crawford",
+        initial_channel_id=4002,
+        structured_submission_id=UUID("00000000-0000-0000-0000-000000000751"),
+        structured_report_id=lookup.report.report_id,
+        structured_suspect_name=lookup.report.suspect_name,
+    )
+    _, publisher = await _run_agent(
+        settings.model_copy(update={"bot_persona": "roy_velazco"}),
+        case,
+        access_level=AgentAccessLevel.FULL if follow_up else AgentAccessLevel.REPORT_OWNER,
+        arrest_report_lookup=lookup,
+        preloaded_arrest_report=None if follow_up else lookup.report,
+        faction_officer_rank_lookup=RecordingOfficerRankLookup(current_rank="Deputy Sheriff"),
+        evidence_bag_lookup=RecordingEvidenceBagLookup(unanalyzed_ids={4654218}),
+    )
+    if follow_up:
+        assert lookup.current or lookup.details, "a re-review must refresh the bound SARP report"
+    else:
+        assert lookup.current == lookup.details == lookup.searches == [], "reuse the preloaded report"
+    return _single_publication(publisher)
+
+
+@pytest.mark.parametrize(
+    ("facts", "alignment"),
+    [
+        pytest.param(
+            "Terry McKenzie llevaba un subfusil automático entre sus manos. Se lo incauté.",
+            "supported", id="possession-without-sale-or-shots",
+        ),
+        pytest.param(
+            "Terry McKenzie descendió de un vehículo portando un subfusil automático. Huyó a pie "
+            "transportándolo y disparó contra los agentes antes de rendirse. Lo incauté de sus manos.",
+            "supported", id="carrying-and-firing",
+        ),
+        pytest.param(
+            "Encontré un subfusil automático bajo un banco cercano a Terry McKenzie. No pude "
+            "determinar quién lo había dejado ni si Terry lo había portado o controlado.",
+            "uncertain", id="nearby-without-link",
+        ),
+        pytest.param(
+            "Incauté un arma a Terry McKenzie, pero su tipo y mecanismo de disparo quedaron "
+            "sin identificar. No pude confirmar que fuera un subfusil o arma automática.",
+            "uncertain", id="unknown-weapon-type",
+        ),
+        pytest.param(
+            "El subfusil automático pertenecía a otro detenido, que lo portó durante toda la "
+            "intervención. Terry McKenzie estuvo desarmado y nunca lo tuvo bajo su control.",
+            "unsupported", id="possession-explicitly-negated",
+        ),
+    ],
+)
+async def test_review_calibration_submachine_gun_possession(
+    ai_eval_settings: AppSettings, facts: str, alignment: str, record_property,
+) -> None:
+    charge = ArrestReportCharge(
+        charge_id=203,
+        code="CP-30600.1",
+        name="Posesión de subfusiles o armas automáticas",
+        charge_type="GRAVE",
+        hours=2,
+        fine=42_000,
+    )
+    narrative = (
+        "Yo, ayudante Charles Harrington, bajo la asignación 280L, intervine en Jefferson el "
+        "30 de septiembre de 2026 a las 09:00. " + facts + " El subfusil o arma incautada quedó "
+        "registrada como evidencia en la bolsa #4654218. Arresté a Terry y lo trasladé sin "
+        "lesiones a la estación del Sheriff de Ganton."
+    )
+    scope = ReviewScope.FULL if alignment == "supported" else ReviewScope.CHARGES
+    publication = await _run_calibration_review(
+        ai_eval_settings, narrative, charge=charge,
+        request=(
+            "Inicia la revisión completa del expediente estructurado." if scope is ReviewScope.FULL
+            else "Revisa únicamente la coherencia del cargo declarado con los hechos del reporte."
+        ),
+    )
+    record_property("review", publication.model_dump_json())
+
+    assert publication.review_scope is scope
+    assert len(publication.charges) == 1
+    assert publication.charges[0].charge_id == 203
+    assert publication.charges[0].alignment == alignment, publication.model_dump(mode="json")
+    assert publication.verdict is ReviewVerdict.APPROVED, "charge assessments alone do not block"
+    assert not any(finding.severity.value == "required" for finding in publication.findings)
+    if scope is ReviewScope.CHARGES:
+        assert publication.findings == [], "a charges-only review must not add writing suggestions"
+
+
+_OPTIONAL_WORDING_NARRATIVE = (
+    "Yo, ayudante Charles Harrington, bajo la asignación 280L, patrullaba Jefferson el 30/09/2026 "
+    "a las 09:00 cuando observé a Terry McKenzie conducir en contra del sentido de circulación. "
+    "Lo detuve con luces y sirena, pero al informarle de su arresto por conducción temeraria, "
+    "volvió a encender el vehículo y huyó de la intervención. "
+    "Lo seguí hasta que perdió el control y colisionó contra una barrera. Quedó detenido en el "
+    "lugar. Solicité unidades paramédicas para atender su herida en la pierna. Fue trasladado "
+    "al centro hospitalario y, tras recibir el alta, lo llevé a la estación policial de Ganton "
+    "del LSSD para procesar su arresto. El expediente fue remitido al Ministerio Público / "
+    "Fiscalía. No se recolectó evidencia física."
+)
+
+
+@pytest.mark.parametrize("follow_up", [False, True], ids=["command-owner", "thread-staff"])
+async def test_review_calibration_wording_is_grouped_and_nonblocking(
+    ai_eval_settings: AppSettings, follow_up: bool, record_property,
+) -> None:
+    publication = await _run_calibration_review(
+        ai_eval_settings, _OPTIONAL_WORDING_NARRATIVE, follow_up=follow_up,
+        request=(
+            "Revisa nuevamente el reporte completo en PCU." if follow_up
+            else "Inicia la revisión completa del expediente estructurado."
+        ) + " La hoja de traslado identifica el hospital de destino como ASGH.",
+    )
+    record_property("review", publication.model_dump_json())
+    assert publication.review_scope is ReviewScope.FULL
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+    assert len(publication.findings) == 1, publication.model_dump(mode="json")
+    finding = publication.findings[0]
+    assert finding.severity.value == "observation"
+    assert finding.title == "Sugerencias de redacción"
+    rendered = finding.model_dump_json().casefold()
+    assert "30 de septiembre de 2026" in rendered
+    assert "paramédicos" in rendered
+    assert "asgh" in rendered or "all saints" in rendered
+    assert "sheriff" in rendered or "alguacil" in rendered
+    assert "departamento de justicia" in rendered
+    assert all(charge.alignment == "supported" for charge in publication.charges)
+
+
+@pytest.mark.parametrize(
+    "hospital", ["a un centro hospitalario", "al hospital County General"],
+    ids=["unknown-hospital", "different-known-hospital"],
+)
+async def test_review_calibration_does_not_invent_hospital_or_replace_lspd(
+    ai_eval_settings: AppSettings, hospital: str, record_property,
+) -> None:
+    narrative = (
+        "Yo, ayudante Charles Harrington, bajo la asignación 280L, patrullaba Jefferson el "
+        "30 de septiembre de 2026 a las 09:00 cuando observé a Terry McKenzie conducir en "
+        "contra del sentido de circulación. Lo detuve con luces y sirena, pero cuando le "
+        "informé de su arresto por conducción temeraria volvió a encender el vehículo y huyó. "
+        "Lo seguí hasta que colisionó contra una barrera. Los paramédicos lo "
+        f"atendieron y una ambulancia lo trasladó {hospital}. Tras recibir el alta, quedó "
+        "bajo custodia de LSPD en su estación policial de Pershing Square. Remití el expediente "
+        "al Departamento de Justicia. No se recolectó evidencia física."
+    )
+    publication = await _run_calibration_review(ai_eval_settings, narrative)
+    record_property("review", publication.model_dump_json())
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+    assert all(finding.severity.value == "observation" for finding in publication.findings)
+    suggestions = " ".join(finding.recommendation for finding in publication.findings).casefold()
+    assert "asgh" not in suggestions and "all saints" not in suggestions
+    assert "estación del sheriff" not in suggestions and "estación del alguacil" not in suggestions
+
+
+async def test_review_calibration_optional_style_does_not_hide_missing_rank(
+    ai_eval_settings: AppSettings, record_property,
+) -> None:
+    publication = await _run_calibration_review(
+        ai_eval_settings, _OPTIONAL_WORDING_NARRATIVE.replace("Yo, ayudante", "Yo,"),
+    )
+    record_property("review", publication.model_dump_json())
+    assert publication.verdict is ReviewVerdict.CORRECTIONS_REQUIRED
+    required = [finding for finding in publication.findings if finding.severity.value == "required"]
+    assert required, publication.model_dump(mode="json")
+    assert all("rango" in (finding.title + finding.detail).casefold() for finding in required)
+    optional = [finding for finding in publication.findings if finding.title == "Sugerencias de redacción"]
+    assert len(optional) == 1 and optional[0].severity.value == "observation"

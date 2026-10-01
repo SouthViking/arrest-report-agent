@@ -1,5 +1,5 @@
 {
-  "version": "2026-09-27",
+  "version": "2026-10-01",
   "source": "Manual de procedimientos LSSD proporcionado para el MVP",
   "sections": {
     "overview": {
@@ -19,6 +19,14 @@
       "avoid": [
         "Resaltados innecesarios en negrita o cursiva dentro de la narrativa.",
         "Uso generalizado de mayúsculas salvo nombres propios, códigos, callsigns o anexos que lo requieran."
+      ],
+      "optional_recommendations": [
+        "En revisiones completas o de narrativa, agrupar las mejoras aplicables en un hallazgo observation titulado Sugerencias de redacción. Son opcionales: nunca required ni bloqueantes por sí solas. En revisiones focalizadas, solo dentro del foco; no incluirlas en revisiones limitadas a cargos ni repetirlas para el mismo texto si ya se ofrecieron.",
+        "Preferir la fecha desarrollada en la narrativa, por ejemplo «30 de septiembre de 2026» en vez de «30/09/2026», conservando la fecha real. No exigir reformatear fechas automáticas de la tarjeta ni de la API.",
+        "Para asistencia médica, preferir paramédicos al hablar del personal y ambulancia al hablar del vehículo; por ejemplo, sugerir «solicité paramédicos» en vez de «solicité unidades paramédicas». No son intercambiables ni autorizan a inventar asistencia no documentada.",
+        "Si consta que el destino fue ASGH, preferir ASGH, All Saints General Hospital o una denominación en español como Hospital General All Saints frente a centro hospitalario. Si el hospital no está identificado, sugerir precisar su nombre real, sin asumir ASGH ni sustituir otro hospital correctamente identificado.",
+        "Para dependencias de LSSD, preferir estación del Sheriff o estación del Alguacil en vez de estación policial. No sustituir así una estación de LSPD u otra agencia.",
+        "Para la institución judicial del servidor, preferir Departamento de Justicia en vez de Ministerio Público o Fiscalía. No reescribir declaraciones textuales atribuidas a terceros."
       ]
     },
     "narrative_structure": {
@@ -92,6 +100,7 @@
         "Ignorar filas claramente antiguas o ajenas; si no queda una fila asociable al procedimiento, solicitar el listado correcto en vez de atribuir cargos históricos.",
         "Comparar cada cargo declarado con los hechos narrados y la descripción vigente del catálogo.",
         "Para la evasión, considerar suficiente una secuencia que muestre razonablemente un intento de huir o eludir una intervención policial; no exigir que se transcriba una voz de alto, una orden literal ni una detención física previa.",
+        "Criterio operativo del servidor para CP-30600.1 — Posesión de subfusiles o armas automáticas: portar, transportar o tener bajo control un subfusil o arma automática sustenta la posesión. Fabricación, venta, distribución o préstamo son conductas alternativas, no requisitos adicionales. No declarar el cargo sin sustento solo porque la descripción no diga posesión; considerar también el transporte incluido en el catálogo. Debe existir un vínculo documentado entre el sospechoso y ese tipo de arma: encontrarla cerca no demuestra posesión. Si el vínculo o el tipo son dudosos, usar uncertain; si los hechos lo contradicen expresamente, unsupported. No extender esta aclaración a otros cargos ni modificar la descripción original al citarla.",
         "No asumir elementos del delito que no estén narrados o visibles.",
         "Distinguir un cargo potencialmente incorrecto de un caso donde falta contexto para confirmarlo.",
         "Usar IDs únicos del catálogo; un mismo código puede aparecer en más de una entrada."
@@ -107,12 +116,14 @@
         "Si falta el rango del agente redactor en la identificación inicial de la narrativa, solicitar corrección obligatoria aunque pueda inferirse de otros datos. Aceptar «ayudante» cuando era Deputy Sheriff al momento del arresto; si existe evidencia concreta de que tenía otro rango, solicitar que lo indique en español. Si declara otro rango únicamente en inglés, pedir su denominación española como corrección obligatoria, sin cuestionar por ello el grado. No rechazar solo por una diferencia con el rango actual de SARP, que puede haber cambiado. No aplicar esta regla a los compañeros mencionados ni a una revisión limitada a cargos.",
         "Cualquier callsign escrito con una palabra fonética completa dentro de la narrativa del reporte de arresto requiere corrección obligatoria a su forma abreviada; por ejemplo, 282 Sam a 282S o 281 Adam a 281A. Aplicar en revisiones completas o de narrativa; en una revisión focalizada, solo si el callsign está dentro del foco. No evaluar este formato en una revisión limitada a cargos ni en comunicaciones radiales.",
         "Solicitar corrección obligatoria solo cuando el problema corregible afecte la comprensión de los hechos, el fundamento documentado del arresto, la identificación relevante o la trazabilidad de evidencia física.",
-        "Toda falta verificable de ortografía, gramática, puntuación o redacción debe corregirse y bloquea la aprobación.",
+        "Una falta objetiva de ortografía, tilde o puntuación claramente incorrecta requiere corrección obligatoria y bloquea la aprobación. La gramática o redacción solo bloquean si alteran el significado, introducen ambigüedad material o dificultan comprender la secuencia. No generar hallazgos por alternar tiempos o formas verbales naturales del relato oral cuando sujeto, acción, orden temporal y resultado sigan siendo inequívocos.",
         "Citar ejemplos representativos y agrupar errores lingüísticos del mismo tipo en un solo hallazgo accionable.",
         "Una preferencia de formato, como el diseño o el formato horario, no bloquea si la guía no la exige y el dato continúa siendo inequívoco. La abreviatura del callsign cuando figura en la narrativa del reporte sí es obligatoria.",
         "La ausencia de un cierre o una conclusión separada no genera un hallazgo si el desarrollo y el resultado del incidente ya son comprensibles; solo es material cuando realmente queda ambiguo cómo terminó la actuación.",
         "Una referencia numérica descrita como serial, número, ID o referencia de ítems o elementos en evidencia satisface la trazabilidad sin tener que llamarse explícitamente bolsa.",
-        "Agrupar observaciones relacionadas y omitir preferencias editoriales sin impacto operativo."
+        "Las recomendaciones opcionales de writing_style sobre fecha desarrollada, asistencia médica, hospital, dependencias LSSD e institución judicial son observation, nunca required por sí solas. Conservar approved si no hay otros problemas bloqueantes y no inventar hechos para aplicar esas preferencias.",
+        "Los puntos comprobados como correctos no son hallazgos: si la explicación concluye que ya cumple o no requiere corrección, omitir ese punto de findings y decidir el veredicto sin ese falso positivo.",
+        "Agrupar las sugerencias de redacción aplicables y omitir otras preferencias editoriales sin impacto operativo."
       ],
       "iteration": [
         "En una re-revisión, juzgar la versión más reciente y considerar resueltos los puntos efectivamente corregidos.",
