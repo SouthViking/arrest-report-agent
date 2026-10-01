@@ -1,26 +1,22 @@
 {
   "schema_version": 3,
-  "version": "1.0.0",
-  "title": "Disponibilidad de instructores FTP",
-  "summary": "Los instructores pueden publicar bloques disponibles y los trainees reservar una ficha directamente desde la tarjeta. El flujo actual de solicitudes se mantiene.",
+  "version": "1.0.1",
+  "title": "Corrección de tarjetas de disponibilidad FTP",
+  "summary": "Cerrar una disponibilidad o reservar un bloque ya no elimina su mensaje en #ftp-fichas.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "added",
-      "text": "Nuevo /ofrecer-ficha para FTO, MFTO, Supervisory, Command y Executive: disponibilidad inmediata o programada, zona horaria, duración y hasta 5 bloques consecutivos. Permite varias publicaciones para horarios separados sin solaparlos."
+      "type": "fixed",
+      "text": "Al cerrar una disponibilidad, la tarjeta permanece visible, queda gris y marcada como cerrada, con sus controles deshabilitados. Las reservas existentes se conservan."
     },
     {
-      "type": "added",
-      "text": "Solo FTT puede reservar. Seleccionar un bloque abre un formulario de fase y comentarios; al confirmar, la tarjeta muestra la reserva y se notifica al trainee y al instructor. La publicación inicial menciona al rol FTT."
-    },
-    {
-      "type": "added",
-      "text": "Disponibilidades y reservas persistidas en PostgreSQL, con protección contra reservas simultáneas. Los bloques libres vencen al terminar su horario; cerrar una disponibilidad conserva las fichas ya asignadas. Las ediciones fallidas se reintentan automáticamente."
+      "type": "fixed",
+      "text": "Al reservar un bloque, se actualiza la misma tarjeta sin borrarla y los demás bloques disponibles siguen abiertos."
     },
     {
       "type": "improved",
-      "text": "El panel fijado incorpora Ofrecer disponibilidad; /info-ftp y /ayuda explican el nuevo flujo. Se reutilizan los roles y canales configurados, sin nuevas variables de entorno ni cambios en /solicitar-ficha."
+      "text": "Se protege la limpieza de respuestas efímeras y se añaden pruebas con el comportamiento real de Pycord para evitar que vuelva a borrarse el mensaje público."
     }
   ],
   "acknowledgements": []

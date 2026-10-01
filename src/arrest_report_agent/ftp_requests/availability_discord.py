@@ -121,8 +121,21 @@ async def error_response(interaction: discord.Interaction, message: str) -> None
         )
 
 
-async def clear_confirmation(interaction: discord.Interaction) -> None:
+async def clear_ephemeral_confirmation(interaction: discord.Interaction) -> None:
+    """Only remove a separate private response, never the component's source card."""
     with suppress(discord.HTTPException):
+        response = await interaction.original_response()
+        source_id = interaction.message.id if interaction.message is not None else None
+        if not response.flags.ephemeral or response.id == source_id:
+            log_event(
+                LOGGER,
+                "warning",
+                "ftp_availability_confirmation_cleanup_skipped",
+                interaction_id=interaction.id,
+                response_message_id=response.id,
+                source_message_id=source_id,
+            )
+            return
         await interaction.delete_original_response()
 
 
@@ -181,7 +194,9 @@ class AvailabilityService:
                 raise ValueError("Ya no tienes un rol habilitado para ofrecer fichas.")
             if not service.is_command_channel(interaction.channel_id or 0):
                 raise ValueError(f"Usa esta opción en {service.command_channel_mentions()}.")
-            await interaction.response.defer(ephemeral=True)
+            # Modal submissions default to updating their source message in Pycord.
+            # Create a separate private response before cleaning up the thinking state.
+            await interaction.response.defer(ephemeral=True, invisible=False)
             async with self.lock(f"publish:{interaction.id}"):
                 destination = await service.destination_channel(member.guild)
                 ftp = service.settings.ftp_status_options
@@ -226,7 +241,7 @@ class AvailabilityService:
                 blocks=len(offer.slots),
             )
             await self.sync(offer)
-            await clear_confirmation(interaction)
+            await clear_ephemeral_confirmation(interaction)
         except (ValueError, LookupError) as error:
             await error_response(interaction, str(error))
         except Exception as error:
@@ -289,7 +304,9 @@ class AvailabilityService:
             service, member = await self.context(interaction)
             if not can_reserve(service, member):
                 raise ValueError("Solo los Field Training Trainees pueden reservar bloques.")
-            await interaction.response.defer(ephemeral=True)
+            # This modal belongs to the public offer card. Acknowledge it without
+            # creating a confirmation; sync() edits the card and sends the booking reply.
+            await interaction.response.defer(invisible=True)
             offer = await self.repository.get(member.guild.id, offer_id)
             if interaction.channel_id != offer.channel_id:
                 raise ValueError("Esta reserva no corresponde a este canal.")
@@ -316,7 +333,6 @@ class AvailabilityService:
                 trainee_id=member.id,
             )
             await self.sync(offer)
-            await clear_confirmation(interaction)
         except (ValueError, LookupError) as error:
             await error_response(interaction, str(error))
         except Exception as error:
@@ -338,7 +354,9 @@ class AvailabilityService:
             offer = await self.resolve(interaction)
             if not can_close(service, member, offer):
                 raise ValueError("Solo el instructor, Command o Executive pueden cerrar esta disponibilidad.")
-            await interaction.response.defer(ephemeral=True)
+            # A deferred component update refers to the offer itself, not a temporary
+            # response. Only edit the card; deleting the original response would erase it.
+            await interaction.response.defer(invisible=True)
             offer = await self.repository.close(member.guild.id, offer.id)
             log_event(
                 LOGGER,
@@ -349,7 +367,6 @@ class AvailabilityService:
                 actor_id=member.id,
             )
             await self.sync(offer)
-            await clear_confirmation(interaction)
         except (ValueError, LookupError) as error:
             await error_response(interaction, str(error))
         except Exception as error:

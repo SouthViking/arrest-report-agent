@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -13,6 +14,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
+from discord.webhook.async_ import async_context
 from test_ftp_requests import _member, _service
 
 from arrest_report_agent.ftp_requests.availability_discord import (
@@ -27,6 +29,7 @@ from arrest_report_agent.ftp_requests.availability_discord import (
     can_close,
     can_offer,
     can_reserve,
+    clear_ephemeral_confirmation,
 )
 from arrest_report_agent.ftp_requests.availability_models import (
     AvailabilityOffer,
@@ -90,8 +93,39 @@ def _interaction(user=None, channel_id=50):
             is_done=Mock(return_value=False),
         ),
         followup=SimpleNamespace(send=AsyncMock()),
+        original_response=AsyncMock(
+            return_value=SimpleNamespace(id=101, flags=discord.MessageFlags(ephemeral=True))
+        ),
         delete_original_response=AsyncMock(),
     )
+
+
+@contextmanager
+def _pycord_response(interaction, kind):
+    """Exercise Pycord's actual defer implementation, mocking only the HTTP adapter."""
+    interaction.type = kind
+    interaction.token = "test-interaction-token"
+    interaction._session = None
+    interaction._state = SimpleNamespace(http=SimpleNamespace(proxy=None, proxy_auth=None))
+    interaction.response = discord.InteractionResponse(interaction)
+
+    async def respond(*_args, **kwargs):
+        ephemeral = bool((kwargs.get("data") or {}).get("flags", 0) & 64)
+        if kwargs["type"] == discord.InteractionResponseType.deferred_message_update.value:
+            interaction.original_response.return_value = interaction.message
+        else:
+            interaction.original_response.return_value = SimpleNamespace(
+                id=101,
+                flags=discord.MessageFlags(ephemeral=ephemeral),
+            )
+        return {"interaction": {"response_message_ephemeral": ephemeral}}
+
+    adapter = SimpleNamespace(create_interaction_response=AsyncMock(side_effect=respond))
+    token = async_context.set(adapter)
+    try:
+        yield adapter
+    finally:
+        async_context.reset(token)
 
 
 def _availability(persona):
@@ -292,6 +326,8 @@ def _discord_sync(service, offer, *, error=None):
         embeds=[],
         edit=AsyncMock(side_effect=error),
         reply=AsyncMock(),
+        delete=AsyncMock(),
+        flags=discord.MessageFlags(),
     )
     channel = MagicMock(spec=discord.TextChannel)
     channel.fetch_message = AsyncMock(return_value=message)
@@ -362,12 +398,17 @@ async def test_publication_mentions_only_trainees_and_removes_private_confirmati
     channel = SimpleNamespace(id=50, send=AsyncMock(return_value=message))
     existing.destination_channel = AsyncMock(return_value=channel)
     service.sync = AsyncMock()
-    await service.create(interaction, start=draft.slots[0].starts_at, minutes=60, count=3, comments="")
+    with _pycord_response(interaction, discord.InteractionType.modal_submit) as adapter:
+        await service.create(interaction, start=draft.slots[0].starts_at, minutes=60, count=3, comments="")
+    ack = adapter.create_interaction_response.await_args.kwargs
+    assert ack["type"] == discord.InteractionResponseType.deferred_channel_message.value
+    assert ack["data"] == {"flags": 64}
     assert channel.send.await_args.kwargs["content"] == "<@&40>"
     assert channel.send.await_args.kwargs["allowed_mentions"].to_dict() == {"roles": [40], "parse": []}
     assert all(child.disabled for child in channel.send.await_args.kwargs["view"].children)
     service.sync.assert_awaited_once_with(published)
     interaction.delete_original_response.assert_awaited_once()
+    message.delete.assert_not_awaited()
     interaction.followup.send.assert_not_awaited()
 
 
@@ -409,12 +450,141 @@ async def test_booking_validates_roles_again_and_does_not_send_extra_success_mes
     await service.reserve(interaction, offer.id, offer.slots[0].id, FtpTrainingPhase.PHASE_1, "Texto")
     service.repository.reserve.assert_awaited_once()
     service.sync.assert_awaited_once_with(offer)
-    interaction.delete_original_response.assert_awaited_once()
+    interaction.response.defer.assert_awaited_once_with(invisible=True)
+    interaction.delete_original_response.assert_not_awaited()
+    interaction.original_response.assert_not_awaited()
     interaction.response.send_message.assert_not_awaited()
     member.guild.get_member.return_value = _member(300, (80,))
     service.repository.reserve.reset_mock()
     await service.reserve(_interaction(member), offer.id, offer.slots[1].id, FtpTrainingPhase.PHASE_1, "")
     service.repository.reserve.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_close_button_edits_offer_card_and_never_deletes_it(persona):
+    service, _ = _availability(persona)
+    offer = _offer()
+    reserved = offer.slots[0].model_copy(
+        update={
+            "status": "reserved",
+            "trainee_id": 200,
+            "phase": FtpTrainingPhase.PHASE_2,
+        }
+    )
+    closed = offer.model_copy(
+        update={
+            "status": "closed",
+            "slots": (
+                reserved,
+                *(slot.model_copy(update={"status": "closed"}) for slot in offer.slots[1:]),
+            ),
+        }
+    )
+    service.repository.by_message.return_value = offer
+    service.repository.close.return_value = closed
+    message, _, _ = _discord_sync(service, closed)
+    interaction = _interaction(_member(300, (30,)))
+    interaction.message = message
+    interaction.client = SimpleNamespace(ftp_availability_service=service)
+    with _pycord_response(interaction, discord.InteractionType.component) as adapter:
+        await AvailabilityControlsView(offer).close_button.callback(interaction)
+    ack = adapter.create_interaction_response.await_args.kwargs
+    assert ack["type"] == discord.InteractionResponseType.deferred_message_update.value
+    service.repository.close.assert_awaited_once_with(offer.guild_id, offer.id)
+    message.edit.assert_awaited_once()
+    edit = message.edit.await_args.kwargs
+    assert "Disponibilidad cerrada" in edit["embed"].description
+    assert edit["embed"].color == discord.Color.light_grey()
+    assert "<@200> · Fase 2" in edit["embed"].fields[0].value
+    assert all(child.disabled for child in edit["view"].children)
+    assert edit["allowed_mentions"].to_dict() == {"parse": []}
+    message.delete.assert_not_awaited()
+    interaction.delete_original_response.assert_not_awaited()
+    interaction.original_response.assert_not_awaited()
+    interaction.followup.send.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reservation_modal_keeps_offer_card_and_other_free_blocks(persona):
+    service, _ = _availability(persona)
+    offer = _offer()
+    reserved = offer.slots[0].model_copy(
+        update={
+            "status": "reserved",
+            "trainee_id": 200,
+            "phase": FtpTrainingPhase.PHASE_1,
+            "notification_due": True,
+        }
+    )
+    booked = offer.model_copy(update={"slots": (reserved, *offer.slots[1:])})
+    message, _, _ = _discord_sync(service, booked)
+    service.repository.reserve.return_value = booked
+    member = _member(200, (40,))
+    member.guild.get_member = Mock(return_value=_member(300, (30,)))
+    interaction = _interaction(member)
+    interaction.message = message
+    modal = ReservationModal(service, 200, offer, offer.slots[0])
+    modal.phase._selected_values = ["phase_1"]
+    modal.phase._interaction = SimpleNamespace(data={})
+    with _pycord_response(interaction, discord.InteractionType.modal_submit) as adapter:
+        await modal.callback(interaction)
+    assert (
+        adapter.create_interaction_response.await_args.kwargs["type"]
+        == discord.InteractionResponseType.deferred_message_update.value
+    )
+    edit = message.edit.await_args.kwargs
+    assert "<@200> · Fase 1" in edit["embed"].fields[0].value
+    select = next(child for child in edit["view"].children if isinstance(child, discord.ui.Select))
+    assert [item.label for item in select.options] == ["Bloque 2", "Bloque 3"]
+    message.reply.assert_awaited_once()
+    message.delete.assert_not_awaited()
+    interaction.delete_original_response.assert_not_awaited()
+    interaction.original_response.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_close_error_is_private_without_deleting_card(persona):
+    service, _ = _availability(persona)
+    offer = _offer()
+    service.repository.by_message.return_value = offer
+    service.repository.close.side_effect = RuntimeError("Database unavailable")
+    interaction = _interaction(_member(300, (30,)))
+    with _pycord_response(interaction, discord.InteractionType.component):
+        await service.close(interaction)
+    assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
+    interaction.delete_original_response.assert_not_awaited()
+    interaction.original_response.assert_not_awaited()
+
+
+@pytest.mark.parametrize("ephemeral,same_source", [(False, True), (False, False), (True, True)])
+@pytest.mark.asyncio
+async def test_confirmation_cleanup_rejects_public_responses_and_source_message(ephemeral, same_source):
+    interaction = _interaction()
+    interaction.original_response.return_value = SimpleNamespace(
+        id=interaction.message.id if same_source else 101,
+        flags=discord.MessageFlags(ephemeral=ephemeral),
+    )
+    await clear_ephemeral_confirmation(interaction)
+    interaction.delete_original_response.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirmation_cleanup_only_deletes_separate_private_response():
+    interaction = _interaction()
+    await clear_ephemeral_confirmation(interaction)
+    interaction.delete_original_response.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_guard_also_protects_against_pycord_default_component_defer():
+    interaction = _interaction()
+    interaction.message.flags = discord.MessageFlags()
+    with _pycord_response(interaction, discord.InteractionType.component):
+        # Regression: ephemeral=True alone still points at the component's public card.
+        await interaction.response.defer(ephemeral=True)
+        await clear_ephemeral_confirmation(interaction)
+    assert interaction.original_response.return_value is interaction.message
+    interaction.delete_original_response.assert_not_awaited()
 
 
 @pytest.mark.asyncio
