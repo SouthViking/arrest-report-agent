@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from functools import partial
 
 import discord
 from agents import set_default_openai_key
@@ -54,6 +55,12 @@ from arrest_report_agent.ftp_requests import (
     FtpRequestRepository,
     FtpRequestServiceRegistry,
 )
+from arrest_report_agent.ftp_requests.availability_discord import (
+    AvailabilityCog,
+    AvailabilityControlsView,
+    AvailabilityService,
+)
+from arrest_report_agent.ftp_requests.availability_repository import AvailabilityRepository
 from arrest_report_agent.ftp_requests.maintenance import FtpRequestMaintenance
 from arrest_report_agent.ftp_status import FtpStatusCog, FtpStatusService
 from arrest_report_agent.infrastructure.discord import (
@@ -551,12 +558,19 @@ async def build_runtime(
     bot.add_view(FtpRequestControlsView())
     bot.add_view(FtpRequestPanelView())
     bot.add_cog(FtpRequestCog(ftp_request_registry, persona.profile))
+    ftp_availability = AvailabilityService(bot, ftp_request_registry, AvailabilityRepository(postgres))
+    bot.ftp_availability_service = ftp_availability  # type: ignore[attr-defined]
+    bot.add_view(AvailabilityControlsView())
+    bot.add_cog(AvailabilityCog(ftp_availability))
     maintenance = MaintenanceScheduler(bot.is_ready)
     maintenance.register("role-request-cancellations", registry.sync_cancellations, interval_seconds=300)
     ftp_maintenance = FtpRequestMaintenance(bot, config_provider, ftp_request_repository, maintenance)
     config_provider.register_guild_callback(ftp_maintenance.configuration_updated)
+    configure_availability = partial(ftp_availability.configure_maintenance, maintenance)
+    config_provider.register_guild_callback(configure_availability)
     for bundle in all_bundles:
         await ftp_maintenance.configuration_updated(bundle)
+        await configure_availability(bundle)
     maintenance.start()
     log_event(
         LOGGER,

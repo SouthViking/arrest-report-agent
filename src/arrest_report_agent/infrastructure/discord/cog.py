@@ -1453,6 +1453,15 @@ class ReviewCog(commands.Cog):
                     extra_feature_lines.append(
                         "• `/info-ftp`: cómo programar y seguir una ficha del FTP."
                     )
+                    from arrest_report_agent.ftp_requests.availability_discord import can_offer
+
+                    ftp_registry = getattr(self.bot, "ftp_request_registry", None)
+                    if ftp_registry is not None and isinstance(ctx.author, discord.Member):
+                        ftp_service = await ftp_registry.get(ctx.guild.id)
+                        if can_offer(ftp_service, ctx.author):
+                            extra_feature_lines.append(
+                                "• `/ofrecer-ficha`: publica bloques disponibles para instruir trainees."
+                            )
                 feature = bundle.snapshot.features.get("logbook")
                 if (
                     feature is not None

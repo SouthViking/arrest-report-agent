@@ -1,22 +1,26 @@
 {
   "schema_version": 3,
-  "version": "0.42.1",
-  "title": "Ajustes en las revisiones de arresto",
-  "summary": "Afinamos la evaluación de posesión de subfusiles y las sugerencias de redacción, manteniendo la distinción entre mejoras opcionales y correcciones obligatorias.",
+  "version": "0.43.0",
+  "title": "Disponibilidad de instructores FTP",
+  "summary": "Los instructores pueden publicar bloques disponibles y los trainees reservar una ficha directamente desde la tarjeta. El flujo actual de solicitudes se mantiene.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "fixed",
-      "text": "CP-30600.1 admite posesión, porte o transporte documentados sin exigir venta o fabricación. Se distingue entre vínculo incierto y hechos que contradicen la posesión, sin alterar la descripción original del catálogo."
+      "type": "added",
+      "text": "Nuevo /ofrecer-ficha para FTO, MFTO, Supervisory, Command y Executive: disponibilidad inmediata o programada, zona horaria, duración y hasta 5 bloques consecutivos. Permite varias publicaciones para horarios separados sin solaparlos."
+    },
+    {
+      "type": "added",
+      "text": "Solo FTT puede reservar. Seleccionar un bloque abre un formulario de fase y comentarios; al confirmar, la tarjeta muestra la reserva y se notifica al trainee y al instructor. La publicación inicial menciona al rol FTT."
+    },
+    {
+      "type": "added",
+      "text": "Disponibilidades y reservas persistidas en PostgreSQL, con protección contra reservas simultáneas. Los bloques libres vencen al terminar su horario; cerrar una disponibilidad conserva las fichas ya asignadas. Las ediciones fallidas se reintentan automáticamente."
     },
     {
       "type": "improved",
-      "text": "Fecha desarrollada, paramédicos/ambulancia, hospital identificado, estación del Sheriff y Departamento de Justicia se agrupan como sugerencias no bloqueantes. No se asumen hospitales ni se cambian dependencias de otras agencias."
-    },
-    {
-      "type": "improved",
-      "text": "Guía e instrucciones alineadas para evitar falsos positivos y conservar requisitos como el rango inicial. Validado con tests automatizados y 10 escenarios con IA real; las evaluaciones con IA quedan omitidas por defecto en CI."
+      "text": "El panel fijado incorpora Ofrecer disponibilidad; /info-ftp y /ayuda explican el nuevo flujo. Se reutilizan los roles y canales configurados, sin nuevas variables de entorno ni cambios en /solicitar-ficha."
     }
   ],
   "acknowledgements": []

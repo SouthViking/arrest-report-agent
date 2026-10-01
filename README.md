@@ -456,6 +456,9 @@ Comandos disponibles:
 - `/solicitar-ficha`: mantiene como alternativa el formulario con el que un FTT programa su ficha,
   elige un evaluador general o supervisor y recibe una notificación cuando alguien la toma. El canal
   configurado también contiene un panel fijado que abre el mismo formulario sin permitir mensajes normales.
+- `/ofrecer-ficha`: FTO, MFTO, Supervisory, Command y Executive publican bloques de disponibilidad;
+  solo los Field Training Trainees pueden reservarlos seleccionando la fase. También se abre desde
+  el panel fijado de FTP, sin escribir mensajes en el canal.
 - `/ver-evidencia`: permite al personal de `operational_staff_roles` consultar públicamente una
   bolsa por su número y ver el contenido analizado junto con su cadena de custodia. El agente con
   acceso completo reutiliza la misma consulta cuando necesita contrastar una bolsa durante una
@@ -734,6 +737,22 @@ FTT, Command o Executive y mantener varias solicitudes para horarios distintos; 
 o rangos superiores y la opción supervisor exige
 Supervisory, Command o Executive. Solo el autor, Command Staff o Executive Staff puede cancelar. El canal,
 panel y roles se resuelven desde PostgreSQL, sin nuevos environment vars.
+
+`/ofrecer-ficha` reutiliza esos canales y roles, sin nuevas variables de entorno. El instructor elige
+**Disponible ahora** o fecha/hora y zona IANA, duración de 30/45/60/90 minutos, 1–5 bloques contiguos
+y comentarios opcionales. Puede publicar varios horarios independientes; se rechazan solapamientos
+con sus bloques libres o reservados aún vigentes. La tarjeta menciona al rol FTT una vez, usa autor
+nativo y timestamps locales, y mantiene sus controles tras reiniciar. Seleccionar un bloque abre
+un modal de fase/comentarios: solo al enviarlo se reserva, revalidando roles y disponibilidad.
+La reserva atómica crea una ficha `claimed` (asignada, no completada), actualiza la tarjeta y
+responde mencionando al trainee e instructor. Solo el instructor o Command/Executive pueden cerrar
+una oferta; las reservas se conservan. Los bloques libres vencen a su hora de término, sin la gracia
+de las solicitudes pendientes. El mantenimiento compartido los revisa cada minuto; no llama a IA ni
+SARP. Las ediciones/notificaciones fallidas conservan una marca en BD para reintentarse sin deshacer
+reservas. Si se elimina una tarjeta, no se recrea y sus bloques libres se cierran. Las notificaciones
+se entregan con reintentos y deduplicación reciente por nonce (no garantizan exactamente una entrega
+ante fallos prolongados). `/info-ftp` y el panel fijado explican ambos flujos.
+
 `/fichas-activas` reutiliza esos registros para publicar en cualquier canal un resumen paginado de las
 solicitudes pendientes, ordenado por horario y restringido a `operational_staff_roles`.
 

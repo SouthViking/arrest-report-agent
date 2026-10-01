@@ -192,7 +192,8 @@ def test_manual_cancel_rendering_is_unchanged():
 
 
 def test_info_explains_dynamic_expiry_without_technical_details(persona):
-    service = SimpleNamespace(request_options=OPTIONS, ui=persona.messages.interface.ftp_requests)
+    service = SimpleNamespace(request_options=OPTIONS, ui=persona.messages.interface.ftp_requests,
+                              command_channel_mentions=lambda: "<#50>")
     text = str(build_ftp_info_embed(service).to_dict())
     assert "6 horas desde el horario solicitado" in text
     service.request_options = OPTIONS.model_copy(update={"expiry_grace_hours": 12})

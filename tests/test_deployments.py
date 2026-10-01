@@ -76,10 +76,11 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     assert not manifest.targets_changelog_channel(1234675609536430152)
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "CP-30600.1" in rendered_changes
-    assert "sin exigir venta o fabricación" in rendered_changes
-    assert "sugerencias no bloqueantes" in rendered_changes
-    assert "10 escenarios con IA real" in rendered_changes
+    assert "/ofrecer-ficha" in rendered_changes
+    assert "Solo FTT puede reservar" in rendered_changes
+    assert "PostgreSQL" in rendered_changes
+    assert "conserva las fichas ya asignadas" in rendered_changes
+    assert "/info-ftp" in rendered_changes
     assert all(word not in rendered_changes.lower() for word in ("thumbnail", "imagen", "migración"))
     assert manifest.acknowledgements == ()
 

@@ -628,6 +628,16 @@ class FtpRequestPanelView(discord.ui.View):
             ephemeral=True,
             allowed_mentions=discord.AllowedMentions.none(),
         )
+    @discord.ui.button(
+        label="Ofrecer disponibilidad", emoji="👨‍🏫", style=discord.ButtonStyle.secondary,
+        custom_id="ftp-availability:v1:open-form", row=1,
+    )
+    async def offer_form_button(
+        self, _button: discord.ui.Button[FtpRequestPanelView], interaction: discord.Interaction,
+    ) -> None:
+        from .availability_discord import availability_service
+
+        await availability_service(interaction).open_form(interaction)
 
 
 class FtpActiveRequestsView(discord.ui.View):
@@ -1103,7 +1113,30 @@ def build_ftp_info_embed(service: FtpRequestService) -> discord.Embed:
         value="El personal operativo puede usar `/fichas-activas` desde cualquier canal.",
         inline=False,
     )
-    embed.add_field(name="Importante", value=service.ui.info_closing, inline=False)
+    embed.add_field(
+        name="👨‍🏫 Ofrecer disponibilidad",
+        value=(
+            "Los FTO, MFTO, Supervisory, Command y Executive pueden usar `/ofrecer-ficha` "
+            f"en {service.command_channel_mentions()} o el botón **Ofrecer disponibilidad** "
+            "del mensaje fijado. "
+            "Elige **Disponible ahora** o una fecha y hora en tu zona horaria, la duración y de 1 a 5 "
+            "bloques seguidos. Para horarios separados, publica otra disponibilidad."
+        ), inline=False,
+    )
+    embed.add_field(
+        name="🗓️ Reservar un bloque",
+        value=(
+            "Solo los Field Training Trainees pueden reservar: selecciona un bloque disponible, "
+            "indica la fase y confirma el formulario. La tarjeta mostrará tu reserva y se avisará a ambos. "
+            "Los bloques libres vencen al terminar su horario. "
+            "Cerrar una disponibilidad no cancela las reservas."
+        ), inline=False,
+    )
+    embed.add_field(
+        name="Quién puede solicitar",
+        value="El botón **Solicitar ficha** está disponible para FTT y, por soporte, Command o Executive.",
+        inline=False,
+    )
     embed.set_footer(text="Field Training Program")
     return embed
 
@@ -1143,12 +1176,14 @@ def build_active_ftp_requests_embed(
 
 def build_ftp_request_panel_embed(service: FtpRequestService) -> discord.Embed:
     embed = discord.Embed(
-        title="🎓 Solicitudes de fichas FTP",
+        title="🎓 Fichas FTP",
         description=(
             f"{service.ui.info_intro}\n\n"
-            "Pulsa el botón, selecciona tu zona horaria e indica la fase, fecha, hora, tipo de "
+            "Pulsa **Solicitar ficha**, selecciona tu zona horaria e indica la fase, fecha, hora, tipo de "
             "evaluador y cualquier "
             "comentario adicional. Puedes mantener varias solicitudes para horarios distintos."
+            "\n\n**Instructores:** usa **Ofrecer disponibilidad** para publicar tus bloques libres. "
+            "Los trainees podrán reservarlos desde la tarjeta eligiendo la fase que necesitan."
         ),
         color=discord.Color.gold(),
     )

@@ -505,6 +505,53 @@ ftp_training_requests = sa.Table(
     ),
 )
 
+ftp_availability_offers = sa.Table(
+    "ftp_availability_offers", metadata, uuid_column(primary_key=True),
+    sa.Column("guild_id", sa.BigInteger, sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+              nullable=False),
+    sa.Column("channel_id", sa.BigInteger, nullable=False),
+    sa.Column("message_id", sa.BigInteger),
+    sa.Column("interaction_id", sa.BigInteger, nullable=False, unique=True),
+    sa.Column("instructor_id", sa.BigInteger, nullable=False),
+    sa.Column("comments", sa.String(500), nullable=False),
+    sa.Column("status", sa.String(20), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("revision", sa.Integer, nullable=False, server_default="0"),
+    sa.Column("sync_due_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint("status IN ('publishing','open','closed','failed')", name="ck_ftp_offer_status"),
+    sa.UniqueConstraint("guild_id", "channel_id", "message_id", name="uq_ftp_offer_message"),
+    sa.Index("ix_ftp_offer_instructor", "guild_id", "instructor_id"),
+    sa.Index("ix_ftp_offer_sync", "guild_id", "sync_due_at"),
+)
+
+ftp_availability_slots = sa.Table(
+    "ftp_availability_slots", metadata, uuid_column(primary_key=True),
+    sa.Column("offer_id", postgresql.UUID(as_uuid=True),
+              sa.ForeignKey("ftp_availability_offers.id", ondelete="CASCADE"), nullable=False),
+    sa.Column("position", sa.Integer, nullable=False),
+    sa.Column("starts_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("ends_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("status", sa.String(20), nullable=False),
+    sa.Column("trainee_id", sa.BigInteger),
+    sa.Column("phase", sa.String(20)),
+    sa.Column("comments", sa.String(500), nullable=False, server_default=""),
+    sa.Column("request_id", postgresql.UUID(as_uuid=True),
+              sa.ForeignKey("ftp_training_requests.id", deferrable=True, initially="DEFERRED"), unique=True),
+    sa.Column("notification_due", sa.Boolean, nullable=False, server_default=sa.false()),
+    sa.CheckConstraint("status IN ('free','reserved','closed','expired')", name="ck_ftp_slot_status"),
+    sa.CheckConstraint("ends_at > starts_at", name="ck_ftp_slot_times"),
+    sa.CheckConstraint("position BETWEEN 1 AND 5", name="ck_ftp_slot_position"),
+    sa.CheckConstraint(
+        "(status = 'reserved' AND trainee_id IS NOT NULL AND request_id IS NOT NULL "
+        "AND phase IS NOT NULL AND phase IN ('phase_1','phase_2','phase_3')) OR "
+        "(status <> 'reserved' AND trainee_id IS NULL AND request_id IS NULL AND phase IS NULL "
+        "AND NOT notification_due)", name="ck_ftp_slot_booking",
+    ),
+    sa.UniqueConstraint("offer_id", "position", name="uq_ftp_slot_position"),
+    sa.Index("ix_ftp_slot_expiry", "ends_at", postgresql_where=sa.text("status = 'free'")),
+)
+
 ftp_request_panels = sa.Table(
     "ftp_request_panels",
     metadata,

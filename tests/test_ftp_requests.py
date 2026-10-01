@@ -192,9 +192,11 @@ async def test_ftp_request_panel_is_persistent_and_opens_the_form() -> None:
     view = FtpRequestPanelView()
 
     assert view.timeout is None
-    assert len(view.children) == 1
+    assert len(view.children) == 2
     assert view.children[0].custom_id == "ftp-request:v1:open-form"
     assert view.children[0].label == "Solicitar ficha"
+    assert view.children[1].custom_id == "ftp-availability:v1:open-form"
+    assert view.children[1].label == "Ofrecer disponibilidad"
 
 
 @pytest.mark.asyncio
@@ -382,8 +384,9 @@ def test_ftp_info_embed_points_to_the_configured_channel(persona) -> None:
 def test_ftp_request_panel_explains_repeatable_scheduled_requests(persona) -> None:
     embed = build_ftp_request_panel_embed(_service(persona))
 
-    assert embed.title == "🎓 Solicitudes de fichas FTP"
-    assert "Pulsa el botón" in (embed.description or "")
+    assert embed.title == "🎓 Fichas FTP"
+    assert "Pulsa **Solicitar ficha**" in (embed.description or "")
+    assert "**Ofrecer disponibilidad**" in (embed.description or "")
     assert "varias solicitudes" in (embed.description or "")
 
 
