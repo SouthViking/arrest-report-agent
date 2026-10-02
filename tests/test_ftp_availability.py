@@ -30,6 +30,7 @@ from arrest_report_agent.ftp_requests.availability_discord import (
     can_offer,
     can_reserve,
     clear_ephemeral_confirmation,
+    instructor_type,
 )
 from arrest_report_agent.ftp_requests.availability_models import (
     AvailabilityOffer,
@@ -153,6 +154,60 @@ def _availability(persona):
     return AvailabilityService(bot, registry, repository), existing
 
 
+def _instructor(role_ids=(30,)):
+    member = _member(300, role_ids)
+    # Real roles support Member.roles sorting; display priority must not depend on it.
+    roles = {
+        role_id: discord.Role(
+            guild=member.guild,
+            state=member._state,
+            data={
+                "id": str(role_id),
+                "name": "Configured role",
+                "position": 100 - index,
+                "colors": {"primary_color": 0},
+            },
+        )
+        for index, role_id in enumerate(role_ids)
+    }
+    member.guild.get_role = roles.get
+    member._user.name = "Instructor"
+    member._user.global_name = None
+    member._user.avatar = SimpleNamespace(url="https://x.test/avatar.png")
+    return member
+
+
+@pytest.mark.parametrize(
+    "roles,expected",
+    [
+        ((30,), "FTO"),
+        ((20,), "MFTO"),
+        ((10,), "Supervisory Staff"),
+        ((60,), "Command Staff"),
+        ((70,), "Executive Staff"),
+        ((30, 20), "MFTO"),
+        ((30, 20, 10), "Supervisory Staff"),
+        ((30, 20, 10, 60), "Command Staff"),
+        ((30, 20, 10, 60, 70), "Executive Staff"),
+        ((40, 80), None),
+    ],
+)
+def test_instructor_type_uses_highest_configured_role(persona, roles, expected):
+    assert instructor_type(_service(persona), _instructor(roles)) == expected
+
+
+def test_instructor_type_does_not_assume_role_ids_or_missing_members(persona):
+    service = _service(persona)
+    service.settings.ftp_status_options = service.settings.ftp_status_options.model_copy(
+        update={"fto_role_ids": (333, 334)}
+    )
+    assert instructor_type(service, _member(300, (334,))) == "FTO"
+    assert instructor_type(service, _member(300, (30,))) is None
+    assert instructor_type(service, None) is None
+    service.settings.ftp_status_options = None
+    assert instructor_type(service, _member(300, (70,))) is None
+
+
 @pytest.mark.parametrize("role", [10, 20, 30, 60, 70])
 def test_only_instructor_roles_offer_and_only_ftt_reserves(persona, role):
     service = _service(persona)
@@ -240,9 +295,10 @@ def test_render_uses_native_timestamps_and_author_and_no_unintended_mentions():
     member = SimpleNamespace(
         display_name="Instructor", display_avatar=SimpleNamespace(url="https://x.test/a.png")
     )
-    embed = build_offer_embed(offer, member)
+    embed = build_offer_embed(offer, member, instructor_label="MFTO")
     assert embed.author.name == "Instructor"
     assert embed.author.icon_url == "https://x.test/a.png"
+    assert "**Instructor:** <@300>\n**Tipo:** MFTO" in embed.description
     assert f"<t:{int(offer.slots[0].starts_at.timestamp())}:f>" in embed.fields[0].value
     assert "@everyone" not in embed.fields[-1].value
     booked = offer.slots[0].model_copy(
@@ -254,11 +310,58 @@ def test_render_uses_native_timestamps_and_author_and_no_unintended_mentions():
         }
     )
     offer = offer.model_copy(update={"slots": (booked,)})
-    assert "Sin bloques disponibles" in build_offer_embed(offer).description
+    assert "🎟️ Todos los bloques reservados" in build_offer_embed(offer).description
+    assert "**Tipo:** No disponible" in build_offer_embed(offer).description
     assert "<@200> · Fase 2" in build_offer_embed(offer).fields[0].value
     result = build_booking_embed(offer, booked)
     assert "<@200>" in result.description and "<@300>" in result.description
     assert "Fase 2" in result.description
+
+
+@pytest.mark.parametrize(
+    "offer_status,slot_statuses,elapsed,expected",
+    [
+        ("open", ("free", "free", "free"), False, "Selecciona un bloque para reservar tu ficha."),
+        ("open", ("reserved", "reserved"), False, "🎟️ Todos los bloques reservados"),
+        ("open", ("reserved", "reserved"), True, "🎟️ Todos los bloques reservados"),
+        ("open", ("expired", "expired"), True, "⌛ Disponibilidad vencida"),
+        ("open", ("free", "free"), True, "⌛ Disponibilidad vencida"),
+        ("open", ("reserved", "expired"), True, "📋 Sin bloques disponibles"),
+        ("open", ("reserved", "free"), True, "📋 Sin bloques disponibles"),
+        ("open", ("reserved", "expired", "free"), False, "Selecciona un bloque para reservar tu ficha."),
+        ("closed", ("reserved", "closed"), False, "🔒 Disponibilidad cerrada"),
+        ("closed", ("expired", "closed"), True, "🔒 Disponibilidad cerrada"),
+        ("open", (), True, "📋 Sin bloques disponibles"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_offer_unavailability_reason_preserves_slots_and_disables_controls(
+    offer_status, slot_statuses, elapsed, expected
+):
+    now = datetime.now(UTC)
+    offer = _offer(status=offer_status)
+    slots = tuple(
+        slot.model_copy(
+            update={
+                "status": status,
+                "trainee_id": 200 if status == "reserved" else None,
+                # Exact expiry boundary must work before maintenance has persisted it.
+                "ends_at": now if elapsed else slot.ends_at,
+            }
+        )
+        for slot, status in zip(offer.slots, slot_statuses, strict=False)
+    )
+    offer = offer.model_copy(update={"slots": slots, "comments": ""})
+    embed = build_offer_embed(offer, now=now)
+    assert embed.description.splitlines()[-1] == expected
+    assert len(embed.fields) == len(slots)
+    for field, slot in zip(embed.fields, slots, strict=True):
+        if slot.status == "reserved":
+            assert "✅ <@200>" in field.value
+    available = bool(offer.available_slots(now))
+    assert embed.color == (discord.Color.green() if available else discord.Color.light_grey())
+    if not available:
+        assert all(child.disabled for child in AvailabilityControlsView(offer).children)
 
 
 @pytest.mark.asyncio
@@ -337,7 +440,11 @@ def _discord_sync(service, offer, *, error=None):
             yield item
 
     channel.history = history
-    guild = SimpleNamespace(get_channel=Mock(return_value=channel), get_member=Mock(return_value=None))
+    guild = SimpleNamespace(
+        get_channel=Mock(return_value=channel),
+        get_member=Mock(return_value=_instructor()),
+        fetch_member=AsyncMock(return_value=_instructor()),
+    )
     service.bot.get_guild.return_value = guild
     service.repository.get.return_value = offer
     return message, channel, guild
@@ -368,6 +475,51 @@ async def test_sync_edits_same_card_without_role_ping_notifies_both_and_acknowle
 
 
 @pytest.mark.asyncio
+async def test_sync_refreshes_instructor_type_when_roles_change(persona):
+    service, _ = _availability(persona)
+    offer = _offer()
+    message, _, guild = _discord_sync(service, offer)
+    await service.sync(offer)
+    assert "**Tipo:** FTO" in message.edit.await_args.kwargs["embed"].description
+    guild.get_member.return_value = _instructor((30, 60))
+    await service.sync(offer)
+    assert "**Tipo:** Command Staff" in message.edit.await_args.kwargs["embed"].description
+    guild.fetch_member.assert_not_awaited()
+    message.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_sync_fetches_uncached_instructor_for_type(persona):
+    service, _ = _availability(persona)
+    offer = _offer()
+    message, _, guild = _discord_sync(service, offer)
+    guild.get_member.return_value = None
+    guild.fetch_member.return_value = _instructor((20,))
+    await service.sync(offer)
+    guild.fetch_member.assert_awaited_once_with(offer.instructor_id)
+    assert "**Tipo:** MFTO" in message.edit.await_args.kwargs["embed"].description
+    service.repository.close.assert_not_awaited()
+
+
+@pytest.mark.parametrize("status", [404, 403, 503])
+@pytest.mark.asyncio
+async def test_missing_instructor_does_not_prevent_card_update_or_close_offer(persona, status):
+    service, _ = _availability(persona)
+    offer = _offer()
+    message, _, guild = _discord_sync(service, offer)
+    guild.get_member.return_value = None
+    error_class = discord.NotFound if status == 404 else discord.HTTPException
+    guild.fetch_member.side_effect = error_class(
+        SimpleNamespace(status=status, reason="Unavailable"), "Cannot fetch member"
+    )
+    await service.sync(offer)
+    assert "**Tipo:** No disponible" in message.edit.await_args.kwargs["embed"].description
+    service.repository.close.assert_not_awaited()
+    service.repository.acknowledge.assert_awaited_once_with(offer)
+    message.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_failed_discord_edit_is_retried_without_losing_booking(persona):
     service, _ = _availability(persona)
     offer = _offer()
@@ -384,11 +536,8 @@ async def test_failed_discord_edit_is_retried_without_losing_booking(persona):
 @pytest.mark.asyncio
 async def test_publication_mentions_only_trainees_and_removes_private_confirmation(persona):
     service, existing = _availability(persona)
-    member = _member(300, (30,))
+    member = _instructor()
     member.guild.get_role = {30: SimpleNamespace(id=30), 40: SimpleNamespace(id=40, mention="<@&40>")}.get
-    member._user.name = "Instructor"
-    member._user.global_name = None
-    member._user.avatar = SimpleNamespace(url="https://x.test/avatar.png")
     interaction = _interaction(member, channel_id=51)
     draft = _offer(status="publishing", message_id=None)
     published = draft.model_copy(update={"status": "open", "message_id": 100})
@@ -404,6 +553,7 @@ async def test_publication_mentions_only_trainees_and_removes_private_confirmati
     assert ack["type"] == discord.InteractionResponseType.deferred_channel_message.value
     assert ack["data"] == {"flags": 64}
     assert channel.send.await_args.kwargs["content"] == "<@&40>"
+    assert "**Tipo:** FTO" in channel.send.await_args.kwargs["embed"].description
     assert channel.send.await_args.kwargs["allowed_mentions"].to_dict() == {"roles": [40], "parse": []}
     assert all(child.disabled for child in channel.send.await_args.kwargs["view"].children)
     service.sync.assert_awaited_once_with(published)
@@ -415,11 +565,8 @@ async def test_publication_mentions_only_trainees_and_removes_private_confirmati
 @pytest.mark.asyncio
 async def test_partial_publication_failure_releases_draft_and_removes_disabled_card(persona):
     service, existing = _availability(persona)
-    member = _member(300, (30,))
+    member = _instructor()
     member.guild.get_role = {30: SimpleNamespace(id=30), 40: SimpleNamespace(id=40, mention="<@&40>")}.get
-    member._user.name = "Instructor"
-    member._user.global_name = None
-    member._user.avatar = SimpleNamespace(url="https://x.test/avatar.png")
     interaction = _interaction(member)
     draft = _offer(status="publishing", message_id=None)
     service.repository.create.return_value = draft

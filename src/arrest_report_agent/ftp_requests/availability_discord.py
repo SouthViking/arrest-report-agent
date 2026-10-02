@@ -27,12 +27,26 @@ from .models import FtpTrainingPhase
 LOGGER = logging.getLogger(__name__)
 
 
-def can_offer(service: FtpRequestService, member: discord.Member) -> bool:
+def instructor_type(service: FtpRequestService, member: discord.Member | None) -> str | None:
+    """Resolve the highest configured instructor role, independently of Discord role order."""
     ftp, options = service.settings.ftp_status_options, service.request_options
-    if ftp is None or options is None:
-        return False
-    ids = {*ftp.fto_role_ids, *ftp.mfto_role_ids, *ftp.supervisory_role_ids, *options.management_role_ids}
-    return any(role.id in ids for role in member.roles)
+    if member is None or ftp is None or options is None:
+        return None
+    member_roles = {role.id for role in member.roles}
+    for label, role_ids in (
+        ("Executive Staff", options.executive_role_ids),
+        ("Command Staff", options.command_role_ids),
+        ("Supervisory Staff", ftp.supervisory_role_ids),
+        ("MFTO", ftp.mfto_role_ids),
+        ("FTO", ftp.fto_role_ids),
+    ):
+        if member_roles.intersection(role_ids):
+            return label
+    return None
+
+
+def can_offer(service: FtpRequestService, member: discord.Member) -> bool:
+    return instructor_type(service, member) is not None
 
 
 def can_reserve(service: FtpRequestService, member: discord.Member) -> bool:
@@ -59,19 +73,30 @@ def build_offer_embed(
     offer: AvailabilityOffer,
     member: discord.Member | None = None,
     *,
+    instructor_label: str | None = None,
     now: datetime | None = None,
 ) -> discord.Embed:
-    available = offer.available_slots(now or datetime.now(UTC))
+    now = now or datetime.now(UTC)
+    available = offer.available_slots(now)
     if offer.status == "closed":
-        state, color = "Disponibilidad cerrada", discord.Color.light_grey()
+        state, color = "🔒 Disponibilidad cerrada", discord.Color.light_grey()
     elif available:
         state, color = "Selecciona un bloque para reservar tu ficha.", discord.Color.green()
+    elif offer.slots and all(slot.status == "reserved" for slot in offer.slots):
+        state, color = "🎟️ Todos los bloques reservados", discord.Color.light_grey()
+    elif offer.slots and all(
+        slot.status == "expired" or (slot.status == "free" and slot.ends_at <= now) for slot in offer.slots
+    ):
+        state, color = "⌛ Disponibilidad vencida", discord.Color.light_grey()
     else:
-        state, color = "Sin bloques disponibles", discord.Color.light_grey()
+        state, color = "📋 Sin bloques disponibles", discord.Color.light_grey()
     embed = discord.Embed(
         title="👨‍🏫 Disponibilidad para fichas",
         color=color,
-        description=f"**Instructor:** <@{offer.instructor_id}>\n{state}",
+        description=(
+            f"**Instructor:** <@{offer.instructor_id}>\n"
+            f"**Tipo:** {instructor_label or 'No disponible'}\n{state}"
+        ),
     )
     if member is not None:
         embed.set_author(name=member.display_name, icon_url=member.display_avatar.url)
@@ -220,7 +245,9 @@ class AvailabilityService:
                 preview = offer.model_copy(update={"status": "open"})
                 message = await destination.send(
                     content=" ".join(role.mention for role in roles),
-                    embed=build_offer_embed(preview, member),
+                    embed=build_offer_embed(
+                        preview, member, instructor_label=instructor_type(service, member)
+                    ),
                     view=AvailabilityControlsView(disabled=True),
                     allowed_mentions=discord.AllowedMentions(
                         everyone=False,
@@ -389,7 +416,22 @@ class AvailabilityService:
                 message = await channel.fetch_message(offer.message_id)
                 if self.bot.user is None or message.author.id != self.bot.user.id:
                     raise PermissionError("Availability message not owned by the bot")
-                embed = build_offer_embed(offer, guild.get_member(offer.instructor_id))
+                service = await self.registry.get(offer.guild_id)
+                member = guild.get_member(offer.instructor_id)
+                if member is None:
+                    try:
+                        member = await guild.fetch_member(offer.instructor_id)
+                    except discord.HTTPException as error:
+                        # Missing member data must not prevent closing or updating the card.
+                        log_event(
+                            LOGGER,
+                            "warning",
+                            "ftp_availability_instructor_unavailable",
+                            guild_id=offer.guild_id,
+                            instructor_id=offer.instructor_id,
+                            **exception_fields(error),
+                        )
+                embed = build_offer_embed(offer, member, instructor_label=instructor_type(service, member))
                 if message.embeds and (author := message.embeds[0].to_dict().get("author")):
                     embed.set_author(name=author["name"], icon_url=author.get("icon_url"))
                 await message.edit(

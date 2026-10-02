@@ -745,6 +745,10 @@ y comentarios opcionales. Puede publicar varios horarios independientes; se rech
 con sus bloques libres o reservados aún vigentes. La tarjeta menciona al rol FTT una vez, usa autor
 nativo y timestamps locales, y mantiene sus controles tras reiniciar. Seleccionar un bloque abre
 un modal de fase/comentarios: solo al enviarlo se reserva, revalidando roles y disponibilidad.
+La tarjeta muestra el tipo de instructor según sus roles configurados, priorizando Executive,
+Command, Supervisory, MFTO y FTO. Al actualizarse vuelve a resolver el tipo; si no puede obtenerlo,
+indica «No disponible». Distingue entre todos los bloques reservados, todos vencidos, una mezcla
+de reservados/vencidos y una disponibilidad cerrada manualmente, manteniendo las reservas visibles.
 La reserva atómica crea una ficha `claimed` (asignada, no completada), actualiza la tarjeta y
 responde mencionando al trainee e instructor. Solo el instructor o Command/Executive pueden cerrar
 una oferta; las reservas se conservan. Los bloques libres vencen a su hora de término, sin la gracia

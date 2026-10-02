@@ -1,22 +1,22 @@
 {
   "schema_version": 3,
-  "version": "1.0.2",
-  "title": "Correcciones en los hilos de revisión",
-  "summary": "Las consultas continúan correctamente y los intentos fallidos no descuentan interacciones.",
+  "version": "1.0.3",
+  "title": "Tarjetas de disponibilidad FTP más claras",
+  "summary": "Las disponibilidades muestran el tipo de instructor y explican por qué ya no quedan bloques para reservar.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Corregido el error que impedía responder en algunos hilos de revisión después de una consulta del staff."
+      "type": "improved",
+      "text": "La tarjeta muestra automáticamente el tipo de instructor según sus roles: Executive, Command, Supervisory, MFTO o FTO, priorizando el de mayor jerarquía."
     },
     {
-      "type": "fixed",
-      "text": "Las interacciones que fallan ya no consumen turnos, incluso si el bot alcanzó a enviar un mensaje de avance."
+      "type": "improved",
+      "text": "Los estados ahora distinguen con emojis entre todos los bloques reservados, disponibilidad vencida, bloques reservados y vencidos, o cierre manual. Las reservas siguen visibles y los controles se deshabilitan cuando corresponde."
     },
     {
-      "type": "fixed",
-      "text": "Los intentos anteriores registrados como fallidos dejan de contar automáticamente para el cupo disponible."
+      "type": "improved",
+      "text": "El tipo de instructor se vuelve a resolver al actualizar la tarjeta. Si no se puede obtener, se muestra No disponible sin impedir la actualización. No requiere configuración adicional."
     }
   ],
   "acknowledgements": []
