@@ -123,6 +123,12 @@ async def test_manager_reuses_cursor_and_advances_it_after_first_durable_input()
     assert delegates[0].items == first_input + [{"type": "function_call_output", "output": "ok"}]
     assert repository.advanced == [(key.session_id, "200")]
 
+    prepared.session.set_next_source_cursor(250)
+    await prepared.session.add_items([{"role": "user", "content": "mensaje en vivo"}])
+    prepared.session.set_next_source_cursor(220)
+    await prepared.session.add_items([{"role": "assistant", "content": "respuesta"}])
+    assert repository.advanced == [(key.session_id, "200"), (key.session_id, "250")]
+
 
 @pytest.mark.asyncio
 async def test_cursor_failure_is_logged_without_breaking_the_agent_run(caplog) -> None:

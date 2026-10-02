@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import re
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 import discord
@@ -52,6 +53,7 @@ class DiscordReviewPublisher:
         self._escalation_roles_pinged = False
         self._allow_outgoing_mentions = allow_outgoing_mentions
         self._manual_quiz_publisher = manual_quiz_publisher
+        self.on_thread_ready: Callable[[discord.Thread], Awaitable[None]] | None = None
 
     async def mark_review_started(self) -> None:
         try:
@@ -420,9 +422,13 @@ class DiscordReviewPublisher:
             if self._thread.archived:
                 with contextlib.suppress(discord.Forbidden, discord.HTTPException):
                     await self._thread.edit(archived=False)
+            if self.on_thread_ready is not None:
+                await self.on_thread_ready(self._thread)
             return self._thread
         if self.target.root.thread is not None:
             self._thread = self.target.root.thread
+            if self.on_thread_ready is not None:
+                await self.on_thread_ready(self._thread)
             return self._thread
         subject = _safe_thread_name(
             self.target.root.content,
@@ -436,6 +442,8 @@ class DiscordReviewPublisher:
             )
         except (discord.Forbidden, discord.HTTPException) as error:
             raise PublicationError("Unable to create review thread") from error
+        if self.on_thread_ready is not None:
+            await self.on_thread_ready(self._thread)
         return self._thread
 
     async def _clear_bot_status_reactions(

@@ -108,6 +108,12 @@ class _CursorTrackingSession:
                 **exception_fields(error),
             )
 
+    def set_next_source_cursor(self, message_id: int) -> None:
+        """Include source messages received after the original Discord snapshot."""
+        if message_id > int(self._next_source_cursor):
+            self._next_source_cursor = str(message_id)
+            self._cursor_pending = True
+
     async def pop_item(self) -> ResponseInputItemParam | None:
         try:
             return await self._delegate.pop_item()

@@ -301,11 +301,20 @@ async def test_initial_mention_approval_uses_and_archives_thread(settings, perso
     )
     publisher = DiscordReviewPublisher(bot, settings, target, persona)
 
+    registered = []
+
+    async def register_thread(thread):
+        assert thread.sent == []
+        registered.append(thread.id)
+
+    publisher.on_thread_ready = register_thread
+
     await publisher.mark_review_started()
     await publisher.publish(publication("approved"))
 
     assert root.added == ["⏳", "✅"]
     assert root.created == 1
+    assert registered == [root.thread.id]
     assert root.thread.sent[0]["embeds"][0].title.startswith("✅")
     assert root.thread.edits[-1] == {"archived": True}
     assert all(user_id == 999 for _, user_id in root.removed)

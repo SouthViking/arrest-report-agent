@@ -28,6 +28,7 @@ from arrest_report_agent.application import (
     ReviewRunContext,
     ReviewService,
 )
+from arrest_report_agent.application.conversations import ConversationKey, ConversationStore, LiveConversation
 from arrest_report_agent.application.errors import public_error_message
 from arrest_report_agent.application.session_visibility import owner_visible_session_items
 from arrest_report_agent.config import (
@@ -40,6 +41,7 @@ from arrest_report_agent.config import (
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import AgentAccessLevel, ErrorKind, ReviewCase
 from arrest_report_agent.domain.errors import ContextUnavailableError, ReportOwnerSubmissionError
+from arrest_report_agent.infrastructure.conversations import InMemoryConversationStore
 from arrest_report_agent.report_owner_access import (
     OwnerRunReservationResult,
     ReportOwnerRunRepository,
@@ -61,6 +63,7 @@ from .general_knowledge import (
     FaqNavigationView,
     GuideNavigationView,
 )
+from .live_messages import incoming_message
 from .member_directory import DiscordGuildMemberDirectory
 from .message_directory import DiscordGuildMessageDirectory
 from .personal_reports import (
@@ -377,6 +380,7 @@ class ReviewCog(commands.Cog):
         agent_session_manager: AgentSessionManager | None = None,
         structured_report_repository: StructuredArrestReportRepository | None = None,
         structured_report_snapshot_manager: StructuredReportSnapshotManager | None = None,
+        conversation_store: ConversationStore | None = None,
     ) -> None:
         self.bot = bot
         self._config_provider = config_provider
@@ -426,7 +430,7 @@ class ReviewCog(commands.Cog):
             response_text=persona.presence.response,
         )
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_reviews)
-        self._locks: dict[int, asyncio.Lock] = {}
+        self._conversations: ConversationStore = conversation_store or InMemoryConversationStore()
         self._attempts: defaultdict[int, int] = defaultdict(int)
         self._deterministic_reply_cooldowns: dict[tuple[int, int, int, str], float] = {}
         self._unavailable_report_channel_keys: set[tuple[int, int]] = set()
@@ -586,6 +590,8 @@ class ReviewCog(commands.Cog):
         bot_user = self.bot.user
         if bot_user is None:
             return
+        if await self._enqueue_active_message(message):
+            return
         evaluation = await self.access_policy.evaluate_event(message, bot_user.id)
         decision = evaluation.decision
         if decision is TriggerDecision.REDIRECT_BLOCKED_USER:
@@ -646,6 +652,32 @@ class ReviewCog(commands.Cog):
                 return
         await self._execute_review(message, target, access_level=access_level)
 
+    async def _enqueue_active_message(self, message: discord.Message) -> bool:
+        """Capture human context before mention filtering; never promote its access level."""
+        if (
+            message.guild is None
+            or not self.access_policy.guilds.allows(message.guild.id)
+            or message.author.bot
+            or getattr(message, "webhook_id", None) is not None
+            or self.access_policy.blocks_member(message.author)
+            or getattr(message, "type", discord.MessageType.default)
+            not in {discord.MessageType.default, discord.MessageType.reply}
+        ):
+            return False
+        key = ConversationKey(message.guild.id, message.channel.id)
+        result = await self._conversations.enqueue(
+            key, incoming_message(message, authorized=self.access_policy.allows_member(message.author)),
+        )
+        if result != "inactive":
+            log_event(
+                LOGGER, "warning" if result == "full" else "debug",
+                "conversation_message_queued" if result != "full" else "conversation_queue_full",
+                guild_id=key.guild_id, channel_id=key.channel_id,
+                message_id=message.id, user_id=message.author.id, outcome=result,
+            )
+            return True
+        return False
+
     async def _execute_review(
         self,
         message: discord.Message,
@@ -659,19 +691,19 @@ class ReviewCog(commands.Cog):
         """Run the shared bounded review workflow for listener and structured submissions."""
 
         root_id = target.root.id
-        lock = self._locks.setdefault(root_id, asyncio.Lock())
-        if lock.locked():
-            log_event(
-                LOGGER,
-                "info",
-                "duplicate_review_ignored",
-                root_message_id=root_id,
-                trigger_message_id=message.id,
-            )
+        key = ConversationKey(message.guild.id, (target.thread or message.channel).id)
+        lease = await self._conversations.acquire(key, message.id)
+        if lease is None:
+            await self._enqueue_active_message(message)
             return False
+        live = LiveConversation(self._conversations, lease, key)
+        outcome = "not_started"
+        log_event(
+            LOGGER, "info", "conversation_started", guild_id=key.guild_id,
+            channel_id=key.channel_id, lease_id=lease, trigger_message_id=message.id,
+        )
         try:
             async with (
-                lock,
                 maintain_typing_indicator(target.thread or message.channel),
                 self._semaphore,
                 self.presence.handling() as activity,
@@ -801,6 +833,7 @@ class ReviewCog(commands.Cog):
                         else publisher
                     ),
                     attempt=attempt,
+                    live_conversation=live,
                     access_level=access_level,
                     owner_round=(owner_reservation.round_number if owner_reservation is not None else None),
                     owner_max_rounds=(
@@ -822,6 +855,18 @@ class ReviewCog(commands.Cog):
                     ),
                     report_snapshot_current=report_snapshot_current,
                 )
+                await self._conversations.discard_seen(
+                    lease, {item.id for item in case.messages},
+                )
+
+                async def on_thread_ready(thread: discord.Thread) -> None:
+                    if not await self._conversations.add_alias(
+                        lease, ConversationKey(case.guild_id, thread.id),
+                    ):
+                        raise RuntimeError("Thread already has an active conversation")
+                    run_context.case.thread_id = thread.id
+
+                publisher.on_thread_ready = on_thread_ready
                 prepared_session = await self._prepare_agent_session(case, access_level)
                 latest_cursor = self._source_cursor_as_message_id(prepared_session)
                 if (
@@ -850,6 +895,7 @@ class ReviewCog(commands.Cog):
                     preloaded_arrest_report=preloaded_arrest_report,
                 )
                 try:
+                    outcome = "failed"
                     if prepared_session is None:
                         await self.service.review(run_context, agent_input)
                     else:
@@ -862,6 +908,10 @@ class ReviewCog(commands.Cog):
                                 preloaded_arrest_report=preloaded_arrest_report,
                             ),
                         )
+                    outcome = (
+                        "completed" if run_context.completed else
+                        "published_before_failure" if run_context.published else "failed"
+                    )
                 finally:
                     if owner_reservation is not None and owner_reservation.run_id is not None:
                         try:
@@ -896,8 +946,16 @@ class ReviewCog(commands.Cog):
                             )
                 return run_context.published or run_context.messages_sent_count > 0
         finally:
-            if not lock.locked():
-                self._locks.pop(root_id, None)
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                outcome = "cancelled"
+            remaining = await self._conversations.release(lease)
+            log_event(
+                LOGGER, "warning" if remaining else "info", "conversation_closed",
+                guild_id=key.guild_id, channel_id=key.channel_id, lease_id=lease,
+                outcome=outcome, unprocessed_messages=remaining, model_calls=live.model_calls,
+                incorporated_messages=len(live.message_ids),
+            )
         return False
 
     async def run_structured_initial_review(

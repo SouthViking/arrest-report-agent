@@ -76,10 +76,10 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     assert not manifest.targets_changelog_channel(1234675609536430152)
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "embed Ficha coordinada" in rendered_changes
-    assert "comentarios opcionales" in rendered_changes
-    assert "número de bloque" in rendered_changes
-    assert "tanto al trainee como al instructor" in rendered_changes
+    assert "Una ejecución activa por canal o hilo" in rendered_changes
+    assert "no consumen otra ronda" in rendered_changes
+    assert "sin duplicarlos" in rendered_changes
+    assert "sin guardar el contenido de los mensajes" in rendered_changes
     assert manifest.acknowledgements == ()
 
 

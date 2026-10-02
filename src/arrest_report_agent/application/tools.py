@@ -458,6 +458,8 @@ def build_agent_tools(
 
         run_context = ctx.context
         await _set_activity(run_context, AgentActivity.RESPONSE)
+        if deferred := await _defer_live_output(run_context):
+            return deferred
         delivery = await run_context.publisher.publish_manual_quiz(question)
         if not delivery.ok:
             if delivery.status == "active_question":
@@ -475,6 +477,7 @@ def build_agent_tools(
                 ConversationResponseRoute.REPLY,
             )
         run_context.messages_sent_count += 1
+        _note_live_output(run_context)
         return {
             **delivery.model_dump(mode="json"),
             "delivery": "discord_manual_quiz" if delivery.ok else "discord_message",
@@ -521,8 +524,10 @@ def build_agent_tools(
         normalized = [answer.text.casefold() for answer in answers]
         if len(normalized) != len(set(normalized)):
             return {"ok": False, "error": "duplicate_answers"}
-        run_context.poll_create_calls += 1
         await _set_activity(run_context, AgentActivity.RESPONSE)
+        if deferred := await _defer_live_output(run_context):
+            return deferred
+        run_context.poll_create_calls += 1
         return await run_context.poll_manager.create(
             guild_id=run_context.case.guild_id,
             current_channel_id=run_context.case.channel_id,
@@ -644,8 +649,10 @@ def build_agent_tools(
             return {"ok": False, "error": "polls_unavailable"}
         if run_context.poll_end_calls >= MAX_POLL_END_CALLS_PER_RUN:
             return {"ok": False, "error": "run_poll_end_limit_reached"}
-        run_context.poll_end_calls += 1
         await _set_activity(run_context, AgentActivity.RESPONSE)
+        if deferred := await _defer_live_output(run_context):
+            return deferred
+        run_context.poll_end_calls += 1
         return await run_context.poll_manager.end(
             guild_id=run_context.case.guild_id,
             requester_user_id=run_context.case.requester_user_id,
@@ -1115,7 +1122,10 @@ def build_agent_tools(
         historical_message = int(message_id) not in {
             run_context.case.root_message_id,
             run_context.case.trigger_message_id,
-        }
+        } and (
+            run_context.live_conversation is None
+            or int(message_id) not in run_context.live_conversation.message_ids
+        )
         lookup = await directory.lookup_message_attachments(
             guild_id=run_context.case.guild_id,
             requester_user_id=run_context.case.requester_user_id,
@@ -1237,6 +1247,8 @@ def build_agent_tools(
         normalized_emoji = emoji.strip()
         if not normalized_emoji:
             return {"ok": False, "error": "invalid_emoji"}
+        if deferred := await _defer_live_output(run_context):
+            return deferred
         outcome = await run_context.publisher.set_message_reaction(
             int(message_id),
             normalized_emoji,
@@ -1278,6 +1290,8 @@ def build_agent_tools(
         run_context = ctx.context
         await _set_activity(run_context, AgentActivity.RESPONSE)
         selected_route = run_context.selected_response_route or response_route
+        if deferred := await _defer_live_output(run_context):
+            return deferred
         effective_route = await run_context.publisher.mention_roles(
             _snowflake_tuple(role_ids),
             content,
@@ -1286,6 +1300,7 @@ def build_agent_tools(
         if run_context.selected_response_route is None:
             run_context.selected_response_route = effective_route
         run_context.messages_sent_count += 1
+        _note_live_output(run_context)
         return {
             "ok": True,
             "delivery": "discord_role_mention",
@@ -1302,6 +1317,8 @@ def build_agent_tools(
 
         if run_context.published:
             return {"ok": True, "already_published": True}
+        if deferred := await _defer_live_output(run_context):
+            return deferred
         await _set_activity(run_context, AgentActivity.REVIEW)
         if not run_context.review_marked:
             try:
@@ -1322,7 +1339,10 @@ def build_agent_tools(
                     **exception_fields(error),
                 )
         await _set_activity(run_context, AgentActivity.RESPONSE)
+        if deferred := await _defer_live_output(run_context):
+            return deferred
         await run_context.publisher.publish(publication)
+        _note_live_output(run_context)
         if (
             publication.review_scope is ReviewScope.FULL
             and run_context.report_snapshot_refresher is not None
@@ -1412,12 +1432,15 @@ def build_agent_tools(
 
         run_context = ctx.context
         await _set_activity(run_context, AgentActivity.RESPONSE)
+        if deferred := await _defer_live_output(run_context):
+            return deferred
         effective_route = await _send_conversation_message(
             run_context,
             content,
             response_route,
         )
         run_context.messages_sent_count += 1
+        _note_live_output(run_context)
         return {
             "ok": True,
             "delivery": "discord_message",
@@ -2356,6 +2379,16 @@ def _overdue_unpaid_fines_payload(
         for match in result.matches
     ]
     return payload
+
+
+async def _defer_live_output(run_context: ReviewRunContext) -> dict[str, object] | None:
+    live = run_context.live_conversation
+    return await live.defer_output() if live is not None else None
+
+
+def _note_live_output(run_context: ReviewRunContext) -> None:
+    if run_context.live_conversation is not None:
+        run_context.live_conversation.note_output()
 
 
 async def _set_activity(

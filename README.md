@@ -202,6 +202,22 @@ raíz, canal o hilo activo. Las consultas de mensajes o adjuntos quedan fijadas 
 de lectura del solicitante. El agente solo puede escoger `reply` o `thread` para una mención nueva;
 una revisión estructurada se publica en hilo y la primera respuesta fija la ruta de toda esa ejecución.
 
+Mientras el agente trabaja, hay una sola ejecución activa por `(guild_id, channel_id)`; los hilos
+usan su propio ID. Los mensajes humanos nuevos, con o sin mención, se incorporan a esa ejecución
+antes de la siguiente llamada al modelo. Incluyen texto, autor, IDs y metadata de adjuntos, no
+binarios. Las nuevas menciones no reservan otra ronda ni elevan los permisos del solicitante original.
+Los bots, webhooks y usuarios bloqueados no alimentan la cola. Un hilo creado por el agente se
+registra como alias de su conversación activa.
+
+`ConversationStore` define las operaciones atómicas de coordinación y `InMemoryConversationStore`
+las implementa sin servicios adicionales. La cola admite hasta 100 mensajes nuevos por ejecución;
+también se conservan los límites globales de tiempo y llamadas al modelo. Se comprueban pendientes
+antes de acciones de publicación y antes de cerrar. Si llegan durante la última respuesta, se
+continúa con la misma sesión y cuota; no se revierten acciones que Discord ya recibió. El filtro
+`call_model_input_filter` inyecta los mensajes y los guarda explícitamente en la sesión, avanzando
+el cursor de origen para no duplicarlos en la próxima interacción. La cola pendiente se pierde al
+reiniciar el proceso; una futura implementación Redis debe resolver también recuperación de runs.
+
 El directorio agéntico de Discord tampoco acepta `guild_id`: puede descubrir roles, buscar miembros
 con filtros combinables y consultar audiencia o participantes de un canal, pero siempre dentro de la
 guild del mensaje. Los canales elegidos deben pertenecer a ella y ser visibles para el solicitante.
@@ -897,4 +913,8 @@ Los logs contienen identificadores técnicos, latencia, modelo, usage crudo, des
 estimado y veredicto. No registran nombres, narrativa, OCR, URLs de adjuntos ni respuestas completas.
 Los traces usan IDs de servidor, canal, hilo, mensajes y usuario para depuración, con payload sensible
 desactivado.
+Las conversaciones activas registran `conversation_started`, `conversation_messages_incorporated`,
+`conversation_output_deferred`, `conversation_continued` y `conversation_closed`, con IDs,
+cantidades y un `lease_id` correlacionable con los logs del runner. El detalle por mensaje encolado
+es `debug`; saturación o cierre con pendientes generan `warning`. Nunca se registra su texto.
 Consulta [Privacidad y errores](docs/PRIVACY_AND_ERRORS.md).

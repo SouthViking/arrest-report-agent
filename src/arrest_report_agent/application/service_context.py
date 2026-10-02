@@ -14,6 +14,7 @@ from arrest_report_agent.domain import (
 )
 from arrest_report_agent.knowledge import ChargeCatalogSnapshot
 
+from .conversations import LiveConversation
 from .ports import (
     ActivityTracker,
     ArrestReportDetail,
@@ -34,6 +35,7 @@ class ReviewRunContext:
     case: ReviewCase
     publisher: ReviewPublisher
     attempt: int
+    live_conversation: LiveConversation | None = None
     access_level: AgentAccessLevel = AgentAccessLevel.FULL
     owner_round: int | None = None
     owner_max_rounds: int | None = None

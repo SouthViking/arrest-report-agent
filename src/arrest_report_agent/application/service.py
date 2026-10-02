@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any
+from typing import Any, cast
 
 from agents import (
     Agent,
@@ -14,6 +14,7 @@ from agents import (
     Runner,
     ToolExecutionConfig,
 )
+from agents.items import TResponseInputItem
 from agents.memory import Session
 from agents.retry import ModelRetrySettings
 from agents.usage import Usage
@@ -31,6 +32,7 @@ from arrest_report_agent.knowledge import (
     as_charge_catalog_provider,
 )
 
+from .conversations import with_received_messages
 from .errors import AgentSessionUnavailableError, classify_error, public_error_message
 from .ports import (
     ArrestReportLookup,
@@ -193,6 +195,11 @@ class ReviewService:
             trace_metadata=self._trace_metadata(case, run_context),
             tool_execution=ToolExecutionConfig(max_function_tool_concurrency=6),
             session_input_callback=merge_sanitized_session_input,
+            call_model_input_filter=(
+                run_context.live_conversation.filter_input
+                if run_context.live_conversation is not None
+                else None
+            ),
         )
         log_event(
             LOGGER,
@@ -228,7 +235,14 @@ class ReviewService:
                 )
                 result = await self._run_agent(
                     run_context,
-                    stateless_agent_input or agent_input,
+                    (
+                        with_received_messages(
+                            stateless_agent_input or agent_input,
+                            run_context.live_conversation.received,
+                        )
+                        if run_context.live_conversation is not None
+                        else (stateless_agent_input or agent_input)
+                    ),
                     run_config,
                     session=None,
                     started_at=started_at,
@@ -311,24 +325,78 @@ class ReviewService:
         session: Session | None,
         started_at: float,
     ) -> Any:
-        remaining_timeout = self.settings.review_timeout_seconds - (time.monotonic() - started_at)
-        if remaining_timeout <= 0:
-            raise TimeoutError("Review timeout exhausted before the agent run")
-        return await asyncio.wait_for(
-            Runner.run(
-                (
+        live = run_context.live_conversation
+        usage = Usage()
+        next_input = cast(list[TResponseInputItem], agent_input)
+        # Usually this loop has one pass. A message arriving during the last model
+        # response needs a continuation: input filters cannot force a finished run
+        # to take another turn. Keep the same lease, context, quota and session.
+        for _ in range(self.settings.max_agent_turns):
+            remaining_timeout = self.settings.review_timeout_seconds - (time.monotonic() - started_at)
+            if remaining_timeout <= 0:
+                raise TimeoutError("Review timeout exhausted before the agent run")
+            if live is not None:
+                live.begin_pass(session, self.settings.max_agent_turns)
+            result = await asyncio.wait_for(
+                Runner.run(
                     self.report_owner_agent
                     if run_context.access_level is AgentAccessLevel.REPORT_OWNER
-                    else self.agent
+                    else self.agent,
+                    next_input,
+                    context=run_context,
+                    max_turns=max(1, self.settings.max_agent_turns - (live.model_calls if live else 0)),
+                    run_config=run_config,
+                    session=session,
                 ),
-                agent_input,  # type: ignore[arg-type]
-                context=run_context,
-                max_turns=self.settings.max_agent_turns,
-                run_config=run_config,
-                session=session,
-            ),
-            timeout=remaining_timeout,
-        )
+                timeout=remaining_timeout,
+            )
+            if live is None:
+                return result
+            usage.add(result.context_wrapper.usage)
+            sent_final = False
+            if not await live.store.has_pending(live.lease):
+                needs_response = (
+                    not run_context.published and run_context.messages_sent_count == 0
+                ) or live.revision > live.output_revision
+                if needs_response:
+                    final_output = result.final_output
+                    if not isinstance(final_output, str) or not final_output.strip():
+                        raise RuntimeError("Agent finished without a visible response")
+                    if run_context.activity is not None:
+                        await run_context.activity.transition(AgentActivity.RESPONSE)
+                    if not await live.store.has_pending(live.lease):
+                        await run_context.publisher.send_message(final_output.strip())
+                        run_context.messages_sent_count += 1
+                        live.note_output()
+                        sent_final = True
+                if await live.store.close_if_empty(live.lease):
+                    result.context_wrapper.usage = usage
+                    return result
+            log_event(
+                LOGGER,
+                "info",
+                "conversation_continued",
+                guild_id=live.key.guild_id,
+                channel_id=live.key.channel_id,
+                lease_id=live.lease,
+                model_calls=live.model_calls,
+            )
+            continuation: TResponseInputItem = {
+                "role": "user",
+                "content": "[CONTINUACIÓN_INTERNA] Hay mensajes nuevos de la conversación. "
+                + (
+                    "La última respuesta final ya fue enviada. "
+                    if sent_final
+                    else "La última respuesta final no fue enviada. "
+                )
+                + "Atiende la actualización y no repitas acciones ya confirmadas por las tools.",
+            }
+            next_input = (
+                [continuation]
+                if session is not None
+                else [*live.merge_input(result.to_input_list()), continuation]
+            )
+        raise RuntimeError("Live conversation continuation budget exhausted")
 
     def _log_metadata(
         self,
@@ -339,6 +407,12 @@ class ReviewService:
 
         return {
             "guild_id": case.guild_id,
+            "conversation_lease_id": (
+                run_context.live_conversation.lease if run_context.live_conversation else "none"
+            ),
+            "live_model_calls": (
+                run_context.live_conversation.model_calls if run_context.live_conversation else 0
+            ),
             "parent_channel_id": case.parent_channel_id,
             "channel_id": case.channel_id,
             "thread_id": case.thread_id if case.thread_id is not None else "none",

@@ -1,18 +1,26 @@
 {
   "schema_version": 3,
-  "version": "1.0.4",
-  "title": "Confirmaciones de fichas unificadas",
-  "summary": "Tomar una solicitud o reservar un bloque ahora genera la misma tarjeta de coordinación, con aviso a ambos participantes.",
+  "version": "1.1.0",
+  "title": "Contexto en vivo durante consultas y revisiones",
+  "summary": "Roy incorpora los mensajes que llegan mientras trabaja, para atender aclaraciones y cambios de instrucciones en la misma ejecución.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "improved",
-      "text": "Ambos flujos responden a la publicación original con el embed Ficha coordinada: fase, horario local, trainee, instructor y comentarios opcionales. Las reservas incluyen además el número de bloque y su hora de término."
+      "type": "added",
+      "text": "Una ejecución activa por canal o hilo: los mensajes nuevos, con o sin mención, se encolan y se incorporan antes de la siguiente llamada al modelo. Las nuevas menciones no consumen otra ronda del propietario."
     },
     {
       "type": "improved",
-      "text": "Al tomar una solicitud de /solicitar-ficha se notifica tanto al trainee como al instructor, igual que al reservar un bloque. Las menciones se limitan a ambos participantes, sin avisar al resto del canal."
+      "text": "Antes de publicar se comprueba si llegaron mensajes nuevos. Si llegan durante la respuesta final, se continúa con la misma sesión, sin ejecuciones simultáneas ni ampliar los permisos originales. No se deshacen acciones ya enviadas."
+    },
+    {
+      "type": "improved",
+      "text": "El historial conserva los mensajes incorporados sin duplicarlos. Los adjuntos se identifican por sus datos e IDs y solo se cargan cuando hacen falta. La cola en memoria queda desacoplada para admitir otros almacenamientos."
+    },
+    {
+      "type": "improved",
+      "text": "Logs de inicio, mensajes incorporados, continuaciones y cierre, con IDs correlacionables y cantidades. Se registran errores y pendientes sin procesar, sin guardar el contenido de los mensajes."
     }
   ],
   "acknowledgements": []
