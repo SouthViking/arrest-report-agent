@@ -21,6 +21,7 @@ from arrest_report_agent.infrastructure.postgres import GuildRuntimeBundle
 
 from .availability_models import BLOCK_MINUTES, MAX_BLOCKS, AvailabilityOffer, AvailabilitySlot
 from .availability_repository import AvailabilityRepository
+from .coordination import build_coordination_embed
 from .discord import FTP_TIMEZONE_OPTIONS, FtpRequestService, FtpRequestServiceRegistry, parse_ftp_schedule
 from .models import FtpTrainingPhase
 
@@ -118,19 +119,15 @@ def build_offer_embed(
 
 
 def build_booking_embed(offer: AvailabilityOffer, slot: AvailabilitySlot) -> discord.Embed:
-    embed = discord.Embed(
-        title="🤝 Ficha coordinada",
-        color=discord.Color.blue(),
-        description=(
-            f"**{slot.phase.label if slot.phase else 'Ficha'} · Bloque {slot.position}**\n"
-            f"{slot_time(slot)}\n**Trainee:** <@{slot.trainee_id}>\n"
-            f"**Instructor:** <@{offer.instructor_id}>"
-        ),
+    return build_coordination_embed(
+        trainee_id=slot.trainee_id,
+        instructor_id=offer.instructor_id,
+        phase=slot.phase,
+        starts_at=slot.starts_at,
+        ends_at=slot.ends_at,
+        block_position=slot.position,
+        comments=slot.comments,
     )
-    if slot.comments:
-        embed.add_field(name="Comentarios del trainee", value=safe_text(slot.comments), inline=False)
-    embed.set_footer(text="La ficha quedó asignada. Coordinen entre ustedes para realizarla.")
-    return embed
 
 
 async def error_response(interaction: discord.Interaction, message: str) -> None:

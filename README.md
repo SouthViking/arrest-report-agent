@@ -758,6 +758,11 @@ reservas. Si se elimina una tarjeta, no se recrea y sus bloques libres se cierra
 se entregan con reintentos y deduplicación reciente por nonce (no garantizan exactamente una entrega
 ante fallos prolongados). `/info-ftp` y el panel fijado explican ambos flujos.
 
+Al tomar una solicitud o reservar un bloque, ambos flujos responden a su publicación original
+con el mismo embed azul «Ficha coordinada»: fase, horario nativo de Discord, trainee, instructor
+y comentarios opcionales. Las reservas incluyen además el bloque y su hora de término. Las menciones
+fuera del embed notifican únicamente a ambos participantes, sin avisar a roles ni al resto del canal.
+
 `/fichas-activas` reutiliza esos registros para publicar en cualquier canal un resumen paginado de las
 solicitudes pendientes, ordenado por horario y restringido a `operational_staff_roles`.
 

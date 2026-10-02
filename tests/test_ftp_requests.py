@@ -314,6 +314,69 @@ def test_ftp_request_embed_is_neutral_and_disables_technical_ids() -> None:
     assert any(field.name == "Instructor asignado" and field.value == "<@300>" for field in claimed.fields)
 
 
+@pytest.mark.asyncio
+async def test_claim_replies_with_coordination_embed_and_mentions_both_participants(persona):
+    service = _service(persona)
+    pending = _request(comments="Practicar detenciones.")
+    claimed = pending.model_copy(
+        update={"status": FtpRequestStatus.CLAIMED, "claimed_by_user_id": 300}
+    )
+    service.resolve = AsyncMock(return_value=pending)
+    service.repository = SimpleNamespace(claim=AsyncMock(return_value=(claimed, True)))
+    service._edit_interaction_message = AsyncMock()
+    interaction = SimpleNamespace(
+        user=_member(300, (30,)),
+        response=SimpleNamespace(defer=AsyncMock()),
+        followup=SimpleNamespace(send=AsyncMock()),
+        message=SimpleNamespace(reply=AsyncMock(), delete=AsyncMock()),
+    )
+
+    await service.claim(interaction)
+
+    service._edit_interaction_message.assert_awaited_once_with(interaction, claimed)
+    interaction.message.reply.assert_awaited_once()
+    reply = interaction.message.reply.await_args.kwargs
+    assert reply["content"] == "<@200> <@300>"
+    assert reply["allowed_mentions"].to_dict() == {"users": [200, 300], "parse": []}
+    embed = reply["embed"]
+    assert embed.title == "🤝 Ficha coordinada"
+    assert embed.color == discord.Color.blue()
+    assert "**Fase:** Fase 2" in embed.description
+    assert f"**Horario:** <t:{int(claimed.scheduled_for.timestamp())}:f>" in embed.description
+    assert "**Trainee:** <@200>\n**Instructor:** <@300>" in embed.description
+    assert "Bloque" not in embed.description
+    assert embed.fields[0].value == claimed.reason
+    interaction.followup.send.assert_not_awaited()
+    interaction.message.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_claim_does_not_notify_twice_when_another_instructor_took_it(persona):
+    service = _service(persona)
+    service.resolve = AsyncMock(return_value=_request())
+    service.repository = SimpleNamespace(
+        claim=AsyncMock(return_value=(_request(FtpRequestStatus.CLAIMED), False))
+    )
+    interaction = SimpleNamespace(
+        user=_member(300, (30,)),
+        response=SimpleNamespace(defer=AsyncMock()),
+        followup=SimpleNamespace(send=AsyncMock()),
+        message=SimpleNamespace(reply=AsyncMock()),
+    )
+    await service.claim(interaction)
+    interaction.message.reply.assert_not_awaited()
+    assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
+
+
+@pytest.mark.asyncio
+async def test_coordination_notification_failure_is_logged(persona, caplog):
+    service = _service(persona)
+    error = discord.Forbidden(SimpleNamespace(status=403, reason="Forbidden"), "Missing permissions")
+    interaction = SimpleNamespace(message=SimpleNamespace(reply=AsyncMock(side_effect=error)))
+    await service._notify_requester(interaction, _request(FtpRequestStatus.CLAIMED), _member(300, (30,)))
+    assert "ftp_request_requester_notification_failed" in caplog.text
+
+
 def test_active_ftp_requests_embed_is_compact_and_links_each_request() -> None:
     embed = build_active_ftp_requests_embed((_request(),), total=1, page=0)
 

@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 from discord.webhook.async_ import async_context
-from test_ftp_requests import _member, _service
+from test_ftp_requests import _member, _request, _service
 
 from arrest_report_agent.ftp_requests.availability_discord import (
     AvailabilityCog,
@@ -31,6 +31,7 @@ from arrest_report_agent.ftp_requests.availability_discord import (
     can_reserve,
     clear_ephemeral_confirmation,
     instructor_type,
+    slot_time,
 )
 from arrest_report_agent.ftp_requests.availability_models import (
     AvailabilityOffer,
@@ -470,8 +471,28 @@ async def test_sync_edits_same_card_without_role_ping_notifies_both_and_acknowle
     assert args["content"] == "<@200> <@300>"
     assert args["allowed_mentions"].to_dict() == {"users": [200, 300], "parse": []}
     assert args["nonce"] == booked.id.hex[:25]
+    assert args["embed"].title == "🤝 Ficha coordinada"
+    assert "**Fase:** Fase 1 · Bloque 1" in args["embed"].description
+    assert f"**Horario:** {slot_time(booked)}" in args["embed"].description
     service.repository.notified.assert_awaited_once_with(booked.id)
     service.repository.acknowledge.assert_awaited_once_with(offer)
+
+
+@pytest.mark.asyncio
+async def test_both_flows_use_same_coordination_card_except_block_details(persona):
+    offer = _offer()
+    slot = offer.slots[0].model_copy(
+        update={"trainee_id": 200, "phase": FtpTrainingPhase.PHASE_2, "comments": "Practicar."}
+    )
+    request = _request(comments=slot.comments).model_copy(update={"scheduled_for": slot.starts_at})
+    interaction = SimpleNamespace(message=SimpleNamespace(reply=AsyncMock()))
+    await _service(persona)._notify_requester(interaction, request, _member(300, (30,)))
+    requested = interaction.message.reply.await_args.kwargs["embed"]
+    reserved = build_booking_embed(offer, slot)
+    reserved.description = reserved.description.replace(f" · Bloque {slot.position}", "").replace(
+        f" → <t:{int(slot.ends_at.timestamp())}:t>", ""
+    )
+    assert requested.to_dict() == reserved.to_dict()
 
 
 @pytest.mark.asyncio

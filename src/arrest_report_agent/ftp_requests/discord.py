@@ -18,6 +18,7 @@ from arrest_report_agent.config import BotPersona, FtpRequestOptions, GuildRunti
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
+from .coordination import build_coordination_embed
 from .models import (
     FtpInstructorLevel,
     FtpRequestStatus,
@@ -402,17 +403,20 @@ class FtpRequestService:
     ) -> None:
         if interaction.message is None:
             return
-        phase = request.training_phase.label if request.training_phase else "la ficha solicitada"
         requester = discord.Object(id=request.requester_user_id)
         try:
             await interaction.message.reply(
-                content=(
-                    f"<@{request.requester_user_id}>, <@{instructor.id}> tomó tu solicitud "
-                    f"para **{phase}**. Ya pueden coordinar los detalles. 🚓"
+                content=f"<@{request.requester_user_id}> <@{instructor.id}>",
+                embed=build_coordination_embed(
+                    trainee_id=request.requester_user_id,
+                    instructor_id=instructor.id,
+                    phase=request.training_phase,
+                    starts_at=request.scheduled_for,
+                    comments=request.reason,
                 ),
                 allowed_mentions=discord.AllowedMentions(
                     everyone=False,
-                    users=[requester],
+                    users=[requester, discord.Object(id=instructor.id)],
                     roles=False,
                     replied_user=False,
                 ),

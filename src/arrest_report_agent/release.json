@@ -1,22 +1,18 @@
 {
   "schema_version": 3,
-  "version": "1.0.3",
-  "title": "Tarjetas de disponibilidad FTP más claras",
-  "summary": "Las disponibilidades muestran el tipo de instructor y explican por qué ya no quedan bloques para reservar.",
+  "version": "1.0.4",
+  "title": "Confirmaciones de fichas unificadas",
+  "summary": "Tomar una solicitud o reservar un bloque ahora genera la misma tarjeta de coordinación, con aviso a ambos participantes.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
       "type": "improved",
-      "text": "La tarjeta muestra automáticamente el tipo de instructor según sus roles: Executive, Command, Supervisory, MFTO o FTO, priorizando el de mayor jerarquía."
+      "text": "Ambos flujos responden a la publicación original con el embed Ficha coordinada: fase, horario local, trainee, instructor y comentarios opcionales. Las reservas incluyen además el número de bloque y su hora de término."
     },
     {
       "type": "improved",
-      "text": "Los estados ahora distinguen con emojis entre todos los bloques reservados, disponibilidad vencida, bloques reservados y vencidos, o cierre manual. Las reservas siguen visibles y los controles se deshabilitan cuando corresponde."
-    },
-    {
-      "type": "improved",
-      "text": "El tipo de instructor se vuelve a resolver al actualizar la tarjeta. Si no se puede obtener, se muestra No disponible sin impedir la actualización. No requiere configuración adicional."
+      "text": "Al tomar una solicitud de /solicitar-ficha se notifica tanto al trainee como al instructor, igual que al reservar un bloque. Las menciones se limitan a ambos participantes, sin avisar al resto del canal."
     }
   ],
   "acknowledgements": []
