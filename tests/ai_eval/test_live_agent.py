@@ -10,12 +10,16 @@ import base64
 import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from uuid import UUID
 
 import pytest
 from agents import set_default_openai_key
+from agents.memory import Session
 from pydantic import ValidationError
+from test_agent_sessions import FakeRepository, FakeSession
 
+from arrest_report_agent.agent_sessions import AgentConversationKey, AgentSessionManager
 from arrest_report_agent.application import ReviewRunContext, ReviewService
 from arrest_report_agent.application.ports import (
     ArrestReportCharge,
@@ -49,6 +53,7 @@ from arrest_report_agent.application.ports import (
     ReportImageLookup,
     ReportImageResult,
 )
+from arrest_report_agent.application.session_visibility import owner_visible_session_items
 from arrest_report_agent.config import (
     AppSettings,
     ModelCatalog,
@@ -460,6 +465,8 @@ async def _run_agent(
     faction_officer_rank_lookup: FactionOfficerRankLookup | None = None,
     evidence_bag_lookup: EvidenceBagLookup | None = None,
     evidence_bag_arguments: list[dict[str, object]] | None = None,
+    session: Session | None = None,
+    after_message_id: int | None = None,
 ) -> tuple[ReviewRunContext, InMemoryPublisher]:
     model = ModelCatalog.load_default().resolve(
         settings.openai_model,
@@ -502,11 +509,122 @@ async def _run_agent(
 
     await service.review(
         context,
-        render_agent_input(case, preloaded_arrest_report=preloaded_arrest_report),
+        render_agent_input(
+            case, after_message_id=after_message_id, preloaded_arrest_report=preloaded_arrest_report
+        ),
+        session=session,
     )
 
     assert publisher.failures == [], f"agent execution failed: {publisher.failures}"
+    assert context.completed
     return context, publisher
+
+
+async def test_owner_staff_owner_session_reuses_results_without_replaying_private_reasoning(
+    ai_eval_settings: AppSettings,
+) -> None:
+    """Exercise the production filter with real model-generated reasoning/call IDs.
+
+    This intentionally uses the real Runner for all three turns; fabricated call IDs do not
+    reproduce the Responses API dependency failure seen in production. Discord/SARP are fakes.
+    """
+    repository = FakeRepository()
+    sessions: dict[str, FakeSession] = {}
+
+    def factory(session_id: str) -> FakeSession:
+        return sessions.setdefault(session_id, FakeSession(session_id, repository.history))
+
+    manager = AgentSessionManager(
+        object(),  # type: ignore[arg-type]
+        repository=repository,  # type: ignore[arg-type]
+        session_factory=factory,  # type: ignore[arg-type]
+    )
+    arrest_lookup = RecordingArrestReportLookup()
+    facts_lookup = RecordingCharacterLegalFactsLookup(overdue_fine=True)
+    report = arrest_lookup.report
+    root = "Terry McKenzie - #751. Este hilo corresponde a mi reporte de arresto."
+    owner_question = "¿Puedes ayudarme aquí con las dudas de mi reporte? No inicies una revisión."
+    initial = _case(
+        ("user", root), ("user", owner_question),
+        structured_report_id=report.report_id,
+        structured_suspect_name=report.suspect_name,
+    )
+    owner_key = AgentConversationKey("discord_agent_thread", "guild:4001:root:751", "report_owner")
+    staff_key = replace(owner_key, access_partition="full")
+    owner = await manager.prepare(owner_key, next_source_cursor=str(initial.trigger_message_id))
+    _, first_reply = await _run_agent(
+        ai_eval_settings, initial, access_level=AgentAccessLevel.REPORT_OWNER,
+        session=owner.session, preloaded_arrest_report=report,
+    )
+    assert first_reply.messages
+
+    private_marker = "PRIVATE-STAFF-CANARY-93af"
+    staff_case = _case(
+        ("user", root), ("user", owner_question),
+        ("user", "Consulta con get_character_legal_facts las multas impagas vencidas de "
+         "Terry McKenzie a la fecha del reporte 751; excluye ese arresto. Dime el ID y monto "
+         "de la multa, sin publicar revisión. Nota interna, no repetir: " + private_marker),
+        structured_report_id=report.report_id,
+        structured_suspect_name=report.suspect_name,
+    )
+    staff = await manager.prepare(
+        staff_key, next_source_cursor=str(staff_case.trigger_message_id),
+        readable_partitions=("report_owner",),
+    )
+    await _run_agent(
+        ai_eval_settings, staff_case, session=staff.session,
+        after_message_id=initial.trigger_message_id,
+        preloaded_arrest_report=report, arrest_report_lookup=arrest_lookup,
+        character_legal_facts_lookup=facts_lookup,
+    )
+    assert facts_lookup.queries
+    staff_items = sessions[staff_key.session_id].items
+    assert any(item.get("type") == "reasoning" for item in staff_items)
+    assert any(
+        item.get("type") == "function_call" and item.get("name") == "get_character_legal_facts"
+        and item.get("id") for item in staff_items
+    )
+
+    follow_up = _case(
+        ("user", root), ("user", owner_question),
+        # Public Discord context does not contain the staff-only prompt or the tool result.
+        ("assistant", "El staff ya consultó el sistema."),
+        ("user", "Según el resultado que ya está en el contexto de mi expediente, ¿cuál es "
+         "el ID y monto de la multa vencida? No vuelvas a consultar ni revises el reporte."),
+        structured_report_id=report.report_id,
+        structured_suspect_name=report.suspect_name,
+    )
+    resumed = await manager.prepare(
+        owner_key, next_source_cursor=str(follow_up.trigger_message_id),
+        readable_partitions=("full",),
+        history_filter=partial(
+            owner_visible_session_items,
+            owner_session_id=owner_key.session_id,
+            suspect_name=report.suspect_name, report_id=report.report_id,
+            parent_channel_id=follow_up.parent_channel_id,
+            root_message_id=follow_up.root_message_id, thread_id=follow_up.thread_id,
+        ),
+    )
+    visible = await resumed.session.get_items()
+    assert private_marker not in str(visible)
+    assert any("overdue_unpaid_fines" in str(item.get("content", "")) for item in visible)
+    queries_before = len(facts_lookup.queries)
+    _, reply = await _run_agent(
+        ai_eval_settings, follow_up, access_level=AgentAccessLevel.REPORT_OWNER,
+        session=resumed.session, after_message_id=initial.trigger_message_id,
+        preloaded_arrest_report=report, arrest_report_lookup=arrest_lookup,
+        character_legal_facts_lookup=facts_lookup,
+    )
+    response = "\n".join(reply.messages)
+    assert "400" in response
+    assert any(amount in response for amount in ("1500", "1.500", "1,500", "1 500"))
+    assert private_marker not in response
+    assert len(facts_lookup.queries) == queries_before
+    # The SDK must persist only new turns, not the transformed shared history.
+    assert not any(
+        "Resultado histórico de una herramienta" in str(item.get("content", ""))
+        for item in sessions[owner_key.session_id].items
+    )
 
 
 async def test_report_owner_cannot_order_a_manual_ok_reaction(

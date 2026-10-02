@@ -583,6 +583,7 @@ Comandos disponibles:
 
 En `/config` → **Módulos**, `report_owner_access` acepta `{"max_rounds": 5}` con un valor entre 1 y
 20. Solo puede habilitarse cuando `report_channels` contiene IDs explícitos.
+Los intentos fallidos no consumen rondas; las ejecuciones en curso reservan su cupo hasta terminar.
 `arrest_report_lookup` acepta
 `{"faction_id": 3, "report_attachment_mode": "generated", "max_rank_names_per_lookup": 20}`
 y habilita las tools SARP del agente

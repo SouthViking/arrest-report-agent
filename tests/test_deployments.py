@@ -76,10 +76,10 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     assert not manifest.targets_changelog_channel(1234675609536430152)
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "controles deshabilitados" in rendered_changes
-    assert "Las reservas existentes se conservan" in rendered_changes
-    assert "sin borrarla" in rendered_changes
-    assert "Pycord" in rendered_changes
+    assert "después de una consulta del staff" in rendered_changes
+    assert "interacciones que fallan ya no consumen turnos" in rendered_changes
+    assert "mensaje de avance" in rendered_changes
+    assert "intentos anteriores registrados como fallidos" in rendered_changes
     assert manifest.acknowledgements == ()
 
 

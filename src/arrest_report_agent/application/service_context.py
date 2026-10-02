@@ -45,6 +45,7 @@ class ReviewRunContext:
     poll_manager: PollManager | None = None
     review_marked: bool = False
     published: bool = False
+    completed: bool = False
     messages_sent_count: int = 0
     reactions_updated_count: int = 0
     selected_response_route: ConversationResponseRoute | None = None

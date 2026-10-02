@@ -243,6 +243,7 @@ class ReviewService:
                 run_context.messages_sent_count += 1
             if run_context.published and run_context.publication is None:
                 raise RuntimeError("Agent published a review without a publication payload")
+            run_context.completed = True
             usage = summarize_usage(result.context_wrapper.usage, self.model)
             outcome = "review" if run_context.published else "conversation"
             log_event(

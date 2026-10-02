@@ -104,6 +104,10 @@ async def test_report_owner_reservations_are_persistent_idempotent_and_concurren
         reserved = [item for item in reservations if item.run_id is not None]
         await repository.mark_completed(reserved[0].run_id)  # type: ignore[arg-type]
         await repository.mark_failed(reserved[1].run_id)  # type: ignore[arg-type]
+        await repository.mark_failed(reserved[2].run_id)  # type: ignore[arg-type]
+        # Repeated/late finalizations must not change an already terminal result.
+        await repository.mark_completed(reserved[1].run_id)  # type: ignore[arg-type]
+        await repository.mark_failed(reserved[0].run_id)  # type: ignore[arg-type]
         rows = await client.fetch_all(
             sa.select(report_owner_agent_runs.c.status).where(
                 report_owner_agent_runs.c.guild_id == guild_id
@@ -111,17 +115,47 @@ async def test_report_owner_reservations_are_persistent_idempotent_and_concurren
         )
         assert len(rows) == 5
         assert {str(row["status"]) for row in rows} == {"started", "completed", "failed"}
+        assert sum(row["status"] == "failed" for row in rows) == 2
 
         after_restart = ReportOwnerRunRepository(client)
-        exhausted = await after_restart.reserve(
+        # Existing failed attempts recover their two slots without grants or deleting the audit.
+        async with client.connection() as connection:
+            assert await after_restart._used_rounds(  # noqa: SLF001
+                connection, guild_id, root_message_id, owner_user_id
+            ) == 3
+        failed_duplicate = await after_restart.reserve(
             guild_id=guild_id,
             root_message_id=root_message_id,
-            trigger_message_id=965432101234568100,
+            trigger_message_id=965432101234568000 + reservations.index(reserved[1]),
             owner_user_id=owner_user_id,
             thread_id=root_message_id,
             max_rounds=5,
         )
-        assert exhausted.result is OwnerRunReservationResult.EXHAUSTED
+        assert failed_duplicate.result is OwnerRunReservationResult.DUPLICATE
+        assert failed_duplicate.used_rounds == 3
+        # No false exhausted alert, even for a new ceiling without an existing notification.
+        assert await after_restart.claim_exhaustion_notification(
+            guild_id=guild_id,
+            root_message_id=root_message_id,
+            owner_user_id=owner_user_id,
+            base_max_rounds=4,
+        ) is None
+        refunded = await asyncio.gather(
+            *(
+                after_restart.reserve(
+                    guild_id=guild_id,
+                    root_message_id=root_message_id,
+                    trigger_message_id=965432101234568100 + index,
+                    owner_user_id=owner_user_id,
+                    thread_id=root_message_id,
+                    max_rounds=5,
+                )
+                for index in range(3)
+            )
+        )
+        assert sum(item.result is OwnerRunReservationResult.RESERVED for item in refunded) == 2
+        assert sum(item.result is OwnerRunReservationResult.EXHAUSTED for item in refunded) == 1
+        assert sorted(item.round_number for item in refunded if item.round_number is not None) == [4, 5]
 
         grant = await after_restart.grant_extra_rounds(
             guild_id=guild_id,

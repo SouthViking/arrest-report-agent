@@ -758,6 +758,7 @@ async def test_service_contains_timeout_and_publishes_contextual_failure(
         )
 
     assert "excedió el tiempo" in publisher.failures[0]
+    assert context.completed is False
     assert persona.identity.display_name not in publisher.failures[0]
     failure_log = next(
         getattr(record, STRUCTURED_EVENT_ATTRIBUTE)
@@ -840,6 +841,7 @@ async def test_post_run_contract_failure_keeps_complete_runner_usage(
     assert failure_log["output_tokens"] == 200
     assert failure_log["total_tokens"] == 3_200
     assert len(publisher.failures) == 1
+    assert context.completed is False
     assert captured_run_config is not None
     assert captured_run_config.tool_execution.max_function_tool_concurrency == 6
     assert captured_session is session
@@ -896,6 +898,7 @@ async def test_service_falls_back_to_full_stateless_context_when_session_storage
 
     assert calls == [(delta_input, session), (full_input, None)]
     assert publisher.messages == ["Respuesta recuperada."]
+    assert context.completed is True
     assert publisher.failures == []
     assert any(
         getattr(record, STRUCTURED_EVENT_ATTRIBUTE, {}).get("event") == "agent_session_runtime_fallback"
@@ -942,5 +945,6 @@ async def test_service_publishes_natural_final_output_without_a_closing_tool(
     )
 
     assert context.messages_sent_count == 1
+    assert context.completed is True
     assert publisher.messages == ["El resultado es 4."]
     assert publisher.failures == []

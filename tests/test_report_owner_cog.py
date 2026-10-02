@@ -99,6 +99,7 @@ class _Service:
     async def review(self, context, _agent_input: object) -> None:
         self.contexts.append(context)
         context.messages_sent_count = 1
+        context.completed = True
 
 
 class _Repository:
@@ -360,14 +361,24 @@ def _event(settings) -> tuple[object, ReviewTarget, ReviewCase, list[str]]:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("outcome", ["completed", "failed", "progress_then_failed", "published"])
 async def test_owner_reservation_runs_restricted_agent_and_is_finalized(
     settings,
     persona,
     monkeypatch,
+    outcome,
 ) -> None:
     restricted = settings.model_copy(update={"authorized_user_ids_csv": "999999"})
     message, target, case, _ = _event(restricted)
     service = _Service()
+
+    async def review(context, _agent_input):
+        service.contexts.append(context)
+        context.messages_sent_count = int(outcome in {"completed", "progress_then_failed"})
+        context.completed = outcome == "completed"
+        context.published = outcome == "published"
+
+    service.review = review
     run_id = uuid4()
     repository = _Repository(
         OwnerRunReservation(
@@ -400,8 +411,9 @@ async def test_owner_reservation_runs_restricted_agent_and_is_finalized(
     await cog._handle_message(message)  # type: ignore[arg-type]  # noqa: SLF001
 
     assert repository.reservations == 1
-    assert repository.completed == [run_id]
-    assert repository.failed == []
+    successful = outcome in {"completed", "published"}
+    assert repository.completed == ([run_id] if successful else [])
+    assert repository.failed == ([] if successful else [run_id])
     assert len(service.contexts) == 1
     context = service.contexts[0]
     assert context.access_level is AgentAccessLevel.REPORT_OWNER

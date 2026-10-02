@@ -250,6 +250,11 @@ class ReportOwnerRunRepository:
                     report_owner_agent_runs.c.guild_id == guild_id,
                     report_owner_agent_runs.c.root_message_id == root_message_id,
                     report_owner_agent_runs.c.owner_user_id == owner_user_id,
+                    # In-flight reservations still hold a slot; failed runs remain
+                    # audited but release it, including failures predating this rule.
+                    report_owner_agent_runs.c.status.in_(
+                        [OwnerRunStatus.STARTED.value, OwnerRunStatus.COMPLETED.value]
+                    ),
                 )
             )
             or 0

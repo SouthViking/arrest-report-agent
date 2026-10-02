@@ -1,22 +1,22 @@
 {
   "schema_version": 3,
-  "version": "1.0.1",
-  "title": "Corrección de tarjetas de disponibilidad FTP",
-  "summary": "Cerrar una disponibilidad o reservar un bloque ya no elimina su mensaje en #ftp-fichas.",
+  "version": "1.0.2",
+  "title": "Correcciones en los hilos de revisión",
+  "summary": "Las consultas continúan correctamente y los intentos fallidos no descuentan interacciones.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
       "type": "fixed",
-      "text": "Al cerrar una disponibilidad, la tarjeta permanece visible, queda gris y marcada como cerrada, con sus controles deshabilitados. Las reservas existentes se conservan."
+      "text": "Corregido el error que impedía responder en algunos hilos de revisión después de una consulta del staff."
     },
     {
       "type": "fixed",
-      "text": "Al reservar un bloque, se actualiza la misma tarjeta sin borrarla y los demás bloques disponibles siguen abiertos."
+      "text": "Las interacciones que fallan ya no consumen turnos, incluso si el bot alcanzó a enviar un mensaje de avance."
     },
     {
-      "type": "improved",
-      "text": "Se protege la limpieza de respuestas efímeras y se añaden pruebas con el comportamiento real de Pycord para evitar que vuelva a borrarse el mensaje público."
+      "type": "fixed",
+      "text": "Los intentos anteriores registrados como fallidos dejan de contar automáticamente para el cupo disponible."
     }
   ],
   "acknowledgements": []

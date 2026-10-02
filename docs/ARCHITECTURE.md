@@ -71,8 +71,10 @@ canónico no se exige formato ni material mínimo: la autoría y el anclaje al c
 frontera determinista. No usa el fallback de hilos huérfanos para esta decisión. Antes del guardrail
 reserva atómicamente una ronda en
 `report_owner_agent_runs`; el trigger único evita ejecuciones duplicadas y un advisory lock impide
-superar el máximo bajo concurrencia. Los fallos anteriores a esa reserva no consumen, mientras que
-cualquier ejecución que ya puede alcanzar OpenAI queda contabilizada aunque falle después.
+superar el máximo bajo concurrencia. Las reservas en curso y las ejecuciones completadas consumen
+cupo; las fallidas conservan su auditoría pero no cuentan, incluidas las anteriores al cambio de
+política. Un avance del bot no basta para completar una ronda: debe terminar la interacción o haber
+publicado la revisión. Las consultas de cupo, concesiones y alertas reutilizan el mismo conteo.
 
 Una vez superada la política local, `request_scope` clasifica alcance e intención usando solo el
 texto de la solicitud actual y señales compactas de contexto. Es bloqueante
@@ -513,7 +515,17 @@ parcial del guardrail.
 
 ## Contexto de conversación
 
-No se usan sesiones ni persistencia del SDK. Cada mención reconstruye un input autocontenido con:
+En los canales de reportes configurados, el SDK conserva sesiones en PostgreSQL separadas por
+expediente y nivel de acceso (`full` / `report_owner`). Cada partición mantiene su cursor de mensajes
+de Discord. Staff puede leer ambas; el propietario conserva íntegra su propia secuencia y solo
+recibe resultados de herramientas de staff verificablemente ligados al expediente. Esos resultados
+se convierten en mensajes de contexto, nunca en llamadas nativas sueltas que dependan de reasoning
+privado. No se comparten prompts, borradores ni resultados de otros canales; los adjuntos históricos
+se sustituyen por referencias para volver a cargarlos. El filtro se aplica al leer, por lo que
+también corrige sesiones existentes sin borrar su historial.
+
+Sin sesión disponible se reconstruye el contexto completo; con sesión se incorporan los mensajes
+nuevos. El input de Discord incluye:
 
 - reporte raíz;
 - mensajes recientes del hilo en orden cronológico;

@@ -865,7 +865,7 @@ class ReviewCog(commands.Cog):
                 finally:
                     if owner_reservation is not None and owner_reservation.run_id is not None:
                         try:
-                            if run_context.published or run_context.messages_sent_count > 0:
+                            if run_context.published or run_context.completed:
                                 await self.report_owner_run_repository.mark_completed(
                                     owner_reservation.run_id
                                 )
