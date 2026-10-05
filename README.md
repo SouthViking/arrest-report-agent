@@ -140,6 +140,11 @@ El mismo módulo habilita una consulta selectiva de hechos legales del sospechos
 comprobar antecedentes graves previos o multas impagas con más de tres días en la fecha del reporte.
 La resolución exacta del personaje, la paginación, la cronología y la clasificación se calculan en
 código; la herramienta devuelve hechos y nunca decide por sí sola si un cargo corresponde.
+En revisiones que incluyan cargos, si el sospechoso tenía un arma de fuego, el agente comprueba
+antecedentes graves anteriores incluso cuando no se declaró CP-29800. Si confirma el antecedente
+y falta ese cargo, ofrece una observación para futuros reportes: no exige modificar el arresto
+actual ni afecta su aprobación. No la emite con antecedentes no confirmados, armas de terceros,
+sin vínculo o que no sean de fuego, ni la repite si el cargo o el consejo ya estaban presentes.
 
 El acceso completo puede resolver roles del servidor por nombre y, ante una solicitud explícita,
 notificar hasta tres mediante la tool terminal `mention_roles`. La publicación valida que cada rol
@@ -885,6 +890,9 @@ en el entorno o en `.env` y se habilita de forma explícita:
 ```bash
 # Ejecutar un solo comportamiento para controlar el gasto.
 .venv/bin/pytest tests/ai_eval -k spelling --run-ai-evals -q
+
+# Consejo de CP-29800: agente real, antecedentes sintéticos y sin publicar en Discord.
+.venv/bin/pytest tests/ai_eval -k firearm_prior --run-ai-evals -q
 
 # Ejecutar todos los casos; cada uno consume créditos.
 .venv/bin/pytest tests/ai_eval --run-ai-evals -q

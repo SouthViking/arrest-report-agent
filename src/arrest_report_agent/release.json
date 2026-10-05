@@ -1,18 +1,22 @@
 {
   "schema_version": 3,
-  "version": "1.1.1",
-  "title": "Menciones en solicitudes de supervisor FTP",
-  "summary": "Las solicitudes de ficha para supervisor también avisan a Command Staff y FTP Management.",
+  "version": "1.1.2",
+  "title": "Consejos para futuros reportes de arresto",
+  "summary": "Las revisiones comprueban antecedentes graves ante posesión de un arma de fuego para sugerir CP-29800 cuando corresponda, sin bloquear la aprobación.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
       "type": "improved",
-      "text": "Al seleccionar Supervisor en /solicitar-ficha, se menciona a Supervisory Staff, Command Staff y FTP Management."
+      "text": "Si el reporte o sus cargos indican posesión de un arma de fuego, se comprueba si había una condena grave anterior. Si se confirma y falta CP-29800, se muestra una recomendación."
     },
     {
       "type": "improved",
-      "text": "Las solicitudes generales mantienen sus menciones habituales. Los permisos para tomar o cancelar fichas no cambian."
+      "text": "La recomendación es solo para futuros reportes: no exige modificar el arresto actual ni impide su aprobación. Tampoco se repite si ya se publicó en el hilo."
+    },
+    {
+      "type": "improved",
+      "text": "El consejo se omite si no se pueden confirmar los antecedentes o vincular un arma de fuego al sospechoso. Las observaciones se muestran como recomendaciones, separadas de las correcciones."
     }
   ],
   "acknowledgements": []

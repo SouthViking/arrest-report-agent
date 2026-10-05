@@ -209,6 +209,33 @@ def test_legal_facts_are_requested_with_independent_first_batch_when_known(perso
     assert "tampoco consultes hechos legales ajenos al caso" in prompt
 
 
+@pytest.mark.parametrize("access_level", [AgentAccessLevel.FULL, AgentAccessLevel.REPORT_OWNER])
+def test_firearm_prior_advice_reuses_legal_facts_without_blocking(persona, access_level) -> None:
+    prompt = build_agent_instructions(persona, access_level, character_legal_facts_enabled=True)
+    disabled = build_agent_instructions(persona, access_level, character_legal_facts_enabled=False)
+
+    assert "Consejo no bloqueante para futuros reportes (CP-29800)" in prompt
+    assert "Consejo no bloqueante para futuros reportes (CP-29800)" not in disabled
+    assert "consulta `prior_serious_convictions` aunque CP-29800 no figure" in prompt
+    assert "`status=confirmed` y `value=true`" in prompt
+    assert "`severity=observation`, `issue_type=charge_mismatch`" in prompt
+    assert "No lo agregues a `charges`" in prompt
+    assert "nunca cambia el veredicto" in prompt
+    assert "el consejo como `observation` incluso si el veredicto es `corrections_required`" in prompt
+    assert "Con `value=false`, `incomplete`, `unavailable`, error o sin tool, omite el consejo" in prompt
+    assert "No hagas esta comprobación en `narrative`" in prompt
+    assert "un arma cercana sin vínculo o la de un agente/tercero no bastan" in prompt
+    assert "No hagas una consulta preventiva\n   para despejar el tipo de arma" in prompt
+    assert "El cargo también activa el chequeo aunque la narrativa no identifique" in prompt
+    assert "Esa negación prevalece aunque haya un cargo de posesión" in prompt
+    assert "no repitas un consejo ya publicado" in prompt
+    assert "Esta excepción tiene prioridad sobre la comprobación automática" in prompt
+    assert "Una revisión anterior sin ese consejo no satisface este paso" in prompt
+    assert "no omitas una consulta aplicable solo porque su resultado no bloquee" in prompt
+    assert prompt.index("**Cargos:**") < prompt.index("**Consejo no bloqueante para futuros reportes")
+    assert prompt.index("**Consejo no bloqueante para futuros reportes") < prompt.index("**Cierre:**")
+
+
 def test_arrest_lookup_instructions_are_conditional_and_owner_scoped(persona) -> None:
     disabled = build_agent_instructions(persona)
     full = build_agent_instructions(persona, arrest_lookup_enabled=True)

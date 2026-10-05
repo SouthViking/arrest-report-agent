@@ -33,6 +33,7 @@ from arrest_report_agent.application.ports import (
     CharacterLegalFactsLookup,
     CharacterLegalFactsQuery,
     CharacterLegalFactsResult,
+    CharacterLegalFactStatus,
     EvidenceBagCustodyEvent,
     EvidenceBagDetail,
     EvidenceBagItem,
@@ -279,8 +280,15 @@ class RecordingArrestReportLookup:
 class RecordingCharacterLegalFactsLookup:
     """Return deterministic legal facts while recording the agent's selected checks."""
 
-    def __init__(self, *, serious: bool = False, overdue_fine: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        serious: bool = False,
+        overdue_fine: bool = False,
+        serious_status: CharacterLegalFactStatus = "confirmed",
+    ) -> None:
         self.serious = serious
+        self.serious_status = serious_status
         self.overdue_fine = overdue_fine
         self.queries: list[CharacterLegalFactsQuery] = []
 
@@ -291,8 +299,8 @@ class RecordingCharacterLegalFactsLookup:
             reference_at=query.reference_at,
             prior_serious_convictions=(
                 CharacterLegalFactResult(
-                    status="confirmed",
-                    value=self.serious,
+                    status=self.serious_status,
+                    value=self.serious if self.serious_status == "confirmed" else None,
                     matches=(
                         (
                             PriorSeriousConvictionMatch(
@@ -303,10 +311,10 @@ class RecordingCharacterLegalFactsLookup:
                                 charge_type="GRAVE",
                             ),
                         )
-                        if self.serious
+                        if self.serious and self.serious_status == "confirmed"
                         else ()
                     ),
-                    match_count=1 if self.serious else 0,
+                    match_count=1 if self.serious and self.serious_status == "confirmed" else 0,
                     matches_truncated=False,
                     records_scanned=3,
                     pages_scanned=1,
@@ -2340,6 +2348,8 @@ async def _run_calibration_review(
     request: str = "Inicia la revisión completa del expediente estructurado.",
     charge: ArrestReportCharge | None = None,
     follow_up: bool = False,
+    character_legal_facts_lookup: CharacterLegalFactsLookup | None = None,
+    previous_review: str = "Revisión anterior publicada.",
 ) -> ReviewPublication:
     """Use production instructions/tools with synthetic SARP data and no Discord writes."""
 
@@ -2349,10 +2359,12 @@ async def _run_calibration_review(
         description=narrative,
         created_at=datetime(2026, 9, 30, 12, 0, tzinfo=UTC),
         updated_at=datetime(2026, 9, 30, 13, 0, tzinfo=UTC),
-        charges=(charge or replace(lookup.report.charges[0], charge_id=115),),
+        charges=(charge or replace(
+            lookup.report.charges[0], charge_id=115, charge_type="MENOR", hours=2, fine=1_500,
+        ),),
     )
     turns = (
-        (("user", "Expediente de Terry McKenzie."), ("assistant", "Revisión anterior publicada."))
+        (("user", "Expediente de Terry McKenzie."), ("assistant", previous_review))
         if follow_up else ()
     ) + (("user", request),)
     case = _case(
@@ -2371,12 +2383,226 @@ async def _run_calibration_review(
         preloaded_arrest_report=None if follow_up else lookup.report,
         faction_officer_rank_lookup=RecordingOfficerRankLookup(current_rank="Deputy Sheriff"),
         evidence_bag_lookup=RecordingEvidenceBagLookup(unanalyzed_ids={4654218}),
+        character_legal_facts_lookup=character_legal_facts_lookup,
     )
     if follow_up:
         assert lookup.current or lookup.details, "a re-review must refresh the bound SARP report"
     else:
         assert lookup.current == lookup.details == lookup.searches == [], "reuse the preloaded report"
     return _single_publication(publisher)
+
+
+_FIREARM_PRIOR_FACTS = (
+    "Al registrarlo, encontré una pistola cargada en su cintura, bajo su control. La incauté "
+    "y quedó registrada en la bolsa de evidencias #4654218."
+)
+_FIREARM_PRIOR_CHARGE = ArrestReportCharge(
+    charge_id=203, code="CP-30600.1", name="Posesión de subfusiles o armas automáticas",
+    charge_type="GRAVE", hours=2, fine=42_000,
+)
+_FIREARM_PRIOR_EXISTING_CHARGE = ArrestReportCharge(
+    charge_id=202, code="CP-29800", name="Posesión de un arma de fuego por un delincuente convicto",
+    charge_type="GRAVE", hours=30, fine=3_000,
+)
+
+
+def _firearm_prior_narrative(facts: str) -> str:
+    return (
+        "Yo, ayudante Charles Harrington, bajo la asignación 280L, patrullaba Jefferson el "
+        "30 de septiembre de 2026 a las 09:00. Observé que Terry McKenzie conducía en sentido "
+        "contrario, obligando a otros conductores a frenar para evitar una colisión. Le di el alto "
+        "con luces y sirena. Tras detenerse, arrancó de nuevo y huyó de la intervención. "
+        "Lo seguí hasta que se detuvo voluntariamente. " + facts + " Arresté a Terry y lo "
+        "trasladé sin lesiones a la estación del Sheriff de Ganton."
+    )
+
+
+@pytest.mark.parametrize("follow_up", [False, True], ids=["owner-initial", "staff-follow-up"])
+async def test_firearm_prior_advice_is_automatic_and_nonblocking(
+    ai_eval_settings: AppSettings, follow_up: bool, record_property,
+) -> None:
+    lookup = RecordingCharacterLegalFactsLookup(serious=True)
+    review = await _run_calibration_review(
+        ai_eval_settings, _firearm_prior_narrative(_FIREARM_PRIOR_FACTS),
+        follow_up=follow_up, character_legal_facts_lookup=lookup,
+        request="Revisa el reporte completo.",
+    )
+    record_property("review", review.model_dump_json())
+
+    assert lookup.queries, "firearm possession must trigger the check even without CP-29800"
+    assert all(query.checks == ("prior_serious_convictions",) for query in lookup.queries)
+    assert all(query.character_name.replace("_", " ") == "Terry McKenzie" for query in lookup.queries)
+    assert all(query.exclude_arrest_id == 751 for query in lookup.queries)
+    assert all(query.reference_at == datetime(2026, 9, 30, 12, 0, tzinfo=UTC) for query in lookup.queries)
+    assert review.verdict is ReviewVerdict.APPROVED, review.model_dump(mode="json")
+    assert review.manual_review_reason is None
+    advice = [finding for finding in review.findings if "29800" in finding.model_dump_json()]
+    assert len(advice) == 1, review.model_dump(mode="json")
+    assert advice[0].title == "Para futuros reportes: CP-29800"
+    assert advice[0].severity.value == "observation"
+    assert advice[0].issue_type.value == "charge_mismatch"
+    assert "futur" in advice[0].recommendation.casefold()
+    assert not any(finding.severity.value == "required" for finding in review.findings)
+    assert all(charge.charge_id != 202 and "29800" not in charge.declared_charge for charge in review.charges)
+    assert len(review.charges) == 1 and review.charges[0].charge_id == 115
+
+
+@pytest.mark.parametrize(
+    ("serious", "status"),
+    [(False, "confirmed"), (False, "incomplete"), (False, "unavailable")],
+    ids=["no-prior-serious-record", "incomplete-history", "unavailable-history"],
+)
+async def test_firearm_prior_advice_requires_confirmed_history(
+    ai_eval_settings: AppSettings, serious: bool, status: CharacterLegalFactStatus, record_property,
+) -> None:
+    lookup = RecordingCharacterLegalFactsLookup(serious=serious, serious_status=status)
+    review = await _run_calibration_review(
+        ai_eval_settings, _firearm_prior_narrative(_FIREARM_PRIOR_FACTS),
+        character_legal_facts_lookup=lookup,
+    )
+    record_property("review", review.model_dump_json())
+
+    assert lookup.queries
+    assert review.verdict is ReviewVerdict.APPROVED, review.model_dump(mode="json")
+    assert review.manual_review_reason is None
+    assert "29800" not in review.model_dump_json(), review.model_dump(mode="json")
+    assert not any(finding.severity.value == "required" for finding in review.findings)
+
+
+@pytest.mark.parametrize(
+    "facts",
+    [
+        "Solo portaba un cuchillo, que quedó registrado en la bolsa de evidencias #4654218.",
+        "El único que portaba una pistola era el agente acompañante. Terry estaba desarmado. "
+        "No se recolectó evidencia física.",
+        "Otro detenido portaba una pistola; Terry no la poseyó ni tuvo control sobre ella. "
+        "El arma del otro detenido quedó registrada en la bolsa de evidencias #4654218.",
+        "Encontré una pistola bajo un banco cercano, sin poder vincularla a Terry ni determinar "
+        "quién la había dejado. La registré en la bolsa de evidencias #4654218.",
+        "Terry llevaba un arma cuyo tipo no se pudo identificar; no se determinó que fuera de fuego. "
+        "Se registró en la bolsa de evidencias #4654218.",
+    ],
+    ids=["knife", "officer-firearm", "third-party-firearm", "nearby-unlinked", "unknown-weapon-type"],
+)
+async def test_firearm_prior_advice_does_not_infer_possession(
+    ai_eval_settings: AppSettings, facts: str, record_property,
+) -> None:
+    lookup = RecordingCharacterLegalFactsLookup(serious=True)
+    review = await _run_calibration_review(
+        ai_eval_settings, _firearm_prior_narrative(facts), character_legal_facts_lookup=lookup,
+    )
+    record_property("review", review.model_dump_json())
+
+    assert lookup.queries == [], "incidental or non-firearm mentions must not trigger legal checks"
+    assert "29800" not in review.model_dump_json(), review.model_dump(mode="json")
+    assert review.verdict is ReviewVerdict.APPROVED, review.model_dump(mode="json")
+
+
+async def test_firearm_prior_advice_can_start_from_current_charges(
+    ai_eval_settings: AppSettings, record_property,
+) -> None:
+    lookup = RecordingCharacterLegalFactsLookup(serious=True)
+    review = await _run_calibration_review(
+        ai_eval_settings,
+        _firearm_prior_narrative(
+            "Durante el registro incauté lo que llevaba y lo guardé en la bolsa #4654218."
+        ),
+        charge=_FIREARM_PRIOR_CHARGE, character_legal_facts_lookup=lookup,
+        request="Revisa únicamente los cargos del reporte.",
+    )
+    record_property("review", review.model_dump_json())
+
+    assert lookup.queries, "the current firearm possession charge is sufficient to request the check"
+    assert all(query.checks == ("prior_serious_convictions",) for query in lookup.queries)
+    assert review.review_scope is ReviewScope.CHARGES
+    assert review.verdict is ReviewVerdict.APPROVED, review.model_dump(mode="json")
+    advice = [finding for finding in review.findings if "29800" in finding.model_dump_json()]
+    assert len(advice) == 1, review.model_dump(mode="json")
+    assert "futur" in advice[0].recommendation.casefold()
+    assert all(finding.severity.value == "observation" for finding in review.findings)
+    assert len(review.charges) == 1 and review.charges[0].charge_id == 203
+
+
+async def test_firearm_prior_advice_does_not_duplicate_existing_charge(
+    ai_eval_settings: AppSettings, record_property,
+) -> None:
+    lookup = RecordingCharacterLegalFactsLookup(serious=True)
+    review = await _run_calibration_review(
+        ai_eval_settings, _firearm_prior_narrative(_FIREARM_PRIOR_FACTS),
+        charge=_FIREARM_PRIOR_EXISTING_CHARGE, character_legal_facts_lookup=lookup,
+    )
+    record_property("review", review.model_dump_json())
+
+    assert lookup.queries
+    assert review.verdict is ReviewVerdict.APPROVED, review.model_dump(mode="json")
+    assert len(review.charges) == 1 and review.charges[0].charge_id == 202
+    assert review.charges[0].alignment == "supported"
+    assert not any("29800" in finding.model_dump_json() for finding in review.findings)
+
+
+@pytest.mark.parametrize(
+    ("review_request", "scope"),
+    [
+        ("Revisa solamente la narrativa, no los cargos.", ReviewScope.NARRATIVE),
+        ("Revisa exclusivamente si el callsign está abreviado correctamente.", ReviewScope.TARGETED),
+    ],
+    ids=["narrative-only", "unrelated-target"],
+)
+async def test_firearm_prior_advice_respects_review_scope(
+    ai_eval_settings: AppSettings, review_request: str, scope: ReviewScope, record_property,
+) -> None:
+    lookup = RecordingCharacterLegalFactsLookup(serious=True)
+    review = await _run_calibration_review(
+        ai_eval_settings, _firearm_prior_narrative(_FIREARM_PRIOR_FACTS),
+        request=review_request, character_legal_facts_lookup=lookup,
+    )
+    record_property("review", review.model_dump_json())
+
+    assert lookup.queries == []
+    assert review.review_scope is scope
+    assert review.verdict is ReviewVerdict.APPROVED, review.model_dump(mode="json")
+    assert "29800" not in review.model_dump_json()
+
+
+async def test_firearm_prior_advice_is_not_repeated_on_rereview(
+    ai_eval_settings: AppSettings, record_property,
+) -> None:
+    lookup = RecordingCharacterLegalFactsLookup(serious=True)
+    review = await _run_calibration_review(
+        ai_eval_settings, _firearm_prior_narrative(_FIREARM_PRIOR_FACTS),
+        follow_up=True, character_legal_facts_lookup=lookup,
+        request="Revisa nuevamente el reporte completo en PCU.",
+        previous_review=(
+            "Reporte aprobado. Para futuros reportes: CP-29800. Se confirmó un antecedente grave "
+            "anterior y posesión actual de un arma de fuego. Considera este cargo en futuros arrestos "
+            "con esas condiciones; no necesitas cambiar este reporte."
+        ),
+    )
+    record_property("review", review.model_dump_json())
+
+    assert review.verdict is ReviewVerdict.APPROVED, review.model_dump(mode="json")
+    # Acknowledging the previous tip in the persona summary is not a duplicated recommendation.
+    assert not any("29800" in finding.model_dump_json() for finding in review.findings)
+    assert all(charge.charge_id != 202 and "29800" not in charge.declared_charge for charge in review.charges)
+    assert "futur" not in review.summary.casefold(), "do not restate the future-report advice in the summary"
+    assert review.manual_review_reason is None
+
+
+async def test_firearm_prior_advice_does_not_hide_an_independent_correction(
+    ai_eval_settings: AppSettings, record_property,
+) -> None:
+    lookup = RecordingCharacterLegalFactsLookup(serious=True)
+    review = await _run_calibration_review(
+        ai_eval_settings, _firearm_prior_narrative(_FIREARM_PRIOR_FACTS).replace("Yo, ayudante", "Yo,"),
+        character_legal_facts_lookup=lookup,
+    )
+    record_property("review", review.model_dump_json())
+
+    assert review.verdict is ReviewVerdict.CORRECTIONS_REQUIRED, review.model_dump(mode="json")
+    required = [finding for finding in review.findings if finding.severity.value == "required"]
+    assert required and all("rango" in (finding.title + finding.detail).casefold() for finding in required)
+    advice = [finding for finding in review.findings if "29800" in finding.model_dump_json()]
+    assert len(advice) == 1 and advice[0].severity.value == "observation"
 
 
 @pytest.mark.parametrize(

@@ -163,7 +163,7 @@ class ReviewFinding(BaseModel):
         description=(
             "Impact-based classification: required only for a mandatory or material correctable "
             "deficiency; warning for a relevant non-blocking improvement; observation for an "
-            "optional clarity or style suggestion."
+            "optional clarity, style or future-report learning suggestion."
         )
     )
     title: str = Field(
@@ -185,7 +185,9 @@ class ReviewFinding(BaseModel):
         description=(
             "Actionable correction in correct, neutral Spanish, addressing the author with "
             "second-person singular tú imperatives such as 'incorpora' or 'corrige'; never use "
-            "formal usted forms such as 'incorpore' or 'corrija', nor an infinitive instruction."
+            "formal usted forms such as 'incorpore' or 'corrija', nor an infinitive instruction. "
+            "For optional future-report advice, explicitly address future cases without requiring "
+            "changes to the current report."
         ),
     )
     evidence: str | None = Field(

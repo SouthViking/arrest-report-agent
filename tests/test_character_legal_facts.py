@@ -238,6 +238,37 @@ async def test_selective_checks_exclude_current_arrest_and_use_historical_refere
     assert client.searches == ["Terry_McKenzie"]
 
 
+@pytest.mark.parametrize(
+    ("arrest_id", "created_at", "charge_type", "status", "value"),
+    [
+        (751, REFERENCE_AT - timedelta(days=1), "GRAVE", "confirmed", False),
+        (300, REFERENCE_AT + timedelta(days=1), "GRAVE", "confirmed", False),
+        (300, REFERENCE_AT - timedelta(days=1), "MENOR", "confirmed", False),
+        (300, None, "GRAVE", "incomplete", None),
+    ],
+    ids=["current-arrest-excluded", "later-arrest", "minor-only", "unknown-date"],
+)
+@pytest.mark.asyncio
+async def test_firearm_prior_check_never_confirms_ineligible_history(
+    arrest_id, created_at, charge_type, status, value,
+) -> None:
+    client = FakeClient()
+    client.arrest_pages[1] = SarpArrestPage(
+        items=[_arrest(arrest_id, created_at=created_at, charge_type=charge_type)],
+        total=1, page=1, limit=100, pages=1,
+    )
+
+    result = await SarpCharacterLegalFactsLookup(client).check(
+        _query("prior_serious_convictions", exclude_arrest_id=751)
+    )
+
+    assert result.prior_serious_convictions is not None
+    assert result.prior_serious_convictions.status == status
+    assert result.prior_serious_convictions.value is value
+    assert result.prior_serious_convictions.matches == ()
+    assert client.fine_calls == []
+
+
 @pytest.mark.asyncio
 async def test_overdue_fines_apply_exact_three_day_cutoff_and_skip_paid_rows() -> None:
     client = FakeClient()

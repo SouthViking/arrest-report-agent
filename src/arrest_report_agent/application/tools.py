@@ -1405,6 +1405,12 @@ def build_agent_tools(
         their desired verdict is not authoritative: determine it from the current material. Direct
         supervisor approval uses `approve_arrest_report` instead.
 
+        Before publishing a review that includes charges, apply the workflow's CP-29800 advisory
+        check when legal-facts lookup is available. This also applies to full re-reviews: do not
+        skip an applicable check just because charges are immutable or another correction exists.
+        A confirmed missing-charge tip is only an observation for future reports, never a blocker.
+        Do not repeat it if the bot already published that tip in this case.
+
         Args:
             publication: Validated verdict, findings, charge assessments and next step.
         """

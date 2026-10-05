@@ -182,8 +182,12 @@ separado del lookup de reportes. Recibe una lista cerrada de comprobaciones y co
 arrestos, multas o ambas secciones según lo solicitado. Para antecedentes graves excluye el arresto
 actual y solo considera registros anteriores a la fecha de referencia; para multas calcula en código
 el vencimiento exacto de tres días. Ambas ramas se ejecutan en paralelo, tienen paginación acotada y
-distinguen un `false` confirmado de una comprobación incompleta o indisponible. El perfil limitado
-del propietario no recibe esta herramienta de búsqueda nominal.
+distinguen un `false` confirmado de una comprobación incompleta o indisponible. La herramienta está
+disponible también para el propietario durante la revisión de su expediente. La política compartida
+de revisión la consulta ante posesión de un arma de fuego en alcances que incluyan cargos; si hay
+antecedente grave confirmado y falta CP-29800, publica una única observación orientada a futuros
+reportes, sin añadir un cargo declarado ni bloquear o exigir cambios al reporte actual. La ausencia
+o fallo de esta comprobación opcional no afecta el veredicto, y el consejo no se repite en re-revisiones.
 
 El agente principal con acceso completo puede consultar el plan de frecuencias de la facción fijada
 por la configuración de la guild. La tool no acepta IDs ni facciones como argumentos y reutiliza el

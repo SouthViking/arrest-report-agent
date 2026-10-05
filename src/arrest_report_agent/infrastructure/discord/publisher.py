@@ -620,7 +620,12 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
                 )
             )
         evidence = "\n" + ui.evidence_reference.format(evidence=finding.evidence) if finding.evidence else ""
-        correction = ui.correction_instruction.format(recommendation=finding.recommendation)
+        instruction = (
+            ui.observation_instruction
+            if finding.severity is FindingSeverity.OBSERVATION
+            else ui.correction_instruction
+        )
+        correction = instruction.format(recommendation=finding.recommendation)
         value = (f"{finding.detail}{evidence}\n{correction}")[:850]
         embeds[-1].add_field(
             name=f"{severity_icons[finding.severity]} {_capitalize_heading(finding.title)}"[:256],

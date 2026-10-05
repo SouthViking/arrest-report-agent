@@ -36,6 +36,22 @@ async def test_packaged_walter_persona_loads_with_avatar(loaded_persona) -> None
     assert loaded_persona.avatar_bytes.startswith(b"\x89PNG")
 
 
+def test_observation_instruction_is_backward_compatible_and_validates_template(persona) -> None:
+    review_messages = persona.messages.interface.review
+    payload = review_messages.model_dump()
+    payload.pop("observation_instruction")
+    restored = type(review_messages).model_validate(payload)
+
+    assert restored.observation_instruction == "**Recomendación:** {recommendation}"
+    payload["observation_instruction"] = "**Consejo:** {recommendation}"
+    assert type(review_messages).model_validate(payload).observation_instruction == payload[
+        "observation_instruction"
+    ]
+    payload["observation_instruction"] = "Sin el marcador requerido"
+    with pytest.raises(ValidationError, match="observation_instruction"):
+        type(review_messages).model_validate(payload)
+
+
 @pytest.mark.asyncio
 async def test_packaged_roy_persona_loads_with_avatar() -> None:
     loaded = await PackagedPersonaProvider().load("roy_velazco")

@@ -998,6 +998,9 @@ class PersonaReviewMessages(FrozenPersonaModel):
     continuation_title: str = Field(min_length=1, max_length=256)
     evidence_reference: str = Field(min_length=1, max_length=300)
     correction_instruction: str = Field(min_length=1, max_length=500)
+    observation_instruction: str = Field(
+        default="**Recomendación:** {recommendation}", min_length=1, max_length=500
+    )
     charge_supported: str = Field(min_length=1, max_length=150)
     charge_unsupported: str = Field(min_length=1, max_length=150)
     charge_uncertain: str = Field(min_length=1, max_length=150)
@@ -1030,6 +1033,11 @@ class PersonaReviewMessages(FrozenPersonaModel):
                 self.correction_instruction,
                 {"recommendation"},
                 "interface.review.correction_instruction",
+            ),
+            (
+                self.observation_instruction,
+                {"recommendation"},
+                "interface.review.observation_instruction",
             ),
             (self.fallback_thread_title, {"message_id"}, "interface.review.fallback_thread_title"),
         )

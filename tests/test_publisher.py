@@ -145,6 +145,46 @@ def test_embed_is_structured_and_uses_runtime_identity(persona) -> None:
     assert "Cómo corregirlo" in embed.fields[0].value
 
 
+@pytest.mark.asyncio
+async def test_firearm_prior_advice_keeps_approval_and_is_rendered_as_recommendation(
+    settings, persona,
+) -> None:
+    review = ReviewPublication(
+        verdict="approved",
+        summary="Reporte aprobado con una recomendación para futuros reportes.",
+        findings=[
+            ReviewFinding(
+                issue_type="charge_mismatch",
+                severity="observation",
+                title="Para futuros reportes: CP-29800",
+                detail="Se confirmó un antecedente grave anterior y posesión actual de un arma de fuego.",
+                recommendation="Considera CP-29800 en futuros arrestos con estas condiciones.",
+            )
+        ],
+    )
+    thread = FakeThread(owner_id=999)
+    root = FakeRoot(thread=thread)
+    publisher = DiscordReviewPublisher(
+        SimpleNamespace(user=SimpleNamespace(id=999)),
+        settings,
+        ReviewTarget(
+            root=root, trigger=root, parent=root.channel, thread=thread,
+            response_route=DiscordResponseRoute.THREAD,
+        ),
+        persona,
+    )
+
+    await publisher.publish(review)
+
+    assert root.added == ["✅"]
+    assert thread.archived is True
+    assert review.charges == [] and review.manual_review_reason is None
+    field = thread.sent[0]["embeds"][0].fields[0]
+    assert "Para futuros reportes: CP-29800" in field.name
+    assert "**Recomendación:**" in field.value
+    assert "Cómo corregirlo" not in field.value
+
+
 def test_long_review_is_split_without_dropping_findings(persona) -> None:
     findings = [
         ReviewFinding(
