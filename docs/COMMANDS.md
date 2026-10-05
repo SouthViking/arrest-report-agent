@@ -296,7 +296,9 @@ cada persona. El bot publica y fija un panel en el canal de fichas; su botón ab
 miembros no puedan escribir mensajes normales. El comando
 puede utilizarse además desde los canales de entrada adicionales configurados. Una
 solicitud general avisa a FTO, MFTO y Supervisory Staff y puede tomarla cualquier integrante habilitado
-de esa cadena o de Command/Executive. Una solicitud de supervisor solo admite Supervisory Staff,
+de esa cadena o de Command/Executive. Una solicitud de supervisor menciona a Supervisory Staff,
+Command Staff y los roles adicionales de notificación configurados (FTP Management en LSSD).
+Las menciones adicionales no conceden permisos: una solicitud de supervisor solo admite Supervisory Staff,
 Command Staff o Executive Staff. Una persona autorizada puede tomar la solicitud aunque también sea
 su autora. El autor, Command Staff y Executive Staff pueden cancelarla. Al tomarla se edita el mismo
 mensaje, se notifica al trainee y se desactivan los botones; al cancelarla se actualiza la tarjeta sin

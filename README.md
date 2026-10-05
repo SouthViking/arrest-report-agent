@@ -754,6 +754,10 @@ FTT, Command o Executive y mantener varias solicitudes para horarios distintos; 
 o rangos superiores y la opción supervisor exige
 Supervisory, Command o Executive. Solo el autor, Command Staff o Executive Staff puede cancelar. El canal,
 panel y roles se resuelven desde PostgreSQL, sin nuevos environment vars.
+Las solicitudes generales mencionan a FTO, MFTO y Supervisory Staff; las de supervisor mencionan a
+Supervisory Staff, Command Staff y los roles de `ftp_requests.supervisor_extra_notification_role_ids`.
+Esta lista adicional solo controla menciones, no concede permisos. En LSSD se configura inicialmente
+FTP Management (`1390426066455105598`); Executive Staff no recibe menciones salvo configuración explícita.
 
 `/ofrecer-ficha` reutiliza esos canales y roles, sin nuevas variables de entorno. El instructor elige
 **Disponible ahora** o fecha/hora y zona IANA, duración de 30/45/60/90 minutos, 1–5 bloques contiguos

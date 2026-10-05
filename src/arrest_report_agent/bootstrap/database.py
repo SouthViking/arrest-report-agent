@@ -527,6 +527,9 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                                 "channel_id": configured_ftp.request_channel_id,
                                 "command_role_ids": list(configured_ftp.command_role_ids),
                                 "executive_role_ids": list(configured_ftp.executive_role_ids),
+                                "supervisor_extra_notification_role_ids": list(
+                                    configured_ftp.supervisor_extra_notification_role_ids
+                                ),
                             }
                             if ftp_enabled and configured_ftp is not None
                             else {}

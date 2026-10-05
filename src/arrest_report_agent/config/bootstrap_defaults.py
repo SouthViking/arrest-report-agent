@@ -27,6 +27,7 @@ class FtpDefaults:
     request_channel_id: int
     command_role_ids: tuple[int, ...]
     executive_role_ids: tuple[int, ...]
+    supervisor_extra_notification_role_ids: tuple[int, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +61,7 @@ _FTP_DEFAULTS: Mapping[int, FtpDefaults] = MappingProxyType(
             request_channel_id=1551692208929906701,
             command_role_ids=(1234678029662294047,),
             executive_role_ids=(1234678238182244414,),
+            supervisor_extra_notification_role_ids=(1390426066455105598,),
         ),
     }
 )

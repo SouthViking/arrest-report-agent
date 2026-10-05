@@ -214,14 +214,21 @@ class FtpRequestService:
         level: FtpInstructorLevel,
     ) -> tuple[discord.Role, ...]:
         ftp = self.settings.ftp_status_options
-        if ftp is None:
+        options = self.request_options
+        if ftp is None or options is None:
             return ()
         role_ids = (
-            ftp.supervisory_role_ids
+            (
+                *ftp.supervisory_role_ids,
+                *options.command_role_ids,
+                *options.supervisor_extra_notification_role_ids,
+            )
             if level is FtpInstructorLevel.SUPERVISOR
             else (*ftp.fto_role_ids, *ftp.mfto_role_ids, *ftp.supervisory_role_ids)
         )
-        return tuple(role for role_id in role_ids if (role := guild.get_role(role_id)) is not None)
+        return tuple(
+            role for role_id in dict.fromkeys(role_ids) if (role := guild.get_role(role_id)) is not None
+        )
 
     async def create(
         self,

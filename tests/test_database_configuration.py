@@ -1701,6 +1701,7 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
             "additional_command_channel_ids": [1234749125820420139],
             "command_role_ids": [1234678029662294047],
             "executive_role_ids": [1234678238182244414],
+            "supervisor_extra_notification_role_ids": [1390426066455105598],
         }
         assert ftp_requests[999]["enabled"] is False
         assert ftp_requests[999]["payload"] == {}

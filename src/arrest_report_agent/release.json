@@ -1,26 +1,18 @@
 {
   "schema_version": 3,
-  "version": "1.1.0",
-  "title": "Contexto en vivo durante consultas y revisiones",
-  "summary": "Roy incorpora los mensajes que llegan mientras trabaja, para atender aclaraciones y cambios de instrucciones en la misma ejecución.",
+  "version": "1.1.1",
+  "title": "Menciones en solicitudes de supervisor FTP",
+  "summary": "Las solicitudes de ficha para supervisor también avisan a Command Staff y FTP Management.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "added",
-      "text": "Una ejecución activa por canal o hilo: los mensajes nuevos, con o sin mención, se encolan y se incorporan antes de la siguiente llamada al modelo. Las nuevas menciones no consumen otra ronda del propietario."
+      "type": "improved",
+      "text": "Al seleccionar Supervisor en /solicitar-ficha, se menciona a Supervisory Staff, Command Staff y FTP Management."
     },
     {
       "type": "improved",
-      "text": "Antes de publicar se comprueba si llegaron mensajes nuevos. Si llegan durante la respuesta final, se continúa con la misma sesión, sin ejecuciones simultáneas ni ampliar los permisos originales. No se deshacen acciones ya enviadas."
-    },
-    {
-      "type": "improved",
-      "text": "El historial conserva los mensajes incorporados sin duplicarlos. Los adjuntos se identifican por sus datos e IDs y solo se cargan cuando hacen falta. La cola en memoria queda desacoplada para admitir otros almacenamientos."
-    },
-    {
-      "type": "improved",
-      "text": "Logs de inicio, mensajes incorporados, continuaciones y cierre, con IDs correlacionables y cantidades. Se registran errores y pendientes sin procesar, sin guardar el contenido de los mensajes."
+      "text": "Las solicitudes generales mantienen sus menciones habituales. Los permisos para tomar o cancelar fichas no cambian."
     }
   ],
   "acknowledgements": []

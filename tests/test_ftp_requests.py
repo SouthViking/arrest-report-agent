@@ -164,9 +164,27 @@ def test_ftp_request_commands_are_root_commands() -> None:
     assert FtpRequestCog.info_ftp.parent is None
 
 
-def test_ftp_request_notifies_the_selected_evaluator_group(persona) -> None:
+@pytest.mark.parametrize(
+    ("extra_role_ids", "missing_role_ids", "expected_supervisor_ids"),
+    [
+        ((), (), [10, 60]),
+        ((90,), (), [10, 60, 90]),
+        ((10, 60, 90), (), [10, 60, 90]),
+        ((90,), (60,), [10, 90]),
+        ((90,), (90,), [10, 60]),
+    ],
+)
+def test_ftp_request_notifies_the_selected_evaluator_group(
+    persona, extra_role_ids, missing_role_ids, expected_supervisor_ids,
+) -> None:
     service = _service(persona)
-    roles = {role_id: SimpleNamespace(id=role_id) for role_id in (10, 20, 30, 40, 60, 70)}
+    service.settings.ftp_request_options = service.request_options.model_copy(
+        update={"supervisor_extra_notification_role_ids": extra_role_ids}
+    )
+    roles = {
+        role_id: SimpleNamespace(id=role_id)
+        for role_id in (10, 20, 30, 40, 60, 70, 90) if role_id not in missing_role_ids
+    }
 
     guild = SimpleNamespace(get_role=roles.get)
     assert [role.id for role in service.notification_roles(guild, FtpInstructorLevel.GENERAL)] == [
@@ -174,9 +192,80 @@ def test_ftp_request_notifies_the_selected_evaluator_group(persona) -> None:
         20,
         10,
     ]
-    assert [role.id for role in service.notification_roles(guild, FtpInstructorLevel.SUPERVISOR)] == [
-        10
-    ]
+    assert [
+        role.id for role in service.notification_roles(guild, FtpInstructorLevel.SUPERVISOR)
+    ] == expected_supervisor_ids
+
+
+def test_ftp_notification_only_roles_do_not_grant_request_permissions(persona) -> None:
+    service = _service(persona)
+    service.settings.ftp_request_options = service.request_options.model_copy(
+        update={"supervisor_extra_notification_role_ids": (90,)}
+    )
+    management = _member(999, (90,))
+    assert not service.can_request(management)
+    assert not service.can_claim(management, _request(level=FtpInstructorLevel.SUPERVISOR))
+    assert not service.can_claim(management, _request())
+    assert not service.can_cancel(management, _request())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("level", "expected_ids"),
+    [(FtpInstructorLevel.GENERAL, [30, 20, 10]), (FtpInstructorLevel.SUPERVISOR, [10, 60, 90])],
+)
+async def test_ftp_request_publication_only_allows_the_selected_role_mentions(
+    persona, monkeypatch, level, expected_ids,
+) -> None:
+    service = _service(persona)
+    service.settings.ftp_request_options = service.request_options.model_copy(
+        update={"supervisor_extra_notification_role_ids": (90,)}
+    )
+    roles = {
+        role_id: SimpleNamespace(id=role_id, mention=f"<@&{role_id}>")
+        for role_id in (10, 20, 30, 40, 60, 70, 90)
+    }
+    member = _member(200, (40,))
+    member.guild.get_role = roles.get
+    request = _request(level=level)
+    service.repository = SimpleNamespace(
+        create_publishing=AsyncMock(return_value=request),
+        publish=AsyncMock(return_value=request),
+        mark_failed=AsyncMock(),
+    )
+    message = SimpleNamespace(id=100, edit=AsyncMock(), delete=AsyncMock())
+    channel = SimpleNamespace(id=50, send=AsyncMock(return_value=message))
+    service.destination_channel = AsyncMock(return_value=channel)
+    monkeypatch.setattr(
+        "arrest_report_agent.ftp_requests.discord.build_ftp_request_embed",
+        lambda *_args, **_kwargs: discord.Embed(),
+    )
+    interaction = SimpleNamespace(
+        response=SimpleNamespace(defer=AsyncMock()), followup=SimpleNamespace(send=AsyncMock()),
+    )
+
+    await service.create(
+        interaction,
+        member=member,
+        training_phase=FtpTrainingPhase.PHASE_2,
+        requested_instructor_level=level,
+        scheduled_for=request.scheduled_for,
+    )
+
+    channel.send.assert_awaited_once()
+    sent = channel.send.await_args.kwargs
+    assert sent["content"] == " ".join(f"<@&{role_id}>" for role_id in expected_ids)
+    assert sent["allowed_mentions"].to_dict() == {"roles": expected_ids, "parse": []}
+    assert message.edit.await_args.kwargs["allowed_mentions"].to_dict() == {"parse": []}
+    service.repository.mark_failed.assert_not_awaited()
+    interaction.followup.send.assert_not_awaited()
+
+
+@pytest.mark.parametrize("missing", ["ftp_request_options", "ftp_status_options"])
+def test_ftp_notification_roles_require_configuration(persona, missing) -> None:
+    service = _service(persona)
+    setattr(service.settings, missing, None)
+    assert service.notification_roles(SimpleNamespace(), FtpInstructorLevel.SUPERVISOR) == ()
 
 
 @pytest.mark.asyncio
@@ -466,6 +555,17 @@ def test_ftp_request_options_reject_overlap_between_management_roles() -> None:
             additional_command_channel_ids=(50,),
             command_role_ids=(60,),
             executive_role_ids=(70,),
+        )
+
+
+@pytest.mark.parametrize("role_ids", [(0,), (-1,), (True,), ("90",), (90, 90), tuple(range(1, 12))])
+def test_ftp_extra_notification_role_ids_are_validated(role_ids) -> None:
+    with pytest.raises(ValueError):
+        FtpRequestOptions(
+            channel_id=50,
+            command_role_ids=(60,),
+            executive_role_ids=(70,),
+            supervisor_extra_notification_role_ids=role_ids,
         )
 
 

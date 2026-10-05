@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
@@ -267,6 +267,9 @@ class FtpRequestOptions(FrozenConfigModel):
     additional_command_channel_ids: tuple[int, ...] = Field(default=(), max_length=10)
     command_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
     executive_role_ids: tuple[int, ...] = Field(min_length=1, max_length=10)
+    supervisor_extra_notification_role_ids: tuple[Annotated[int, Field(gt=0, strict=True)], ...] = Field(
+        default=(), max_length=10
+    )
     expiry_enabled: bool = True
     expiry_check_minutes: int = Field(default=10, ge=1, le=1440)
     expiry_grace_hours: int = Field(default=6, ge=1, le=168)
@@ -278,6 +281,9 @@ class FtpRequestOptions(FrozenConfigModel):
             raise ValueError("FTP management role IDs must be positive")
         if len(role_ids) != len(set(role_ids)):
             raise ValueError("FTP management role IDs must be unique")
+        extra_roles = self.supervisor_extra_notification_role_ids
+        if len(extra_roles) != len(set(extra_roles)):
+            raise ValueError("FTP supervisor notification role IDs must be unique")
         channel_ids = (self.channel_id, *self.additional_command_channel_ids)
         if any(channel_id <= 0 for channel_id in channel_ids):
             raise ValueError("FTP request channel IDs must be positive")
