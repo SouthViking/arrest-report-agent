@@ -878,6 +878,11 @@ tokens de salida. Estas cifras son estimaciones operativas y no reemplazan la fa
 .venv/bin/mypy
 ```
 
+El CI obtiene PostgreSQL y la imagen base de Python desde el repositorio de imágenes oficiales
+de Docker en Amazon ECR Public, sin depender de las descargas anónimas de Docker Hub. El build de
+CI selecciona ese origen mediante `PYTHON_IMAGE`; el Dockerfile conserva `python:3.12-slim` como
+valor predeterminado para Railway y los builds locales.
+
 La suite predeterminada no llama a Discord ni a OpenAI. Cubre catálogos, configuración, trigger,
 contexto multimodal y documental, efectos inmediatos de las tools, embeds, clasificación de errores,
 metadata y costos.
