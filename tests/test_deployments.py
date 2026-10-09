@@ -78,6 +78,7 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     rendered_changes = " ".join(change.text for change in manifest.changes)
     assert "get_messages ya no falla al procesar embeds sin footer" in rendered_changes
     assert "get_message_attachments recupera los adjuntos" in rendered_changes
+    assert "CI y Railway descargan las imágenes oficiales desde Amazon ECR Public" in rendered_changes
     assert manifest.acknowledgements == ()
 
 

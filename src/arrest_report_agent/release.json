@@ -13,6 +13,10 @@
     {
       "type": "improved",
       "text": "get_message_attachments recupera los adjuntos sin procesar el texto ni los embeds del mensaje, manteniendo las mismas validaciones de permisos y límites de acceso."
+    },
+    {
+      "type": "fixed",
+      "text": "CI y Railway descargan las imágenes oficiales desde Amazon ECR Public para evitar los fallos de Docker Hub durante la construcción y validación de los despliegues."
     }
   ],
   "acknowledgements": []
