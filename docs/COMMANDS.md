@@ -463,7 +463,7 @@ de `report_guide.json` cargadas por el runtime.
 ## `/ts3`
 
 Solo los miembros incluidos en `operational_staff_roles` pueden ejecutarlo. Publica un embed breve y
-visible para todo el canal con la dirección `51.81.49.72:11189` del servidor TeamSpeak 3. La dirección
+visible para todo el canal con la dirección `172.96.11.180:11189` del servidor TeamSpeak 3. La dirección
 es determinista y el texto introductorio proviene de la persona activa. Los intentos no autorizados
 reciben una alerta efímera ajustada a esa personalidad.
 

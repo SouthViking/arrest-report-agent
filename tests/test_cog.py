@@ -474,7 +474,7 @@ async def test_teamspeak_command_allows_operational_staff_and_uses_persona(
     embed = responses[0]["embed"]
     assert isinstance(embed, discord.Embed)
     assert embed.title == "🎙️ TeamSpeak 3"
-    assert "51.81.49.72:11189" in (embed.description or "")
+    assert "172.96.11.180:11189" in (embed.description or "")
     assert embed.description == build_teamspeak_embed(persona=persona).description
 
 

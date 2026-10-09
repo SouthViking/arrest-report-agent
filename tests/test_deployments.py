@@ -76,10 +76,8 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     assert not manifest.targets_changelog_channel(1234675609536430152)
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "falta CP-29800" in rendered_changes
-    assert "solo para futuros reportes" in rendered_changes
-    assert "no exige modificar el arresto actual ni impide su aprobación" in rendered_changes
-    assert "no se pueden confirmar los antecedentes" in rendered_changes
+    assert "172.96.11.180:11189" in rendered_changes
+    assert "configuración publicada y los borradores de LSSD" in rendered_changes
     assert manifest.acknowledgements == ()
 
 

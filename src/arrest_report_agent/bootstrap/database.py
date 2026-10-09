@@ -441,7 +441,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         key="teamspeak",
                         enabled=True,
                         schema_version=1,
-                        payload={"address": "51.81.49.72:11189"},
+                        payload={"address": "172.96.11.180:11189"},
                     ),
                     GuildFeatureSnapshot(
                         key="pagers",

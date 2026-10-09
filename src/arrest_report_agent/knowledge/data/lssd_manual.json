@@ -1122,7 +1122,7 @@
       "order": 89,
       "content": [
         "¿CÓMO CONFIGURO EL TEAMSPEAK?",
-        "Para empezar, se deberá de ingresar a nuestro servidor de TeamSpeak (51.81.49.72:11189). Una vez allí, ya se podrá comenzar a configurar el TeamSpeak.",
+        "Para empezar, se deberá de ingresar a nuestro servidor de TeamSpeak (172.96.11.180:11189). Una vez allí, ya se podrá comenzar a configurar el TeamSpeak.",
         "MACROS/TECLAS DE ACCESO RÁPIDO PARA CAMBIAR CANAL",
         "Es altamente recomendable tener teclas de acceso rápido para cambiar de canal. Para ello, se deberá de ir a Herramientas, después Opciones y finalmente Teclas de Acceso Rápido. Una vez en esa sección, se deberá de presionar en el botón Agregar para abrir un nuevo diálogo. Allí, se deberá seleccionar en Mostrar acciones avanzadas y después buscar la opción de Cambiar a canal, con la opción seleccionada, se deberá de elegir un canal (en este caso, se deberán de elegir los canales de A-TAC).",
         "Al expandir un canal, saldrán una serie de opciones adicionales, es recomendable seleccionar la opción de en el servidor actual. Al hacerlo, se te pedirá presionar la combinación de teclas que usarás para esa acción. Finalmente, se deberá de hacer click en Aceptar para guardar los cambios.",

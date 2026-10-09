@@ -1157,4 +1157,4 @@ class GuildRuntimeSettings:
     @property
     def teamspeak_address(self) -> str:
         feature = self.snapshot.features.get("teamspeak")
-        return str((feature.payload if feature else {}).get("address", "51.81.49.72:11189"))
+        return str((feature.payload if feature else {}).get("address", "172.96.11.180:11189"))

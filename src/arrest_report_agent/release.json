@@ -1,22 +1,18 @@
 {
   "schema_version": 3,
-  "version": "1.1.2",
-  "title": "Consejos para futuros reportes de arresto",
-  "summary": "Las revisiones comprueban antecedentes graves ante posesión de un arma de fuego para sugerir CP-29800 cuando corresponda, sin bloquear la aprobación.",
+  "version": "1.1.3",
+  "title": "Nueva dirección de TeamSpeak 3",
+  "summary": "El comando /ts3 ahora muestra la dirección 172.96.11.180:11189 del servidor de TeamSpeak 3.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "improved",
-      "text": "Si el reporte o sus cargos indican posesión de un arma de fuego, se comprueba si había una condena grave anterior. Si se confirma y falta CP-29800, se muestra una recomendación."
+      "type": "fixed",
+      "text": "Actualizada la dirección de /ts3 a 172.96.11.180:11189, junto con las referencias del manual y la documentación."
     },
     {
-      "type": "improved",
-      "text": "La recomendación es solo para futuros reportes: no exige modificar el arresto actual ni impide su aprobación. Tampoco se repite si ya se publicó en el hilo."
-    },
-    {
-      "type": "improved",
-      "text": "El consejo se omite si no se pueden confirmar los antecedentes o vincular un arma de fuego al sospechoso. Las observaciones se muestran como recomendaciones, separadas de las correcciones."
+      "type": "fixed",
+      "text": "La migración actualiza la dirección en la configuración publicada y los borradores de LSSD. Conserva las demás opciones, las revisiones archivadas y la configuración de otras guilds."
     }
   ],
   "acknowledgements": []

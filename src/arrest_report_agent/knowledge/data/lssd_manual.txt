@@ -1419,7 +1419,7 @@ GUÍA/IP DE TEAMSPEAK
 
 ¿CÓMO CONFIGURO EL TEAMSPEAK?
 
-Para empezar, se deberá de ingresar a nuestro servidor de TeamSpeak (51.81.49.72:11189). Una vez allí, ya se podrá comenzar a configurar el TeamSpeak.
+Para empezar, se deberá de ingresar a nuestro servidor de TeamSpeak (172.96.11.180:11189). Una vez allí, ya se podrá comenzar a configurar el TeamSpeak.
 
 MACROS/TECLAS DE ACCESO RÁPIDO PARA CAMBIAR CANAL
 

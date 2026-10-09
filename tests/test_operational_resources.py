@@ -116,7 +116,7 @@ def test_resources_embed_is_nested_bounded_and_uses_dynamic_cache(persona) -> No
     embed = build_operational_resources_embed(
         snapshot,
         _options(),
-        teamspeak_address="51.81.49.72:11189",
+        teamspeak_address="172.96.11.180:11189",
         organization_acronym="LSSD",
         ui=persona.messages.interface.operational_resources,
         thumbnail_url="https://cdn.discordapp.com/icons/1/icon.png",
@@ -142,7 +142,7 @@ def test_resources_embed_omits_cache_section_when_api_is_unavailable(persona) ->
     embed = build_operational_resources_embed(
         OperationalResourcesSnapshot(_status(), None),
         _options(),
-        teamspeak_address="51.81.49.72:11189",
+        teamspeak_address="172.96.11.180:11189",
         organization_acronym="LSSD",
         ui=persona.messages.interface.operational_resources,
     )
@@ -195,7 +195,7 @@ async def test_resources_command_publishes_for_operational_staff(persona) -> Non
             settings=SimpleNamespace(
                 operational_staff_role_ids=(200,),
                 operational_resources_options=_options(),
-                teamspeak_address="51.81.49.72:11189",
+                teamspeak_address="172.96.11.180:11189",
             ),
             persona=SimpleNamespace(profile=persona),
         )
