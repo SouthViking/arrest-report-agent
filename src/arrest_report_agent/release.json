@@ -1,18 +1,18 @@
 {
   "schema_version": 3,
-  "version": "1.1.3",
-  "title": "Nueva dirección de TeamSpeak 3",
-  "summary": "El comando /ts3 ahora muestra la dirección 172.96.11.180:11189 del servidor de TeamSpeak 3.",
+  "version": "1.1.4",
+  "title": "Consultas de mensajes más resilientes",
+  "summary": "Corregida la búsqueda de mensajes y adjuntos en conversaciones con tarjetas sin pie de página o mensajes sin texto.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
       "type": "fixed",
-      "text": "Actualizada la dirección de /ts3 a 172.96.11.180:11189, junto con las referencias del manual y la documentación."
+      "text": "get_messages ya no falla al procesar embeds sin footer y puede recorrer historiales que mezclan texto, adjuntos, tarjetas, encuestas y mensajes del sistema."
     },
     {
-      "type": "fixed",
-      "text": "La migración actualiza la dirección en la configuración publicada y los borradores de LSSD. Conserva las demás opciones, las revisiones archivadas y la configuración de otras guilds."
+      "type": "improved",
+      "text": "get_message_attachments recupera los adjuntos sin procesar el texto ni los embeds del mensaje, manteniendo las mismas validaciones de permisos y límites de acceso."
     }
   ],
   "acknowledgements": []

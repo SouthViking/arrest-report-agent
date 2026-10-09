@@ -3,11 +3,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import discord
 import pytest
 
 from arrest_report_agent.application.ports import MessageLookupQuery
 from arrest_report_agent.infrastructure.discord.message_directory import (
     DiscordGuildMessageDirectory,
+    _compact_embed,
 )
 
 
@@ -127,6 +129,134 @@ class FakeGuild:
 
     async def fetch_channel(self, channel_id: int):
         raise AssertionError("channel should be cached")
+
+
+@pytest.fixture
+def readable_directory(monkeypatch):
+    channel = FakeTextChannel(88, SimpleNamespace(id=77))
+    guild = FakeGuild(77, channel)
+    channel.guild = guild
+    bot = SimpleNamespace(get_guild=lambda guild_id: guild if guild_id == 77 else None)
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.message_directory.discord.TextChannel",
+        FakeTextChannel,
+    )
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.message_directory.discord.Thread",
+        FakeThread,
+    )
+    return DiscordGuildMessageDirectory(bot), channel
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        ({}, ""),
+        ({"image": {"url": "https://cdn.discord.test/image.png"}}, ""),
+        ({"thumbnail": {"url": "https://cdn.discord.test/thumbnail.png"}}, ""),
+        ({"type": "video", "video": {"url": "https://example.com/video.mp4"}}, ""),
+        (
+            {"title": "Una tarjeta sin pie", "description": "Contenido"},
+            "Título: Una tarjeta sin pie\nContenido",
+        ),
+        ({"footer": None}, ""),
+        ({"footer": {"text": "Información"}}, "Pie: Información"),
+        ({"fields": [{"name": "Estado", "value": "Listo"}]}, "Estado: Listo"),
+        ({"fields": [{"name": "", "value": "Sin nombre"}]}, "Detalle: Sin nombre"),
+    ],
+    ids=["empty", "image", "thumbnail", "video", "card", "null-footer", "footer", "fields", "nameless-field"],
+)
+def test_compact_embed_tolerates_optional_discord_fields(payload, expected) -> None:
+    assert _compact_embed(discord.Embed.from_dict(payload)) == expected
+
+
+@pytest.mark.asyncio
+async def test_message_directory_reads_mixed_history_without_requiring_text(readable_directory) -> None:
+    directory, channel = readable_directory
+    channel.messages = [_message(message_id, channel) for message_id in range(1, 8)]
+    image_message = channel.messages[1]
+    image_message.content = ""
+    image_message.attachments = [_attachment(502)]
+    card = channel.messages[2]
+    card.content = ""
+    card.author = _author(103, bot=True)
+    card.embeds = [discord.Embed(title="Contáctanos", description="Selecciona una opción.")]
+    for message in channel.messages[3:]:
+        message.content = ""
+    card.components = [SimpleNamespace(type=discord.ComponentType.string_select)]
+    channel.messages[4].stickers = [SimpleNamespace(id=1, name="Sticker")]
+    channel.messages[5].poll = SimpleNamespace(question="Una encuesta")
+    channel.messages[6].type = discord.MessageType.pins_add
+    video_message = channel.messages[3]
+    video_message.attachments = [_attachment(504)]
+    video_message.attachments[0].filename = "clip.mp4"
+    video_message.attachments[0].content_type = "video/mp4"
+    query = MessageLookupQuery(
+        channel_id=88,
+        message_id=None,
+        direction="latest",
+        limit=10,
+        author_ids=(),
+        author_type="any",
+        has_attachments=None,
+    )
+
+    result = await directory.lookup_messages(77, 999, 88, query)
+
+    assert result.error is None
+    assert [message.message_id for message in result.messages] == list(range(1, 8))
+    assert result.messages[0].content == "Message 1"
+    assert result.messages[1].content == ""
+    assert result.messages[1].attachments[0].id == 502
+    assert result.messages[2].embeds == ("Título: Contáctanos\nSelecciona una opción.",)
+    assert result.messages[3].attachments[0].filename == "clip.mp4"
+    assert result.messages[3].attachments[0].input_kind is None
+    assert all(message.content == "" for message in result.messages[4:])
+
+
+@pytest.mark.asyncio
+async def test_attachment_lookup_does_not_serialize_message_content(readable_directory, monkeypatch) -> None:
+    directory, channel = readable_directory
+    message = _message(4, channel, attachments=True)
+    message.content = ""
+    message.embeds = [discord.Embed().set_image(url="https://cdn.discord.test/image.png")]
+    channel.messages = [message]
+
+    def unexpected_serialization(message):
+        raise AssertionError("Attachment reads must not depend on message text or embeds")
+
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.message_directory._message_profile",
+        unexpected_serialization,
+    )
+
+    result = await directory.lookup_message_attachments(77, 999, 88, 88, 4, ())
+
+    assert result.error is None
+    assert [attachment.id for attachment in result.attachments] == [504]
+    assert result.attachments[0].url == "https://cdn.discord.test/file-504.png"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", ["hidden-channel", "foreign-guild", "private-thread"])
+async def test_attachment_lookup_preserves_permission_boundary(readable_directory, case) -> None:
+    directory, channel = readable_directory
+    if case == "hidden-channel":
+        channel.can_read = False
+        expected = "channel_forbidden"
+    elif case == "foreign-guild":
+        channel.guild = SimpleNamespace(id=78)
+        expected = "channel_outside_guild"
+    else:
+        thread = FakeThread(88, channel.guild, private=True)
+        channel.guild.channel = thread
+        expected = "private_thread_forbidden"
+
+    result = await directory.lookup_message_attachments(77, 999, 99, 88, 4, ())
+
+    assert result.error == expected
+    assert result.attachments == ()
+    assert channel.history_calls == []
 
 
 @pytest.mark.asyncio

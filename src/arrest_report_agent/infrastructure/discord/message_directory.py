@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
 import discord
 
@@ -27,6 +28,12 @@ MAX_REACTIONS_PER_MESSAGE = 20
 LOGGER = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class _ReadableMessageWindow:
+    messages: tuple[discord.Message, ...] = ()
+    error: str | None = None
+
+
 class DiscordGuildMessageDirectory:
     """Read messages from an agent-selected channel without crossing the active guild."""
 
@@ -40,6 +47,29 @@ class DiscordGuildMessageDirectory:
         current_channel_id: int,
         query: MessageLookupQuery,
     ) -> MessageLookupResult:
+        lookup = await self._lookup_readable_messages(
+            guild_id,
+            requester_user_id,
+            current_channel_id,
+            query,
+        )
+        if lookup.error is not None:
+            return MessageLookupResult(messages=(), error=lookup.error)
+        profiles = tuple(_message_profile(message) for message in lookup.messages)
+        return MessageLookupResult(
+            messages=profiles,
+            truncated=any(profile.truncated for profile in profiles),
+        )
+
+    async def _lookup_readable_messages(
+        self,
+        guild_id: int,
+        requester_user_id: int,
+        current_channel_id: int,
+        query: MessageLookupQuery,
+    ) -> _ReadableMessageWindow:
+        """Resolve permissions and native messages independently of their content or presentation."""
+
         guild = self.bot.get_guild(guild_id)
         if guild is None:
             return self._error("guild_unavailable", guild_id, query.channel_id)
@@ -87,11 +117,7 @@ class DiscordGuildMessageDirectory:
         except discord.HTTPException as error:
             return self._error("message_history_unavailable", guild_id, query.channel_id, error)
 
-        profiles = tuple(_message_profile(message) for message in messages)
-        return MessageLookupResult(
-            messages=profiles,
-            truncated=any(profile.truncated for profile in profiles),
-        )
+        return _ReadableMessageWindow(messages=tuple(messages))
 
     async def lookup_message_attachments(
         self,
@@ -104,7 +130,7 @@ class DiscordGuildMessageDirectory:
     ) -> MessageAttachmentLookupResult:
         """Fetch fresh attachment URLs through the same permission boundary as message reads."""
 
-        lookup = await self.lookup_messages(
+        lookup = await self._lookup_readable_messages(
             guild_id=guild_id,
             requester_user_id=requester_user_id,
             current_channel_id=current_channel_id,
@@ -129,7 +155,10 @@ class DiscordGuildMessageDirectory:
                 error="message_not_found",
             )
 
-        available = {attachment.id: attachment for attachment in lookup.messages[0].attachments}
+        available = {
+            attachment.id: _attachment_profile(attachment)
+            for attachment in lookup.messages[0].attachments[:MAX_ATTACHMENTS_PER_MESSAGE]
+        }
         selected_ids = attachment_ids or tuple(available)
         return MessageAttachmentLookupResult(
             attachments=tuple(
@@ -181,7 +210,7 @@ class DiscordGuildMessageDirectory:
         guild_id: int,
         channel_id: int,
         error: Exception | None = None,
-    ) -> MessageLookupResult:
+    ) -> _ReadableMessageWindow:
         log_event(
             LOGGER,
             "warning",
@@ -192,7 +221,7 @@ class DiscordGuildMessageDirectory:
             lookup_error=code,
             **(exception_fields(error) if error is not None else {}),
         )
-        return MessageLookupResult(messages=(), error=code)
+        return _ReadableMessageWindow(error=code)
 
 
 async def _history_side(
@@ -295,8 +324,12 @@ def _compact_embed(embed: discord.Embed) -> str:
     if embed.description:
         lines.append(str(embed.description))
     for field in embed.fields:
-        lines.append(f"{field.name or 'Detalle'}: {field.value}")
-    if embed.footer.text:
-        lines.append(f"Pie: {embed.footer.text}")
+        name = getattr(field, "name", None)
+        value = getattr(field, "value", None)
+        if name or value:
+            lines.append(f"{name or 'Detalle'}: {value or ''}")
+    footer_text = getattr(embed.footer, "text", None)
+    if footer_text:
+        lines.append(f"Pie: {footer_text}")
     text = "\n".join(lines)
     return text[: MAX_EMBED_TEXT_CHARS - 1] + "…" if len(text) > MAX_EMBED_TEXT_CHARS else text
