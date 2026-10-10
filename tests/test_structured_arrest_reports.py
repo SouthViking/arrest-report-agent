@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import Mock
 
 import discord
 import pytest
@@ -47,6 +48,7 @@ from arrest_report_agent.structured_arrest_reports import (
     StructuredArrestReportService,
     StructuredReportSnapshotManager,
 )
+from arrest_report_agent.structured_arrest_reports import render as report_render
 from arrest_report_agent.structured_arrest_reports.attachments import build_discord_files
 from arrest_report_agent.structured_arrest_reports.discord import (
     StructuredArrestReportCog,
@@ -1039,6 +1041,72 @@ def test_generated_report_renderer_is_single_readable_png_with_semantic_styles()
     )
     assert _charge_badge("GRAVE") == ("Grave", "#C93B3B")
     assert _charge_badge("MENOR") == ("Menor", "#536B86")
+
+
+@pytest.mark.parametrize(
+    ("entries", "expected_ids"),
+    [
+        (
+            [
+                ("Árbol", "MENOR"),
+                ("Zorro", "grave"),
+                ("beta", "menor"),
+                ("Ébano", " GRAVE "),
+                ("arma", "Grave"),
+                ("ábaco", "GRAVE"),
+                ("Ácido", "MENOR"),
+                ("ABC", "MENOR"),
+            ],
+            [6, 5, 4, 2, 8, 7, 1, 3],
+        ),
+        (
+            [("Árbol", "GRAVE"), ("ARBOL", "GRAVE"), ("éxito", "MENOR"), ("EXITO", "MENOR")],
+            [1, 2, 3, 4],
+        ),
+        (
+            [
+                ("Zorro", None),
+                ("Amenazas", "MENOR"),
+                ("Robo", "GRAVE"),
+                ("Ábaco", "Otro"),
+                ("beta", ""),
+            ],
+            [3, 2, 4, 5, 1],
+        ),
+        ([], []),
+    ],
+    ids=["severity-and-alphabet", "stable-equal-names", "unknown-types-last", "no-charges"],
+)
+def test_generated_report_renderer_orders_only_image_rows(
+    monkeypatch: pytest.MonkeyPatch,
+    entries: list[tuple[str, str | None]],
+    expected_ids: list[int],
+) -> None:
+    charges = tuple(
+        ArrestReportCharge(index, f"CP-{index}", name, charge_type, 1, 100)
+        for index, (name, charge_type) in enumerate(entries, start=1)
+    )
+    report = FakeArrestLookup().report
+    report = report.__class__(
+        report_id=report.report_id,
+        suspect_name=report.suspect_name,
+        officer_name=report.officer_name,
+        description=report.description,
+        created_at=report.created_at,
+        updated_at=report.updated_at,
+        charges=charges,
+    )
+    draw_row = Mock(wraps=report_render._draw_charge_row)
+    monkeypatch.setattr(report_render, "_draw_charge_row", draw_row)
+
+    rendered = render_arrest_report_image(report)
+
+    assert Image.open(io.BytesIO(rendered.payload)).format == "PNG"
+    assert [call.args[1].charge_id for call in draw_row.call_args_list] == expected_ids
+    for call in draw_row.call_args_list:
+        assert " ".join(call.args[2]) == call.args[1].name
+    assert report.charges is charges
+    assert [charge.charge_id for charge in report.charges] == list(range(1, len(entries) + 1))
 
 
 @pytest.mark.asyncio

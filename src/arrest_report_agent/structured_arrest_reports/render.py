@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -65,12 +66,13 @@ def render_arrest_report_image(report: ArrestReportDetail) -> RenderedArrestRepo
 
     fonts = _load_fonts()
     measurement = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    charges = tuple(sorted(report.charges, key=_charge_sort_key))
     narrative = tuple(
         _wrap_text(measurement, paragraph, fonts.body, CONTENT_WIDTH - 48)
         for paragraph in _description_paragraphs(report.description)
     )
     charge_lines = tuple(
-        _wrap_text(measurement, charge.name, fonts.charge_name, 500) for charge in report.charges
+        _wrap_text(measurement, charge.name, fonts.charge_name, 500) for charge in charges
     )
     height = _image_height(narrative, charge_lines)
     image = Image.new("RGB", (IMAGE_WIDTH, height), BACKGROUND)
@@ -130,7 +132,7 @@ def render_arrest_report_image(report: ArrestReportDetail) -> RenderedArrestRepo
             text_y += 18
     y += narrative_height + 28
 
-    if report.charges:
+    if charges:
         draw.text((OUTER_PADDING, y), "Cargos", font=fonts.heading, fill=MUTED)
         y += 44
         row_heights = tuple(_charge_row_height(lines) for lines in charge_lines)
@@ -144,7 +146,7 @@ def render_arrest_report_image(report: ArrestReportDetail) -> RenderedArrestRepo
         )
         row_y = y
         for index, (charge, lines, row_height) in enumerate(
-            zip(report.charges, charge_lines, row_heights, strict=True)
+            zip(charges, charge_lines, row_heights, strict=True)
         ):
             if index:
                 draw.line(
@@ -302,6 +304,15 @@ def _draw_charge_row(
         fill=TEXT,
         anchor="mm",
     )
+
+
+def _charge_sort_key(charge: ArrestReportCharge) -> tuple[int, str]:
+    """Order only the rendered rows, keeping equal names in their original order."""
+
+    charge_type = " ".join((charge.charge_type or "").replace("_", " ").split()).casefold()
+    severity = {"grave": 0, "menor": 1}.get(charge_type, 2)
+    name = unicodedata.normalize("NFKD", " ".join(charge.name.split()).casefold())
+    return severity, "".join(character for character in name if not unicodedata.combining(character))
 
 
 def _charge_badge(value: str | None) -> tuple[str, str]:
