@@ -474,6 +474,7 @@ Comandos disponibles:
 - `/revisar-arresto`: permite a `operational_staff_roles` publicar un reporte en un canal de
   `report_channels`, indicar su ID SARP, separar fotografías y respaldos, abrir su hilo e iniciar
   una primera revisión sin consumir una de las cinco continuaciones del propietario. La capa interna
+  obtiene el nombre del sospechoso automáticamente desde PCU, sin pedirlo en el formulario, y
   conserva el flujo sin ID para poder habilitarlo posteriormente sin bifurcar la implementación.
   La tarjeta comienza amarilla y solo una revisión completa puede cambiarla a verde, rojo o naranja;
   consultas y revisiones parciales no alteran su estado general.

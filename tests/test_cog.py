@@ -351,6 +351,9 @@ def test_report_info_embed_is_public_facing_and_explains_owner_access(persona) -
         "📍 Canales habilitados",
     ]
     assert "/revisar-arresto" in embed.fields[0].value
+    assert "indica el ID del reporte" in embed.fields[0].value
+    assert "nombre del sospechoso se obtiene automáticamente desde PCU" in embed.fields[0].value
+    assert "escribe el nombre" not in embed.fields[0].value
     assert "una o dos imágenes" in embed.fields[1].value
     assert "reporte se incorporará automáticamente" in embed.fields[1].value
     assert "respaldos son opcionales" in embed.fields[1].value
@@ -371,6 +374,8 @@ def test_report_info_embed_explains_explicit_manual_report_image_mode(persona) -
     )
 
     assert "una y ocho imágenes" in embed.fields[1].value
+    assert "indica el ID del reporte" in embed.fields[0].value
+    assert "nombre del sospechoso se obtiene automáticamente desde PCU" in embed.fields[0].value
 
 
 def test_report_info_embed_does_not_advertise_disabled_owner_access(persona) -> None:

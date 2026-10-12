@@ -207,8 +207,8 @@ def build_report_info_embed(
         embed.add_field(
             name="1️⃣ Publicar un reporte",
             value=(
-                "Usa `/revisar-arresto`, escribe el nombre del sospechoso y el número del "
-                "reporte, y adjunta las imágenes solicitadas."
+                "Usa `/revisar-arresto`, indica el ID del reporte y adjunta las imágenes "
+                "solicitadas. El nombre del sospechoso se obtiene automáticamente desde PCU."
             ),
             inline=False,
         )

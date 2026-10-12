@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, cast
 import discord
 from discord.ext import commands
 
-from arrest_report_agent.application.member_names import normalize_person_name
 from arrest_report_agent.config import ArrestReportAttachmentMode
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.assets import AssetLimitError
@@ -84,7 +83,6 @@ class StructuredArrestReportCog(commands.Cog):
         requester_id: int,
         guild_id: int,
         channel_id: int,
-        suspect_name: str,
         report_id_text: str,
         suspect_photos: tuple[discord.Attachment, ...],
         supporting_images: tuple[discord.Attachment, ...],
@@ -107,14 +105,7 @@ class StructuredArrestReportCog(commands.Cog):
         if denial is not None:
             await interaction.response.send_message(embed=denial, ephemeral=True)
             return
-        normalized_name = " ".join(suspect_name.split())
         raw_report_id = report_id_text.strip()
-        if not normalized_name:
-            await interaction.response.send_message(
-                embed=_alert("Indica el nombre completo del sospechoso."),
-                ephemeral=True,
-            )
-            return
         if not raw_report_id.isascii() or not raw_report_id.isdecimal():
             await interaction.response.send_message(
                 embed=_alert("Indica un ID de arresto válido usando solo números."),
@@ -177,15 +168,6 @@ class StructuredArrestReportCog(commands.Cog):
                 embed=_alert(
                     "No pude comprobar el ID de arresto en PCU en este momento. "
                     "Inténtalo nuevamente más tarde."
-                ),
-                ephemeral=True,
-            )
-            return
-        if normalize_person_name(normalized_name) != normalize_person_name(detail.suspect_name):
-            await interaction.response.send_message(
-                embed=_alert(
-                    f"El reporte #{report_id} corresponde a "
-                    f"{detail.suspect_name.replace('_', ' ')}, no al sospechoso indicado."
                 ),
                 ephemeral=True,
             )
@@ -370,12 +352,6 @@ class StructuredArrestReportModal(discord.ui.DesignerModal):
         self.guild_id = guild_id
         self.channel_id = channel_id
         self.generated_report_image = generated_report_image
-        self.suspect_name = discord.ui.InputText(
-            custom_id="arrest-report:v1:suspect",
-            placeholder="Nombre Apellido",
-            min_length=3,
-            max_length=100,
-        )
         self.report_id = discord.ui.InputText(
             custom_id="arrest-report:v1:id",
             placeholder="Ej.: 56242",
@@ -396,7 +372,6 @@ class StructuredArrestReportModal(discord.ui.DesignerModal):
             required=not generated_report_image,
         )
         super().__init__(
-            discord.ui.Label("Sospechoso", self.suspect_name),
             discord.ui.Label("ID del reporte SARP", self.report_id),
             discord.ui.Label(
                 "Fotografías del sospechoso",
@@ -423,7 +398,6 @@ class StructuredArrestReportModal(discord.ui.DesignerModal):
             requester_id=self.requester_id,
             guild_id=self.guild_id,
             channel_id=self.channel_id,
-            suspect_name=self.suspect_name.value or "",
             report_id_text=self.report_id.value or "",
             suspect_photos=tuple(cast(list[discord.Attachment], self.suspect_photos.values or [])),
             supporting_images=tuple(cast(list[discord.Attachment], self.supporting_images.values or [])),

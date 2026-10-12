@@ -5,10 +5,11 @@ import io
 import json
 import uuid
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import discord
 import pytest
@@ -1373,6 +1374,12 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
     assert modal.supporting_images.max_values == 8
     assert modal.supporting_images.required is True
     assert modal.report_id.required is True
+    assert [item.item for item in modal.children] == [
+        modal.report_id,
+        modal.suspect_photos,
+        modal.supporting_images,
+    ]
+    assert not hasattr(modal, "suspect_name")
 
     generated_modal = StructuredArrestReportModal(
         cog=SimpleNamespace(),  # type: ignore[arg-type]
@@ -1384,6 +1391,12 @@ async def test_modal_limits_and_submission_card_keep_the_two_galleries_separate(
     assert generated_modal.supporting_images.min_values == 0
     assert generated_modal.supporting_images.max_values == 7
     assert generated_modal.supporting_images.required is False
+    assert [item.item for item in generated_modal.children] == [
+        generated_modal.report_id,
+        generated_modal.suspect_photos,
+        generated_modal.supporting_images,
+    ]
+    assert not hasattr(generated_modal, "suspect_name")
 
     files, suspect_names, supporting_names = build_discord_files(
         (StructuredReportFile("photo.png", "image/png", b"a"),),
@@ -1553,33 +1566,78 @@ async def test_snapshot_manager_restores_persisted_assets_and_preserves_verdict_
     assert sum(isinstance(item, discord.ui.MediaGallery) for item in container.items) == 3
 
 
+@pytest.mark.parametrize("generated_report_image", (False, True))
+@pytest.mark.asyncio
+async def test_submission_modal_passes_only_the_id_and_attachments(generated_report_image: bool) -> None:
+    publish = AsyncMock()
+    modal = StructuredArrestReportModal(
+        cog=SimpleNamespace(publish=publish),  # type: ignore[arg-type]
+        requester_id=6,
+        guild_id=1,
+        channel_id=3,
+        generated_report_image=generated_report_image,
+    )
+    modal.report_id.value = "321"
+    interaction = SimpleNamespace()
+
+    await modal.callback(interaction)  # type: ignore[arg-type]
+
+    publish.assert_awaited_once_with(
+        interaction,
+        requester_id=6,
+        guild_id=1,
+        channel_id=3,
+        report_id_text="321",
+        suspect_photos=(),
+        supporting_images=(),
+        generated_report_image=generated_report_image,
+    )
+
+
 @pytest.mark.parametrize(
     (
-        "suspect_name",
+        "api_suspect_name",
         "report_id_text",
         "expected_detail_lookups",
         "expected_report_id",
         "expected_thread_name",
         "expected_error",
+        "lookup_error",
     ),
     (
-        ("Andy Quintero", "", [], None, None, "usando solo números"),
-        ("Andy Quintero", "not-a-number", [], None, None, "usando solo números"),
-        ("Andy Quintero", "0", [], None, None, "mayor que cero"),
-        ("Andy Quintero", "999", [999], None, None, "No existe un reporte"),
-        ("Andi Quintero", "321", [321], None, None, "corresponde a Andy Quintero"),
-        ("Andy Quintero", "321", [321], 321, "Andy Quintero · #321", None),
+        ("Andy Quintero", "", [], None, None, "usando solo números", None),
+        ("Andy Quintero", "   ", [], None, None, "usando solo números", None),
+        ("Andy Quintero", "not-a-number", [], None, None, "usando solo números", None),
+        ("Andy Quintero", "-321", [], None, None, "usando solo números", None),
+        ("Andy Quintero", "321.0", [], None, None, "usando solo números", None),
+        ("Andy Quintero", "３２１", [], None, None, "usando solo números", None),
+        ("Andy Quintero", "0", [], None, None, "mayor que cero", None),
+        ("Andy Quintero", "999", [999], None, None, "No existe un reporte", None),
+        ("Andy Quintero", "321", [321], 321, "Andy Quintero · #321", None, None),
+        ("Dyson_Sharpe", " 321 ", [321], 321, "Dyson Sharpe · #321", None, None),
+        (
+            "Andy Quintero",
+            "321",
+            [321],
+            None,
+            None,
+            "No pude comprobar el ID de arresto en PCU",
+            "temporarily_unavailable",
+        ),
     ),
 )
+@pytest.mark.parametrize("generated_report_image", (False, True))
 @pytest.mark.asyncio
-async def test_submission_requires_an_existing_matching_arrest_id(
+async def test_submission_requires_an_existing_arrest_id_and_uses_the_api_suspect_name(
     monkeypatch,
-    suspect_name: str,
+    api_suspect_name: str,
     report_id_text: str,
     expected_detail_lookups: list[int],
     expected_report_id: int | None,
     expected_thread_name: str | None,
     expected_error: str | None,
+    lookup_error: str | None,
+    generated_report_image: bool,
 ) -> None:
     class Member:
         def __init__(self) -> None:
@@ -1603,6 +1661,8 @@ async def test_submission_requires_an_existing_matching_arrest_id(
 
         async def get(self, report_id: int) -> ArrestReportDetailResult:
             self.details.append(report_id)
+            if lookup_error is not None:
+                return ArrestReportDetailResult(report=None, error=lookup_error)
             return await super().get(report_id)
 
     class Repository:
@@ -1613,7 +1673,7 @@ async def test_submission_requires_an_existing_matching_arrest_id(
                     "root_message_id": None,
                     "thread_id": None,
                     "publication_status": PublicationStatus.PUBLISHING,
-                    "suspect_name": suspect_name,
+                    "suspect_name": "Not from PCU",
                 }
             )
             self.report_lookups: list[int] = []
@@ -1628,6 +1688,8 @@ async def test_submission_requires_an_existing_matching_arrest_id(
 
         async def reserve(self, **values: Any) -> tuple[ArrestReportSubmission, bool]:
             assert values["sarp_arrest_id"] == expected_report_id
+            assert values["suspect_name"] == api_suspect_name.replace("_", " ")
+            self.submission = self.submission.model_copy(update={"suspect_name": values["suspect_name"]})
             return self.submission, True
 
         async def mark_published(self, submission_id: uuid.UUID, **values: Any) -> ArrestReportSubmission:
@@ -1687,6 +1749,7 @@ async def test_submission_requires_an_existing_matching_arrest_id(
             self.calls.append(values)
 
     lookup = Lookup()
+    lookup.report = replace(lookup.report, suspect_name=api_suspect_name)
     repository = Repository()
     service = Service(repository)
     review_cog = ReviewCog()
@@ -1737,13 +1800,12 @@ async def test_submission_requires_an_existing_matching_arrest_id(
         requester_id=6,
         guild_id=1,
         channel_id=3,
-        suspect_name=suspect_name,
         report_id_text=report_id_text,
         suspect_photos=(Attachment(),),  # type: ignore[arg-type]
         supporting_images=(
-            () if expected_error is None else (Attachment(),)  # type: ignore[arg-type]
+            () if generated_report_image else (Attachment(),)  # type: ignore[arg-type]
         ),
-        generated_report_image=expected_error is None,
+        generated_report_image=generated_report_image,
     )
     await asyncio.sleep(0)
 
@@ -1772,15 +1834,22 @@ async def test_submission_requires_an_existing_matching_arrest_id(
     container = edits[0]["view"].children[0]
     assert isinstance(container, discord.ui.Container)
     assert any(
-        isinstance(item, discord.ui.TextDisplay) and item.content == "### 📄 Reporte de arresto"
+        isinstance(item, discord.ui.TextDisplay)
+        and f"**Sospechoso:** {api_suspect_name.replace('_', ' ')}" in item.content
         for item in container.items
     )
+    assert any(
+        isinstance(item, discord.ui.TextDisplay) and item.content == "### 📄 Reporte de arresto"
+        for item in container.items
+    ) is generated_report_image
     allowed_mentions = edits[0]["allowed_mentions"]
     assert allowed_mentions.everyone is False
     assert allowed_mentions.users is False
     assert allowed_mentions.roles is False
     assert review_cog.calls[0]["arrest_report"] is not None
-    assert review_cog.calls[0]["report_snapshot_current"] is True
+    assert review_cog.calls[0]["arrest_report"].suspect_name == api_suspect_name
+    assert review_cog.calls[0]["submission"].suspect_name == api_suspect_name.replace("_", " ")
+    assert review_cog.calls[0]["report_snapshot_current"] is generated_report_image
 
 
 def test_submission_schema_allows_reusing_a_sarp_report_id() -> None:

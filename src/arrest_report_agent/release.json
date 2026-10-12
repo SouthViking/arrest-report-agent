@@ -1,18 +1,14 @@
 {
   "schema_version": 3,
-  "version": "1.1.6",
-  "title": "Revisiones más resistentes a errores",
-  "summary": "Las revisiones pueden recuperarse de errores puntuales sin pedirte que vuelvas a intentarlo manualmente.",
+  "version": "1.1.7",
+  "title": "Revisar arrestos, más simple",
+  "summary": "Menos campos al enviar tu reporte para revisión.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [1241206587079524442],
+  "changelog_targets": "all",
   "changes": [
     {
       "type": "improved",
-      "text": "Ante un error puntual al preparar el resultado de una revisión, el bot tiene hasta dos oportunidades de corregirse y continuar antes de detenerse."
-    },
-    {
-      "type": "improved",
-      "text": "Si no logra recuperarse, deja el reporte para revisión manual y menciona en el mismo hilo a los destinatarios configurados."
+      "text": "En `/revisar-arresto`, indica el ID del reporte y adjunta las imágenes. El nombre del sospechoso se obtiene automáticamente desde PCU."
     }
   ],
   "acknowledgements": []

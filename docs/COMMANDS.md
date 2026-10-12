@@ -156,9 +156,10 @@ leer el historial de Discord.
 
 `/info-reportes` no ejecuta IA ni describe el catálogo general de revisión. Explica cómo usar
 `/revisar-arresto`, indicar el ID de SARP, adjuntar las fotografías y respaldos y continuar después
-dentro del hilo. La capa de aplicación conserva la ruta sin ID para poder habilitarla en el modal sin
-duplicar el flujo. La
-revisión inicial creada por el comando no consume una intervención. El formato anterior con
+dentro del hilo. El formulario no pide el nombre del sospechoso: se obtiene desde PCU al validar que
+el ID sea numérico y corresponda a un reporte existente. La capa de aplicación conserva la ruta sin ID
+para poder habilitarla en el modal sin duplicar el flujo. La revisión inicial creada por el comando
+no consume una intervención. El formato anterior con
 `@mención Nombre Apellido` o `@mención Nombre Apellido - #NÚMERO` continúa disponible para reportes
 legacy y conversaciones ya existentes. Si
 `report_owner_access` está deshabilitado, informa que la capacidad no está disponible sin enseñar
