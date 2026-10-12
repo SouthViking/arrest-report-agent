@@ -120,7 +120,7 @@ class InMemoryPublisher:
         self.reactions.append((message_id, emoji))
         return "replaced"
 
-    async def publish_failure(self, public_message: str) -> None:
+    async def publish_failure(self, public_message: str, *, notify_manual_review: bool = False) -> None:
         self.failures.append(public_message)
 
 

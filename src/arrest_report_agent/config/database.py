@@ -152,6 +152,23 @@ class ReportOwnerAccessOptions(FrozenConfigModel):
         return self
 
 
+class ReviewFailureNotificationOptions(FrozenConfigModel):
+    """Explicit recipients for an exhausted automatic review recovery."""
+
+    role_ids: tuple[Annotated[int, Field(gt=0, le=2**64 - 1, strict=True)], ...] = Field(
+        default=(), max_length=25
+    )
+    user_ids: tuple[Annotated[int, Field(gt=0, le=2**64 - 1, strict=True)], ...] = Field(
+        default=(), max_length=25
+    )
+
+    @model_validator(mode="after")
+    def validate_recipients(self) -> ReviewFailureNotificationOptions:
+        if len(self.role_ids) != len(set(self.role_ids)) or len(self.user_ids) != len(set(self.user_ids)):
+            raise ValueError("review failure notification IDs must be unique within each whitelist")
+        return self
+
+
 class RoleRequestStationOption(FrozenConfigModel):
     key: str = Field(pattern=r"^[a-z][a-z0-9_]{1,39}$")
     label: str = Field(min_length=1, max_length=100)
@@ -588,6 +605,11 @@ class GuildConfigSnapshot(FrozenConfigModel):
                 "guild configuration is missing policies: "
                 + ", ".join(sorted(item.value for item in missing))
             )
+        failure_notifications = self.features.get("review_failure_notifications")
+        if failure_notifications is not None and failure_notifications.enabled:
+            if failure_notifications.schema_version != 1:
+                raise ValueError("review_failure_notifications requires feature schema version 1")
+            ReviewFailureNotificationOptions.model_validate(failure_notifications.payload)
         role_requests_feature = self.features.get("role_requests")
         if role_requests_feature is not None and role_requests_feature.enabled:
             if role_requests_feature.schema_version != 1:
@@ -1010,6 +1032,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return OperationalResourcesOptions.model_validate(feature.payload)
+
+    @property
+    def review_failure_notification_options(self) -> ReviewFailureNotificationOptions | None:
+        feature = self.snapshot.features.get("review_failure_notifications")
+        if feature is None or not feature.enabled:
+            return None
+        return ReviewFailureNotificationOptions.model_validate(feature.payload)
 
     @property
     def forum_shortcuts_options(self) -> ForumShortcutsOptions | None:

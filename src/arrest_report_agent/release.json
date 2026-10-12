@@ -1,14 +1,18 @@
 {
   "schema_version": 3,
-  "version": "1.1.5",
-  "title": "Cargos ordenados en la imagen del reporte",
-  "summary": "La imagen del reporte muestra primero los cargos graves y después los menores, ordenados alfabéticamente dentro de cada grupo.",
+  "version": "1.1.6",
+  "title": "Revisiones más resistentes a errores",
+  "summary": "Las revisiones pueden recuperarse de errores puntuales sin pedirte que vuelvas a intentarlo manualmente.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [1241206587079524442],
   "changes": [
     {
       "type": "improved",
-      "text": "Los cargos se ordenan por gravedad y nombre, ignorando mayúsculas y tildes, al generar o actualizar la imagen. El cambio es únicamente visual: los datos de SARP y el contexto del agente se mantienen intactos."
+      "text": "Ante un error puntual al preparar el resultado de una revisión, el bot tiene hasta dos oportunidades de corregirse y continuar antes de detenerse."
+    },
+    {
+      "type": "improved",
+      "text": "Si no logra recuperarse, deja el reporte para revisión manual y menciona en el mismo hilo a los destinatarios configurados."
     }
   ],
   "acknowledgements": []

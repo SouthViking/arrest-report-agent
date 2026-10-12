@@ -52,6 +52,9 @@ class ReviewRunContext:
     reactions_updated_count: int = 0
     selected_response_route: ConversationResponseRoute | None = None
     publication: ReviewPublication | None = None
+    tool_argument_recovery_counts: dict[str, int] = field(default_factory=dict)
+    tool_argument_recovery_exhausted: bool = False
+    started_tool_call_ids: set[str] = field(default_factory=set)
     loaded_attachment_ids: set[int] = field(default_factory=set)
     loaded_report_asset_ids: set[str] = field(default_factory=set)
     preloaded_arrest_report: ArrestReportDetail | None = None

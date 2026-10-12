@@ -172,7 +172,7 @@ async def test_recording_publisher_records_before_discord_and_marks_success() ->
         async def set_message_reaction(self, _message_id, _emoji):
             return "added"
 
-        async def publish_failure(self, _public_message):
+        async def publish_failure(self, _public_message, *, notify_manual_review: bool = False):
             return None
 
     case = _case(guild_id=1, channel_id=2, root_message_id=3, trigger_message_id=4)

@@ -645,5 +645,7 @@ class ReviewPublisher(Protocol):
     async def publish_failure(
         self,
         public_message: str,
+        *,
+        notify_manual_review: bool = False,
     ) -> None:
         """Publish a safe contextual failure for manual follow-up."""

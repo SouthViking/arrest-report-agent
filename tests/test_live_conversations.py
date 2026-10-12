@@ -24,12 +24,15 @@ from arrest_report_agent.application.conversations import (
 from arrest_report_agent.application.ports import MessageAttachmentLookupResult, MessageAttachmentProfile
 from arrest_report_agent.application.service import ReviewService
 from arrest_report_agent.application.service_context import ReviewRunContext
+from arrest_report_agent.application.tool_errors import MAX_TOOL_ARGUMENT_RECOVERIES
 from arrest_report_agent.application.tools import build_agent_tools
 from arrest_report_agent.config.logging import STRUCTURED_EVENT_ATTRIBUTE
+from arrest_report_agent.config.review_failures import review_recovery_failure_messages
 from arrest_report_agent.domain import AgentAccessLevel, InteractionMode, ReviewCase
 from arrest_report_agent.infrastructure.conversations import InMemoryConversationStore
 from arrest_report_agent.infrastructure.discord.live_messages import incoming_message
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+from arrest_report_agent.review_analytics import RecordingReviewPublisher
 
 
 def message(message_id=2, *, channel_id=20, text="Espera, ese reporte no era"):
@@ -510,6 +513,128 @@ async def test_successful_review_tool_does_not_duplicate_final_response(settings
     context.publisher.publish.assert_awaited_once()
     context.publisher.send_message.assert_not_called()
     context.publisher.publish_failure.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("persistent", [True, False])
+@pytest.mark.parametrize("access_level", [AgentAccessLevel.REPORT_OWNER, AgentAccessLevel.FULL])
+async def test_real_sdk_repairs_invalid_review_arguments_in_the_same_run(
+    settings, model, persona, persistent, access_level
+):
+    store, key, live = await active()
+    context = review_context(live)
+    context.access_level = access_level
+    context.owner_round = 2
+    context.owner_max_rounds = 5
+    session = MemorySession() if persistent else None
+    corrected = json.dumps(
+        {
+            "publication": {
+                "verdict": "approved",
+                "summary": "El expediente es coherente.",
+                "findings": [],
+                "charges": [],
+            }
+        }
+    )
+
+    async def model_call(number, items):
+        if number == 2:
+            context.publisher.publish.assert_not_called()
+            outputs = [item for item in items if item.get("type") == "function_call_output"]
+            assert len(outputs) == 1 and outputs[0]["call_id"] == "call-review-1"
+            assert json.loads(outputs[0]["output"])["error"] == "invalid_tool_arguments"
+        if number <= 2:
+            return ModelResponse(
+                output=[
+                    ResponseFunctionToolCall(
+                        id=f"fc-review-{number}",
+                        call_id=f"call-review-{number}",
+                        name="execute_arrest_report_review",
+                        arguments='{"publication":' if number == 1 else corrected,
+                        type="function_call",
+                    )
+                ],
+                usage=Usage(requests=1),
+                response_id=None,
+            )
+        return response("Revisión publicada")
+
+    service = ReviewService(
+        settings, ChargeCatalog.load_default(), ReportGuide.load_default(), model, persona
+    )
+    fake_model = ScriptedModel(model_call)
+    service.agent.model = fake_model
+    service.report_owner_agent.model = fake_model
+    await service.review(context, [{"role": "user", "content": "Revisa"}], session=session)
+
+    assert context.completed and context.published
+    assert context.attempt == 1 and context.owner_round == 2 and context.owner_max_rounds == 5
+    assert context.tool_argument_recovery_counts == {"execute_arrest_report_review": 1}
+    assert len(fake_model.inputs) == 3
+    assert live.model_calls == 3
+    context.publisher.publish.assert_awaited_once()
+    context.publisher.mark_review_started.assert_awaited_once()
+    context.publisher.send_message.assert_not_called()
+    context.publisher.publish_failure.assert_not_called()
+    assert await store.enqueue(key, message(3)) == "inactive"
+    if session is not None:
+        outputs = [item for item in session.items if item.get("type") == "function_call_output"]
+        assert [item["call_id"] for item in outputs] == ["call-review-1", "call-review-2"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("access_level", [AgentAccessLevel.REPORT_OWNER, AgentAccessLevel.FULL])
+async def test_real_sdk_stops_after_bounded_review_argument_recoveries(
+    settings, model, persona, access_level
+):
+    _, _, live = await active()
+    context = review_context(live)
+    context.access_level = access_level
+    delegate = context.publisher
+    context.publisher = RecordingReviewPublisher(
+        delegate,
+        SimpleNamespace(),
+        context.case,
+        model=model.id,
+        reasoning_effort=model.reasoning_effort,
+        persona_id=persona.id,
+        persona_revision=persona.revision,
+        app_version="test",
+    )
+
+    async def model_call(number, items):
+        return ModelResponse(
+            output=[
+                ResponseFunctionToolCall(
+                    id=f"fc-review-{number}",
+                    call_id=f"call-review-{number}",
+                    name="execute_arrest_report_review",
+                    arguments='{"publication":',
+                    type="function_call",
+                )
+            ],
+            usage=Usage(requests=1),
+            response_id=None,
+        )
+
+    service = ReviewService(
+        settings, ChargeCatalog.load_default(), ReportGuide.load_default(), model, persona
+    )
+    fake_model = ScriptedModel(model_call)
+    service.agent.model = fake_model
+    service.report_owner_agent.model = fake_model
+    await service.review(context, [{"role": "user", "content": "Revisa"}])
+
+    assert len(fake_model.inputs) == MAX_TOOL_ARGUMENT_RECOVERIES + 1
+    assert not context.completed and not context.published
+    assert context.tool_argument_recovery_exhausted
+    delegate.publish.assert_not_called()
+    delegate.mark_review_started.assert_not_called()
+    delegate.publish_failure.assert_awaited_once_with(
+        review_recovery_failure_messages(persona).description,
+        notify_manual_review=True,
+    )
 
 
 @pytest.mark.asyncio

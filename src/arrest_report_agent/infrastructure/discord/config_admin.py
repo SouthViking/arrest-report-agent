@@ -29,6 +29,7 @@ from arrest_report_agent.config import (
     OperationalResourcesOptions,
     PcuProfileKind,
     RadioAuditOptions,
+    ReviewFailureNotificationOptions,
     WarrantNotificationOptions,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
@@ -93,6 +94,7 @@ FEATURE_LABELS = {
     "blacklists": "Blacklists",
     "rumors": "Rumores",
     "radio_audit": "Consulta y auditoría de radios",
+    "review_failure_notifications": "Avisos de revisión manual tras reintentos",
 }
 MODE_LABELS = {
     AccessPolicyMode.OPEN: "abierta",
@@ -1079,6 +1081,8 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     ) from error
             if key == "fleet" and self.enabled.values[0] == "true":
                 FleetOptions.model_validate(payload)
+            if key == "review_failure_notifications" and self.enabled.values[0] == "true":
+                ReviewFailureNotificationOptions.model_validate(payload)
             if key == "ftp_requests" and self.enabled.values[0] == "true":
                 try:
                     FtpRequestOptions.model_validate(payload)

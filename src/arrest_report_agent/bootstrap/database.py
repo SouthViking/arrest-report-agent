@@ -483,6 +483,16 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         payload={},
                     ),
                     GuildFeatureSnapshot(
+                        key="review_failure_notifications",
+                        enabled=guild_id == LSSD_GUILD_ID,
+                        schema_version=1,
+                        payload={
+                            "role_ids": list(LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS)
+                            if guild_id == LSSD_GUILD_ID else [],
+                            "user_ids": [],
+                        },
+                    ),
+                    GuildFeatureSnapshot(
                         key="stolen_vehicles",
                         enabled=(guild_id == 1234674521416663070 and bool(supervisor_roles[guild_id])),
                         schema_version=1,

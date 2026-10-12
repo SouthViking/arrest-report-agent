@@ -146,8 +146,11 @@ class RecordingReviewPublisher:
     ) -> ManualQuizDelivery:
         return await self.delegate.publish_manual_quiz(publication)
 
-    async def publish_failure(self, public_message: str) -> None:
-        await self.delegate.publish_failure(public_message)
+    async def publish_failure(self, public_message: str, *, notify_manual_review: bool = False) -> None:
+        if notify_manual_review:
+            await self.delegate.publish_failure(public_message, notify_manual_review=True)
+        else:
+            await self.delegate.publish_failure(public_message)
 
     def _report_author_user_id(self) -> int | None:
         root = next(

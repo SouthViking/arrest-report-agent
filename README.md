@@ -263,11 +263,26 @@ El banner no pertenece a una personalidad: todas comparten el asset global verde
 `config/assets/lssd-profile-banner.png`.
 
 `REVIEW_ESCALATION_ROLE_IDS` es una lista CSV opcional de roles que reciben una sola mención ante
-una revisión inconclusa o una falla técnica. Solo se mencionan roles que todavía existan en la guild;
+una revisión inconclusa. Solo se mencionan roles que todavía existan en la guild;
 los IDs eliminados se omiten sin interrumpir el manejo del error. `MANUAL_REVIEW_ROLE_ID` sigue
 siendo compatible como nombre legado para una configuración de un solo rol. Para que Discord envíe
 la notificación sin conceder al bot el permiso amplio de mencionar cualquier rol, los roles de
 escalamiento deben estar configurados como mencionables.
+
+Al agotar las dos oportunidades de corregir argumentos de `execute_arrest_report_review`, el módulo
+`review_failure_notifications` permite avisar una sola vez en el mismo hilo a roles o usuarios
+configurados. Se administra desde `/config`, con esquema 1 y opciones como:
+
+```json
+{"role_ids":[1234678029662294047,1234678238182244414],"user_ids":[]}
+```
+
+Ambas listas aceptan hasta 25 IDs positivos únicos, sin comodines; no conceden permisos al agente
+ni al propietario. El módulo puede deshabilitarse o dejarse sin destinatarios. La migración lo
+habilita en LSSD para Command Staff y Executive Staff, conservando cualquier configuración existente.
+Los fallos habituales de infraestructura no usan este aviso. Las personalidades antiguas de BD
+heredan únicamente el nuevo texto de fallo desde su perfil empaquetado; una copia personalizada en
+`messages.failures.review_recovery_exhausted` tiene prioridad. No se reemplaza el resto del perfil.
 
 ## Ejecución
 

@@ -22,6 +22,7 @@ from openai.types.shared.reasoning import Reasoning
 
 from arrest_report_agent.config import AppSettings, BotPersona, ResolvedModel
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.config.review_failures import review_recovery_failure_messages
 from arrest_report_agent.domain import AgentAccessLevel, AgentActivity, ReviewCase
 from arrest_report_agent.knowledge import (
     ChargeCatalog,
@@ -302,9 +303,15 @@ class ReviewService:
             if run_context.published:
                 return
             try:
-                await run_context.publisher.publish_failure(
-                    public_error_message(classified.kind, self.persona.messages.failures),
-                )
+                if run_context.tool_argument_recovery_exhausted:
+                    await run_context.publisher.publish_failure(
+                        review_recovery_failure_messages(self.persona).description,
+                        notify_manual_review=True,
+                    )
+                else:
+                    await run_context.publisher.publish_failure(
+                        public_error_message(classified.kind, self.persona.messages.failures),
+                    )
             except Exception as publication_error:
                 log_event(
                     LOGGER,

@@ -16,6 +16,7 @@ from agents import (
     ToolOutputText,
     function_tool,
 )
+from agents.tool_context import ToolContext
 from pydantic import BaseModel, ConfigDict, Field
 
 from arrest_report_agent.application.arrest_report_payloads import arrest_detail_payload
@@ -77,6 +78,7 @@ from .ports import (
     ReportImageLookup,
 )
 from .service_context import ReviewRunContext
+from .tool_errors import recover_tool_argument_error
 
 LOGGER = logging.getLogger(__name__)
 
@@ -1395,9 +1397,9 @@ def build_agent_tools(
         )
         return await _publish_arrest_report_review(run_context, publication)
 
-    @function_tool(failure_error_function=None)
+    @function_tool(failure_error_function=recover_tool_argument_error)
     async def execute_arrest_report_review(
-        ctx: RunContextWrapper[ReviewRunContext], publication: ReviewPublication
+        ctx: ToolContext[ReviewRunContext], publication: ReviewPublication
     ) -> dict[str, object]:
         """Publish one evidence-based arrest-report review without ending the agent run.
 
@@ -1415,6 +1417,7 @@ def build_agent_tools(
             publication: Validated verdict, findings, charge assessments and next step.
         """
 
+        ctx.context.started_tool_call_ids.add(ctx.tool_call_id)
         return await _publish_arrest_report_review(ctx.context, publication)
 
     @function_tool(failure_error_function=None)

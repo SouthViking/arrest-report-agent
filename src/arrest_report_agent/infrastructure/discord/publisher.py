@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import re
@@ -12,6 +13,7 @@ import discord
 
 from arrest_report_agent.config import AppSettings, BotPersona
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.config.review_failures import review_recovery_failure_messages
 from arrest_report_agent.domain import (
     ConversationResponseRoute,
     FindingSeverity,
@@ -51,6 +53,7 @@ class DiscordReviewPublisher:
         self.persona = persona
         self._thread = target.thread
         self._escalation_roles_pinged = False
+        self._manual_failure_notified = False
         self._allow_outgoing_mentions = allow_outgoing_mentions
         self._manual_quiz_publisher = manual_quiz_publisher
         self.on_thread_ready: Callable[[discord.Thread], Awaitable[None]] | None = None
@@ -173,20 +176,14 @@ class DiscordReviewPublisher:
 
         effective_route = self._conversation_route(response_route)
         destination: discord.TextChannel | discord.Thread = (
-            self.target.thread
-            if self.target.thread is not None
-            else self.target.parent
+            self.target.thread if self.target.thread is not None else self.target.parent
         )
         if any(not _can_mention_role(destination, guild, role) for role in roles):
             raise PublicationError("Bot cannot mention one or more requested roles")
 
         rendered_content = _sanitize_role_notification_content(content)
         mention_line = " ".join(role.mention for role in roles)
-        message = (
-            f"{mention_line}\n\n{rendered_content}"
-            if rendered_content is not None
-            else mention_line
-        )
+        message = f"{mention_line}\n\n{rendered_content}" if rendered_content is not None else mention_line
         allowed_mentions = discord.AllowedMentions(
             everyone=False,
             users=False,
@@ -399,6 +396,8 @@ class DiscordReviewPublisher:
     async def publish_failure(
         self,
         public_message: str,
+        *,
+        notify_manual_review: bool = False,
     ) -> None:
         await self._clear_bot_status_reactions()
         with contextlib.suppress(discord.Forbidden, discord.HTTPException):
@@ -410,11 +409,80 @@ class DiscordReviewPublisher:
         )
         embed.add_field(
             name=self.persona.messages.interface.review.failure_next_step_title,
-            value=self.persona.messages.failures.review_failure_next_step,
+            value=(
+                review_recovery_failure_messages(self.persona).next_step
+                if notify_manual_review
+                else self.persona.messages.failures.review_failure_next_step
+            ),
             inline=False,
         )
+        mention, allowed_mentions = (
+            await self._manual_failure_notice()
+            if notify_manual_review
+            else (None, discord.AllowedMentions.none())
+        )
         await self._send_routed_payload(
+            content=mention,
             embed=embed,
+            allowed_mentions=allowed_mentions,
+        )
+        if mention is not None:
+            self._manual_failure_notified = True
+            log_event(
+                LOGGER,
+                "info",
+                "review_manual_failure_notified",
+                guild_id=self.target.root.guild.id,
+                root_message_id=self.target.root.id,
+                role_count=len(allowed_mentions.roles),
+                user_count=len(allowed_mentions.users),
+            )
+
+    async def _manual_failure_notice(self) -> tuple[str | None, discord.AllowedMentions]:
+        """Notify only configured recipients, independently of model/owner mention permissions."""
+
+        options = getattr(self.settings, "review_failure_notification_options", None)
+        guild = self.target.root.guild
+        if self._manual_failure_notified or options is None or guild is None:
+            return None, discord.AllowedMentions.none()
+        roles: list[discord.Role] = []
+        users: list[discord.Member] = []
+        for role_id in options.role_ids:
+            role = guild.get_role(role_id)
+            if role is not None and role.id != guild.id and not role.is_default():
+                roles.append(role)
+            else:
+                self._log_manual_notification_recipient_unavailable("role", role_id)
+        for user_id in options.user_ids:
+            member = guild.get_member(user_id)
+            if member is None:
+                try:
+                    member = await asyncio.wait_for(guild.fetch_member(user_id), timeout=5)
+                except Exception:
+                    member = None
+            if member is not None and not member.bot:
+                users.append(member)
+            else:
+                self._log_manual_notification_recipient_unavailable("user", user_id)
+        if not roles and not users:
+            return None, discord.AllowedMentions.none()
+        mention = " ".join([*(f"<@&{role.id}>" for role in roles), *(f"<@{user.id}>" for user in users)])
+        return mention, discord.AllowedMentions(
+            everyone=False,
+            roles=roles,
+            users=users,
+            replied_user=False,
+        )
+
+    def _log_manual_notification_recipient_unavailable(self, subject_type: str, subject_id: int) -> None:
+        log_event(
+            LOGGER,
+            "warning",
+            "review_manual_failure_recipient_unavailable",
+            guild_id=self.target.root.guild.id,
+            root_message_id=self.target.root.id,
+            subject_type=subject_type,
+            subject_id=subject_id,
         )
 
     async def _ensure_thread(self) -> discord.Thread:
@@ -672,10 +740,7 @@ def _can_mention_role(
     if role.mentionable:
         return True
     bot_member = guild.me
-    return bool(
-        bot_member is not None
-        and channel.permissions_for(bot_member).mention_everyone
-    )
+    return bool(bot_member is not None and channel.permissions_for(bot_member).mention_everyone)
 
 
 def _sanitize_role_notification_content(content: str | None) -> str | None:

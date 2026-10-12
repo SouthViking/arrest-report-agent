@@ -260,7 +260,7 @@ class FakePublisher:
         self.manual_quizzes.append(publication)
         return self.manual_quiz_delivery
 
-    async def publish_failure(self, public_message) -> None:
+    async def publish_failure(self, public_message, *, notify_manual_review: bool = False) -> None:
         raise AssertionError("not expected")
 
 

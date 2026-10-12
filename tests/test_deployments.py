@@ -76,8 +76,8 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     assert not manifest.targets_changelog_channel(1234675609536430152)
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "Los cargos se ordenan por gravedad y nombre" in rendered_changes
-    assert "El cambio es únicamente visual" in rendered_changes
+    assert "hasta dos oportunidades" in rendered_changes
+    assert "revisión manual" in rendered_changes
     assert manifest.acknowledgements == ()
 
 

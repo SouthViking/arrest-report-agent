@@ -136,6 +136,10 @@
       "unknown": "Se produjo una incidencia no identificada y detuve la revisión para no entregar un veredicto inseguro.",
       "review_failure_title": "⚠️ Incidencia de revisión",
       "review_failure_next_step": "Reintentar cuando corresponda o derivar el expediente a un supervisor.",
+      "review_recovery_exhausted": {
+        "description": "No pude completar una revisión confiable después de los reintentos. El reporte queda para revisión manual.",
+        "next_step": "Revisen el expediente y denle continuidad mediante revisión manual."
+      },
       "charge_query_failure": "⚖️ No pude consultar el código en este momento. Inténtelo nuevamente.",
       "personal_report_query_failure": "📁 No pude consultar el archivo de reportes en este momento. Inténtelo nuevamente.",
       "personal_summary_failure": "📁 No pude preparar su resumen en este momento. Inténtelo nuevamente.",

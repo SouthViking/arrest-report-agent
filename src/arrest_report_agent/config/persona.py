@@ -188,6 +188,22 @@ class PersonaAccessMessages(FrozenPersonaModel):
         return self
 
 
+class PersonaReviewRecoveryFailureMessages(FrozenPersonaModel):
+    description: str = Field(
+        default=(
+            "No pude completar la revisión después de los reintentos. "
+            "El reporte queda para revisión manual."
+        ),
+        min_length=1,
+        max_length=500,
+    )
+    next_step: str = Field(
+        default="Revisa el expediente y dale continuidad mediante revisión manual.",
+        min_length=1,
+        max_length=500,
+    )
+
+
 class PersonaFailureMessages(FrozenPersonaModel):
     """Safe deterministic operational failures without provider details."""
 
@@ -202,6 +218,7 @@ class PersonaFailureMessages(FrozenPersonaModel):
     unknown: str = Field(min_length=1, max_length=500)
     review_failure_title: str = Field(min_length=1, max_length=256)
     review_failure_next_step: str = Field(min_length=1, max_length=500)
+    review_recovery_exhausted: PersonaReviewRecoveryFailureMessages | None = None
     charge_query_failure: str = Field(min_length=1, max_length=500)
     personal_report_query_failure: str = Field(min_length=1, max_length=500)
     personal_summary_failure: str = Field(min_length=1, max_length=500)

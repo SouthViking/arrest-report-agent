@@ -64,6 +64,7 @@ def test_shift_migration_scopes_config_and_preserves_existing_choices(monkeypatc
                 for guild, revision, shifts in targets:
                     payload = (await client.fetch_one(sa.select(guild_feature_settings.c.payload).where(
                         guild_feature_settings.c.config_revision_id == revisions[guild, revision],
+                        guild_feature_settings.c.feature_key == "role_requests",
                     )))["payload"]
                     assert payload["retired_role_id"] == 456
                     parsed = RoleRequestOptions.model_validate(payload)

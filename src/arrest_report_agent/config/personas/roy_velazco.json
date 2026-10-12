@@ -162,6 +162,10 @@
       "unknown": "Pasó una wea rara y paré la revisión antes de entregar cualquier tontera. Mejor q lo vea un supervisor.",
       "review_failure_title": "⚠️ Se trabó el papeleo",
       "review_failure_next_step": "Inténtalo de nuevo cuando corresponda o llama a un supervisor antes q el expediente eche raíces.",
+      "review_recovery_exhausted": {
+        "description": "No pude cerrar esta wea con un criterio confiable, incluso después de reintentarlo. El reporte queda pa revisión manual.",
+        "next_step": "Revisen el expediente y denle continuidad, po."
+      },
       "charge_query_failure": "⚖️ no pude abrir el código ahora... inténtalo de nuevo en un rato.",
       "personal_report_query_failure": "📁 no pude revisar tu archivo de reportes ahora mismo. prueba de nuevo después.",
       "personal_summary_failure": "📁 no pude armar tu resumen... parece q hasta contar reportes era mucho pedir. inténtalo otra vez.",

@@ -70,7 +70,9 @@ async def test_ftp_notification_migration_preserves_existing_choices_and_permiss
             sa.select(
                 guild_config_revisions.c.guild_id, guild_config_revisions.c.revision,
                 guild_feature_settings.c.feature_key, guild_feature_settings.c.payload,
-            ).select_from(guild_config_revisions.join(guild_feature_settings))
+            ).select_from(guild_config_revisions.join(guild_feature_settings)).where(
+                guild_feature_settings.c.feature_key.in_(("ftp_requests", "unrelated"))
+            )
         )
         for row in rows:
             key = (row["guild_id"], row["revision"])

@@ -51,7 +51,9 @@ async def test_teamspeak_migration_preserves_history_and_other_features(monkeypa
                 guild_config_revisions.c.guild_id, guild_config_revisions.c.status,
                 guild_feature_settings.c.feature_key, guild_feature_settings.c.enabled,
                 guild_feature_settings.c.payload,
-            ).select_from(guild_config_revisions.join(guild_feature_settings))
+            ).select_from(guild_config_revisions.join(guild_feature_settings)).where(
+                guild_feature_settings.c.feature_key.in_(("teamspeak", "unrelated"))
+            )
         )
         assert len(rows) == 12
         for row in rows:

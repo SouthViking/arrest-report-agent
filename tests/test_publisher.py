@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import UUID
 
 import discord
 import pytest
 
+from arrest_report_agent.config import ReviewFailureNotificationOptions
+from arrest_report_agent.config.review_failures import review_recovery_failure_messages
 from arrest_report_agent.domain import (
     ConversationResponseRoute,
     FindingSeverity,
@@ -147,7 +150,8 @@ def test_embed_is_structured_and_uses_runtime_identity(persona) -> None:
 
 @pytest.mark.asyncio
 async def test_firearm_prior_advice_keeps_approval_and_is_rendered_as_recommendation(
-    settings, persona,
+    settings,
+    persona,
 ) -> None:
     review = ReviewPublication(
         verdict="approved",
@@ -168,7 +172,10 @@ async def test_firearm_prior_advice_keeps_approval_and_is_rendered_as_recommenda
         SimpleNamespace(user=SimpleNamespace(id=999)),
         settings,
         ReviewTarget(
-            root=root, trigger=root, parent=root.channel, thread=thread,
+            root=root,
+            trigger=root,
+            parent=root.channel,
+            thread=thread,
             response_route=DiscordResponseRoute.THREAD,
         ),
         persona,
@@ -445,9 +452,7 @@ async def test_full_review_updates_structured_root_card_color(
     source_view = discord.ui.DesignerView(
         discord.ui.Container(
             discord.ui.TextDisplay(
-                "## 📋 Reporte de arresto · #321\n"
-                "**Autor:** <@123>\n"
-                "**Sospechoso:** Andy Quintero"
+                "## 📋 Reporte de arresto · #321\n**Autor:** <@123>\n**Sospechoso:** Andy Quintero"
             ),
             discord.ui.MediaGallery(discord.MediaGalleryItem(media_urls[0])),
             discord.ui.MediaGallery(discord.MediaGalleryItem(media_urls[1])),
@@ -456,9 +461,7 @@ async def test_full_review_updates_structured_root_card_color(
         timeout=None,
         store=False,
     )
-    root.components = [
-        discord.components.Container(component) for component in source_view.to_components()
-    ]
+    root.components = [discord.components.Container(component) for component in source_view.to_components()]
     assert root.attachments == []
     bot = SimpleNamespace(user=SimpleNamespace(id=999), get_user=lambda _user_id: None)
     target = ReviewTarget(
@@ -477,9 +480,7 @@ async def test_full_review_updates_structured_root_card_color(
     view = root.edits[0]["view"]
     container = view.children[0]
     assert container.color == expected_color
-    galleries = [
-        item for item in container.items if isinstance(item, discord.ui.MediaGallery)
-    ]
+    galleries = [item for item in container.items if isinstance(item, discord.ui.MediaGallery)]
     assert tuple(item.url for gallery in galleries for item in gallery.items) == media_urls
 
 
@@ -492,24 +493,16 @@ async def test_full_review_recolors_recognized_card_without_database_mapping(
     source_view = discord.ui.DesignerView(
         discord.ui.Container(
             discord.ui.TextDisplay(
-                "## 📋 Reporte de arresto · #321\n"
-                "**Autor:** <@123>\n"
-                "**Sospechoso:** Andy Quintero"
+                "## 📋 Reporte de arresto · #321\n**Autor:** <@123>\n**Sospechoso:** Andy Quintero"
             ),
-            discord.ui.MediaGallery(
-                discord.MediaGalleryItem("https://cdn.discord.test/suspect.png")
-            ),
-            discord.ui.MediaGallery(
-                discord.MediaGalleryItem("https://cdn.discord.test/report.png")
-            ),
+            discord.ui.MediaGallery(discord.MediaGalleryItem("https://cdn.discord.test/suspect.png")),
+            discord.ui.MediaGallery(discord.MediaGalleryItem("https://cdn.discord.test/report.png")),
             color=discord.Color.gold(),
         ),
         timeout=None,
         store=False,
     )
-    root.components = [
-        discord.components.Container(component) for component in source_view.to_components()
-    ]
+    root.components = [discord.components.Container(component) for component in source_view.to_components()]
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     target = ReviewTarget(
         root=root,
@@ -542,9 +535,7 @@ async def test_full_review_does_not_recolor_unmapped_non_submission_card(
         timeout=None,
         store=False,
     )
-    root.components = [
-        discord.components.Container(component) for component in source_view.to_components()
-    ]
+    root.components = [discord.components.Container(component) for component in source_view.to_components()]
     bot = SimpleNamespace(user=SimpleNamespace(id=999))
     target = ReviewTarget(
         root=root,
@@ -678,6 +669,134 @@ async def test_technical_failure_does_not_ping_supervisory_roles(settings, perso
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("outgoing_mentions", [True, False])
+@pytest.mark.parametrize("route", [DiscordResponseRoute.THREAD, DiscordResponseRoute.INLINE_REPLY])
+async def test_exhausted_recovery_notifies_only_configured_recipients_once(
+    settings, persona, outgoing_mentions, route
+):
+    roles = {role_id: FakeMentionRole(role_id) for role_id in (111, 333)}
+    members = {444: SimpleNamespace(id=444, bot=False)}
+    fetched = SimpleNamespace(id=777, bot=False)
+    guild = SimpleNamespace(
+        id=10,
+        get_role=roles.get,
+        get_member=members.get,
+        fetch_member=AsyncMock(return_value=fetched),
+    )
+    configured = settings.model_copy(
+        update={
+            "review_failure_notification_options": ReviewFailureNotificationOptions(
+                role_ids=(111, 333),
+                user_ids=(444, 777),
+            ),
+        }
+    )
+    root = FakeRoot(guild=guild)
+    target = ReviewTarget(
+        root=root, trigger=root, parent=SimpleNamespace(), thread=None, response_route=route
+    )
+    publisher = DiscordReviewPublisher(
+        SimpleNamespace(user=SimpleNamespace(id=999)),
+        configured,
+        target,
+        persona,
+        allow_outgoing_mentions=outgoing_mentions,
+    )
+    public_message = review_recovery_failure_messages(persona).description
+    await publisher.publish_failure(public_message, notify_manual_review=True)
+    await publisher.publish_failure(public_message, notify_manual_review=True)
+
+    first, second = root.replies if route is DiscordResponseRoute.INLINE_REPLY else root.thread.sent
+    assert first["content"] == "<@&111> <@&333> <@444> <@777>"
+    assert "📣" not in first["content"]
+    assert first["allowed_mentions"].to_dict() == {"roles": [111, 333], "users": [444, 777], "parse": []}
+    assert first["embed"].description == public_message
+    assert first["embed"].fields[0].value == review_recovery_failure_messages(persona).next_step
+    assert second["content"] is None
+    assert second["allowed_mentions"].to_dict() == {"parse": []}
+    guild.fetch_member.assert_awaited_once_with(777)
+
+
+@pytest.mark.asyncio
+async def test_deleted_notification_recipients_and_everyone_do_not_block_manual_notice(settings, persona):
+    guild = SimpleNamespace(
+        id=10,
+        get_role=lambda role_id: FakeMentionRole(10, default=True) if role_id == 10 else None,
+        get_member=lambda user_id: SimpleNamespace(id=444, bot=True) if user_id == 444 else None,
+        fetch_member=AsyncMock(side_effect=RuntimeError("Directory unavailable")),
+    )
+    configured = settings.model_copy(
+        update={
+            "review_failure_notification_options": ReviewFailureNotificationOptions(
+                role_ids=(10, 222),
+                user_ids=(444, 777),
+            ),
+        }
+    )
+    root = FakeRoot(guild=guild)
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.THREAD,
+    )
+    publisher = DiscordReviewPublisher(
+        SimpleNamespace(user=SimpleNamespace(id=999)), configured, target, persona
+    )
+    await publisher.publish_failure("Revisión manual", notify_manual_review=True)
+
+    sent = root.thread.sent[0]
+    assert sent["content"] is None
+    assert sent["embed"].description == "Revisión manual"
+    assert sent["allowed_mentions"].to_dict() == {"parse": []}
+    assert not publisher._manual_failure_notified
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("options", [None, ReviewFailureNotificationOptions()])
+async def test_disabled_or_empty_manual_notification_whitelist_sends_no_mentions(settings, persona, options):
+    configured = settings.model_copy(update={"review_failure_notification_options": options})
+    root = FakeRoot(guild=SimpleNamespace(id=10))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.THREAD,
+    )
+    publisher = DiscordReviewPublisher(
+        SimpleNamespace(user=SimpleNamespace(id=999)), configured, target, persona
+    )
+    await publisher.publish_failure("Revisión manual", notify_manual_review=True)
+    assert root.thread.sent[0]["content"] is None
+    assert root.thread.sent[0]["allowed_mentions"].to_dict() == {"parse": []}
+
+
+@pytest.mark.asyncio
+async def test_regular_failures_do_not_use_the_exhaustion_notification_whitelist(settings, persona):
+    configured = settings.model_copy(
+        update={
+            "review_failure_notification_options": ReviewFailureNotificationOptions(role_ids=(111,)),
+        }
+    )
+    root = FakeRoot(guild=SimpleNamespace(id=10))
+    target = ReviewTarget(
+        root=root,
+        trigger=root,
+        parent=SimpleNamespace(),
+        thread=None,
+        response_route=DiscordResponseRoute.THREAD,
+    )
+    publisher = DiscordReviewPublisher(
+        SimpleNamespace(user=SimpleNamespace(id=999)), configured, target, persona
+    )
+    await publisher.publish_failure("Error de infraestructura")
+    assert root.thread.sent[0]["content"] is None
+    assert root.thread.sent[0]["embed"].fields[0].value == persona.messages.failures.review_failure_next_step
+
+
+@pytest.mark.asyncio
 async def test_inconclusive_review_uses_the_same_escalation_roles(settings, persona) -> None:
     role = SimpleNamespace(id=111, mention="<@&111>")
     guild = SimpleNamespace(id=10, get_role=lambda role_id: role if role_id == 111 else None)
@@ -762,8 +881,7 @@ async def test_explicit_role_notification_mentions_only_resolved_roles(settings,
     assert route is ConversationResponseRoute.REPLY
     sent = root.replies[0]
     assert sent["content"] == (
-        f"<@&{field_staff_id}> <@&{command_staff_id}>\n\n"
-        "Revisen este expediente, por favor."
+        f"<@&{field_staff_id}> <@&{command_staff_id}>\n\nRevisen este expediente, por favor."
     )
     assert sent["allowed_mentions"].to_dict() == {
         "roles": [field_staff_id, command_staff_id],
@@ -841,9 +959,7 @@ async def test_report_owner_reply_removes_user_and_role_mentions(settings, perso
         allow_outgoing_mentions=False,
     )
 
-    await publisher.send_message(
-        "Que lo vea <@12345678901234567> con <@&22345678901234567>."
-    )
+    await publisher.send_message("Que lo vea <@12345678901234567> con <@&22345678901234567>.")
 
     sent = root.replies[0]
     assert sent["content"] == "Que lo vea usuario con rol."

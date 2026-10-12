@@ -122,10 +122,24 @@ El workflow se llama `arrest_report_review` y agrupa intentos mediante
 - `context_unavailable`: no fue posible leer el reporte raíz o el historial.
 - `unknown`: fallback seguro.
 
+`execute_arrest_report_review` usa el callback nativo `failure_error_function` del SDK para errores
+de JSON o validación de argumentos ocurridos antes de ejecutar la herramienta. Devuelve al agente
+una instrucción de corrección con un máximo de dos recuperaciones por ejecución; no reinicia la
+revisión ni reserva otra ronda del propietario. Los límites de turnos y tiempo siguen vigentes.
+Si el error persiste, se aplica el manejo general de `agent_execution`. Las excepciones internas
+o posteriores al inicio de la herramienta se propagan sin convertirlas en reintentos.
+`tool_arguments_recovery_requested` y `tool_arguments_recovery_exhausted` registran los IDs del caso,
+la herramienta y el contador, nunca los argumentos ni el texto potencialmente sensible del error.
+Si se agota esa recuperación, `review_failure_notifications` puede mencionar una vez a su whitelist
+de `role_ids` y `user_ids` en el mismo mensaje de fallo, fuera del embed y sin megáfono. Los IDs se
+validan en configuración y se resuelven contra la guild; los inexistentes y `@everyone` se omiten.
+No se entregan destinatarios al modelo. Este aviso determinista funciona también para `report_owner`
+sin habilitarle menciones generales. Si el módulo está deshabilitado o vacío, solo se publica el aviso.
+
 Ante un error, el bot intenta quitar `⏳`, añade `⚠️`, reutiliza o crea un hilo y publica únicamente
 un mensaje contextualizado y el siguiente paso. La clasificación, referencia técnica, excepción y
-datos del proveedor quedan en los logs. Si `REVIEW_ESCALATION_ROLE_IDS` contiene roles válidos de la
-guild, los menciona una sola vez por ejecución mediante una allowlist exacta de Discord. Los IDs
+datos del proveedor quedan en los logs. Para veredictos inconclusos, `REVIEW_ESCALATION_ROLE_IDS`
+puede mencionar sus roles válidos una sola vez por ejecución mediante una allowlist exacta. Los IDs
 eliminados se omiten con un warning y `MANUAL_REVIEW_ROLE_ID` permanece como alias legado.
 
 La redacción pública de errores, restricciones y redirecciones se obtiene del mapa validado de la
