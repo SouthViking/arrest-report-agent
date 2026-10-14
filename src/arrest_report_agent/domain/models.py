@@ -197,12 +197,12 @@ class ReviewFinding(BaseModel):
     )
 
     @model_validator(mode="after")
-    def keep_warrant_observations_non_blocking(self) -> ReviewFinding:
+    def require_open_warrant_correction(self) -> ReviewFinding:
         if (
             self.issue_type is ReviewIssueType.OPEN_ARREST_WARRANT
-            and self.severity is FindingSeverity.REQUIRED
+            and self.severity is not FindingSeverity.REQUIRED
         ):
-            raise ValueError("An open arrest warrant is an administrative, non-blocking observation")
+            raise ValueError("An open arrest warrant requires a blocking correction")
         return self
 
 

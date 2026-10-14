@@ -7,7 +7,7 @@ import base64
 import json
 import logging
 from datetime import UTC, date, datetime
-from typing import Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
 from agents import (
     RunContextWrapper,
@@ -50,8 +50,10 @@ from arrest_report_agent.knowledge import (
 )
 
 from .ports import (
+    ArrestReportDetail,
     ArrestReportLookup,
     ArrestReportSearchQuery,
+    ArrestWarrantLookup,
     ChannelMemberSearchQuery,
     CharacterLegalFactCheck,
     CharacterLegalFactResult,
@@ -79,6 +81,9 @@ from .ports import (
 )
 from .service_context import ReviewRunContext
 from .tool_errors import recover_tool_argument_error
+
+if TYPE_CHECKING:
+    from arrest_report_agent.arrest_warrants.lookup import ArrestWarrantCheck
 
 LOGGER = logging.getLogger(__name__)
 
@@ -155,6 +160,7 @@ MESSAGE_TOOL_TEXT_BUDGET = 20_000
 MAX_ATTACHMENT_IDS_PER_CALL = 10
 MAX_ARREST_SEARCH_CALLS_PER_RUN = 3
 MAX_ARREST_DETAIL_CALLS_PER_RUN = 3
+MAX_ARREST_WARRANT_CALLS_PER_RUN = 3
 MAX_CHARACTER_LEGAL_FACT_CALLS_PER_RUN = 3
 MAX_EVIDENCE_BAG_CALLS_PER_RUN = 3
 MAX_EVIDENCE_BAGS_PER_CALL = 10
@@ -233,6 +239,8 @@ def build_agent_tools(
     image_detail: str = "auto",
     access_level: AgentAccessLevel = AgentAccessLevel.FULL,
     arrest_report_lookup: ArrestReportLookup | None = None,
+    arrest_warrant_lookup: ArrestWarrantLookup | None = None,
+    warrant_check_required: bool = False,
     character_legal_facts_lookup: CharacterLegalFactsLookup | None = None,
     evidence_bag_lookup: EvidenceBagLookup | None = None,
     faction_frequency_lookup: FactionFrequencyLookup | None = None,
@@ -250,6 +258,78 @@ def build_agent_tools(
     resolved_radio_catalog = radio_catalog or RadioCodeCatalog.load_default()
     resolved_manual_catalog = manual_catalog or ManualCatalog.load_default()
     charge_catalog_provider = as_charge_catalog_provider(catalog)
+    require_warrant_clearance = warrant_check_required or arrest_warrant_lookup is not None
+
+    async def _check_current_warrants(
+        run_context: ReviewRunContext,
+    ) -> tuple[ArrestWarrantCheck, ArrestReportDetail | None]:
+        from arrest_report_agent.arrest_warrants.lookup import ArrestWarrantCheck
+
+        report = None
+        try:
+            case = run_context.case
+            if case.structured_report_id is not None:
+                loaded = run_context.latest_arrest_report
+                if loaded is not None and loaded.report_id == case.structured_report_id:
+                    report = loaded
+                elif arrest_report_lookup is not None:
+                    result = await arrest_report_lookup.get(case.structured_report_id)
+                    if (
+                        result.error is None
+                        and result.report is not None
+                        and result.report.report_id == case.structured_report_id
+                    ):
+                        report = result.report
+            elif (
+                arrest_report_lookup is not None
+                and _report_binding_thread_id(run_context, report_channel_ids) is not None
+            ):
+                result = await arrest_report_lookup.get_current(
+                    guild_id=case.guild_id,
+                    root_message_id=case.root_message_id,
+                )
+                if result.error is None:
+                    report = result.report
+            elif run_context.access_level is AgentAccessLevel.FULL:
+                report = run_context.latest_arrest_report
+            run_context.latest_arrest_report = report
+            if report is not None and arrest_warrant_lookup is not None:
+                return await arrest_warrant_lookup.inspect(report), report
+        except Exception as error:
+            log_event(LOGGER, "warning", "arrest_warrant_verification_failed", **exception_fields(error))
+        run_context.latest_arrest_report = report
+        return ArrestWarrantCheck(datetime.now(UTC), "unavailable"), report
+
+    @function_tool(failure_error_function=None)
+    async def get_suspect_arrest_warrants(
+        ctx: RunContextWrapper[ReviewRunContext],
+    ) -> dict[str, object]:
+        """Freshly check open arrest warrants for the suspect of the current report.
+
+        Takes no names or IDs: identity comes from the exact structured or bound SARP report.
+        Returns issuer, signature, dates and charges when available, plus approval_check:
+        blocked for any open arrest warrant (signed or unsigned), pending when verification is
+        incomplete/unavailable, clear only after SARP confirms none remain. A user's claim that
+        an order was closed is not proof; call this tool to verify. Does not notify Supervisory.
+        """
+
+        run_context = ctx.context
+        if run_context.arrest_warrant_calls >= MAX_ARREST_WARRANT_CALLS_PER_RUN:
+            return {"ok": False, "error": "run_warrant_limit_reached", "approval_check": "pending"}
+        run_context.arrest_warrant_calls += 1
+        await _set_activity(run_context, AgentActivity.RECORDS)
+        check, report = await _check_current_warrants(run_context)
+        payload = (
+            check.payload(report)
+            if report is not None
+            else {
+                "status": check.status,
+                "checked_at": check.checked_at.isoformat(),
+                "approval_check": check.approval_check,
+                "open_arrest_warrants": [],
+            }
+        )
+        return {"ok": check.status == "confirmed", **payload}
 
     def charge_catalog_for(run_context: ReviewRunContext) -> ChargeCatalog:
         if run_context.charge_catalog_snapshot is not None:
@@ -1251,6 +1331,22 @@ def build_agent_tools(
             return {"ok": False, "error": "invalid_emoji"}
         if deferred := await _defer_live_output(run_context):
             return deferred
+        if (
+            require_warrant_clearance
+            and normalized_emoji == "✅"
+            and int(message_id) == run_context.case.root_message_id
+            and (
+                run_context.case.structured_report_id is not None
+                or run_context.case.parent_channel_id in report_channel_ids
+            )
+        ):
+            check, _ = await _check_current_warrants(run_context)
+            if check.approval_check != "clear":
+                return {
+                    "ok": False,
+                    "error": "warrant_clearance_required",
+                    "approval_check": check.approval_check,
+                }
         outcome = await run_context.publisher.set_message_reaction(
             int(message_id),
             normalized_emoji,
@@ -1343,6 +1439,12 @@ def build_agent_tools(
         await _set_activity(run_context, AgentActivity.RESPONSE)
         if deferred := await _defer_live_output(run_context):
             return deferred
+        warrant_check = None
+        if require_warrant_clearance and publication.review_scope is ReviewScope.FULL:
+            from arrest_report_agent.arrest_warrants.policy import apply_warrant_policy
+
+            warrant_check, _ = await _check_current_warrants(run_context)
+            publication = apply_warrant_policy(publication, warrant_check)
         await run_context.publisher.publish(publication)
         _note_live_output(run_context)
         if (
@@ -1360,6 +1462,7 @@ def build_agent_tools(
             "ok": True,
             "review_scope": publication.review_scope.value,
             "verdict": publication.verdict.value,
+            **({"warrant_approval_check": warrant_check.approval_check} if warrant_check is not None else {}),
         }
 
     @function_tool(failure_error_function=None)
@@ -2074,6 +2177,8 @@ def build_agent_tools(
             get_arrest_report,
             get_current_arrest_report,
         ]
+    if require_warrant_clearance:
+        report_tools.append(get_suspect_arrest_warrants)
     if report_image_lookup is not None:
         report_tools[1:1] = [
             get_report_suspect_images,
@@ -2114,6 +2219,8 @@ def build_agent_tools(
         execute_arrest_report_review,
     ]
     live_record_tools: list[object] = []
+    if require_warrant_clearance:
+        live_record_tools.append(get_suspect_arrest_warrants)
     if faction_frequency_lookup is not None:
         live_record_tools.append(get_faction_frequencies)
     if faction_officer_rank_lookup is not None:

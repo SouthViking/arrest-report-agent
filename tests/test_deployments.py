@@ -78,7 +78,8 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     rendered_changes = " ".join(change.text for change in manifest.changes)
     assert "`/revisar-arresto`" in rendered_changes
     assert "Supervisory" in rendered_changes
-    assert "sin bloquear la aprobación" in rendered_changes
+    assert "exigen correcciones" in rendered_changes
+    assert "pendiente de verificación" in rendered_changes
     assert manifest.acknowledgements == ()
 
 

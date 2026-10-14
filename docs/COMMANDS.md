@@ -50,7 +50,8 @@ por la tool de rangos; se puede ajustar en una nueva revisión de configuración
 `/revisar-arresto`, `/ver-evidencia` y permite al agente completo buscar y vincular arrestos de esa facción, además de
 consultar bolsas de evidencias cuando el usuario entrega una referencia explícita. En un expediente ya
 vinculado, el propietario con acceso limitado solo puede consultar su referencia vigente al pedir
-una nueva revisión. Si SARP está apagado globalmente, estas tools no se registran.
+una nueva revisión. Si SARP está apagado globalmente, las consultas de reportes no se registran;
+la aprobación completa sigue pendiente de verificar las órdenes si este módulo está habilitado.
 
 Admite también `warrant_alerts_enabled`, `warrant_alert_channel_ids` y `warrant_alert_role_id`.
 Al enviar `/revisar-arresto`, el backend consulta las órdenes abiertas de arresto o ambos del
@@ -58,12 +59,17 @@ sospechoso identificado por PCU. Agrupa el aviso en un mensaje por canal, mencio
 configurado y muestra emisor, firma, fecha, riesgo, cargos y enlace al expediente. PostgreSQL guarda
 solo referencias de entregas para no repetir el aviso por arresto, orden y destino, incluso si
 se vuelve a publicar el arresto. Las órdenes cerradas y las de solo allanamiento no generan avisos.
-La primera revisión recibe el mismo resultado, sin otra consulta: puede sugerir verificar el cierre
-como observación no bloqueante; una orden abierta no impide aprobar el reporte. Si SARP falla,
-la revisión sigue y el contexto indica que la comprobación no estuvo disponible. Si solo falta el
+La primera revisión recibe el mismo resultado proactivamente. Una orden de arresto abierta,
+firmada o pendiente de firma, exige correcciones y bloquea la aprobación completa del reporte.
+El agente puede usar `get_suspect_arrest_warrants` para reconsultar las órdenes del expediente actual,
+sin aceptar nombres o IDs de otros sospechosos ni repetir el aviso. Si el usuario indica que cerró
+la orden, la tool comprueba SARP antes de aprobar; las demás correcciones también deben resolverse.
+La publicación de un veredicto completo consulta de nuevo SARP, incluso con el atajo de aprobación
+de un supervisor. Si SARP falla o la consulta queda incompleta, la revisión sigue y la aprobación
+queda pendiente de verificar SARP, sin inventar una orden ni una deficiencia del reporte. Si solo falta el
 detalle, se informa la orden confirmada por el listado sin inventar el emisor ni el estado de firma.
 Los avisos se pueden deshabilitar o cambiar de destino por `/config` sin redesplegar; el contexto
-del agente sigue consultándose aunque los avisos estén deshabilitados.
+del agente y el requisito de comprobar el cierre siguen activos aunque los avisos estén deshabilitados.
 
 El módulo **Reportes de arresto pendientes** recibe
 `{"faction_id": 3, "max_range_days": 90, "max_records": 1000}`. Habilita la consulta manual

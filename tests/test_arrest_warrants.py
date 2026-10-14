@@ -296,24 +296,24 @@ async def test_initial_command_hook_runs_independently_of_model_and_survives_adm
     assert review.run_structured_initial_review.await_args.kwargs["arrest_warrant_context"] is None
 
 
-def test_warrant_finding_cannot_be_a_required_correction():
+def test_warrant_finding_must_be_a_required_correction():
     finding = dict(
         issue_type=ReviewIssueType.OPEN_ARREST_WARRANT,
         title="Orden abierta",
         detail="La orden sigue abierta.",
         recommendation="Verifica si corresponde cerrarla.",
     )
-    with pytest.raises(ValidationError, match="non-blocking"):
-        ReviewFinding(**finding, severity=FindingSeverity.REQUIRED)
-    assert (
-        ReviewFinding(**finding, severity=FindingSeverity.OBSERVATION).severity is FindingSeverity.OBSERVATION
-    )
+    with pytest.raises(ValidationError, match="blocking correction"):
+        ReviewFinding(**finding, severity=FindingSeverity.OBSERVATION)
+    required = ReviewFinding(**finding, severity=FindingSeverity.REQUIRED)
     publication = ReviewPublication(
-        verdict="approved",
-        summary="Reporte aprobado.",
-        findings=[ReviewFinding(**finding, severity=FindingSeverity.OBSERVATION)],
+        verdict="corrections_required",
+        summary="Orden pendiente de cierre.",
+        findings=[required],
     )
-    assert publication.verdict.value == "approved"
+    assert publication.verdict.value == "corrections_required"
+    with pytest.raises(ValidationError, match="unresolved material findings"):
+        ReviewPublication(verdict="approved", summary="Aprobado.", findings=[required])
 
 
 @pytest.mark.parametrize(

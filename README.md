@@ -478,8 +478,10 @@ Comandos disponibles:
   conserva el flujo sin ID para poder habilitarlo posteriormente sin bifurcar la implementación.
   En el envío inicial consulta determinísticamente las órdenes de arresto abiertas del sospechoso.
   Notifica al rol y canales configurados de Supervisory con emisor, firma, cargos y enlace al
-  expediente, sin pings repetidos por arresto y orden. El agente reutiliza los detalles como
-  contexto administrativo no bloqueante; una orden abierta no altera por sí sola el veredicto.
+  expediente, sin pings repetidos por arresto y orden. El agente recibe los detalles y puede
+  reconsultarlos con `get_suspect_arrest_warrants`. Una orden abierta, firmada o pendiente de firma,
+  exige correcciones y bloquea la aprobación completa. La publicación verifica el estado en SARP;
+  si no puede comprobarlo, la revisión continúa y la aprobación queda pendiente.
   La tarjeta comienza amarilla y solo una revisión completa puede cambiarla a verde, rojo o naranja;
   consultas y revisiones parciales no alteran su estado general.
 - `/guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.

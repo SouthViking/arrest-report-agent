@@ -30,7 +30,7 @@ def upgrade() -> None:
         sa.text("""
         INSERT INTO report_issue_types (code, display_name, description, position)
         SELECT 'open_arrest_warrant', 'Orden de arresto abierta',
-               'Observación administrativa no bloqueante sobre una orden pendiente de cierre.',
+               'Orden de arresto abierta que impide aprobar el reporte hasta verificar su cierre.',
                COALESCE(MAX(position), -1) + 1 FROM report_issue_types
         ON CONFLICT (code) DO NOTHING
     """)
