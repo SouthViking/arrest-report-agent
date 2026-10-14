@@ -196,6 +196,15 @@ class ReviewFinding(BaseModel):
         description="Brief neutral reference to the relevant material.",
     )
 
+    @model_validator(mode="after")
+    def require_open_warrant_correction(self) -> ReviewFinding:
+        if (
+            self.issue_type is ReviewIssueType.OPEN_ARREST_WARRANT
+            and self.severity is not FindingSeverity.REQUIRED
+        ):
+            raise ValueError("An open arrest warrant requires a blocking correction")
+        return self
+
 
 class ChargeAssessment(BaseModel):
     charge_id: int | None = None

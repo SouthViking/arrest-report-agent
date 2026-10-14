@@ -1137,7 +1137,8 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 except ValueError as error:
                     raise ValueError(
                         "Consulta de arrestos requiere `faction_id`, un modo de adjunto válido y "
-                        "`max_rank_names_per_lookup` entre 1 y 50 si se especifica."
+                        "`max_rank_names_per_lookup` entre 1 y 50 si se especifica. Los avisos de "
+                        "órdenes requieren canales y un rol válidos cuando están habilitados."
                     ) from error
             if key == "pending_arrest_reports":
                 payload.setdefault("max_range_days", 90)

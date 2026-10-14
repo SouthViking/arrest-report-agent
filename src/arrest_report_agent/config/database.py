@@ -369,6 +369,21 @@ class ArrestReportLookupOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
     report_attachment_mode: ArrestReportAttachmentMode = ArrestReportAttachmentMode.GENERATED
     max_rank_names_per_lookup: int = Field(default=20, ge=1, le=50, strict=True)
+    warrant_alerts_enabled: bool = False
+    warrant_alert_channel_ids: tuple[int, ...] = Field(default=(), max_length=10)
+    warrant_alert_role_id: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_warrant_alerts(self) -> ArrestReportLookupOptions:
+        if any(channel_id <= 0 for channel_id in self.warrant_alert_channel_ids):
+            raise ValueError("warrant alert channels must contain positive IDs")
+        if len(set(self.warrant_alert_channel_ids)) != len(self.warrant_alert_channel_ids):
+            raise ValueError("warrant alert channels must be unique")
+        if self.warrant_alerts_enabled and (
+            not self.warrant_alert_channel_ids or self.warrant_alert_role_id is None
+        ):
+            raise ValueError("enabled warrant alerts require channels and a role")
+        return self
 
 
 class PendingArrestDigestTarget(FrozenConfigModel):
@@ -1053,6 +1068,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return ArrestReportLookupOptions.model_validate(feature.payload).faction_id
+
+    @property
+    def arrest_report_lookup_options(self) -> ArrestReportLookupOptions | None:
+        feature = self.snapshot.features.get("arrest_report_lookup")
+        if feature is None or not feature.enabled:
+            return None
+        return ArrestReportLookupOptions.model_validate(feature.payload)
 
     @property
     def arrest_report_attachment_mode(self) -> ArrestReportAttachmentMode:

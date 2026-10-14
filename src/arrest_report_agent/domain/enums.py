@@ -39,6 +39,7 @@ class ReviewIssueType(StrEnum):
     CHARGE_MISMATCH = "charge_mismatch"
     REQUIRED_MATERIAL_MISSING = "required_material_missing"
     REPORT_FORMAT = "report_format"
+    OPEN_ARREST_WARRANT = "open_arrest_warrant"
     OTHER = "other"
 
 

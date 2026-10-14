@@ -1622,6 +1622,9 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         assert resolved[1234674521416663070]["payload"] == {
             "faction_id": 3,
             "report_attachment_mode": "generated",
+            "warrant_alerts_enabled": True,
+            "warrant_alert_channel_ids": [1234678185124298853],
+            "warrant_alert_role_id": 1234676131240869949,
         }
         assert resolved[999]["enabled"] is False
         assert resolved[999]["payload"] == {}

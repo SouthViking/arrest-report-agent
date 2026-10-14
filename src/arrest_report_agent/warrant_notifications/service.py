@@ -93,7 +93,20 @@ class WarrantLookupService:
                 retry_after_seconds=retry_after,
             )
 
-        detail = WarrantDetail(
+        detail = self.project(payload)
+        log_event(
+            LOGGER,
+            "info",
+            "warrant_lookup_succeeded",
+            warrant_id=warrant_id,
+            charge_count=len(detail.charges),
+        )
+        return WarrantLookupResult(detail=detail)
+
+    @staticmethod
+    def project(payload: SarpWarrantDetail) -> WarrantDetail:
+        """Reuse the same IC-safe projection for notifications and review context."""
+        return WarrantDetail(
             warrant_id=payload.id,
             suspect_name=_display_name(payload.suspect_name) or "Sin identificar",
             description=_clean_text(payload.description),
@@ -118,14 +131,6 @@ class WarrantLookupService:
                 for charge in payload.charges
             ),
         )
-        log_event(
-            LOGGER,
-            "info",
-            "warrant_lookup_succeeded",
-            warrant_id=warrant_id,
-            charge_count=len(detail.charges),
-        )
-        return WarrantLookupResult(detail=detail)
 
 
 def _clean_text(value: str | None) -> str:

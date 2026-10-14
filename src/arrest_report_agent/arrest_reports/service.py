@@ -221,6 +221,7 @@ def _summary(report: SarpFactionArrestSummary) -> ArrestReportSummary:
 def _detail(report: SarpArrestDetail) -> ArrestReportDetail:
     return ArrestReportDetail(
         report_id=report.id,
+        suspect_id=report.suspect_id,
         suspect_name=report.suspect_name,
         officer_name=report.police_name,
         description=report.description,

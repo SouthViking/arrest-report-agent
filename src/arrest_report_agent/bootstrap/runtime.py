@@ -12,6 +12,8 @@ from agents import set_default_openai_key
 from arrest_report_agent.agent_sessions import AgentSessionManager
 from arrest_report_agent.application.maintenance import MaintenanceScheduler
 from arrest_report_agent.arrest_statistics import ArrestStatisticsCog, ArrestStatisticsService
+from arrest_report_agent.arrest_warrants import ArrestWarrantMonitor
+from arrest_report_agent.arrest_warrants.repository import ArrestWarrantAlertRepository
 from arrest_report_agent.blacklists import BlacklistCog, BlacklistRepository
 from arrest_report_agent.ci_notifications import (
     CiNotificationRepository,
@@ -395,6 +397,10 @@ async def build_runtime(
             config_provider,
             structured_report_service,
             review_cog,
+            warrant_monitor=(
+                ArrestWarrantMonitor(bot, sarp_client, ArrestWarrantAlertRepository(postgres))
+                if sarp_client is not None else None
+            ),
         )
     )
     bot.add_cog(PollEventCog(poll_repository))

@@ -1,14 +1,24 @@
 {
   "schema_version": 3,
-  "version": "1.1.8",
-  "title": "Nueva opción en bitácora",
-  "summary": "Ya puedes registrar la autorización de un personaje adicional.",
+  "version": "1.1.9",
+  "title": "Órdenes abiertas al revisar arrestos",
+  "summary": "Supervisory recibe el aviso y las órdenes abiertas impiden aprobar el reporte hasta verificar su cierre.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [1241206587079524442],
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
       "type": "added",
-      "text": "En `/bitacora`, selecciona Personal → Autorización de personaje adicional e indica el miembro y el personaje autorizado."
+      "text": "Al enviar `/revisar-arresto`, se informa a Supervisory de las órdenes de arresto abiertas del sospechoso, con emisor, firma, cargos y enlace al expediente."
+    },
+    {
+      "type": "added",
+      "text": "Las órdenes de arresto abiertas, firmadas o pendientes de firma, exigen correcciones. El agente puede reconsultarlas para verificar el cierre antes de aprobar."
+    },
+    {
+      "type": "added",
+      "text": "Si SARP no permite comprobar las órdenes, la revisión continúa y la aprobación queda pendiente de verificación."
     }
   ],
   "acknowledgements": []

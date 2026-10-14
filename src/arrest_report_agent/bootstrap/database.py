@@ -666,7 +666,15 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         key="arrest_report_lookup",
                         enabled=guild_id == 1234674521416663070,
                         schema_version=1,
-                        payload=({"faction_id": 3} if guild_id == 1234674521416663070 else {}),
+                        payload=(
+                            {
+                                "faction_id": 3,
+                                "warrant_alerts_enabled": True,
+                                "warrant_alert_channel_ids": list(supervisor_alert_defaults.channel_ids),
+                                "warrant_alert_role_id": supervisor_alert_defaults.role_id,
+                            }
+                            if supervisor_alert_defaults is not None else {}
+                        ),
                     ),
                     GuildFeatureSnapshot(
                         key="pending_arrest_reports",

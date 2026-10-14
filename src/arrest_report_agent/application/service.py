@@ -37,6 +37,7 @@ from .conversations import with_received_messages
 from .errors import AgentSessionUnavailableError, classify_error, public_error_message
 from .ports import (
     ArrestReportLookup,
+    ArrestWarrantLookup,
     CharacterLegalFactsLookup,
     EvidenceBagLookup,
     FactionFrequencyLookup,
@@ -71,6 +72,8 @@ class ReviewService:
         report_image_lookup: ReportImageLookup | None = None,
         faction_officer_rank_lookup: FactionOfficerRankLookup | None = None,
         max_rank_names_per_lookup: int = 20,
+        arrest_warrant_lookup: ArrestWarrantLookup | None = None,
+        warrant_check_required: bool = False,
     ) -> None:
         self.settings = settings
         self.catalog_provider = as_charge_catalog_provider(catalog)
@@ -81,6 +84,7 @@ class ReviewService:
         self.manual_catalog = manual_catalog or ManualCatalog.load_default()
         self.arrest_report_lookup = arrest_report_lookup
         self.report_image_lookup = report_image_lookup
+        require_warrant_clearance = warrant_check_required or arrest_warrant_lookup is not None
         tools = build_agent_tools(
             self.catalog_provider,
             guide,
@@ -94,6 +98,8 @@ class ReviewService:
             image_detail=model.runtime_defaults.image_detail,
             access_level=AgentAccessLevel.FULL,
             arrest_report_lookup=arrest_report_lookup,
+            arrest_warrant_lookup=arrest_warrant_lookup,
+            warrant_check_required=require_warrant_clearance,
             character_legal_facts_lookup=character_legal_facts_lookup,
             evidence_bag_lookup=evidence_bag_lookup,
             faction_frequency_lookup=faction_frequency_lookup,
@@ -116,6 +122,8 @@ class ReviewService:
             image_detail=model.runtime_defaults.image_detail,
             access_level=AgentAccessLevel.REPORT_OWNER,
             arrest_report_lookup=arrest_report_lookup,
+            arrest_warrant_lookup=arrest_warrant_lookup,
+            warrant_check_required=require_warrant_clearance,
             character_legal_facts_lookup=character_legal_facts_lookup,
             evidence_bag_lookup=evidence_bag_lookup,
             faction_frequency_lookup=None,
@@ -140,6 +148,7 @@ class ReviewService:
             instructions=build_agent_instructions(
                 persona,
                 arrest_lookup_enabled=arrest_report_lookup is not None,
+                arrest_warrants_enabled=require_warrant_clearance,
                 character_legal_facts_enabled=character_legal_facts_lookup is not None,
                 evidence_lookup_enabled=evidence_bag_lookup is not None,
                 faction_frequency_lookup_enabled=faction_frequency_lookup is not None,
@@ -158,6 +167,7 @@ class ReviewService:
                 persona,
                 AgentAccessLevel.REPORT_OWNER,
                 arrest_lookup_enabled=arrest_report_lookup is not None,
+                arrest_warrants_enabled=require_warrant_clearance,
                 character_legal_facts_enabled=character_legal_facts_lookup is not None,
                 evidence_lookup_enabled=evidence_bag_lookup is not None,
                 faction_frequency_lookup_enabled=False,
@@ -184,6 +194,14 @@ class ReviewService:
         session: Session | None = None,
         stateless_agent_input: list[dict[str, Any]] | None = None,
     ) -> None:
+        if run_context.arrest_warrant_context is not None:
+            warrant_input: dict[str, Any] = {
+                "role": "user",
+                "content": [{"type": "input_text", "text": run_context.arrest_warrant_context}],
+            }
+            agent_input = [warrant_input, *agent_input]
+            if stateless_agent_input is not None:
+                stateless_agent_input = [warrant_input, *stateless_agent_input]
         if run_context.charge_catalog_snapshot is None:
             run_context.charge_catalog_snapshot = self.catalog_provider.snapshot()
         started_at = time.monotonic()

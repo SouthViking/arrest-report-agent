@@ -9,6 +9,18 @@ from sqlalchemy.dialects import postgresql
 
 metadata = sa.MetaData()
 
+arrest_warrant_alert_deliveries = sa.Table(
+    "arrest_warrant_alert_deliveries",
+    metadata,
+    sa.Column("guild_id", sa.BigInteger, sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"),
+              primary_key=True),
+    sa.Column("sarp_arrest_id", sa.BigInteger, primary_key=True),
+    sa.Column("channel_id", sa.BigInteger, primary_key=True),
+    sa.Column("warrant_id", sa.BigInteger, primary_key=True),
+    sa.Column("message_id", sa.BigInteger, nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+)
+
 
 pending_arrest_digest_state = sa.Table(
     "pending_arrest_digest_state",

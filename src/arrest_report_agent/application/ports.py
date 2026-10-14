@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 from uuid import UUID
 
 from arrest_report_agent.domain import (
@@ -14,6 +14,9 @@ from arrest_report_agent.domain import (
     ManualQuizPublication,
     ReviewPublication,
 )
+
+if TYPE_CHECKING:
+    from arrest_report_agent.arrest_warrants.lookup import ArrestWarrantCheck
 
 
 class ActivityTracker(Protocol):
@@ -286,6 +289,7 @@ class ArrestReportDetail:
     created_at: datetime
     updated_at: datetime | None
     charges: tuple[ArrestReportCharge, ...]
+    suspect_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -293,6 +297,11 @@ class ArrestReportDetailResult:
     report: ArrestReportDetail | None
     error: str | None = None
     retry_after_seconds: float | None = None
+
+
+class ArrestWarrantLookup(Protocol):
+    async def inspect(self, report: ArrestReportDetail) -> ArrestWarrantCheck:
+        """Freshly check open arrest warrants for the report's exact SARP suspect."""
 
 
 class ArrestReportLookup(Protocol):

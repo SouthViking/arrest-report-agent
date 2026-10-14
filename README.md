@@ -476,6 +476,12 @@ Comandos disponibles:
   una primera revisión sin consumir una de las cinco continuaciones del propietario. La capa interna
   obtiene el nombre del sospechoso automáticamente desde PCU, sin pedirlo en el formulario, y
   conserva el flujo sin ID para poder habilitarlo posteriormente sin bifurcar la implementación.
+  En el envío inicial consulta determinísticamente las órdenes de arresto abiertas del sospechoso.
+  Notifica al rol y canales configurados de Supervisory con emisor, firma, cargos y enlace al
+  expediente, sin pings repetidos por arresto y orden. El agente recibe los detalles y puede
+  reconsultarlos con `get_suspect_arrest_warrants`. Una orden abierta, firmada o pendiente de firma,
+  exige correcciones y bloquea la aprobación completa. La publicación verifica el estado en SARP;
+  si no puede comprobarlo, la revisión continúa y la aprobación queda pendiente.
   La tarjeta comienza amarilla y solo una revisión completa puede cambiarla a verde, rojo o naranja;
   consultas y revisiones parciales no alteran su estado general.
 - `/guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.
@@ -629,6 +635,12 @@ el modo generado crea una imagen vigente del reporte SARP al publicarlo y la ree
 cada revisión completa. El modo se resuelve desde PostgreSQL en cada revisión, sin agregar variables
 de entorno ni conservar versiones anteriores de la imagen. El interruptor global `SARP_API_ENABLED`
 debe estar activo.
+Las opciones `warrant_alerts_enabled`, `warrant_alert_channel_ids` y `warrant_alert_role_id` controlan
+los avisos de órdenes abiertas al presentar `/revisar-arresto`. Ejemplo de actualización parcial:
+`{"warrant_alerts_enabled": true, "warrant_alert_channel_ids": [1234678185124298853],
+"warrant_alert_role_id": 1234676131240869949}`. El formulario conserva el resto del JSON vigente.
+La migración habilita el aviso en LSSD reutilizando los destinos actuales de Supervisory; conserva
+las opciones explícitas. No cambia el intervalo de los resúmenes de reportes pendientes.
 `pending_arrest_reports` acepta
 `{"faction_id": 3, "max_range_days": 90, "max_records": 1000, "digest_interval_hours": 6,
 "digest_lookback_days": 7, "digest_targets": [{"channel_id": 1537203701893169254,

@@ -153,6 +153,7 @@ class DatabaseConfigProvider:
                 snapshot.agent.reasoning_effort,
             )
             arrest_lookup = None
+            arrest_warrant_lookup = None
             character_legal_facts_lookup = None
             faction_frequency_lookup = None
             faction_officer_rank_lookup = None
@@ -165,6 +166,9 @@ class DatabaseConfigProvider:
                     self.arrest_bindings,
                     faction_id=faction_id,
                 )
+                from arrest_report_agent.arrest_warrants.lookup import SarpArrestWarrantLookup
+
+                arrest_warrant_lookup = SarpArrestWarrantLookup(self.sarp_client)
                 from arrest_report_agent.character_legal_facts import (
                     SarpCharacterLegalFactsLookup,
                 )
@@ -199,6 +203,8 @@ class DatabaseConfigProvider:
                 max_rank_names_per_lookup=settings.max_rank_names_per_lookup,
                 manual_catalog=self.manual_catalog,
                 report_image_lookup=(self.report_image_lookup if arrest_lookup is not None else None),
+                arrest_warrant_lookup=arrest_warrant_lookup,
+                warrant_check_required=faction_id is not None,
             )
             bundle = GuildRuntimeBundle(
                 snapshot=snapshot,
