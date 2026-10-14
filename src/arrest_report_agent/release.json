@@ -1,14 +1,14 @@
 {
   "schema_version": 3,
-  "version": "1.1.7",
-  "title": "Revisar arrestos, más simple",
-  "summary": "Menos campos al enviar tu reporte para revisión.",
+  "version": "1.1.8",
+  "title": "Nueva opción en bitácora",
+  "summary": "Ya puedes registrar la autorización de un personaje adicional.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": "all",
+  "changelog_targets": [1241206587079524442],
   "changes": [
     {
-      "type": "improved",
-      "text": "En `/revisar-arresto`, indica el ID del reporte y adjunta las imágenes. El nombre del sospechoso se obtiene automáticamente desde PCU."
+      "type": "added",
+      "text": "En `/bitacora`, selecciona Personal → Autorización de personaje adicional e indica el miembro y el personaje autorizado."
     }
   ],
   "acknowledgements": []

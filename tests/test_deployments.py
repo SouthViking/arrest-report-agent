@@ -71,14 +71,13 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
 
     assert manifest.version == __version__
     assert manifest.repository_url == "https://github.com/SouthViking/arrest-report-agent"
-    assert manifest.changelog_targets == "all"
+    assert manifest.changelog_targets == (1241206587079524442,)
     assert manifest.targets_changelog_channel(1241206587079524442)
-    assert manifest.targets_changelog_channel(1234675609536430152)
+    assert not manifest.targets_changelog_channel(1234675609536430152)
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "`/revisar-arresto`" in rendered_changes
-    assert "ID del reporte" in rendered_changes
-    assert "nombre del sospechoso se obtiene automáticamente desde PCU" in rendered_changes
+    assert "`/bitacora`" in rendered_changes
+    assert "Personal → Autorización de personaje adicional" in rendered_changes
     assert manifest.acknowledgements == ()
 
 

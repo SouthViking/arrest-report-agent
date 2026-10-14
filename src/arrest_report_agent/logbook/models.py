@@ -145,6 +145,7 @@ CATEGORY_SUBTYPES: dict[LogbookCategory, tuple[tuple[str, str], ...]] = {
         ("disciplinary_action", "Acción disciplinaria"),
         ("return", "Regreso"),
         ("name_change", "Cambio de nombre"),
+        ("additional_character_authorization", "Autorización de personaje adicional"),
         ("other", "Otro"),
     ),
     LogbookCategory.ASSIGNMENTS: (

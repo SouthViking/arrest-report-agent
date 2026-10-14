@@ -218,6 +218,37 @@ def test_personnel_supports_a_general_disciplinary_action() -> None:
     assert personnel_subtypes["disciplinary_action"] == "Acción disciplinaria"
 
 
+def test_additional_character_authorization_belongs_only_to_personnel() -> None:
+    key = "additional_character_authorization"
+    personnel_subtypes = dict(available_subtypes(LogbookCategory.PERSONNEL, None))
+
+    assert personnel_subtypes[key] == "Autorización de personaje adicional"
+    assert all(
+        key not in dict(subtypes)
+        for category, subtypes in CATEGORY_SUBTYPES.items()
+        if category is not LogbookCategory.PERSONNEL
+    )
+
+
+def test_additional_character_authorization_renders_in_the_entry_title() -> None:
+    entry = _entry().model_copy(
+        update={
+            "category": LogbookCategory.PERSONNEL,
+            "subtype": "additional_character_authorization",
+            "subject": "Charles Harrington",
+            "description": "Se autoriza el personaje adicional James Carter.",
+            "money_direction": None,
+            "money_amount": None,
+            "money_detail": None,
+        }
+    )
+
+    embed = build_entry_embed(entry, attachment_count=0)
+
+    assert embed.title == f"👤 {entry.reference} · Autorización de personaje adicional"
+    assert "James Carter" in (embed.description or "")
+
+
 def test_assignments_use_graduation_for_completed_ftp() -> None:
     assignment_subtypes = dict(CATEGORY_SUBTYPES[LogbookCategory.ASSIGNMENTS])
 
@@ -248,6 +279,7 @@ def test_guide_lists_every_category_and_its_current_subtypes(persona) -> None:
     assert "↳ **Retiro:** Retiro · Pago · Reembolso · Ajuste · Otro" in fields["💵 Finanzas"]
     assert "↳ Ingreso · Reincorporación" in fields["👤 Personal"]
     assert "Acción disciplinaria" in fields["👤 Personal"]
+    assert "Autorización de personaje adicional" in fields["👤 Personal"]
     assert "Entrega de equipo" in fields["🪪 Licencias y equipo"]
     assert fields["📝 Otro"] == "↳ Otro registro"
 
@@ -513,6 +545,42 @@ async def test_adapted_modal_only_adds_amount_for_financial_movement() -> None:
 
 
 @pytest.mark.asyncio
+async def test_personnel_modal_can_submit_an_additional_character_authorization() -> None:
+    publish = AsyncMock()
+    modal = LogbookEntryModal(
+        cog=SimpleNamespace(publish=publish),  # type: ignore[arg-type]
+        requester_id=1,
+        guild_id=2,
+        channel_id=3,
+        category=LogbookCategory.PERSONNEL,
+        money_direction=None,
+    )
+    options = {option.value: option.label for option in modal.subtype.options}
+    assert options["additional_character_authorization"] == "Autorización de personaje adicional"
+    interaction = SimpleNamespace(data={})
+    modal.subtype.refresh_from_modal(
+        interaction, {"values": ["additional_character_authorization"]}
+    )
+    modal.subject.value = "Charles Harrington"
+    modal.description.value = "Se autoriza el personaje adicional James Carter."
+    await modal.callback(interaction)  # type: ignore[arg-type]
+
+    publish.assert_awaited_once_with(
+        interaction,
+        requester_id=1,
+        guild_id=2,
+        channel_id=3,
+        category=LogbookCategory.PERSONNEL,
+        money_direction=None,
+        subtype="additional_character_authorization",
+        subject="Charles Harrington",
+        description="Se autoriza el personaje adicional James Carter.",
+        amount_text="",
+        attachments=(),
+    )
+
+
+@pytest.mark.asyncio
 async def test_finance_modal_never_offers_a_contradictory_movement_subtype() -> None:
     income = LogbookEntryModal(
         cog=None,  # type: ignore[arg-type]
@@ -612,6 +680,21 @@ async def test_summary_setup_offers_dependent_subtypes_and_all_filters() -> None
     assert view.category.placeholder == "Todas las categorías"
     assert view.subtype.disabled is True
     assert [option.value for option in view.subtype.options] == ["all"]
+
+
+@pytest.mark.asyncio
+async def test_summary_setup_offers_additional_character_authorization_under_personnel() -> None:
+    view = LogbookSummarySetupView(
+        cog=None,  # type: ignore[arg-type]
+        requester_id=1,
+        guild_id=2,
+        channel_id=3,
+    )
+
+    view.select_category(LogbookCategory.PERSONNEL)
+
+    options = {option.value: option.label for option in view.subtype.options}
+    assert options["additional_character_authorization"] == "Autorización de personaje adicional"
 
 
 @pytest.mark.asyncio

@@ -252,6 +252,9 @@ contenido de los adjuntos se almacena en el Railway Bucket con claves basadas en
 imagen se muestra como portada; entre dos y diez imágenes se presentan en una galería nativa de
 Discord y los archivos no visuales permanecen disponibles para descarga.
 
+En **Personal → Autorización de personaje adicional** se registra el miembro involucrado y se
+detalla en la descripción qué personaje adicional se autorizó.
+
 `/info-bitacora` publica una explicación breve con el tono de la personalidad activa. Las categorías,
 montos, fechas y demás datos operacionales se muestran con redacción neutra.
 
