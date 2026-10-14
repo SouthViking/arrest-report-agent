@@ -24,7 +24,9 @@ from .render import RenderedArrestReport, render_arrest_report_image
 from .service import StructuredArrestReportService, StructuredReportFile
 
 if TYPE_CHECKING:
+    from arrest_report_agent.application.ports import ArrestReportDetail
     from arrest_report_agent.arrest_reports import SarpArrestReportLookup
+    from arrest_report_agent.arrest_warrants import ArrestWarrantMonitor
     from arrest_report_agent.infrastructure.discord.cog import ReviewCog
 
 LOGGER = logging.getLogger(__name__)
@@ -39,10 +41,12 @@ class StructuredArrestReportCog(commands.Cog):
         provider: DatabaseConfigProvider,
         service: StructuredArrestReportService,
         review_cog: ReviewCog,
+        warrant_monitor: ArrestWarrantMonitor | None = None,
     ) -> None:
         self.provider = provider
         self.service = service
         self.review_cog = review_cog
+        self.warrant_monitor = warrant_monitor
         self._initial_review_tasks: set[asyncio.Task[None]] = set()
         self.image_manager = ReportImageManager(self)
 
@@ -278,7 +282,7 @@ class StructuredArrestReportCog(commands.Cog):
                         binding_error=binding_error,
                     )
             task = asyncio.create_task(
-                self.review_cog.run_structured_initial_review(
+                self._run_initial_review(
                     root=root,
                     thread=thread,
                     requester=interaction.user,
@@ -329,6 +333,34 @@ class StructuredArrestReportCog(commands.Cog):
                 guild_id=guild_id,
                 user_id=requester_id,
             )
+
+    async def _run_initial_review(
+        self, *, root: discord.Message, thread: discord.Thread, requester: discord.Member,
+        submission: ArrestReportSubmission,
+        arrest_report: ArrestReportDetail,
+        report_snapshot_current: bool,
+    ) -> None:
+        warrant_context = None
+        if self.warrant_monitor is not None:
+            try:
+                bundle = await self.provider.cached(submission.guild_id)
+                warrant_context = await self.warrant_monitor.check_and_notify(
+                    guild_id=submission.guild_id,
+                    report=arrest_report,
+                    report_url=root.jump_url,
+                    options=bundle.settings.arrest_report_lookup_options,
+                )
+            except Exception as error:
+                # An administrative integration must never suppress the initial review.
+                log_event(
+                    LOGGER, "warning", "structured_arrest_warrant_check_failed",
+                    sarp_arrest_id=arrest_report.report_id, **exception_fields(error),
+                )
+        kwargs = {"arrest_warrant_context": warrant_context} if self.warrant_monitor is not None else {}
+        await self.review_cog.run_structured_initial_review(
+            root=root, thread=thread, requester=requester, submission=submission,
+            arrest_report=arrest_report, report_snapshot_current=report_snapshot_current, **kwargs,
+        )
 
     async def _command_denial(self, ctx: discord.ApplicationContext) -> discord.Embed | None:
         if ctx.guild is None or ctx.channel is None or not isinstance(ctx.author, discord.Member):

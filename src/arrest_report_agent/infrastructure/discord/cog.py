@@ -686,6 +686,7 @@ class ReviewCog(commands.Cog):
         access_level: AgentAccessLevel,
         consume_owner_round: bool = True,
         preloaded_arrest_report: ArrestReportDetail | None = None,
+        arrest_warrant_context: str | None = None,
         report_snapshot_current: bool = False,
     ) -> bool:
         """Run the shared bounded review workflow for listener and structured submissions."""
@@ -847,6 +848,7 @@ class ReviewCog(commands.Cog):
                     message_directory=self.message_directory,
                     poll_manager=self.poll_manager,
                     preloaded_arrest_report=preloaded_arrest_report,
+                    arrest_warrant_context=arrest_warrant_context,
                     report_snapshot_refresher=(
                         partial(self.structured_report_snapshot_manager.refresh_safely, target.root)
                         if self.structured_report_snapshot_manager is not None
@@ -966,6 +968,7 @@ class ReviewCog(commands.Cog):
         requester: discord.Member,
         submission: ArrestReportSubmission,
         arrest_report: ArrestReportDetail | None,
+        arrest_warrant_context: str | None = None,
         report_snapshot_current: bool = False,
     ) -> None:
         """Start exactly one free owner review for a validated structured submission."""
@@ -1010,6 +1013,7 @@ class ReviewCog(commands.Cog):
                     access_level=AgentAccessLevel.REPORT_OWNER,
                     consume_owner_round=False,
                     preloaded_arrest_report=arrest_report,
+                    arrest_warrant_context=arrest_warrant_context,
                     report_snapshot_current=report_snapshot_current,
                 )
         except Exception as error:

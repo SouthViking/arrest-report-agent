@@ -286,6 +286,7 @@ class ArrestReportDetail:
     created_at: datetime
     updated_at: datetime | None
     charges: tuple[ArrestReportCharge, ...]
+    suspect_id: int | None = None
 
 
 @dataclass(frozen=True)

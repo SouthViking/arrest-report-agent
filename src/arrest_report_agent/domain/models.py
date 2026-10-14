@@ -196,6 +196,15 @@ class ReviewFinding(BaseModel):
         description="Brief neutral reference to the relevant material.",
     )
 
+    @model_validator(mode="after")
+    def keep_warrant_observations_non_blocking(self) -> ReviewFinding:
+        if (
+            self.issue_type is ReviewIssueType.OPEN_ARREST_WARRANT
+            and self.severity is FindingSeverity.REQUIRED
+        ):
+            raise ValueError("An open arrest warrant is an administrative, non-blocking observation")
+        return self
+
 
 class ChargeAssessment(BaseModel):
     charge_id: int | None = None

@@ -24,6 +24,16 @@ from arrest_report_agent.domain.models import ReviewPublication
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
 
+@pytest.mark.parametrize("access_level", [AgentAccessLevel.FULL, AgentAccessLevel.REPORT_OWNER])
+def test_warrant_context_is_non_blocking_independent_of_legal_fact_tools(persona, access_level):
+    prompt = build_agent_instructions(persona, access_level, arrest_lookup_enabled=True)
+    assert "[SARP_ARREST_WARRANT_CONTEXT]" in prompt
+    assert "issue_type=open_arrest_warrant" in prompt
+    assert "nunca required" in prompt
+    assert "No envíes otro ping" in prompt
+    assert "No rechaces ni" in prompt
+
+
 def test_identity_is_injected_without_prompt_hardcoding(persona) -> None:
     alternate = persona.model_copy(
         update={
@@ -875,8 +885,11 @@ async def test_post_run_contract_failure_keeps_complete_runner_usage(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "warrant_context", [None, "[SARP_ARREST_WARRANT_CONTEXT]\n{\"status\":\"confirmed\"}"],
+)
 async def test_service_falls_back_to_full_stateless_context_when_session_storage_fails(
-    settings, model, persona, monkeypatch, caplog
+    settings, model, persona, monkeypatch, caplog, warrant_context
 ) -> None:
     service = ReviewService(
         settings,
@@ -898,7 +911,9 @@ async def test_service_falls_back_to_full_stateless_context_when_session_storage
         attachments=[],
     )
     publisher = FailurePublisher()
-    context = ReviewRunContext(case=case, publisher=publisher, attempt=1)
+    context = ReviewRunContext(
+        case=case, publisher=publisher, attempt=1, arrest_warrant_context=warrant_context,
+    )
     calls: list[tuple[object, object]] = []
     session = SimpleNamespace(session_id="session-test")
     delta_input = [{"role": "user", "content": "revisa de nuevo"}]
@@ -923,7 +938,9 @@ async def test_service_falls_back_to_full_stateless_context_when_session_storage
             stateless_agent_input=full_input,
         )
 
-    assert calls == [(delta_input, session), (full_input, None)]
+    extra = ([{"role": "user", "content": [{"type": "input_text", "text": warrant_context}]}]
+             if warrant_context is not None else [])
+    assert calls == [([*extra, *delta_input], session), ([*extra, *full_input], None)]
     assert publisher.messages == ["Respuesta recuperada."]
     assert context.completed is True
     assert publisher.failures == []

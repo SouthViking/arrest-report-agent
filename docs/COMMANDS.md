@@ -52,6 +52,19 @@ consultar bolsas de evidencias cuando el usuario entrega una referencia explíci
 vinculado, el propietario con acceso limitado solo puede consultar su referencia vigente al pedir
 una nueva revisión. Si SARP está apagado globalmente, estas tools no se registran.
 
+Admite también `warrant_alerts_enabled`, `warrant_alert_channel_ids` y `warrant_alert_role_id`.
+Al enviar `/revisar-arresto`, el backend consulta las órdenes abiertas de arresto o ambos del
+sospechoso identificado por PCU. Agrupa el aviso en un mensaje por canal, menciona solo el rol
+configurado y muestra emisor, firma, fecha, riesgo, cargos y enlace al expediente. PostgreSQL guarda
+solo referencias de entregas para no repetir el aviso por arresto, orden y destino, incluso si
+se vuelve a publicar el arresto. Las órdenes cerradas y las de solo allanamiento no generan avisos.
+La primera revisión recibe el mismo resultado, sin otra consulta: puede sugerir verificar el cierre
+como observación no bloqueante; una orden abierta no impide aprobar el reporte. Si SARP falla,
+la revisión sigue y el contexto indica que la comprobación no estuvo disponible. Si solo falta el
+detalle, se informa la orden confirmada por el listado sin inventar el emisor ni el estado de firma.
+Los avisos se pueden deshabilitar o cambiar de destino por `/config` sin redesplegar; el contexto
+del agente sigue consultándose aunque los avisos estén deshabilitados.
+
 El módulo **Reportes de arresto pendientes** recibe
 `{"faction_id": 3, "max_range_days": 90, "max_records": 1000}`. Habilita la consulta manual
 determinista, reutiliza `operational_staff_roles` y no requiere una política de canales.

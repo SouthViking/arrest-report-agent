@@ -1,14 +1,20 @@
 {
   "schema_version": 3,
-  "version": "1.1.8",
-  "title": "Nueva opción en bitácora",
-  "summary": "Ya puedes registrar la autorización de un personaje adicional.",
+  "version": "1.1.9",
+  "title": "Órdenes abiertas al revisar arrestos",
+  "summary": "Supervisory recibe el aviso y la revisión incorpora una observación no bloqueante.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [1241206587079524442],
+  "changelog_targets": [
+    1241206587079524442
+  ],
   "changes": [
     {
       "type": "added",
-      "text": "En `/bitacora`, selecciona Personal → Autorización de personaje adicional e indica el miembro y el personaje autorizado."
+      "text": "Al enviar `/revisar-arresto`, se informa a Supervisory de las órdenes de arresto abiertas del sospechoso, con emisor, firma, cargos y enlace al expediente."
+    },
+    {
+      "type": "added",
+      "text": "La revisión recibe el detalle de las órdenes y puede sugerir verificar su cierre sin bloquear la aprobación del reporte."
     }
   ],
   "acknowledgements": []

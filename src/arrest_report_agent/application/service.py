@@ -184,6 +184,14 @@ class ReviewService:
         session: Session | None = None,
         stateless_agent_input: list[dict[str, Any]] | None = None,
     ) -> None:
+        if run_context.arrest_warrant_context is not None:
+            warrant_input: dict[str, Any] = {
+                "role": "user",
+                "content": [{"type": "input_text", "text": run_context.arrest_warrant_context}],
+            }
+            agent_input = [warrant_input, *agent_input]
+            if stateless_agent_input is not None:
+                stateless_agent_input = [warrant_input, *stateless_agent_input]
         if run_context.charge_catalog_snapshot is None:
             run_context.charge_catalog_snapshot = self.catalog_provider.snapshot()
         started_at = time.monotonic()

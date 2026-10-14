@@ -59,6 +59,7 @@ class ReviewRunContext:
     loaded_report_asset_ids: set[str] = field(default_factory=set)
     preloaded_arrest_report: ArrestReportDetail | None = None
     latest_arrest_report: ArrestReportDetail | None = None
+    arrest_warrant_context: str | None = None
     report_snapshot_refresher: ReportSnapshotRefresher | None = None
     report_snapshot_current: bool = False
     loaded_image_count: int = 0
