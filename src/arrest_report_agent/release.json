@@ -1,24 +1,20 @@
 {
   "schema_version": 3,
-  "version": "1.1.9",
-  "title": "Órdenes abiertas al revisar arrestos",
-  "summary": "Supervisory recibe el aviso y las órdenes abiertas impiden aprobar el reporte hasta verificar su cierre.",
+  "version": "1.1.10",
+  "title": "Solicitudes de roles para Ganton",
+  "summary": "Ganton queda como única estación disponible en las solicitudes de roles.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "Al enviar `/revisar-arresto`, se informa a Supervisory de las órdenes de arresto abiertas del sospechoso, con emisor, firma, cargos y enlace al expediente."
+      "type": "improved",
+      "text": "En `/solicitar-roles`, el ingreso FTT ofrece únicamente Ganton. NPD: DLM deja de aparecer entre los roles que se pueden solicitar."
     },
     {
-      "type": "added",
-      "text": "Las órdenes de arresto abiertas, firmadas o pendientes de firma, exigen correcciones. El agente puede reconsultarlas para verificar el cierre antes de aprobar."
-    },
-    {
-      "type": "added",
-      "text": "Si SARP no permite comprobar las órdenes, la revisión continúa y la aprobación queda pendiente de verificación."
+      "type": "fixed",
+      "text": "La ayuda del selector de estación deja de mencionar Dillimore. Se conserva el soporte para incorporar otras estaciones más adelante."
     }
   ],
   "acknowledgements": []
