@@ -77,7 +77,7 @@ class RoleRequestModalCopy:
     ftt_entry_button: str = "Ingreso FTT"
     ftt_entry_title: str = "Solicitar ingreso FTT"
     ftt_entry_station_label: str = "Estación de destino"
-    ftt_entry_station_placeholder: str = "Selecciona Ganton o Dillimore."
+    ftt_entry_station_placeholder: str = "Selecciona tu estación de destino."
     shift_label: str = "Turno"
     shift_change_label: str = "Cambiar turno (opcional)"
     shift_description: str = "Es el turno de tu personaje; no limita cuándo puedes conectarte."
