@@ -555,12 +555,11 @@ def test_default_env_template_values_are_parseable(tmp_path) -> None:
 
     assert settings.thread_auto_archive_minutes == 1440
     assert settings.bot_persona == "walter_vigil"
-    assert settings.discord_guild_ids == frozenset({1234674521416663070})
-    assert settings.authorized_user_ids is None
-    assert settings.supervisor_role_ids is None
-    assert settings.report_channel_ids == frozenset(
-        {1462992794569281617, 1462992859761217745, 1529616211204378737}
-    )
+    assert settings.discord_guild_ids == frozenset({222222222222222222})
+    assert settings.authorized_user_ids == frozenset({111111111111111111})
+    assert settings.supervisor_role_ids == frozenset({444444444444444444})
+    assert settings.report_channel_ids == frozenset({333333333333333333})
+    assert settings.report_owner_quota_admin_user_ids == ()
     assert settings.role_request_allowed_channel_ids is None
     assert settings.role_request_reviewer_role_ids == ()
     assert settings.role_request_allowed_role_ids == ()

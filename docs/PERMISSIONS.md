@@ -1,5 +1,9 @@
 # Permisos de Discord
 
+Configura estos permisos durante [Instalación](SETUP.md) y vuelve a comprobarlos al habilitar
+módulos desde [Configuración](CONFIGURATION.md). Las políticas del bot no sustituyen los permisos
+efectivos del miembro en Discord.
+
 ## Intents
 
 En Discord Developer Portal, habilita **Message Content Intent** y **Server Members Intent**. El bot
@@ -34,9 +38,10 @@ mantener permisos mínimos, esos roles deben estar marcados como mencionables; n
 - Send Messages in Threads
 - Manage Threads
 - Embed Links
+- Attach Files
 
-El bitfield base es `326417599552`; con `Manage Roles` es `326686035008`. Se recomienda revisar
-permisos por nombre en lugar de conservar un número de forma manual.
+Selecciona estos permisos por nombre al instalar el bot y comprueba los overrides de cada canal.
+Añade los permisos específicos de cada módulo solo cuando lo habilites.
 
 `Manage Roles` solo es necesario cuando se habilita el subsistema con
 `ROLE_REQUEST_REVIEWER_ROLE_IDS`. El rol más alto del bot debe quedar por encima de todos los roles
@@ -44,6 +49,8 @@ admitidos por `ROLE_REQUEST_ALLOWED_ROLE_IDS`; Discord no permite administrar ro
 superiores. Los selectores solo muestran roles admitidos que el bot puede administrar. En cada canal
 admitido por `ROLE_REQUEST_ALLOWED_CHANNEL_IDS` también necesita `View Channel`, `Read Message
 History`, `Send Messages` y `Embed Links`.
+Estas variables solo inicializan las políticas. Después de importar, usa `/config` para administrar
+`role_request_reviewer_roles`, `role_request_allowed_roles` y `role_request_channels`.
 Los canales privados definidos en `role_request_review_channels` requieren también `View Channel`,
 `Read Message History`, `Send Messages` y `Embed Links`; los botones solo se publican allí.
 

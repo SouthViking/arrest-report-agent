@@ -1,5 +1,9 @@
 # Comandos de Discord
 
+Para instalar el bot sigue [Instalación](SETUP.md). Para dar acceso al primer administrador y
+publicar roles, canales y módulos sigue [Configuración inicial](CONFIGURATION.md). Las variables
+del proceso y la importación inicial están en [Variables de entorno](ENVIRONMENT.md).
+
 ## Administración dinámica: `/config`
 
 No recibe argumentos. Pueden usarlo los IDs definidos en `CONFIG_OWNER_USER_IDS` y los miembros con

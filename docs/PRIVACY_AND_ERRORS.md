@@ -1,5 +1,9 @@
 # Privacidad, traces y manejo de errores
 
+Los procedimientos de diagnóstico, rotación de credenciales y recuperación están en
+[Operación y traspaso](OPERATIONS.md). La referencia de secretos y tracing está en
+[Variables de entorno](ENVIRONMENT.md).
+
 ## Datos procesados
 
 Una mención que supera la política local envía primero al guardrail únicamente el texto del mensaje
