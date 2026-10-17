@@ -76,10 +76,9 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     assert not manifest.targets_changelog_channel(1234675609536430152)
     assert manifest.changes
     rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "`/solicitar-roles`" in rendered_changes
-    assert "Ganton" in rendered_changes
-    assert "NPD: DLM" in rendered_changes
-    assert "soporte para incorporar otras estaciones" in rendered_changes
+    assert "guías paso a paso" in rendered_changes
+    assert "traspaso de administración" in rendered_changes
+    assert "IDs ficticios" in rendered_changes
     assert manifest.acknowledgements == ()
 
 

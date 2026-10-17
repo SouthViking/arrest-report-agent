@@ -1,5 +1,8 @@
 # Arquitectura del MVP
 
+Para desplegar y mantener una instancia consulta [Instalación](SETUP.md),
+[Configuración](CONFIGURATION.md) y [Operación y traspaso](OPERATIONS.md).
+
 ## Flujo
 
 ```mermaid

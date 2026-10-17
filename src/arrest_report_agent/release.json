@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "1.1.10",
-  "title": "Solicitudes de roles para Ganton",
-  "summary": "Ganton queda como única estación disponible en las solicitudes de roles.",
+  "version": "1.1.11",
+  "title": "Guías de instalación y administración",
+  "summary": "Documentación ordenada para instalar, configurar y mantener el bot.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,11 @@
   "changes": [
     {
       "type": "improved",
-      "text": "En `/solicitar-roles`, el ingreso FTT ofrece únicamente Ganton. NPD: DLM deja de aparecer entre los roles que se pueden solicitar."
+      "text": "Nuevas guías paso a paso de instalación, configuración, respaldos, recuperación y traspaso de administración."
     },
     {
-      "type": "fixed",
-      "text": "La ayuda del selector de estación deja de mencionar Dillimore. Se conserva el soporte para incorporar otras estaciones más adelante."
+      "type": "improved",
+      "text": "Referencia completa de variables y plantilla con IDs ficticios, sin credenciales ni accesos personales precargados."
     }
   ],
   "acknowledgements": []
