@@ -208,6 +208,12 @@ de pruebas dedicada y exporta su URL **solo** en la terminal de tests; algunos t
 No copies el valor de `DATABASE_URL` de producción a esa variable. La suite predeterminada no
 llama a Discord ni a OpenAI; los tests de documentación comprueban enlaces y cobertura de variables.
 
+El CI prepara PostgreSQL con [ci_containers.py](../scripts/ci_containers.py): intenta las imágenes
+oficiales desde ECR y, si la descarga falla o expira, desde Docker Hub. Comparte esa selección con
+la imagen base de Python del build. Espera a que PostgreSQL esté listo y falla si no consigue
+prepararlo; no omite las pruebas por un error de infraestructura. El fallback no oculta errores
+reales de compilación o tests. El Dockerfile de producción conserva su origen predeterminado.
+
 Las evaluaciones reales están marcadas `ai_eval` y requieren una credencial válida. Usa un caso
 acotado y asume consumo de créditos:
 
