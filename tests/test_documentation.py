@@ -86,3 +86,11 @@ def test_installation_database_commands_match_the_cli_without_replacement() -> N
         args = parser.parse_args(command.split())
         assert args.command == "db"
         assert not getattr(args, "replace", False)
+
+
+def test_installation_does_not_overwrite_an_existing_environment_file() -> None:
+    setup = (ROOT / "docs" / "SETUP.md").read_text(encoding="utf-8")
+    assert "cp -n default.env .env" in setup
+    assert setup.index("if (Test-Path -LiteralPath .env) { throw") < setup.index(
+        "Copy-Item -LiteralPath default.env -Destination .env"
+    )

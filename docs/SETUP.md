@@ -54,7 +54,7 @@ puedes inicializar sus servicios desde un equipo con Python o Docker sin abrir e
 ### Python en Linux o macOS
 
 ```bash
-cp default.env .env
+cp -n default.env .env
 python3.12 -m venv .venv
 .venv/bin/python -m pip install -e '.[dev]'
 ```
@@ -65,6 +65,7 @@ ejecutable completo o activar el entorno con `source .venv/bin/activate`.
 ### Python en Windows PowerShell
 
 ```powershell
+if (Test-Path -LiteralPath .env) { throw 'Ya existe .env; revisa su configuración antes de continuar.' }
 Copy-Item -LiteralPath default.env -Destination .env
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e '.[dev]'
