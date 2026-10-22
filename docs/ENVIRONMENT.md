@@ -146,7 +146,7 @@ para configurar los receptores y sus destinos en Discord.
 
 | Variable | Predeterminado | Uso y dependencia |
 |---|---|---|
-| `RAILWAY_WEBHOOK_SECRET` | Vacío | Activa el receptor Railway; 43–128 caracteres URL-safe. |
+| `RAILWAY_WEBHOOK_SECRET` | Vacío | Activa el receptor Railway; 43–128 caracteres URL-safe. Se envía en `Authorization: Bearer <secreto>`, nunca en la URL. |
 | `RAILWAY_PROJECT_ID` | Sin valor | Proyecto aceptado por ese receptor y scope del monitor de recursos. |
 | `RAILWAY_ENVIRONMENT_ID` | Sin valor | Entorno aceptado; necesario junto con proyecto y servicio al activar el receptor. |
 | `RAILWAY_SERVICE_ID` | Sin valor | Servicio aceptado por el receptor. |

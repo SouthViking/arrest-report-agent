@@ -268,10 +268,11 @@ Docker en cada push; Railway debe mantener **Wait for CI** habilitado para despl
 revisiones que terminen esos checks correctamente. Las variables y secretos viven en Railway, no en
 el repositorio. PostgreSQL y Bucket se enlazan mediante referencias de variables del proyecto.
 
-El mismo proceso aloja `GET /health`, el receptor autenticado de Railway y el webhook firmado de
-GitHub Actions. Cada request solo valida, normaliza y persiste: la publicación en Discord ocurre
-fuera de la ruta HTTP mediante workers que consumen un
-outbox. Esto permite responder `202` rápido, deduplicar reintentos del proveedor y reintentar fallas
+El mismo proceso aloja `GET /health`, `POST /webhooks/railway` autenticado con el header
+`Authorization: Bearer <RAILWAY_WEBHOOK_SECRET>` y el webhook firmado de GitHub Actions. El secreto
+de Railway nunca forma parte de la URL. Cada request solo valida, normaliza y persiste: la publicación
+en Discord ocurre fuera de la ruta HTTP mediante workers que consumen un outbox. Esto permite
+responder `202` rápido, deduplicar reintentos del proveedor y reintentar fallas
 transitorias sin perder el evento. Para un evento exitoso, el SHA del webhook debe coincidir con el
 `RAILWAY_GIT_COMMIT_SHA` de la instancia; así el contenedor anterior puede recibir el evento pero solo
 la revisión nueva anuncia su propio manifest. Las políticas y el módulo de notificaciones se leen del

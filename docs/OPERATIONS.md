@@ -244,13 +244,27 @@ El receptor se habilita únicamente cuando están presentes `RAILWAY_WEBHOOK_SEC
 proyecto, entorno y servicio. La URL que se configura en Railway es:
 
 ```text
-https://<dominio-publico>/webhooks/railway/<RAILWAY_WEBHOOK_SECRET>
+https://<dominio-publico>/webhooks/railway
 ```
 
+En **Project Settings → Webhooks**, añade un custom header llamado `Authorization` con el valor
+`Bearer <RAILWAY_WEBHOOK_SECRET>`. Usa el mismo secreto configurado en el servicio; cambiar su
+transporte no requiere rotarlo. El valor no se incluye en la URL, query parameters ni logs del receptor.
+
 Acepta `Deployment.deployed`, `Deployment.failed`, `Deployment.crashed` y
-`Deployment.oom_killed`. Verifica el secreto con comparación constante, limita el cuerpo, valida el
-JSON y exige que los tres IDs coincidan y que el entorno no sea efímero. CORS se habilita únicamente
-para el botón de prueba del dashboard de Railway; no sustituye al secreto.
+`Deployment.oom_killed`. Verifica el token del header con comparación constante antes de leer el
+cuerpo; un header ausente, duplicado o inválido devuelve `401`. Limita el cuerpo, valida el JSON y
+exige que los tres IDs coincidan y que el entorno no sea efímero. El preflight `OPTIONS` no requiere
+credenciales y solo permite CORS para los orígenes de Railway; el `POST` siempre requiere el token.
+
+Para migrar desde la URL antigua:
+
+1. Añade el header `Authorization` al webhook existente conservando su secreto actual. La versión
+   anterior del bot lo ignora y sigue funcionando con su URL anterior.
+2. Despliega la versión con autenticación por header y cambia inmediatamente la URL del webhook a
+   `/webhooks/railway`. La ruta antigua deja de existir y no admite autenticación mediante URL.
+3. Comprueba una entrega real y su anuncio interno. Si hubo una entrega fallida durante el cambio,
+   revisa los reintentos del proveedor y las entregas persistidas antes de generar eventos duplicados.
 
 El manifest también declara la URL confiable del repositorio. Los embeds convierten el SHA corto en
 un enlace al commit únicamente cuando Railway identifica GitHub como origen y el SHA completo tiene

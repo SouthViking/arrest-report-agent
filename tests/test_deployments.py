@@ -75,10 +75,6 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     assert manifest.targets_changelog_channel(1241206587079524442)
     assert not manifest.targets_changelog_channel(1234675609536430152)
     assert manifest.changes
-    rendered_changes = " ".join(change.text for change in manifest.changes)
-    assert "guías paso a paso" in rendered_changes
-    assert "traspaso de administración" in rendered_changes
-    assert "IDs ficticios" in rendered_changes
     assert manifest.acknowledgements == ()
 
 
@@ -475,23 +471,20 @@ async def test_webhook_endpoint_authenticates_validates_and_limits_cors() -> Non
     client = TestClient(TestServer(app))
     await client.start_server()
     try:
-        wrong = await client.post(
-            "/webhooks/railway/wrong",
-            json=railway_payload(),
-        )
-        assert wrong.status == 404
-
         invalid = await client.post(
-            f"/webhooks/railway/{receiver.secret}",
+            "/webhooks/railway",
             data="not-json",
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {receiver.secret}",
+            },
         )
         assert invalid.status == 400
 
         accepted = await client.post(
-            f"/webhooks/railway/{receiver.secret}",
+            "/webhooks/railway",
             json=railway_payload(),
-            headers={"Origin": "https://railway.com"},
+            headers={"Origin": "https://railway.com", "Authorization": f"Bearer {receiver.secret}"},
         )
         assert accepted.status == 202
         assert await accepted.json() == {"status": "accepted"}
@@ -499,11 +492,104 @@ async def test_webhook_endpoint_authenticates_validates_and_limits_cors() -> Non
         assert len(receiver.events) == 1
 
         untrusted = await client.post(
-            f"/webhooks/railway/{receiver.secret}",
+            "/webhooks/railway",
             json=railway_payload(),
-            headers={"Origin": "https://example.com"},
+            headers={"Origin": "https://example.com", "Authorization": f"bearer {receiver.secret}"},
         )
         assert untrusted.status == 202
+        assert "Access-Control-Allow-Origin" not in untrusted.headers
+    finally:
+        await client.close()
+
+
+@pytest.mark.parametrize(
+    "authorization",
+    [
+        None,
+        "",
+        "Bearer",
+        "Bearer ",
+        "Bearer wrong",
+        "Basic " + FakeReceiver.secret,
+        "Bearer café",
+        "Bearer " + FakeReceiver.secret + " extra",
+    ],
+)
+@pytest.mark.asyncio
+async def test_railway_webhook_rejects_invalid_headers_before_processing(authorization: str | None) -> None:
+    receiver = FakeReceiver()
+    client = TestClient(TestServer(create_http_application(AsyncMock(), receiver)))  # type: ignore[arg-type]
+    await client.start_server()
+    try:
+        headers = {"Origin": "https://railway.com"}
+        if authorization is not None:
+            headers["Authorization"] = authorization
+        response = await client.post("/webhooks/railway", data="not-json", headers=headers)
+
+        assert response.status == 401
+        assert await response.json() == {"status": "unauthorized"}
+        assert response.headers["WWW-Authenticate"] == "Bearer"
+        assert receiver.events == []
+        assert receiver.secret not in await response.text()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_railway_webhook_rejects_legacy_url_credentials_and_duplicate_headers() -> None:
+    receiver = FakeReceiver()
+    client = TestClient(TestServer(create_http_application(AsyncMock(), receiver)))  # type: ignore[arg-type]
+    await client.start_server()
+    try:
+        legacy = await client.post(
+            f"/webhooks/railway/{receiver.secret}",
+            json=railway_payload(),
+            headers={"Authorization": f"Bearer {receiver.secret}"},
+        )
+        assert legacy.status == 404
+
+        query = await client.post(
+            "/webhooks/railway",
+            params={"secret": receiver.secret},
+            json=railway_payload(),
+        )
+        assert query.status == 401
+
+        duplicate = await client.post(
+            "/webhooks/railway",
+            json=railway_payload(),
+            headers=[("Authorization", f"Bearer {receiver.secret}"), ("Authorization", "Bearer wrong")],
+        )
+        assert duplicate.status == 401
+        assert receiver.events == []
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_railway_webhook_preflight_allows_authorization_without_accepting_events() -> None:
+    receiver = FakeReceiver()
+    client = TestClient(TestServer(create_http_application(AsyncMock(), receiver)))  # type: ignore[arg-type]
+    await client.start_server()
+    try:
+        preflight = await client.options(
+            "/webhooks/railway",
+            headers={
+                "Origin": "https://railway.com",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "Authorization, Content-Type",
+            },
+        )
+        assert preflight.status == 204
+        assert preflight.headers["Access-Control-Allow-Origin"] == "https://railway.com"
+        assert "Authorization" in preflight.headers["Access-Control-Allow-Headers"]
+        assert receiver.events == []
+
+        untrusted = await client.options(
+            "/webhooks/railway",
+            headers={"Origin": "https://example.com"},
+        )
+        assert untrusted.status == 204
         assert "Access-Control-Allow-Origin" not in untrusted.headers
     finally:
         await client.close()

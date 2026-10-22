@@ -88,17 +88,24 @@ def create_http_application(
 
     app.router.add_get("/health", health)
     if webhook_receiver is not None:
-        path = "/webhooks/railway/{secret}"
+        path = "/webhooks/railway"
 
         async def railway_webhook(request: web.Request) -> web.Response:
-            if not hmac.compare_digest(
-                request.match_info["secret"],
-                webhook_receiver.secret,
-            ):
-                raise web.HTTPNotFound()
             cors_headers = _cors_headers(request)
             if request.method == "OPTIONS":
                 return web.Response(status=204, headers=cors_headers)
+            authorization = request.headers.getall("Authorization", [])
+            scheme, _, token = authorization[0].partition(" ") if authorization else ("", "", "")
+            if (
+                len(authorization) != 1
+                or scheme.lower() != "bearer"
+                or not hmac.compare_digest(token.encode("utf-8"), webhook_receiver.secret.encode("utf-8"))
+            ):
+                return web.json_response(
+                    {"status": "unauthorized"},
+                    status=401,
+                    headers={**cors_headers, "WWW-Authenticate": "Bearer"},
+                )
             if request.content_type != "application/json":
                 return web.json_response(
                     {"status": "invalid", "error": "application_json_required"},
@@ -239,6 +246,6 @@ def _cors_headers(request: web.Request) -> dict[str, str]:
     return {
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
         "Vary": "Origin",
     }
