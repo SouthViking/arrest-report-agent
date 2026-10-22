@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "1.1.11",
-  "title": "Guías de instalación y administración",
-  "summary": "Documentación ordenada para instalar, configurar y mantener el bot.",
+  "version": "1.1.12",
+  "title": "Autenticación del webhook de Railway",
+  "summary": "Las notificaciones de Railway se autentican mediante un header sin exponer el secreto en la URL.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,11 +10,7 @@
   "changes": [
     {
       "type": "improved",
-      "text": "Nuevas guías paso a paso de instalación, configuración, respaldos, recuperación y traspaso de administración."
-    },
-    {
-      "type": "improved",
-      "text": "Referencia completa de variables y plantilla con IDs ficticios, sin credenciales ni accesos personales precargados."
+      "text": "El webhook de Railway usa Authorization: Bearer con el secreto vigente y una URL sin credenciales."
     }
   ],
   "acknowledgements": []
