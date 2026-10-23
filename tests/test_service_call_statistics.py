@@ -107,8 +107,9 @@ def test_range_applies_different_offsets_across_dst_change():
 
 @pytest.mark.parametrize(("start", "end", "max_days", "reason"), (
     ("22/10/2026 12:00", "20/10/2026 12:00", 90, "posterior"),
-    ("22/10/2026 12:00", "30/10/2026 12:00", 90, "futuras"),
+    ("26/10/2026 12:00", "30/10/2026 12:00", 90, "inicio.*futuro"),
     ("01/07/2026 12:00", "22/10/2026 12:00", 90, "máximo"),
+    ("01/07/2026 12:00", "30/10/2026 12:00", 90, "máximo"),
 ))
 def test_invalid_ranges_are_rejected(start, end, max_days, reason):
     with pytest.raises(ValueError, match=reason):
@@ -120,6 +121,22 @@ def test_current_minute_is_clamped_to_now():
         "25/10/2026 08:00", "25/10/2026 09:00", "America/Santiago", max_days=90, now=NOW,
     )
     assert query.ends_at == NOW
+
+
+@pytest.mark.parametrize(("zone", "start", "end"), (
+    ("America/Santiago", "25/10/2026 08:00", "25/10/2026 10:00"),
+    ("America/Santiago", "25/10/2026 08:00", "26/10/2026 08:00"),
+    ("America/Santiago", "25/10/2026 08:00", "25/10/2027 08:00"),
+    ("America/Bogota", "25/10/2026 06:00", "25/10/2026 08:00"),
+    ("Europe/Madrid", "25/10/2026 11:00", "25/10/2026 15:00"),
+))
+def test_future_end_is_clamped_to_exact_now_before_validating_range_limit(zone, start, end):
+    now = NOW + timedelta(seconds=37, microseconds=123456)
+    query = ServiceCallStatisticsQuery.parse(start, end, zone, max_days=1, now=now)
+
+    assert query.ends_at == now
+    assert query.includes(now)
+    assert not query.includes(now + timedelta(microseconds=1))
 
 
 def _message(call_id=12, service="LSPD", *, author_id=BOT_ID, timestamp=CALL_TIME, published=None):
@@ -387,6 +404,40 @@ async def test_full_modal_submission_reads_history_and_publishes_selected_local_
     assert fields["Desde"] == "01/01/2020 · 08:00"
     assert fields["Hasta"] == "02/01/2020 · 20:00"
     state.channel.history.assert_called_once()
+
+
+@pytest.mark.parametrize("visibility", tuple(ResultVisibility))
+async def test_submission_clamps_future_end_and_publishes_effective_range(monkeypatch, visibility):
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return NOW.astimezone(tz)
+
+    monkeypatch.setattr("arrest_report_agent.service_calls.statistics.datetime", FrozenDateTime)
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.service_call_statistics.datetime", FrozenDateTime,
+    )
+    state = _setup([
+        _message(1, timestamp=NOW - timedelta(minutes=30)),
+        _message(2, "LSFD", timestamp=NOW, published=NOW),
+        _message(3, timestamp=NOW + timedelta(microseconds=1), published=NOW + timedelta(milliseconds=100)),
+    ])
+    interaction = _interaction(state)
+
+    await _submit(
+        state, interaction, visibility, raw_from="25/10/2026 08:00",
+        raw_to="30/10/2026 20:00", timezone_key="America/Santiago",
+    )
+
+    published = interaction.followup.send.await_args.kwargs
+    assert published["ephemeral"] is (visibility is ResultVisibility.PRIVATE)
+    embed = published["embed"]
+    assert "2 llamadas únicas" in embed.description
+    fields = {field.name: field.value for field in embed.fields}
+    assert fields["Desde"] == "25/10/2026 · 08:00"
+    assert fields["Hasta"] == "25/10/2026 · 09:00"
+    state.channel.history.assert_called_once()
+    assert not state.cog._active_guilds
 
 
 @pytest.mark.parametrize("visibility", tuple(ResultVisibility))

@@ -636,7 +636,8 @@ teléfonos ni situaciones recibidas desde SARP. El intervalo global se controla 
 
 `/estadisticas-llamadas` reutiliza los canales de ese módulo y `operational_staff_roles`. Su modal
 recibe inicio y término locales, el catálogo compartido de zonas IANA del FTP y visibilidad pública
-por defecto. Lee solo canales accesibles al miembro y al bot, valida la identidad y el formato de
+por defecto. Si el término está en el futuro, lo limita al momento actual y muestra ese rango efectivo.
+Lee solo canales accesibles al miembro y al bot, valida la identidad y el formato de
 los embeds, deduplica IDs y filtra por el timestamp original de SARP. Muestra total y proporción
 Policía frente a Ambulancia/bomberos, además de Otros si procede, zona y rango elegido. Incluye
 un margen configurable para publicaciones tardías y avisa si el conteo es parcial. Los límites se

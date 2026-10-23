@@ -37,12 +37,11 @@ class ServiceCallStatisticsQuery:
         current = current.astimezone(UTC)
         start = parse_local_datetime(raw_from, timezone_key)
         end = parse_local_datetime(raw_to, timezone_key).replace(second=59, microsecond=999999)
-        if end.replace(second=0, microsecond=0) == current.replace(second=0, microsecond=0):
-            end = current
+        if start > current:
+            raise ValueError("El inicio no puede estar en el futuro.")
+        end = min(end, current)
         if start > end:
             raise ValueError("El inicio no puede ser posterior al término.")
-        if end > current:
-            raise ValueError("No puedes consultar fechas u horas futuras.")
         if end.replace(second=0, microsecond=0) - start > timedelta(days=max_days):
             raise ValueError(f"El rango máximo es de {max_days} días.")
         return cls(start, end, timezone_key)
