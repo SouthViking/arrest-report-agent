@@ -8,6 +8,7 @@ from enum import StrEnum
 import discord
 
 from arrest_report_agent.application.date_ranges import DateRangePeriod
+from arrest_report_agent.application.timezones import TIMEZONE_OPTIONS
 
 DATE_PERIOD_LABELS: dict[DateRangePeriod, str] = {
     DateRangePeriod.LAST_1_DAY: "Último día",
@@ -25,6 +26,21 @@ class ResultVisibility(StrEnum):
 
     PUBLIC = "public"
     PRIVATE = "private"
+
+
+def timezone_select_options() -> list[discord.SelectOption]:
+    return [discord.SelectOption(label=zone, value=zone, emoji=flag) for flag, zone in TIMEZONE_OPTIONS]
+
+
+def build_timezone_select(custom_id: str) -> discord.ui.StringSelect:  # type: ignore[type-var]
+    return discord.ui.StringSelect(
+        custom_id=custom_id,
+        placeholder="Selecciona tu zona horaria",
+        options=timezone_select_options(),
+        required=True,
+        min_values=1,
+        max_values=1,
+    )
 
 
 def build_visibility_select(

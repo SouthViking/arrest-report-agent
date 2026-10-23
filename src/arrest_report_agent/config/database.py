@@ -176,6 +176,13 @@ class RoleRequestStationOption(FrozenConfigModel):
     emoji: str | None = Field(default=None, min_length=1, max_length=20)
 
 
+class ServiceCallOptions(FrozenConfigModel):
+    statistics_max_range_days: int = Field(default=90, ge=1, le=365)
+    statistics_max_messages_per_channel: int = Field(default=10000, ge=100, le=100000)
+    statistics_late_delivery_hours: int = Field(default=48, ge=0, le=168)
+    statistics_timeout_seconds: int = Field(default=60, ge=5, le=120)
+
+
 class RoleRequestFttWelcomeOptions(FrozenConfigModel):
     channel_id: int = Field(gt=0)
     rules_url: HttpUrl
@@ -698,8 +705,9 @@ class GuildConfigSnapshot(FrozenConfigModel):
                 raise ValueError("enabled report_owner_access requires explicit restricted report channels")
         service_calls_feature = self.features.get("service_calls")
         if service_calls_feature is not None and service_calls_feature.enabled:
-            if service_calls_feature.schema_version != 1 or service_calls_feature.payload:
-                raise ValueError("service_calls requires feature schema version 1 with empty options")
+            if service_calls_feature.schema_version != 1:
+                raise ValueError("service_calls requires feature schema version 1")
+            ServiceCallOptions.model_validate(service_calls_feature.payload)
             channels = self.policies[AccessPolicyKey.SERVICE_CALL_CHANNELS]
             if channels.mode is not AccessPolicyMode.RESTRICTED:
                 raise ValueError("enabled service_calls requires restricted service-call channels")
@@ -978,6 +986,13 @@ class GuildRuntimeSettings:
     def service_call_channel_ids(self) -> tuple[int, ...]:
         policy = self.snapshot.policy(AccessPolicyKey.SERVICE_CALL_CHANNELS)
         return policy.ids if policy.mode is AccessPolicyMode.RESTRICTED else ()
+
+    @property
+    def service_call_options(self) -> ServiceCallOptions | None:
+        feature = self.snapshot.features.get("service_calls")
+        if feature is None or not feature.enabled:
+            return None
+        return ServiceCallOptions.model_validate(feature.payload)
 
     @property
     def stolen_vehicle_channel_ids(self) -> tuple[int, ...]:
