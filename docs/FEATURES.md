@@ -634,6 +634,17 @@ teléfonos ni situaciones recibidas desde SARP. El intervalo global se controla 
 `SARP_EMERGENCY_CALL_POLL_SECONDS`, mientras que destinos y estado se publican en tiempo real desde
 `/config` sin redesplegar.
 
+`/estadisticas-llamadas` reutiliza los canales de ese módulo y `operational_staff_roles`. Su modal
+recibe inicio y término locales, el catálogo compartido de zonas IANA del FTP y visibilidad pública
+por defecto. Lee solo canales accesibles al miembro y al bot, valida la identidad y el formato de
+los embeds, deduplica IDs y filtra por el timestamp original de SARP. Muestra total y proporción
+Policía frente a Ambulancia/bomberos, además de Otros si procede, zona y rango elegido. Incluye
+un margen configurable para publicaciones tardías y avisa si el conteo es parcial. Los límites se
+configuran en `service_calls` con `statistics_max_range_days`, `statistics_max_messages_per_channel`,
+`statistics_late_delivery_hours` y `statistics_timeout_seconds`. No usa SARP ni IA, no persiste datos
+de llamadas y no cambia el polling existente. Los mensajes borrados o nunca publicados y los
+retrasos superiores al margen no pueden recuperarse desde el canal.
+
 El módulo dinámico `stolen_vehicles` registra `/vehiculos-robados` para el personal definido en
 `operational_staff_roles` y consulta `GET /police/stolen-vehicles` en vivo, sin guardar resultados.
 Cuando la política `stolen_vehicle_channels` contiene canales explícitos, el mismo servicio inicia

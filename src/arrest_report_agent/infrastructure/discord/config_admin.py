@@ -30,6 +30,7 @@ from arrest_report_agent.config import (
     PcuProfileKind,
     RadioAuditOptions,
     ReviewFailureNotificationOptions,
+    ServiceCallOptions,
     WarrantNotificationOptions,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
@@ -1063,8 +1064,8 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 payload["starting_number"] = 1
             if key == "deployment_notifications" and payload:
                 raise ValueError("Este módulo no admite opciones JSON.")
-            if key == "service_calls" and payload:
-                raise ValueError("Este módulo no admite opciones JSON.")
+            if key == "service_calls":
+                ServiceCallOptions.model_validate(payload)
             if key == "stolen_vehicles" and payload:
                 raise ValueError("Este módulo no admite opciones JSON.")
             if key == "logbook" and payload:

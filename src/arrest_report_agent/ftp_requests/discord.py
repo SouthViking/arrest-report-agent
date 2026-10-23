@@ -14,8 +14,11 @@ from zoneinfo import ZoneInfo
 import discord
 from discord.ext import commands
 
+from arrest_report_agent.application.timezones import TIMEZONE_KEYS as FTP_TIMEZONE_KEYS
+from arrest_report_agent.application.timezones import TIMEZONE_OPTIONS
 from arrest_report_agent.config import BotPersona, FtpRequestOptions, GuildRuntimeSettings
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.infrastructure.discord.forms import timezone_select_options
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
 from .coordination import build_coordination_embed
@@ -31,20 +34,7 @@ LOGGER = logging.getLogger(__name__)
 MODAL_TIMEOUT_SECONDS = 300
 LIST_TIMEOUT_SECONDS = 900
 ACTIVE_REQUEST_PAGE_SIZE = 10
-FTP_TIMEZONE_OPTIONS = (
-    ("🇦🇷", "America/Argentina/Buenos_Aires"),
-    ("🇨🇱", "America/Santiago"),
-    ("🇨🇴", "America/Bogota"),
-    ("🇻🇪", "America/Caracas"),
-    ("🇪🇸", "Europe/Madrid"),
-    ("🇪🇸", "Atlantic/Canary"),
-    ("🇲🇽", "America/Mexico_City"),
-    ("🇲🇽", "America/Mazatlan"),
-    ("🇲🇽", "America/Hermosillo"),
-    ("🇲🇽", "America/Cancun"),
-    ("🇲🇽", "America/Tijuana"),
-)
-FTP_TIMEZONE_KEYS = frozenset(timezone_key for _, timezone_key in FTP_TIMEZONE_OPTIONS)
+FTP_TIMEZONE_OPTIONS = TIMEZONE_OPTIONS
 
 
 class FtpRequestServiceRegistry:
@@ -544,10 +534,7 @@ class FtpTimezoneSelect(discord.ui.Select["FtpTimezoneView"]):
             placeholder="Selecciona tu zona horaria",
             min_values=1,
             max_values=1,
-            options=[
-                discord.SelectOption(label=timezone_key, value=timezone_key, emoji=emoji)
-                for emoji, timezone_key in FTP_TIMEZONE_OPTIONS
-            ],
+            options=timezone_select_options(),
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:

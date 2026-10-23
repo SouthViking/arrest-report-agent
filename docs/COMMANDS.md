@@ -28,9 +28,11 @@ El panel está ligado al solicitante, expira tras quince minutos y revalida perm
 Cada mutación usa el ID de la interacción como clave idempotente y queda en `config_audit_events`.
 Las publicaciones emiten una notificación de PostgreSQL para refrescar el runtime sin redeploy.
 
-El módulo **Llamadas de servicio** no recibe opciones JSON. Sus destinos se administran mediante la
-política **Canales de llamadas de servicio**, que exige IDs explícitos. Al retirar el último canal o
-deshabilitar el módulo, el polling se detiene y deja de consumir la API SARP.
+El módulo **Llamadas de servicio** admite `{}` y opciones de límites para sus estadísticas. Sus
+destinos se administran mediante la política **Canales de llamadas de servicio**, que exige IDs
+explícitos. Al retirar el último canal o deshabilitar el módulo, el polling se detiene y deja de
+consumir la API SARP. `/estadisticas-llamadas` consulta el historial de esos canales, sin consultar
+SARP ni usar IA; sus límites se describen más abajo.
 
 El módulo **Vehículos robados** tampoco recibe opciones JSON. `/vehiculos-robados` reutiliza
 `operational_staff_roles` en cualquier canal y permite elegir cantidad, estado y visibilidad. El
@@ -111,6 +113,46 @@ excepción: son persistentes, sobreviven reinicios y autorizan al supervisor en 
 
 Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no consumen tokens.
 
+## Estadísticas de llamadas: `/estadisticas-llamadas`
+
+Solo lo pueden usar los roles configurados en `operational_staff_roles` (Field, Supervisory,
+Command y Executive en LSSD). No hay excepción por ser administrador. Funciona desde cualquier
+canal o hilo de la guild y aparece en `/ayuda` para esos miembros cuando el módulo está activo.
+Revalida permisos y configuración al enviar el modal; solo lee canales de `service_call_channels`
+cuyo historial puedan ver tanto el solicitante como el bot.
+
+El modal pide **Desde** y **Hasta** en `DD/MM/AAAA HH:MM`, la zona horaria mediante el mismo
+catálogo IANA con banderas de `/solicitar-ficha`, y visibilidad (pública por defecto). La zona se
+elige en cada consulta, no se guarda como preferencia. Convierte cada extremo a UTC según las
+reglas de la fecha elegida; rechaza fechas inválidas o futuras, rangos invertidos y horas ambiguas
+o inexistentes por cambios de horario. Se incluye el minuto final completo, hasta el presente
+si se selecciona el minuto actual.
+
+El resultado muestra llamadas únicas, cantidades y porcentajes entre paréntesis de Policía
+(LSPD/LSSD), Ambulancia/bomberos (LSFD), y Otros si existen. Incluye zona, rango local seleccionado
+y canales consultados. Solo reconoce mensajes del propio bot con el formato de dispatch, omite
+webhooks y deduplica por ID incluso entre canales. La fecha válida es la del embed (SARP), no la
+fecha de publicación en Discord. No guarda nombres, teléfonos ni contenido de las llamadas.
+
+Las opciones de `service_calls`, esquema 1, se ajustan desde `/config` sin redesplegar:
+
+```json
+{
+  "statistics_max_range_days": 90,
+  "statistics_max_messages_per_channel": 10000,
+  "statistics_late_delivery_hours": 48,
+  "statistics_timeout_seconds": 60
+}
+```
+
+La lectura por fecha de publicación se amplía con el margen de retraso configurado para recuperar
+llamadas publicadas después del período. Si supera el límite de mensajes, falla algún canal o una
+tarjeta carece de fecha original válida, el resultado se marca **Conteo parcial**. Si vence el
+timeout se pide acotar el rango. Solo se admite una consulta simultánea por guild.
+No garantiza el total de SARP: no recupera publicaciones borradas, llamadas nunca publicadas
+ni retrasos superiores al margen indicado en el embed. Funciona sin SARP activo globalmente
+porque no llama a esa API; sí requiere `service_calls` habilitado y sus canales configurados.
+
 ## Disponibilidad
 
 | Comando | Acceso | Visibilidad | Fuente |
@@ -129,6 +171,7 @@ Los comandos deterministas no ejecutan el runner, no crean traces de OpenAI y no
 | `/fichas-activas` | `operational_staff_roles`; módulo `ftp_requests` activo | Pública en cualquier canal; rechazo efímero | Solicitudes FTP pendientes en PostgreSQL |
 | `/ver-evidencia` | `operational_staff_roles`; módulo `arrest_report_lookup` activo | Pública; rechazo efímero | Bolsa de evidencias en SARP |
 | `/vehiculos-robados` | `operational_staff_roles`; módulo `stolen_vehicles` activo | Modal privado; resultado público o efímero | Denuncias recientes de vehículos en SARP |
+| `/estadisticas-llamadas` | `operational_staff_roles`; módulo `service_calls` activo y canales configurados | Modal; resultado público por defecto o efímero | Historial de Discord, sin consultas a SARP ni IA |
 | `/info-flota` | `operational_staff_roles`; módulo `fleet` activo | Pública; rechazo efímero | Guía de `/vehiculo`, `/flota`, filtros y visibilidad |
 | `/vehiculo` | `operational_staff_roles`; módulo `fleet` activo | Pública; rechazo de acceso efímero | Estado, equipamiento y niveles disponibles del vehículo por matrícula real o visible |
 | `/flota` | `operational_staff_roles`; módulo `fleet` activo | Panel privado; resultado privado por defecto o público | Resumen y rankings de la flota por modelo y ALPR |

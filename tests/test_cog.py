@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
@@ -329,6 +330,33 @@ async def test_help_references_blacklist_info_when_the_module_is_enabled(
 
     assert responses[0]["ephemeral"] is False
     assert "/blacklist info" in responses[0]["embed"].fields[0].value
+
+
+@pytest.mark.parametrize(("staff", "enabled", "channels", "visible"), (
+    (True, True, (200,), True), (False, True, (200,), False),
+    (True, False, (200,), False), (True, True, (), False),
+))
+async def test_help_lists_call_statistics_only_for_operational_staff_with_dispatch(
+    settings, persona, staff, enabled, channels, visible,
+):
+    member = MagicMock(spec=discord.Member)
+    member.id = 42
+    member.roles = [SimpleNamespace(id=700)] if staff else []
+    provider = SimpleNamespace(cached=AsyncMock(return_value=SimpleNamespace(
+        snapshot=SimpleNamespace(features={"service_calls": SimpleNamespace(enabled=enabled)}),
+        settings=SimpleNamespace(
+            operational_staff_role_ids=(700,), service_call_channel_ids=channels, rumor_options=None,
+        ),
+    )))
+    bot = SimpleNamespace(user=SimpleNamespace(
+        id=999, display_avatar=SimpleNamespace(url="https://cdn.discordapp.com/bot.png"),
+    ))
+    cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona, config_provider=provider)
+    context = SimpleNamespace(
+        guild=SimpleNamespace(id=111), channel=SimpleNamespace(id=222), author=member, respond=AsyncMock(),
+    )
+    await ReviewCog.review_help.callback(cog, context)
+    assert ("/estadisticas-llamadas" in str(context.respond.await_args.kwargs["embed"].to_dict())) is visible
 
 
 def test_report_info_embed_is_public_facing_and_explains_owner_access(persona) -> None:

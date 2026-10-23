@@ -1590,6 +1590,21 @@ class ReviewCog(commands.Cog):
                         extra_feature_lines.append(
                             "• `/auditar-radio`: analiza el uso del slot 1 según el manual."
                         )
+                service_calls_feature = bundle.snapshot.features.get("service_calls")
+                if (
+                    service_calls_feature is not None
+                    and service_calls_feature.enabled
+                    and bundle.settings.service_call_channel_ids
+                    and isinstance(ctx.author, discord.Member)
+                    and any(
+                        role.id in bundle.settings.operational_staff_role_ids
+                        for role in ctx.author.roles
+                    )
+                ):
+                    extra_feature_lines.append(
+                        "• `/estadisticas-llamadas`: cuenta llamadas del dispatch "
+                        "por fecha, hora y zona horaria."
+                    )
                 arrest_statistics_feature = bundle.snapshot.features.get(
                     "arrest_statistics"
                 )

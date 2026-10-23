@@ -74,6 +74,7 @@ from arrest_report_agent.infrastructure.discord import (
 from arrest_report_agent.infrastructure.discord.member_directory import (
     DiscordGuildMemberDirectory,
 )
+from arrest_report_agent.infrastructure.discord.service_call_statistics import ServiceCallStatisticsCog
 from arrest_report_agent.infrastructure.postgres import (
     ConfigurationRepository,
     DatabaseConfigProvider,
@@ -594,6 +595,7 @@ async def build_runtime(
         )
     )
     bot.add_cog(ForumShortcutsCog(config_provider))
+    bot.add_cog(ServiceCallStatisticsCog(bot, config_provider))
     bot.add_cog(DedeoCog(persona.profile))
     support_contribution_repository = SupportContributionRepository(postgres)
     bot.add_cog(SupportCog(support_contribution_repository))
