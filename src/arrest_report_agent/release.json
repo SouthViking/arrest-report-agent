@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "1.1.12",
-  "title": "Autenticación del webhook de Railway",
-  "summary": "Las notificaciones de Railway se autentican mediante un header sin exponer el secreto en la URL.",
+  "version": "1.1.13",
+  "title": "Bienvenida de ingresos FTT",
+  "summary": "Actualizamos la bienvenida al FTP y añadimos la selección opcional de instructor al aprobar un ingreso FTT.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,7 +10,11 @@
   "changes": [
     {
       "type": "improved",
-      "text": "El webhook de Railway usa Authorization: Bearer con el secreto vigente y una URL sin credenciales."
+      "text": "La bienvenida incluye los canales y enlaces recomendados para comenzar el FTP."
+    },
+    {
+      "type": "added",
+      "text": "Al aprobar un ingreso FTT puedes elegir un instructor principal. Si lo dejas vacío, la bienvenida se envía sin ese párrafo; las demás solicitudes no cambian."
     }
   ],
   "acknowledgements": []

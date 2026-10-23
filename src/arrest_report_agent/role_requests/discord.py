@@ -78,6 +78,13 @@ class RoleRequestModalCopy:
     ftt_entry_title: str = "Solicitar ingreso FTT"
     ftt_entry_station_label: str = "Estación de destino"
     ftt_entry_station_placeholder: str = "Selecciona tu estación de destino."
+    ftt_entry_approval_title: str = "Aprobar ingreso FTT"
+    ftt_entry_instructor_label: str = "Instructor principal (opcional)"
+    ftt_entry_instructor_placeholder: str = "Busca un miembro o deja este campo vacío."
+    ftt_entry_instructor_unavailable: str = (
+        "El instructor debe ser un usuario de este servidor, no un bot. "
+        "Vuelve a aprobar el ingreso para elegir otro o dejarlo vacío."
+    )
     shift_label: str = "Turno"
     shift_change_label: str = "Cambiar turno (opcional)"
     shift_description: str = "Es el turno de tu personaje; no limita cuándo puedes conectarte."
@@ -203,10 +210,6 @@ class RoleRequestService:
             settings,
             "role_request_ftt_entry",
             None,
-        )
-        ftp_request_options = getattr(settings, "ftp_request_options", None)
-        self.ftp_request_channel_id: int | None = (
-            ftp_request_options.channel_id if ftp_request_options is not None else None
         )
         self.review_channel_ids = tuple(getattr(settings, "role_request_review_channel_ids", ()))
         self.repository = repository
@@ -1357,6 +1360,24 @@ class RoleRequestService:
         await interaction.response.defer(ephemeral=False)
         await self._approve(interaction, selected_add=None, selected_remove=None, comment=None)
 
+    async def approve_ftt_entry(
+        self,
+        interaction: discord.Interaction,
+        *,
+        request: RoleRequest,
+        instructor_id: int | None,
+    ) -> None:
+        await interaction.response.defer(ephemeral=False)
+        await self._approve(
+            interaction,
+            selected_add=None,
+            selected_remove=None,
+            comment=None,
+            expected=(request.guild_id, request.channel_id, request.message_id),
+            ftt_entry_approval=True,
+            instructor_id=instructor_id,
+        )
+
     async def approve_partial(
         self,
         interaction: discord.Interaction,
@@ -1446,6 +1467,8 @@ class RoleRequestService:
         selected_remove: tuple[int, ...] | None,
         comment: str | None,
         expected: tuple[int, int, int] | None = None,
+        ftt_entry_approval: bool = False,
+        instructor_id: int | None = None,
     ) -> None:
         try:
             if expected is None:
@@ -1472,6 +1495,13 @@ class RoleRequestService:
                     selected_add=selected_add,
                     selected_remove=selected_remove,
                     comment=comment,
+                    ftt_entry_approval=ftt_entry_approval,
+                    instructor_id=instructor_id,
+                )
+            except RoleRequestValidationError as error:
+                await interaction.followup.send(
+                    embed=self.build_alert_embed(error.public_message), ephemeral=True,
+                    allowed_mentions=discord.AllowedMentions.none(),
                 )
             except (RoleRequestCodecError, discord.NotFound) as error:
                 await self._publish_stale(interaction, error, message_id=message_id)
@@ -1490,6 +1520,9 @@ class RoleRequestService:
                     guild_id,
                     channel_id,
                     message_id,
+                )
+                instructor = await self._resolve_ftt_entry_instructor(
+                    request, ftt_entry_approval=ftt_entry_approval, instructor_id=instructor_id,
                 )
                 if request.kind is not RoleRequestKind.NORMAL and (
                     selected_add is not None or selected_remove is not None
@@ -1597,7 +1630,7 @@ class RoleRequestService:
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
                 if status is RoleRequestStatus.APPROVED:
-                    await self._publish_ftt_entry_welcome(request, member)
+                    await self._publish_ftt_entry_welcome(request, member, instructor=instructor)
                 log_event(
                     LOGGER,
                     "info",
@@ -1613,6 +1646,11 @@ class RoleRequestService:
                     unapproved_add_role_count=len(unapproved_add),
                     unapproved_remove_role_count=len(unapproved_remove),
                 )
+        except RoleRequestValidationError as error:
+            await interaction.followup.send(
+                embed=self.build_alert_embed(error.public_message), ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
         except (RoleRequestCodecError, discord.NotFound) as error:
             await self._publish_stale(interaction, error, message_id=message_id)
         except Exception as error:
@@ -1641,10 +1679,15 @@ class RoleRequestService:
         selected_add: tuple[int, ...] | None,
         selected_remove: tuple[int, ...] | None,
         comment: str | None,
+        ftt_entry_approval: bool = False,
+        instructor_id: int | None = None,
     ) -> None:
         repository = self.repository
         if repository is None:
             raise RoleRequestCodecError("role request repository is unavailable")
+        instructor = await self._resolve_ftt_entry_instructor(
+            stored, ftt_entry_approval=ftt_entry_approval, instructor_id=instructor_id,
+        )
         if stored.kind is not RoleRequestKind.NORMAL and (
             selected_add is not None or selected_remove is not None
         ):
@@ -1757,7 +1800,7 @@ class RoleRequestService:
                         allowed_mentions=discord.AllowedMentions.none(),
                     )
             if status is RoleRequestStatus.APPROVED:
-                await self._publish_ftt_entry_welcome(decided, member)
+                await self._publish_ftt_entry_welcome(decided, member, instructor=instructor)
             log_event(
                 LOGGER,
                 "info",
@@ -1860,10 +1903,38 @@ class RoleRequestService:
             raise RoleRequestCodecError("role request roles are unavailable")
         return guild, member
 
+    async def _resolve_ftt_entry_instructor(
+        self,
+        request: RoleRequest | StoredRoleRequest,
+        *,
+        ftt_entry_approval: bool,
+        instructor_id: int | None,
+    ) -> discord.Member | None:
+        if not ftt_entry_approval:
+            return None
+        if request.kind is not RoleRequestKind.FTT_ENTRY:
+            raise RoleRequestCodecError("FTT approval modal does not match request kind")
+        if instructor_id is None:
+            return None
+        guild = self.bot.get_guild(request.guild_id)
+        if guild is None:
+            raise RoleRequestCodecError("role request guild is unavailable")
+        try:
+            instructor = await guild.fetch_member(instructor_id)
+        except discord.NotFound as error:
+            raise RoleRequestValidationError(
+                ROLE_REQUEST_MODAL_COPY.ftt_entry_instructor_unavailable
+            ) from error
+        if instructor.bot:
+            raise RoleRequestValidationError(ROLE_REQUEST_MODAL_COPY.ftt_entry_instructor_unavailable)
+        return instructor
+
     async def _publish_ftt_entry_welcome(
         self,
         request: RoleRequest | StoredRoleRequest,
         member: discord.Member,
+        *,
+        instructor: discord.Member | None = None,
     ) -> None:
         """Publish the configured FTP welcome after a complete entry approval."""
 
@@ -1899,7 +1970,7 @@ class RoleRequestService:
                 embed=build_ftt_entry_welcome_embed(
                     member,
                     welcome,
-                    ftp_request_channel_id=self.ftp_request_channel_id,
+                    instructor=instructor,
                 ),
                 allowed_mentions=discord.AllowedMentions(
                     everyone=False,
@@ -1915,6 +1986,7 @@ class RoleRequestService:
                 guild_id=request.guild_id,
                 channel_id=channel.id,
                 requester_id=request.requester_id,
+                instructor_id=instructor.id if instructor is not None else None,
             )
         except (discord.Forbidden, discord.HTTPException) as error:
             self._log_ftt_welcome_failure(
@@ -2321,35 +2393,37 @@ def build_ftt_entry_welcome_embed(
     member: discord.Member,
     options: RoleRequestFttWelcomeOptions,
     *,
-    ftp_request_channel_id: int | None = None,
+    instructor: discord.Member | None = None,
 ) -> discord.Embed:
-    request_hint = (
-        f"\n\nCuando necesites una ficha, utiliza `/solicitar-ficha` en "
-        f"<#{ftp_request_channel_id}>."
-        if ftp_request_channel_id is not None
-        else ""
+    information = (
+        f"Lean los últimos mensajes del <#{options.information_channel_id}> y "
+        if options.information_channel_id is not None
+        else "Lean "
     )
+    paragraphs = [
+        f"¡Bienvenido, {member.mention}!",
+        f"{information}[este post]({options.rules_url}) que trae más información acerca del FTP.",
+        "También se recomienda ampliamente leer el contenido de "
+        + " y ".join(f"<#{channel_id}>" for channel_id in options.reference_channel_ids) + ".",
+    ]
+    if options.questions_channel_id is not None:
+        paragraphs.append(
+            f"Cualquier duda que tengas, pregunta en el <#{options.questions_channel_id}> "
+            "que los FTOs y supervisores están acá para darte una mano."
+        )
+    if instructor is not None:
+        paragraphs.append(
+            f"Y tu instructor principal será {instructor.mention} "
+            f"(más información [aquí]({options.rules_url}))."
+        )
     embed = discord.Embed(
         title="🎓 ¡Bienvenido al Field Training Program!",
-        description=(
-            "Aquí puedes coordinar salidas de patrullaje para realizar tus fichas del FTP."
-            f"{request_hint}"
-        ),
+        description="\n\n".join(paragraphs),
         color=discord.Color.gold(),
     )
     embed.set_author(
         name=member.display_name,
         icon_url=str(member.display_avatar.url),
-    )
-    embed.add_field(
-        name="📘 Reglamento",
-        value=f"[Leer reglamento del programa]({options.rules_url})",
-        inline=False,
-    )
-    embed.add_field(
-        name="📌 Revisa también",
-        value=" · ".join(f"<#{channel_id}>" for channel_id in options.reference_channel_ids),
-        inline=False,
     )
     return embed
 
@@ -2411,6 +2485,19 @@ class RoleRequestDecisionView(discord.ui.View):
         interaction: discord.Interaction,
     ) -> None:
         service = await self._service_for(interaction)
+        try:
+            request, _stored = await service.resolve_interaction_request(interaction)
+        except RoleRequestCodecError:
+            await interaction.response.send_message(
+                embed=service.build_alert_embed(service.ui.stale_request),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        if request.kind is RoleRequestKind.FTT_ENTRY:
+            if await service.authorize_reviewer_interaction(interaction):
+                await interaction.response.send_modal(FttEntryApprovalModal(service, request=request))
+            return
         await service.approve_all(interaction)
 
     @discord.ui.button(
@@ -2869,6 +2956,36 @@ class RetirementRoleRequestModal(discord.ui.DesignerModal):
             member=member,
             channel=self.channel,
             reason=self.reason_input.value,
+        )
+
+
+class FttEntryApprovalModal(discord.ui.DesignerModal):
+    """Optional instructor selection; opening or dismissing it never approves a request."""
+
+    def __init__(self, service: RoleRequestService, *, request: RoleRequest) -> None:
+        self.service = service
+        self.request = request
+        copy = ROLE_REQUEST_MODAL_COPY
+        self.instructor_select = discord.ui.UserSelect(
+            custom_id="role-request:v1:ftt-approve:instructor",
+            placeholder=copy.ftt_entry_instructor_placeholder,
+            min_values=0,
+            max_values=1,
+            required=False,
+        )
+        super().__init__(
+            discord.ui.Label(copy.ftt_entry_instructor_label, self.instructor_select),
+            title=copy.ftt_entry_approval_title,
+            custom_id=f"role-request:v1:ftt-approve:{request.message_id}",
+            timeout=MODAL_TIMEOUT_SECONDS,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        selected = self.instructor_select.values or []
+        await self.service.approve_ftt_entry(
+            interaction,
+            request=self.request,
+            instructor_id=selected[0].id if selected else None,
         )
 
 

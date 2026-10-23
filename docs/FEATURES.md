@@ -136,6 +136,11 @@ Una nueva solicitud publicada correctamente reemplaza las pendientes del mismo u
 El historial se conserva y sus tarjetas se actualizan como canceladas, incluso si algunas copias fueron
 eliminadas; `/info-roles` explica este comportamiento. No se interrumpe una aprobación en curso.
 
+Solo la aprobación de un ingreso FTT abre un modal con un instructor principal opcional. Confirmar
+aplica el paquete mediante el mismo motor de aprobación; cerrar no modifica nada. La bienvenida
+configurada contiene los enlaces del FTP y omite todo el párrafo del instructor cuando no se elige
+un usuario. Este selector no altera los cambios de roles ni los retiros, ni asigna roles al instructor.
+
 `role_requests.shifts` configura opciones de turno por guild (`key`, `label`, `role_id`, `description`
 y `emoji` opcional). El turno es obligatorio en el ingreso y opcional en cambios de roles; omitirlo
 conserva el actual. Estos roles no se duplican en el selector general. Un cambio de turno reemplaza

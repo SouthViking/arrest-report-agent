@@ -42,6 +42,7 @@ from arrest_report_agent.role_requests.codec import (
 from arrest_report_agent.role_requests.discord import (
     ROLE_REQUEST_MODAL_COPY,
     CreateRoleRequestModal,
+    FttEntryApprovalModal,
     FttEntryRoleRequestModal,
     PartialApprovalModal,
     RejectRoleRequestModal,
@@ -53,6 +54,7 @@ from arrest_report_agent.role_requests.discord import (
     RoleRequestServiceRegistry,
     RoleRequestStartView,
     RoleRequestValidationError,
+    build_ftt_entry_welcome_embed,
 )
 from arrest_report_agent.role_requests.models import (
     RoleRequest,
@@ -74,6 +76,8 @@ REVIEWER_ROLE_ID = 600
 WELCOME_CHANNEL_ID = 201
 ANNOUNCEMENTS_CHANNEL_ID = 202
 BIG_BROTHER_CHANNEL_ID = 203
+INFORMATION_CHANNEL_ID = 204
+QUESTIONS_CHANNEL_ID = 205
 
 
 class FakePermissions:
@@ -129,6 +133,7 @@ class FakeMember:
         display_name: str = "Taylor Deputy",
     ) -> None:
         self.id = member_id
+        self.bot = False
         self.roles = roles
         self.top_role = top_role
         self.display_name = display_name
@@ -650,7 +655,6 @@ def _ftt_entry_service(env) -> tuple[RoleRequestService, tuple[FakeRole, ...]]:
     env.guild.text_channels.append(welcome_channel)
     service = RoleRequestService(env.service.bot, configured, env.service.persona)
     service.operational_staff_role_ids = frozenset({712})
-    service.ftp_request_channel_id = 1551692208929906701
     service.ftt_entry_options = RoleRequestFttEntryOptions(
         base_role_ids=(710, 711, 712, 713),
         stations=(
@@ -671,6 +675,8 @@ def _ftt_entry_service(env) -> tuple[RoleRequestService, tuple[FakeRole, ...]]:
             channel_id=WELCOME_CHANNEL_ID,
             rules_url="https://sheriff.sarp.es/viewtopic.php?t=37",
             reference_channel_ids=(ANNOUNCEMENTS_CHANNEL_ID, BIG_BROTHER_CHANNEL_ID),
+            information_channel_id=INFORMATION_CHANNEL_ID,
+            questions_channel_id=QUESTIONS_CHANNEL_ID,
         ),
     )
     return service, roles
@@ -1506,11 +1512,17 @@ async def test_ftt_entry_requests_only_station_and_applies_complete_package(
     assert welcome_embed.title == "🎓 ¡Bienvenido al Field Training Program!"
     assert welcome_embed.author.name == role_request_env.requester.display_name
     assert welcome_embed.author.icon_url == "https://cdn.example/avatar.png"
-    assert "/solicitar-ficha" in welcome_embed.description
-    assert "<#1551692208929906701>" in welcome_embed.description
-    assert "viewtopic.php?t=37" in welcome_embed.fields[0].value
-    assert f"<#{ANNOUNCEMENTS_CHANNEL_ID}>" in welcome_embed.fields[1].value
-    assert f"<#{BIG_BROTHER_CHANNEL_ID}>" in welcome_embed.fields[1].value
+    assert welcome_embed.description == (
+        f"¡Bienvenido, <@{REQUESTER_ID}>!\n\n"
+        f"Lean los últimos mensajes del <#{INFORMATION_CHANNEL_ID}> y "
+        "[este post](https://sheriff.sarp.es/viewtopic.php?t=37) "
+        "que trae más información acerca del FTP.\n\n"
+        "También se recomienda ampliamente leer el contenido de "
+        f"<#{ANNOUNCEMENTS_CHANNEL_ID}> y <#{BIG_BROTHER_CHANNEL_ID}>.\n\n"
+        f"Cualquier duda que tengas, pregunta en el <#{QUESTIONS_CHANNEL_ID}> "
+        "que los FTOs y supervisores están acá para darte una mano."
+    )
+    assert not welcome_embed.fields
 
 
 @pytest.mark.asyncio
@@ -2118,6 +2130,223 @@ def _enable_private_requests(env, service):
     env.guild.text_channels.append(channel)
     service.review_channel_ids = (channel.id,)
     return repository, channel
+
+
+async def _open_ftt_approval(env, *, private):
+    service, _ = _ftt_entry_service(env)
+    repository, review = _enable_private_requests(env, service) if private else (None, env.channel)
+    await service.create_ftt_entry_request(
+        _interaction(env, SimpleNamespace(id=0), user=env.requester),
+        member=env.requester, channel=env.channel, station_key="ganton",
+    )
+    message = next(iter(review.messages.values()))
+    interaction = _interaction(env, message)
+    # The generic persistent view must inspect the real request, not its default NORMAL kind.
+    view = RoleRequestDecisionView(service)
+    await view.approve_all_button.callback(interaction)
+    assert not interaction.response.deferred
+    assert not env.requester.edit_calls
+    assert not env.guild.get_channel(WELCOME_CHANNEL_ID).send_calls
+    if repository:
+        assert repository.request.status is StoredRoleRequestStatus.PENDING
+    modal = interaction.response.modals[0]
+    assert isinstance(modal, FttEntryApprovalModal)
+    return service, repository, message, modal
+
+
+def _select_instructor(modal, env, user_id):
+    # Exercise Pycord's actual UserSelect resolution using a Discord-shaped modal payload.
+    resolved = {"users": {str(user_id): {
+        "id": str(user_id), "username": "Instructor", "discriminator": "0", "avatar": None,
+    }}}
+    modal.instructor_select.refresh_from_modal(
+        SimpleNamespace(
+            guild=env.guild, data={"resolved": resolved},
+            _state=SimpleNamespace(member_cache_flags=SimpleNamespace(interaction=False)),
+        ),
+        {"values": [str(user_id)]},
+    )
+
+
+@pytest.mark.parametrize("private", (False, True))
+@pytest.mark.parametrize("with_instructor", (False, True))
+async def test_ftt_approval_modal_optional_instructor_and_welcome(
+    role_request_env, private, with_instructor,
+):
+    env = role_request_env
+    service, repository, message, modal = await _open_ftt_approval(env, private=private)
+    serialized = modal.to_dict()
+    picker = serialized["components"][0]["component"]
+    assert picker["type"] == discord.ComponentType.user_select.value
+    assert picker["min_values"] == 0 and picker["max_values"] == 1
+    assert picker["required"] is False
+    assert modal.title == ROLE_REQUEST_MODAL_COPY.ftt_entry_approval_title
+    if with_instructor:
+        _select_instructor(modal, env, REVIEWER_ID)
+    else:
+        _select_modal_values(modal.instructor_select, [])
+        # Even an empty user select includes the interaction state in real modal submissions.
+        modal.instructor_select._interaction = SimpleNamespace(
+            guild=env.guild, data={},
+            _state=SimpleNamespace(member_cache_flags=SimpleNamespace(interaction=False)),
+        )
+    submitted = _interaction(env, message)
+    await modal.callback(submitted)
+    assert submitted.response.deferred == [False]
+    assert len(env.requester.edit_calls) == 1
+    assert {710, 711, 712, 713, 714} <= {role.id for role in env.requester.roles}
+    welcome = env.guild.get_channel(WELCOME_CHANNEL_ID).send_calls[0]
+    description = welcome["embed"].description
+    assert f"¡Bienvenido, <@{REQUESTER_ID}>!" in description
+    assert ("Y tu instructor principal será" in description) is with_instructor
+    if with_instructor:
+        assert description.endswith(
+            f"Y tu instructor principal será <@{REVIEWER_ID}> "
+            "(más información [aquí](https://sheriff.sarp.es/viewtopic.php?t=37))."
+        )
+    assert welcome["allowed_mentions"].to_dict() == {"users": [REQUESTER_ID], "parse": []}
+    if repository:
+        assert repository.request.status is StoredRoleRequestStatus.APPROVED
+    assert service.ftt_entry_options.welcome.channel_id == WELCOME_CHANNEL_ID
+
+
+@pytest.mark.parametrize("private", (False, True))
+@pytest.mark.parametrize("invalid", ("left", "bot"))
+async def test_ftt_instructor_must_still_be_a_human_guild_member(role_request_env, private, invalid):
+    env = role_request_env
+    _service, repository, message, modal = await _open_ftt_approval(env, private=private)
+    _select_instructor(modal, env, REVIEWER_ID if invalid == "bot" else 99999)
+    env.reviewer.bot = invalid == "bot"
+    submitted = _interaction(env, message)
+    await modal.callback(submitted)
+    assert not env.requester.edit_calls
+    assert not env.guild.get_channel(WELCOME_CHANNEL_ID).send_calls
+    assert ROLE_REQUEST_MODAL_COPY.ftt_entry_instructor_unavailable in (
+        submitted.followup.messages[-1]["embed"].description
+    )
+    assert submitted.followup.messages[-1]["ephemeral"] is True
+    if repository:
+        assert repository.request.status is StoredRoleRequestStatus.PENDING
+    # A failed selection never consumes the request: a new approval can omit the instructor.
+    retry = FttEntryApprovalModal(modal.service, request=modal.request)
+    await retry.callback(_interaction(env, message))
+    assert len(env.requester.edit_calls) == 1
+
+
+@pytest.mark.parametrize("private", (False, True))
+@pytest.mark.parametrize("invalid", ("lost_role", "different_guild"))
+async def test_ftt_approval_rechecks_authorization_after_modal(role_request_env, private, invalid):
+    env = role_request_env
+    _service, repository, message, modal = await _open_ftt_approval(env, private=private)
+    submitted = _interaction(env, message)
+    if invalid == "lost_role":
+        env.reviewer.roles = [env.everyone]
+    else:
+        submitted.guild = SimpleNamespace(id=999)
+    await modal.callback(submitted)
+    assert not env.requester.edit_calls
+    assert not env.guild.get_channel(WELCOME_CHANNEL_ID).send_calls
+    assert submitted.followup.messages[-1]["ephemeral"] is True
+    if repository:
+        assert repository.request.status is StoredRoleRequestStatus.PENDING
+
+
+@pytest.mark.parametrize("private", (False, True))
+async def test_ftt_approval_button_does_not_open_modal_for_unauthorized_user(role_request_env, private):
+    env = role_request_env
+    service, _repository, message, _modal = await _open_ftt_approval(env, private=private)
+    view = RoleRequestDecisionView(service)
+    interaction = _interaction(env, message, user=env.requester)
+    await view.approve_all_button.callback(interaction)
+    assert not interaction.response.modals
+    assert interaction.response.messages[-1]["ephemeral"] is True
+    assert not env.requester.edit_calls
+
+
+@pytest.mark.parametrize("private", (False, True))
+@pytest.mark.parametrize("welcome", ("disabled", "forbidden"))
+async def test_ftt_approval_does_not_depend_on_welcome_delivery(role_request_env, private, welcome):
+    env = role_request_env
+    service, repository, message, modal = await _open_ftt_approval(env, private=private)
+    channel = env.guild.get_channel(WELCOME_CHANNEL_ID)
+    if welcome == "disabled":
+        service.ftt_entry_options = service.ftt_entry_options.model_copy(update={"welcome": None})
+    else:
+        channel.send = AsyncMock(side_effect=discord.Forbidden(
+            SimpleNamespace(status=403, reason="Forbidden"), "Cannot publish",
+        ))
+    await modal.callback(_interaction(env, message))
+    assert len(env.requester.edit_calls) == 1
+    assert not channel.send_calls
+    if repository:
+        assert repository.request.status is StoredRoleRequestStatus.APPROVED
+
+
+@pytest.mark.parametrize("private", (False, True))
+async def test_duplicate_ftt_modals_only_approve_and_welcome_once(role_request_env, private):
+    env = role_request_env
+    _service, repository, message, modal = await _open_ftt_approval(env, private=private)
+    first, second = _interaction(env, message), _interaction(env, message)
+    await asyncio.gather(modal.callback(first), modal.callback(second))
+    assert len(env.requester.edit_calls) == 1
+    assert len(env.guild.get_channel(WELCOME_CHANNEL_ID).send_calls) == 1
+    assert any(
+        response["embed"].description == modal.service.ui.stale_request
+        for interaction in (first, second) for response in interaction.followup.messages
+    )
+    if repository:
+        assert repository.request.status is StoredRoleRequestStatus.APPROVED
+
+
+@pytest.mark.parametrize("private", (False, True))
+@pytest.mark.parametrize("kind", ("normal", "retirement"))
+async def test_non_ftt_approve_button_keeps_immediate_approval(role_request_env, private, kind):
+    env = role_request_env
+    service, _ = _retirement_service(env)
+    repository, review = _enable_private_requests(env, service) if private else (None, env.channel)
+    if kind == "retirement":
+        await service.create_retirement_request(
+            _interaction(env, SimpleNamespace(id=0), user=env.requester),
+            member=env.requester, channel=env.channel, reason="Retiro QA",
+        )
+    else:
+        await service._publish_new_request(
+            interaction_id=9001, member=env.requester, channel=env.channel,
+            add_roles=(env.add_one,), remove_roles=(), reason=None,
+        )
+    message = next(iter(review.messages.values()))
+    view = RoleRequestDecisionView(service)
+    interaction = _interaction(env, message)
+    await view.approve_all_button.callback(interaction)
+    assert not interaction.response.modals
+    assert interaction.response.deferred == [False]
+    assert len(env.requester.edit_calls) == 1
+    if repository:
+        assert repository.request.status is StoredRoleRequestStatus.APPROVED
+
+
+async def test_ftt_modal_cannot_approve_a_normal_request(role_request_env):
+    env = role_request_env
+    message = _pending_message(env)
+    request, _ = await env.service.resolve_interaction_request(_interaction(env, message))
+    modal = FttEntryApprovalModal(env.service, request=request)
+    interaction = _interaction(env, message)
+    await modal.callback(interaction)
+    assert not env.requester.edit_calls
+    assert interaction.followup.messages[-1]["embed"].description == env.service.ui.stale_request
+
+
+def test_ftt_welcome_accepts_old_configuration_without_new_channels(role_request_env):
+    options = RoleRequestFttWelcomeOptions(
+        channel_id=WELCOME_CHANNEL_ID, rules_url="https://example.org/ftp",
+        reference_channel_ids=(ANNOUNCEMENTS_CHANNEL_ID,),
+    )
+    embed = build_ftt_entry_welcome_embed(role_request_env.requester, options)
+    assert "[este post](https://example.org/ftp)" in embed.description
+    assert f"<#{ANNOUNCEMENTS_CHANNEL_ID}>" in embed.description
+    assert "None" not in embed.description
+    assert "Cualquier duda" not in embed.description
+    assert "instructor" not in embed.description
 
 
 async def _publish_replacement_test_request(env, interaction_id):

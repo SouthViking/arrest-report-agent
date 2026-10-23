@@ -117,6 +117,14 @@ Configura roles revisores explícitos en `role_request_reviewer_roles`, destinos
 tu flujo. No incluyas roles revisores en el catálogo solicitables ni concedas roles de administración
 por conveniencia. El flujo de ingreso FTT, estaciones y turnos se configura por guild.
 
+En `role_requests.ftt_entry.welcome`, `channel_id` es el destino de la bienvenida, `rules_url` el
+post del FTP y `reference_channel_ids` los canales de lectura recomendada. Los campos opcionales
+`information_channel_id` y `questions_channel_id` añaden el canal de novedades del FTP y el de
+consultas. Si se omiten, no se imprimen menciones vacías. El instructor no es una opción fija de
+configuración: se elige, opcionalmente, al aprobar cada ingreso FTT. No modifica sus roles.
+La migración de LSSD completa los nuevos canales en borradores y revisiones publicadas, conserva
+los valores personalizados y no modifica el historial archivado. No hay variables de entorno nuevas.
+
 ### Avisos de fallos de revisión
 
 Para notificar cuando se agotan las correcciones automáticas de argumentos, habilita
