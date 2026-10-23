@@ -636,6 +636,12 @@ Si el módulo configura el ingreso FTT o un rol de retiro, el comando muestra pr
 para elegir el flujo. **Ingreso FTT** solicita únicamente la estación de destino y prepara el paquete
 de roles iniciales configurado, omitiendo los que el miembro ya posea. La solicitud queda identificada
 como ingreso en sus tarjetas pública y privada, y solo admite aprobación o rechazo completos.
+**Aprobar ingreso** abre un modal con un selector opcional de un usuario como instructor principal.
+Confirmar aprueba el paquete y publica la bienvenida configurada, mencionando al solicitante e
+incluyendo los canales y enlaces del FTP. El párrafo del instructor solo aparece si se eligió uno;
+cerrar el modal deja la solicitud pendiente. Se vuelven a comprobar los permisos del revisor y que
+el instructor siga siendo un miembro del servidor y no sea un bot. Las aprobaciones normales y
+de retiro mantienen su flujo sin este selector.
 **Solicitar retiro** se muestra solo a miembros con un rol de `operational_staff_roles` y usa un
 formulario reducido con motivo opcional y confirmación explícita. La solicitud agrega el rol de
 retiro y muestra los roles administrables actuales que se retirarán. Al aprobarla, el bot recalcula

@@ -180,6 +180,8 @@ class RoleRequestFttWelcomeOptions(FrozenConfigModel):
     channel_id: int = Field(gt=0)
     rules_url: HttpUrl
     reference_channel_ids: tuple[int, ...] = Field(min_length=1, max_length=5)
+    information_channel_id: int | None = Field(default=None, gt=0)
+    questions_channel_id: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def validate_channels(self) -> RoleRequestFttWelcomeOptions:

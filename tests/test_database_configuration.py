@@ -42,6 +42,7 @@ from arrest_report_agent.config import (
     PendingArrestReportsOptions,
     RadioAuditOptions,
     RoleRequestFttEntryOptions,
+    RoleRequestFttWelcomeOptions,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
 from arrest_report_agent.deployments import DeploymentRepository, RailwayDeploymentEvent
@@ -55,6 +56,119 @@ from arrest_report_agent.infrastructure.postgres.provider import DatabaseConfigP
 from arrest_report_agent.infrastructure.postgres.repository import BootstrapGuild
 from arrest_report_agent.infrastructure.storage import MemoryObjectStorage
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
+
+
+def test_ftt_welcome_channels_are_optional_positive_snowflakes() -> None:
+    payload = {
+        "channel_id": 20, "rules_url": "https://example.org/ftp", "reference_channel_ids": [21, 22],
+    }
+    old = RoleRequestFttWelcomeOptions.model_validate(payload)
+    assert old.information_channel_id is None and old.questions_channel_id is None
+    configured = RoleRequestFttWelcomeOptions.model_validate({
+        **payload, "information_channel_id": 23, "questions_channel_id": 24,
+    })
+    assert configured.information_channel_id == 23 and configured.questions_channel_id == 24
+    for key in ("information_channel_id", "questions_channel_id"):
+        with pytest.raises(ValueError, match="greater than 0"):
+            RoleRequestFttWelcomeOptions.model_validate({**payload, key: 0})
+
+
+def test_ftt_welcome_migration_preserves_custom_and_archived_configuration() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("requires TEST_DATABASE_URL with an isolated PostgreSQL database")
+    previous = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = database_url
+    alembic = Config("alembic.ini")
+    try:
+        command.downgrade(alembic, "base")
+        command.upgrade(alembic, "20261014_0092")
+        originals = asyncio.run(_seed_ftt_welcome_configurations(database_url))
+        command.upgrade(alembic, "head")
+        asyncio.run(_assert_ftt_welcome_configurations(database_url, originals, upgraded=True))
+        command.downgrade(alembic, "20261014_0092")
+        asyncio.run(_assert_ftt_welcome_configurations(database_url, originals, upgraded=False))
+    finally:
+        command.downgrade(alembic, "base")
+        if previous is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous
+
+
+async def _seed_ftt_welcome_configurations(database_url: str) -> dict[str, dict]:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    originals = {}
+    try:
+        async with client.transaction() as tx:
+            for guild_id in (1234674521416663070, 999):
+                await tx.execute(
+                    sa.text("INSERT INTO discord_guilds (discord_id, name) VALUES (:guild_id, 'QA')"),
+                    {"guild_id": guild_id},
+                )
+                for revision_number, case in enumerate(("defaults", "custom", "archived", "no_welcome"), 1):
+                    revision_id = uuid4()
+                    payload = {"retired_role_id": 55, "ftt_entry": {
+                        "base_role_ids": [10], "stations": [{"key": "gnt", "label": "Ganton", "role_id": 11}],
+                    }}
+                    if case != "no_welcome":
+                        payload["ftt_entry"]["welcome"] = {
+                            "channel_id": 201, "rules_url": "https://example.org/custom-ftp",
+                            "reference_channel_ids": [1234675521560772628, 1467761647551774852],
+                        }
+                    if case == "custom":
+                        payload["ftt_entry"]["welcome"].update({
+                            "information_channel_id": 888, "questions_channel_id": None,
+                            "reference_channel_ids": [777],
+                        })
+                    await tx.execute(
+                        sa.text(
+                            "INSERT INTO guild_config_revisions (id, guild_id, revision, status) "
+                            "VALUES (:id, :guild_id, :revision, :status)"
+                        ),
+                        {"id": revision_id, "guild_id": guild_id, "revision": revision_number,
+                         "status": "archived" if case == "archived" else (
+                             "draft" if case == "custom" else "published"
+                         )},
+                    )
+                    await tx.execute(
+                        sa.text(
+                            "INSERT INTO guild_feature_settings "
+                            "(id, config_revision_id, feature_key, enabled, schema_version, payload) "
+                            "VALUES (:id, :revision_id, 'role_requests', true, 1, CAST(:payload AS jsonb))"
+                        ),
+                        {"id": uuid4(), "revision_id": revision_id, "payload": json.dumps(payload)},
+                    )
+                    originals[str(revision_id)] = {"guild_id": guild_id, "case": case, "payload": payload}
+        return originals
+    finally:
+        await client.close()
+
+
+async def _assert_ftt_welcome_configurations(database_url: str, originals: dict, *, upgraded: bool) -> None:
+    client = PostgresClient(PostgresClientConfig(url=database_url))
+    await client.open()
+    try:
+        rows = await client.fetch_all(sa.text(
+            "SELECT config_revision_id, payload FROM guild_feature_settings "
+            "WHERE feature_key = 'role_requests'"
+        ))
+        assert len(rows) == len(originals)
+        for row in rows:
+            original = originals[str(row["config_revision_id"])]
+            expected = json.loads(json.dumps(original["payload"]))
+            if original["guild_id"] == 1234674521416663070 and original["case"] == "defaults":
+                welcome = expected["ftt_entry"]["welcome"]
+                welcome["reference_channel_ids"] = [1467761647551774852, 1234675521560772628]
+                if upgraded:
+                    welcome.update({
+                        "information_channel_id": 1234748926591107172,
+                        "questions_channel_id": 1476796384102453268,
+                    })
+            assert row["payload"] == expected
+    finally:
+        await client.close()
 
 
 def test_agent_user_blacklist_requires_explicit_ids_or_disabled_mode() -> None:
@@ -1724,9 +1838,11 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
             "channel_id": 1234749125820420139,
             "rules_url": "https://sheriff.sarp.es/viewtopic.php?t=37",
             "reference_channel_ids": [
-                1234675521560772628,
                 1467761647551774852,
+                1234675521560772628,
             ],
+            "information_channel_id": 1234748926591107172,
+            "questions_channel_id": 1476796384102453268,
         }
         warrant_notification_rows = await client.fetch_all(
             sa.text(
