@@ -124,9 +124,10 @@ cuyo historial puedan ver tanto el solicitante como el bot.
 El modal pide **Desde** y **Hasta** en `DD/MM/AAAA HH:MM`, la zona horaria mediante el mismo
 catálogo IANA con banderas de `/solicitar-ficha`, y visibilidad (pública por defecto). La zona se
 elige en cada consulta, no se guarda como preferencia. Convierte cada extremo a UTC según las
-reglas de la fecha elegida; rechaza fechas inválidas o futuras, rangos invertidos y horas ambiguas
-o inexistentes por cambios de horario. Se incluye el minuto final completo, hasta el presente
-si se selecciona el minuto actual.
+reglas de la fecha elegida; rechaza fechas inválidas, un inicio futuro, rangos invertidos y horas
+ambiguas o inexistentes por cambios de horario. Se incluye el minuto final completo. Si **Hasta**
+está en el minuto actual o en el futuro, se recorta al momento actual antes de comprobar el límite
+de días; el resultado muestra el término efectivo en la zona elegida.
 
 El resultado muestra llamadas únicas, cantidades y porcentajes entre paréntesis de Policía
 (LSPD/LSSD), Ambulancia/bomberos (LSFD), y Otros si existen. Incluye zona, rango local seleccionado

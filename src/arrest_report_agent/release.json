@@ -1,20 +1,20 @@
 {
   "schema_version": 3,
-  "version": "1.1.13",
-  "title": "Bienvenida de ingresos FTT",
-  "summary": "Actualizamos la bienvenida al FTP y añadimos la selección opcional de instructor al aprobar un ingreso FTT.",
+  "version": "1.1.14",
+  "title": "Estadísticas de llamadas de servicio",
+  "summary": "Consulta las llamadas del dispatch por fecha, hora y zona horaria. Si el término elegido está en el futuro, la consulta se limita automáticamente al momento actual.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "improved",
-      "text": "La bienvenida incluye los canales y enlaces recomendados para comenzar el FTP."
+      "type": "added",
+      "text": "/estadisticas-llamadas cuenta llamadas únicas del historial de Discord y muestra la proporción policial y de ambulancia/bomberos, sin consultar SARP ni usar IA."
     },
     {
-      "type": "added",
-      "text": "Al aprobar un ingreso FTT puedes elegir un instructor principal. Si lo dejas vacío, la bienvenida se envía sin ese párrafo; las demás solicitudes no cambian."
+      "type": "fixed",
+      "text": "Una fecha u hora futura en Hasta se ajusta al momento actual en lugar de impedir la consulta; el resultado muestra el rango efectivamente consultado."
     }
   ],
   "acknowledgements": []
