@@ -85,6 +85,13 @@ async def authorize_message(
             or not is_explicit_approval(message.content)
         ):
             return None
+        if message.channel.id != run.case.thread_id and message.id != run.case.trigger_message_id:
+            # A parent-channel inbox may also receive replies about a different report.
+            reference = getattr(message, "reference", None)
+            if getattr(reference, "message_id", None) not in {
+                run.case.root_message_id, run.case.trigger_message_id,
+            }:
+                return None
         member = await authorized_staff(message.guild, message.author.id, settings, policy)
         if member is None:
             return None

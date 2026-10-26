@@ -115,7 +115,8 @@ def _message_run(*, role=COMMAND, content="Apruébalo", source_id=50):
     channel.fetch_message = AsyncMock(return_value=message)
     target = SimpleNamespace(trigger=message, root=message)
     run = SimpleNamespace(
-        case=SimpleNamespace(guild_id=1, trigger_message_id=50, thread_id=20), live_conversation=None
+        case=SimpleNamespace(guild_id=1, root_message_id=40, trigger_message_id=50, thread_id=20),
+        live_conversation=None,
     )
     return run, target, message
 
@@ -147,6 +148,22 @@ async def test_latest_consumed_live_instruction_is_eligible_but_pending_messages
     run.live_conversation = SimpleNamespace(message_ids={51})
     approval = await staff_approval.authorize_message(run, target, _settings(), _policy(), 51)
     assert approval.source_id == message.id
+
+
+@pytest.mark.parametrize("reference_id", [None, 999, 40])
+async def test_live_parent_channel_approval_must_reference_the_current_report(reference_id):
+    run, target, message = _message_run(source_id=51)
+    run.case.thread_id = None
+    run.live_conversation = SimpleNamespace(message_ids={51})
+    message.reference = SimpleNamespace(message_id=reference_id)
+    approval = await staff_approval.authorize_message(run, target, _settings(), _policy(), 51)
+    assert (approval is not None) is (reference_id == run.case.root_message_id)
+
+
+async def test_revoked_role_in_discord_cannot_be_replaced_with_cached_message_roles():
+    run, target, message = _message_run()
+    message.guild.fetch_member.return_value = _member(SUPERVISORY)
+    assert await staff_approval.authorize_message(run, target, _settings(), _policy(), 50) is None
 
 
 def _manual(monkeypatch, persona, *, role=COMMAND):
