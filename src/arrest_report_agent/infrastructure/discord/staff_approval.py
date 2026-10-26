@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING
 
 import discord
 
-from arrest_report_agent.application.approvals import StaffApproval, is_explicit_approval
+from arrest_report_agent.application.approvals import (
+    StaffApproval,
+    invalidates_approval_context,
+    is_approval_confirmation,
+    is_explicit_approval,
+)
 from arrest_report_agent.application.conversations import ConversationKey
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import (
@@ -64,9 +69,22 @@ async def authorize_message(
     current_ids = {run.case.trigger_message_id}
     if run.live_conversation is not None:
         current_ids.update(run.live_conversation.message_ids)
+
+    def deny(reason: str) -> None:
+        log_event(
+            LOGGER,
+            "info",
+            "staff_approval_denied",
+            reason=reason,
+            guild_id=run.case.guild_id,
+            root_message_id=run.case.root_message_id,
+            requested_message_id=message_id,
+            current_message_id=max(current_ids),
+        )
+
     # Never reuse historical authorization or ignore a newer correction/revocation.
     if message_id != max(current_ids):
-        return None
+        return deny("message_not_current")
     channels = [target.trigger.channel]
     if run.case.thread_id is not None and run.case.thread_id != target.trigger.channel.id:
         channel = await target.root.guild.fetch_channel(run.case.thread_id)
@@ -82,9 +100,8 @@ async def authorize_message(
             or message.guild.id != run.case.guild_id
             or message.author.bot
             or message.webhook_id is not None
-            or not is_explicit_approval(message.content)
         ):
-            return None
+            return deny("invalid_message_origin")
         if message.channel.id != run.case.thread_id and message.id != run.case.trigger_message_id:
             # A parent-channel inbox may also receive replies about a different report.
             reference = getattr(message, "reference", None)
@@ -92,12 +109,46 @@ async def authorize_message(
                 run.case.root_message_id,
                 run.case.trigger_message_id,
             }:
-                return None
+                return deny("different_report_reference")
+        explicit = is_explicit_approval(message.content)
+        if not explicit and not is_approval_confirmation(message.content):
+            return deny("not_an_approval_instruction_or_confirmation")
         member = await authorized_staff(message.guild, message.author.id, settings, policy)
         if member is None:
-            return None
-        return StaffApproval(member.id, message.id, message.content[:500])
-    return None
+            return deny("missing_staff_role_or_blocked_member")
+        if explicit:
+            return StaffApproval(member.id, message.id, message.content[:500])
+        # Confirmations may reference an earlier instruction only inside the same report thread.
+        if message.channel.id != run.case.thread_id:
+            return deny("confirmation_requires_report_thread")
+        visible_ids = {item.id for item in run.case.messages}
+        visible_ids.update(current_ids)
+        async for earlier in message.channel.history(limit=50, before=message, oldest_first=False):
+            if earlier.author.id != member.id:
+                continue
+            if earlier.id not in visible_ids:
+                return deny("instruction_outside_available_context")
+            if (
+                earlier.guild is None
+                or earlier.guild.id != run.case.guild_id
+                or earlier.channel.id != message.channel.id
+                or earlier.author.bot
+                or earlier.webhook_id is not None
+            ):
+                return deny("invalid_instruction_origin")
+            if is_explicit_approval(earlier.content):
+                return StaffApproval(
+                    member.id,
+                    message.id,
+                    f"Orden previa: {earlier.content[:300]} · Ratificación actual: {message.content[:150]}",
+                    instruction_message_id=earlier.id,
+                )
+            if not is_approval_confirmation(earlier.content) and invalidates_approval_context(
+                earlier.content
+            ):
+                return deny("prior_instruction_revoked_conditional_or_changed")
+        return deny("prior_approval_instruction_not_found")
+    return deny("current_message_not_found")
 
 
 async def open_manual_approval(cog: ReviewCog, ctx: discord.ApplicationContext) -> None:
