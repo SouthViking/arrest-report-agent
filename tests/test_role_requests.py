@@ -636,7 +636,6 @@ def _ftt_entry_service(env) -> tuple[RoleRequestService, tuple[FakeRole, ...]]:
         FakeRole(710, name="Field Training Trainee", position=2),
         FakeRole(711, name="Deputy Sheriff", position=3),
         FakeRole(712, name="Field Staff", position=4),
-        FakeRole(713, name="CSD: TTCF", position=5),
         FakeRole(714, name="CPD: GNT", position=6),
         FakeRole(715, name="NPD: DLM", position=6),
     )
@@ -656,7 +655,7 @@ def _ftt_entry_service(env) -> tuple[RoleRequestService, tuple[FakeRole, ...]]:
     service = RoleRequestService(env.service.bot, configured, env.service.persona)
     service.operational_staff_role_ids = frozenset({712})
     service.ftt_entry_options = RoleRequestFttEntryOptions(
-        base_role_ids=(710, 711, 712, 713),
+        base_role_ids=(710, 711, 712),
         stations=(
             RoleRequestStationOption(
                 key="ganton",
@@ -772,7 +771,7 @@ def test_v2_public_ftt_entry_embed_keeps_station_but_has_no_private_reason(
 ) -> None:
     embed = build_public_pending_embed(
         requester=role_request_env.requester,
-        add_role_ids=(710, 711, 712, 713, 714),
+        add_role_ids=(710, 711, 712, 714),
         remove_role_ids=(),
         ui=role_request_env.service.ui,
         created_at=datetime(2026, 9, 21, 12, tzinfo=UTC),
@@ -989,7 +988,7 @@ def test_pending_codec_round_trip_supports_ftt_entry(role_request_env) -> None:
     service, roles = _ftt_entry_service(role_request_env)
     embed = build_pending_embed(
         requester=role_request_env.requester,
-        add_role_ids=tuple(role.id for role in roles[:5]),
+        add_role_ids=tuple(role.id for role in roles[:4]),
         remove_role_ids=(),
         reason="Ganton · <@&714>",
         ui=service.ui,
@@ -1454,6 +1453,37 @@ async def test_retirement_cannot_be_partially_approved(role_request_env) -> None
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("already_owned", (False, True))
+async def test_withdrawn_role_is_not_offered_or_added_and_existing_members_keep_it(
+    role_request_env, already_owned,
+) -> None:
+    env = role_request_env
+    service, _ = _ftt_entry_service(env)
+    withdrawn = FakeRole(1241871524424712314, name="CSD: TTCF", position=5)
+    withdrawn.guild = env.guild
+    env.guild.roles.append(withdrawn)
+    env.guild._roles[withdrawn.id] = withdrawn
+    if already_owned:
+        env.requester.roles.append(withdrawn)
+
+    additions, removals = service.requestable_role_choices(env.requester)
+    assert withdrawn not in (*additions, *removals)
+    _station, entry_roles = service.ftt_entry_changes(env.requester, "ganton")
+    assert withdrawn not in entry_roles
+    with pytest.raises(RoleRequestValidationError):
+        service.validate_submission(env.requester, (withdrawn,), ())
+
+    creation = _interaction(env, SimpleNamespace(id=0), user=env.requester)
+    await service.create_ftt_entry_request(
+        creation, member=env.requester, channel=env.channel, station_key="ganton",
+    )
+    message = next(iter(env.channel.messages.values()))
+    await service.approve_all(_interaction(env, message))
+    assert {710, 711, 712, 714} <= {role.id for role in env.requester.roles}
+    assert (withdrawn in env.requester.roles) is already_owned
+
+
+@pytest.mark.asyncio
 async def test_ftt_entry_requests_only_station_and_applies_complete_package(
     role_request_env,
 ) -> None:
@@ -1472,7 +1502,7 @@ async def test_ftt_entry_requests_only_station_and_applies_complete_package(
     ]
     station, additions = service.ftt_entry_changes(role_request_env.requester, "ganton")
     assert station == "Ganton · <@&714>"
-    assert tuple(role.id for role in additions) == (710, 712, 713, 714)
+    assert tuple(role.id for role in additions) == (710, 712, 714)
 
     creation = _interaction(
         role_request_env,
@@ -1493,7 +1523,7 @@ async def test_ftt_entry_requests_only_station_and_applies_complete_package(
         allowed_channel_ids=frozenset({CHANNEL_ID}),
     )
     assert request.kind is RoleRequestKind.FTT_ENTRY
-    assert request.add_role_ids == (710, 712, 713, 714)
+    assert request.add_role_ids == (710, 712, 714)
     assert [child.custom_id for child in message.components[0].children] == [
         APPROVE_ALL_CUSTOM_ID,
         REJECT_CUSTOM_ID,
@@ -1502,7 +1532,7 @@ async def test_ftt_entry_requests_only_station_and_applies_complete_package(
     await service.approve_all(_interaction(role_request_env, message))
 
     final_ids = {role.id for role in role_request_env.requester.roles}
-    assert {710, 711, 712, 713, 714} <= final_ids
+    assert {710, 711, 712, 714} <= final_ids
     welcome_channel = role_request_env.guild.get_channel(WELCOME_CHANNEL_ID)
     assert welcome_channel is not None
     assert len(welcome_channel.send_calls) == 1
@@ -2194,7 +2224,7 @@ async def test_ftt_approval_modal_optional_instructor_and_welcome(
     await modal.callback(submitted)
     assert submitted.response.deferred == [False]
     assert len(env.requester.edit_calls) == 1
-    assert {710, 711, 712, 713, 714} <= {role.id for role in env.requester.roles}
+    assert {710, 711, 712, 714} <= {role.id for role in env.requester.roles}
     welcome = env.guild.get_channel(WELCOME_CHANNEL_ID).send_calls[0]
     description = welcome["embed"].description
     assert f"¡Bienvenido, <@{REQUESTER_ID}>!" in description
@@ -2493,7 +2523,7 @@ async def test_shift_entry_approves_package_and_replaces_previous(role_request_e
     assert fields[SHIFT_FIELD_TITLE].endswith("→ <@&721>")
     await service.approve_all(_interaction(env, message))
     ids = {role.id for role in env.requester.roles}
-    assert {710, 711, 712, 713, 714, 721} <= ids
+    assert {710, 711, 712, 714, 721} <= ids
     assert ids & {720, 721, 722} == {721}
     if repository:
         assert repository.request.shift_change.target_role_id == 721
