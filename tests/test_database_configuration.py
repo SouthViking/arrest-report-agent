@@ -1833,6 +1833,21 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
             )
         )
         role_requests = {int(row["guild_id"]): row for row in role_request_rows}
+        assert role_requests[1234674521416663070]["payload"]["ftt_entry"]["base_role_ids"] == [
+            1234675742013390849,
+            1234675779581771857,
+            1234675327872012328,
+        ]
+        withdrawn_catalog_member = await client.fetch_one(
+            sa.text("SELECT member.id FROM guild_access_policy_members AS member "
+                    "JOIN guild_access_policies AS policy ON policy.id = member.policy_id "
+                    "JOIN guild_config_revisions AS revision ON revision.id = policy.config_revision_id "
+                    "WHERE revision.guild_id = 1234674521416663070 "
+                    "AND revision.status IN ('draft', 'published') "
+                    "AND policy.policy_key = 'role_request_allowed_roles' "
+                    "AND member.snowflake_id = 1241871524424712314")
+        )
+        assert withdrawn_catalog_member is None
         ftt_welcome = role_requests[1234674521416663070]["payload"]["ftt_entry"]["welcome"]
         assert ftt_welcome == {
             "channel_id": 1234749125820420139,
