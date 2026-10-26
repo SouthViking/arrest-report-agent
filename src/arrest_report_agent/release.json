@@ -1,20 +1,16 @@
 {
   "schema_version": 3,
-  "version": "1.1.14",
-  "title": "Estadísticas de llamadas de servicio",
-  "summary": "Consulta las llamadas del dispatch por fecha, hora y zona horaria. Si el término elegido está en el futuro, la consulta se limita automáticamente al momento actual.",
+  "version": "1.1.15",
+  "title": "Actualización de solicitudes de roles",
+  "summary": "CSD TTCF deja de ofrecerse en el ingreso FTT y en el selector de solicitudes de roles.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "/estadisticas-llamadas cuenta llamadas únicas del historial de Discord y muestra la proporción policial y de ambulancia/bomberos, sin consultar SARP ni usar IA."
-    },
-    {
-      "type": "fixed",
-      "text": "Una fecha u hora futura en Hasta se ajusta al momento actual en lugar de impedir la consulta; el resultado muestra el rango efectivamente consultado."
+      "type": "improved",
+      "text": "Retiramos CSD TTCF del paquete de ingreso FTT y del selector manual. Los miembros que ya tienen el rol lo conservan; los demás roles y opciones no cambian."
     }
   ],
   "acknowledgements": []
