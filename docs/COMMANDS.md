@@ -81,10 +81,12 @@ de administrador. La revisión normal y la reacción ✅ siguen sujetas al bloqu
 conserva el estado real de las órdenes y deja constancia del autorizante; no permite saltar una
 consulta SARP fallida o incompleta.
 
-### `/aprobar-arresto motivo:…`
+### `/aprobar-arresto`
 
 Command/Executive Staff puede usarlo **dentro del hilo de un reporte** para una aprobación humana
-de emergencia. Exige un motivo de 5 a 500 caracteres y un rol incluido en
+de emergencia. Abre un modal con un campo de texto multilínea para escribir el motivo, obligatorio
+y de 5 a 500 caracteres. No recibe opciones en el comando ni aprueba nada al abrir el formulario.
+Al enviarlo se vuelven a comprobar los permisos vigentes y el hilo original. Exige un rol incluido en
 `arrest_report_lookup.approval_override_role_ids`. La migración configura los roles actuales de
 Command y Executive en LSSD; otros servidores deben indicar sus IDs. Una lista vacía lo deshabilita.
 No depende del LLM ni de SARP y permite aprobar aunque haya órdenes abiertas o SARP no responda.

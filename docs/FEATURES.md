@@ -303,7 +303,7 @@ Comandos disponibles:
   si no puede comprobarlo, la revisión continúa y la aprobación queda pendiente.
   Solo una instrucción explícita actual de Command/Executive Staff permite una excepción con
   órdenes abiertas confirmadas, verificando el mensaje y los IDs reales de roles en Discord.
-  `/aprobar-arresto motivo:…` ofrece además una aprobación humana de emergencia dentro del hilo,
+  `/aprobar-arresto` abre un modal con un motivo multilínea para aprobar manualmente dentro del hilo,
   independiente del LLM y de SARP, con responsable y motivo visibles y registrados.
   La tarjeta comienza amarilla y solo una revisión completa puede cambiarla a verde, rojo o naranja;
   consultas y revisiones parciales no alteran su estado general.

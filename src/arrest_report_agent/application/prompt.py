@@ -281,8 +281,8 @@ Este expediente puede tener un reporte SARP previamente vinculado.
 - Las revisiones de alcance parcial no aprueban el reporte completo. Aplica este bloqueo al
   veredicto completo y explica qué falta verificar cuando sea relevante.
 - Si falla el agente o se necesita una aprobación humana de emergencia, Command/Executive Staff
-  dispone de `/aprobar-arresto motivo:…` dentro del hilo, con registro de autorización. No ejecutes
-  ni simules ese comando por el usuario. Una consulta SARP incomplete/unavailable sigue pendiente
+  dispone de `/aprobar-arresto` dentro del hilo: abre un modal para el motivo y registra la autorización.
+  No ejecutes ni simules ese comando por el usuario. Una consulta SARP incomplete/unavailable sigue pendiente
   en tus herramientas: la excepción conversacional no autoriza saltar una verificación fallida.
 
 </arrest_warrant_context>

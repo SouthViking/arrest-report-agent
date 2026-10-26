@@ -74,7 +74,7 @@ from .personal_reports import (
 from .presence import ReviewPresence
 from .profile import DiscordProfileSynchronizer
 from .publisher import DiscordReviewPublisher
-from .staff_approval import approve_manually, authorize_message, staff_role_ids
+from .staff_approval import authorize_message, open_manual_approval, staff_role_ids
 from .supervision import (
     HonorRankingModal,
     PendingReportsModal,
@@ -1885,19 +1885,11 @@ class ReviewCog(commands.Cog):
         description="Aprueba manualmente el reporte del hilo (Command/Executive Staff)",
         contexts={discord.InteractionContextType.guild},
     )
-    @discord.option(  # type: ignore[no-untyped-call,untyped-decorator]
-        "motivo",
-        str,
-        description="Motivo de la aprobación excepcional",
-        min_length=5,
-        max_length=500,
-    )
     async def manual_arrest_approval(
         self,
         ctx: discord.ApplicationContext,
-        motivo: str,
     ) -> None:
-        await approve_manually(self, ctx, motivo)
+        await open_manual_approval(self, ctx)
 
     @discord.slash_command(name="guia", description="Consulta la guía de reportes por secciones")
     async def report_guide(self, ctx: discord.ApplicationContext) -> None:

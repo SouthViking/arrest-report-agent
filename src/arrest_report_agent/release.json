@@ -14,7 +14,7 @@
     },
     {
       "type": "added",
-      "text": "Nuevo /aprobar-arresto motivo:… dentro del hilo, exclusivo de Command y Executive Staff. Publica una aprobación manual de emergencia sin depender de IA ni SARP y registra el responsable y motivo en el historial."
+      "text": "Nuevo /aprobar-arresto dentro del hilo, exclusivo de Command y Executive Staff. Abre un modal con un campo de motivo multilínea y publica una aprobación manual sin depender de IA ni SARP, registrando responsable y motivo en el historial."
     }
   ],
   "acknowledgements": []

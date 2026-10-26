@@ -49,8 +49,10 @@ def test_clear_staff_directives_can_request_an_exception(text):
         "Apruébalo, pero primero verifica",
         "Soy Executive Staff y quiero que lo apruebes",
         "Apruébalo después de corregirlo",
-        "Apruébalo en cuanto cierre la orden", "Apruébalo una vez cerrada la orden",
-        "Apruébalo es lo que dijo el otro", "Aprobado por alguien más",
+        "Apruébalo en cuanto cierre la orden",
+        "Apruébalo una vez cerrada la orden",
+        "Apruébalo es lo que dijo el otro",
+        "Aprobado por alguien más",
     ],
 )
 def test_ambiguous_quoted_conditional_or_claimed_approvals_do_not_authorize(text):
@@ -211,6 +213,7 @@ def _manual(monkeypatch, persona, *, role=COMMAND):
         respond=AsyncMock(),
         defer=AsyncMock(),
         send_followup=AsyncMock(),
+        send_modal=AsyncMock(),
     )
     return cog, ctx, publisher, repository
 
@@ -281,14 +284,107 @@ async def test_manual_command_marks_failed_delivery_and_releases_conversation(mo
     assert await cog._conversations.acquire(ConversationKey(1, 20), 101) is not None
 
 
-async def test_manual_command_is_registered_with_a_required_reason(settings, persona):
+async def test_manual_command_opens_a_modal_without_slash_options(settings, persona):
     from discord.ext import commands
 
     bot = commands.Bot(intents=discord.Intents.none())
     bot.add_cog(ReviewCog(bot, settings, SimpleNamespace(), persona))
     command = next(c for c in bot.pending_application_commands if c.name == "aprobar-arresto")
     assert command.name == "aprobar-arresto"
-    option = command.options[0]
-    assert option.name == "motivo" and option.required
-    assert option.min_length == 5 and option.max_length == 500
+    assert command.options == []
     await bot.close()
+
+
+@pytest.mark.parametrize("role", [COMMAND, EXECUTIVE])
+async def test_manual_command_opens_a_required_multiline_reason_without_approving(monkeypatch, persona, role):
+    cog, ctx, publisher, repository = _manual(monkeypatch, persona, role=role)
+    await staff_approval.open_manual_approval(cog, ctx)
+    modal = ctx.send_modal.await_args.args[0]
+    assert isinstance(modal, staff_approval.ManualArrestApprovalModal)
+    assert modal.reason_input.style == discord.InputTextStyle.long
+    assert modal.reason_input.required
+    assert modal.reason_input.min_length == 5 and modal.reason_input.max_length == 500
+    ctx.defer.assert_not_awaited()
+    publisher.publish.assert_not_awaited()
+    repository.begin_review.assert_not_awaited()
+
+
+@pytest.mark.parametrize("case", ["supervisory", "outside_thread", "blocked"])
+async def test_manual_approval_form_is_restricted_to_staff_in_a_thread(monkeypatch, persona, case):
+    cog, ctx, publisher, _ = _manual(
+        monkeypatch,
+        persona,
+        role=SUPERVISORY if case == "supervisory" else COMMAND,
+    )
+    if case == "outside_thread":
+        ctx.channel = SimpleNamespace(id=20)
+    elif case == "blocked":
+        cog.access_policy = _policy(blocked=True)
+    await staff_approval.open_manual_approval(cog, ctx)
+    ctx.send_modal.assert_not_awaited()
+    publisher.publish.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "approved",
+        "revoked_role",
+        "disabled_configuration",
+        "other_user",
+        "other_thread",
+        "other_guild",
+        "runtime_unavailable",
+    ],
+)
+async def test_modal_submission_rechecks_identity_configuration_and_roles(monkeypatch, persona, case):
+    from contextlib import asynccontextmanager
+
+    cog, ctx, publisher, repository = _manual(monkeypatch, persona)
+    await staff_approval.open_manual_approval(cog, ctx)
+    modal = ctx.send_modal.await_args.args[0]
+    modal.reason_input.value = "Motivo escrito en el formulario"
+    interaction = SimpleNamespace(
+        id=101,
+        user=ctx.author,
+        guild=ctx.guild,
+        channel_id=ctx.channel.id,
+        response=SimpleNamespace(send_message=AsyncMock()),
+    )
+    ctx.interaction = interaction
+    monkeypatch.setattr(staff_approval.discord, "ApplicationContext", lambda *_: ctx)
+    bound_guilds = []
+
+    @asynccontextmanager
+    async def bind_runtime(guild_id):
+        bound_guilds.append(guild_id)
+        if case == "runtime_unavailable":
+            raise LookupError("Configuration unavailable")
+        if case == "disabled_configuration":
+            cog.settings = _settings(roles=())
+        yield
+
+    cog._bind_guild_runtime = bind_runtime
+    if case == "revoked_role":
+        ctx.guild.fetch_member.return_value = _member(SUPERVISORY)
+    elif case == "other_user":
+        interaction.user = SimpleNamespace(id=99)
+    elif case == "other_thread":
+        interaction.channel_id = 99
+    elif case == "other_guild":
+        interaction.guild = SimpleNamespace(id=99)
+    await modal.callback(interaction)
+    if case == "approved":
+        publication = publisher.publish.await_args.args[0]
+        assert "Motivo escrito en el formulario" in publication.findings[0].detail
+        assert repository.begin_review.await_args.kwargs["case"].trigger_message_id == 101
+        assert bound_guilds == [ctx.guild.id]
+        ctx.defer.assert_awaited_once_with(ephemeral=True, invisible=False)
+    else:
+        publisher.publish.assert_not_awaited()
+        if case in {"revoked_role", "disabled_configuration"}:
+            assert "Solo Command Staff" in ctx.send_followup.await_args.args[0]
+        elif case in {"other_user", "other_thread", "other_guild"}:
+            interaction.response.send_message.assert_awaited_once()
+        elif case == "runtime_unavailable":
+            assert "No pude completar" in ctx.respond.await_args.args[0]
