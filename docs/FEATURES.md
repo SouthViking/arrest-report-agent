@@ -301,6 +301,10 @@ Comandos disponibles:
   reconsultarlos con `get_suspect_arrest_warrants`. Una orden abierta, firmada o pendiente de firma,
   exige correcciones y bloquea la aprobación completa. La publicación verifica el estado en SARP;
   si no puede comprobarlo, la revisión continúa y la aprobación queda pendiente.
+  Solo una instrucción explícita actual de Command/Executive Staff permite una excepción con
+  órdenes abiertas confirmadas, verificando el mensaje y los IDs reales de roles en Discord.
+  `/aprobar-arresto` abre un modal con un motivo multilínea para aprobar manualmente dentro del hilo,
+  independiente del LLM y de SARP, con responsable y motivo visibles y registrados.
   La tarjeta comienza amarilla y solo una revisión completa puede cambiarla a verde, rojo o naranja;
   consultas y revisiones parciales no alteran su estado general.
 - `/guia`: referencia privada y navegable de las secciones relevantes del manual de reportes.
@@ -460,6 +464,9 @@ los avisos de órdenes abiertas al presentar `/revisar-arresto`. Ejemplo de actu
 "warrant_alert_role_id": 1234676131240869949}`. El formulario conserva el resto del JSON vigente.
 La migración habilita el aviso en LSSD reutilizando los destinos actuales de Supervisory; conserva
 las opciones explícitas. No cambia el intervalo de los resúmenes de reportes pendientes.
+`approval_override_role_ids` identifica los roles de Command/Executive Staff habilitados para
+autorizar excepciones y usar `/aprobar-arresto`. La migración configura los dos roles de LSSD
+sin reemplazar listas explícitas; una lista vacía deshabilita ambas capacidades.
 `pending_arrest_reports` acepta
 `{"faction_id": 3, "max_range_days": 90, "max_records": 1000, "digest_interval_hours": 6,
 "digest_lookback_days": 7, "digest_targets": [{"channel_id": 1537203701893169254,

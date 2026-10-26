@@ -74,6 +74,7 @@ from .personal_reports import (
 from .presence import ReviewPresence
 from .profile import DiscordProfileSynchronizer
 from .publisher import DiscordReviewPublisher
+from .staff_approval import authorize_message, open_manual_approval, staff_role_ids
 from .supervision import (
     HonorRankingModal,
     PendingReportsModal,
@@ -860,6 +861,9 @@ class ReviewCog(commands.Cog):
                 await self._conversations.discard_seen(
                     lease, {item.id for item in case.messages},
                 )
+                run_context.staff_approval_authorizer = partial(
+                    authorize_message, run_context, target, self.settings, self.access_policy,
+                )
 
                 async def on_thread_ready(thread: discord.Thread) -> None:
                     if not await self._conversations.add_alias(
@@ -1461,6 +1465,10 @@ class ReviewCog(commands.Cog):
             "• `/support`: apoyo voluntario al desarrollo y mantenimiento del bot.",
             "• `/agradecimientos`: reconoce a quienes han apoyado el proyecto.",
         ]
+        if any(role.id in staff_role_ids(self.settings) for role in getattr(ctx.author, "roles", ())):
+            extra_feature_lines.append(
+                "• `/aprobar-arresto`: aprobación manual excepcional con motivo, dentro del hilo."
+            )
         if self._config_provider is not None and ctx.guild is not None and ctx.channel is not None:
             with suppress(Exception):
                 bundle = await self._config_provider.cached(ctx.guild.id)  # type: ignore[attr-defined]
@@ -1871,6 +1879,17 @@ class ReviewCog(commands.Cog):
             content="Cupo ampliado y publicado en este hilo.",
             ephemeral=True,
         )
+
+    @discord.slash_command(
+        name="aprobar-arresto",
+        description="Aprueba manualmente el reporte del hilo (Command/Executive Staff)",
+        contexts={discord.InteractionContextType.guild},
+    )
+    async def manual_arrest_approval(
+        self,
+        ctx: discord.ApplicationContext,
+    ) -> None:
+        await open_manual_approval(self, ctx)
 
     @discord.slash_command(name="guia", description="Consulta la guía de reportes por secciones")
     async def report_guide(self, ctx: discord.ApplicationContext) -> None:

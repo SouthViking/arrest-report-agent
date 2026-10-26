@@ -74,6 +74,31 @@ La publicación de un veredicto completo consulta de nuevo SARP, incluso con el 
 de un supervisor. Si SARP falla o la consulta queda incompleta, la revisión sigue y la aprobación
 queda pendiente de verificar SARP, sin inventar una orden ni una deficiencia del reporte. Si solo falta el
 detalle, se informa la orden confirmada por el listado sin inventar el emisor ni el estado de firma.
+Solo una orden explícita actual de Command/Executive Staff permite al agente aprobar con órdenes
+abiertas confirmadas: `approve_arrest_report` recibe `approval_message_id` y el backend verifica
+el mensaje y los roles reales de Discord. No sirven citas, nombres de rol ni permisos genéricos
+de administrador. La revisión normal y la reacción ✅ siguen sujetas al bloqueo. La excepción
+conserva el estado real de las órdenes y deja constancia del autorizante; no permite saltar una
+consulta SARP fallida o incompleta.
+
+### `/aprobar-arresto`
+
+Command/Executive Staff puede usarlo **dentro del hilo de un reporte** para una aprobación humana
+de emergencia. Abre un modal con un campo de texto multilínea para escribir el motivo, obligatorio
+y de 5 a 500 caracteres. No recibe opciones en el comando ni aprueba nada al abrir el formulario.
+Al enviarlo se vuelven a comprobar los permisos vigentes y el hilo original. Exige un rol incluido en
+`arrest_report_lookup.approval_override_role_ids`. La migración configura los roles actuales de
+Command y Executive en LSSD; otros servidores deben indicar sus IDs. Una lista vacía lo deshabilita.
+No depende del LLM ni de SARP y permite aprobar aunque haya órdenes abiertas o SARP no responda.
+No cierra órdenes: el registro visible aclara que es una autorización humana sin verificar SARP.
+Requiere que el bot, Discord y el historial de auditoría estén disponibles.
+
+Utiliza la misma publicación formal de revisiones: historial, reacción ✅, tarjeta y cierre del hilo.
+Conserva el responsable, motivo e interacción de Discord, con `model=manual` en el historial.
+Si ya hay una revisión en curso, espera a que termine antes de usarlo para evitar resultados
+contradictorios. No puede usarse en canales generales, hilos ajenos a reportes o por Supervisory
+sin uno de los dos roles autorizados.
+
 Los avisos se pueden deshabilitar o cambiar de destino por `/config` sin redesplegar; el contexto
 del agente y el requisito de comprobar el cierre siguen activos aunque los avisos estén deshabilitados.
 

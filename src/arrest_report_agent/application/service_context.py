@@ -14,6 +14,7 @@ from arrest_report_agent.domain import (
 )
 from arrest_report_agent.knowledge import ChargeCatalogSnapshot
 
+from .approvals import StaffApproval
 from .conversations import LiveConversation
 from .ports import (
     ActivityTracker,
@@ -62,6 +63,7 @@ class ReviewRunContext:
     arrest_warrant_context: str | None = None
     report_snapshot_refresher: ReportSnapshotRefresher | None = None
     report_snapshot_current: bool = False
+    staff_approval_authorizer: Callable[[int], Awaitable[StaffApproval | None]] | None = None
     loaded_image_count: int = 0
     loaded_historical_image_count: int = 0
     loaded_file_count: int = 0

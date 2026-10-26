@@ -185,6 +185,7 @@ def test_arrest_lookup_configuration_requires_positive_faction_id() -> None:
     assert defaults.faction_id == 3
     assert defaults.report_attachment_mode is ArrestReportAttachmentMode.GENERATED
     assert defaults.max_rank_names_per_lookup == 20
+    assert defaults.approval_override_role_ids == ()
     manual = ArrestReportLookupOptions(
         faction_id=3,
         report_attachment_mode="manual",
@@ -198,6 +199,12 @@ def test_arrest_lookup_configuration_requires_positive_faction_id() -> None:
         ArrestReportLookupOptions(faction_id=3, max_rank_names_per_lookup=51)
     with pytest.raises(ValueError, match="valid integer"):
         ArrestReportLookupOptions(faction_id=3, max_rank_names_per_lookup="20")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("roles", [(0,), (-1,), (123, 123)])
+def test_staff_approval_roles_require_positive_unique_ids(roles):
+    with pytest.raises(ValueError, match="approval override roles"):
+        ArrestReportLookupOptions(faction_id=3, approval_override_role_ids=roles)
 
 
 def test_pending_arrest_reports_options_are_bounded() -> None:
@@ -1739,6 +1746,7 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
             "warrant_alerts_enabled": True,
             "warrant_alert_channel_ids": [1234678185124298853],
             "warrant_alert_role_id": 1234676131240869949,
+            "approval_override_role_ids": [1234678029662294047, 1234678238182244414],
         }
         assert resolved[999]["enabled"] is False
         assert resolved[999]["payload"] == {}
