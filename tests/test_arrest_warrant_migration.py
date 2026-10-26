@@ -73,7 +73,7 @@ async def test_migration_reuses_current_supervisory_destinations_and_preserves_c
                             payload=pending_payload,
                         )
                     )
-        await asyncio.to_thread(command.upgrade, alembic, "head")
+        await asyncio.to_thread(command.upgrade, alembic, "20261014_0092")
         rows = await client.fetch_all(sa.select(guild_feature_settings))
         by_key = {(r["config_revision_id"], r["feature_key"]): r["payload"] for r in rows}
         for (guild_id, status), revision_id in revisions.items():

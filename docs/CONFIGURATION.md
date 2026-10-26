@@ -95,6 +95,11 @@ sospechoso siguen siendo obligatorias. Si necesitas adjuntar también la imagen 
 usa `"report_attachment_mode":"manual"` dentro del mismo módulo.
 
 Las órdenes abiertas del sospechoso bloquean la aprobación completa hasta verificar su cierre.
+La excepción de Command/Executive Staff requiere una instrucción explícita actual y un ID de rol
+incluido en `approval_override_role_ids` dentro de `arrest_report_lookup`. Esa misma lista habilita
+`/aprobar-arresto motivo:…` para aprobaciones manuales de emergencia dentro del hilo. La migración
+configura los dos roles actuales de LSSD y conserva una lista explícita, incluso si está vacía.
+Las aprobaciones manuales registran quién autorizó y por qué; no cierran órdenes en SARP.
 Aunque desactives sus avisos, se mantiene esa comprobación. Los avisos a supervisión son opcionales:
 
 ```json

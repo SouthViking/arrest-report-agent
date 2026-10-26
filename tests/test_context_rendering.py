@@ -1121,6 +1121,47 @@ async def test_quota_grant_target_is_bound_to_report_thread(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["structured", "legacy", "unrelated", "foreign_channel", "unmapped_bot"])
+async def test_manual_approval_target_requires_a_real_canonical_report(
+    settings, persona, monkeypatch, kind,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    report_channel_id = min(settings.report_channel_ids)
+    root = SimpleNamespace(
+        id=800, author=SimpleNamespace(id=123, bot=kind in {"structured", "unmapped_bot"}),
+        webhook_id=None, guild=SimpleNamespace(id=min(settings.discord_guild_ids)),
+        content="Mensaje sin relación con un reporte de arresto" if kind == "unrelated" else "Terry Parker",
+        attachments=_owner_report_attachments(),
+    )
+
+    class FakeTextChannel:
+        id = 999 if kind == "foreign_channel" else report_channel_id
+
+        async def fetch_message(self, message_id):
+            assert message_id == root.id
+            return root
+
+    monkeypatch.setattr(
+        "arrest_report_agent.infrastructure.discord.context.discord.TextChannel", FakeTextChannel,
+    )
+    builder = DiscordContextBuilder(settings, persona)
+    builder._structured_submission = AsyncMock(return_value=(
+        SimpleNamespace(id=UUID(int=1), sarp_arrest_id=321) if kind == "structured" else None
+    ))
+    thread = SimpleNamespace(id=800, parent=FakeTextChannel())
+    requester = SimpleNamespace(id=456)
+    if kind in {"unrelated", "foreign_channel", "unmapped_bot"}:
+        with pytest.raises((ContextUnavailableError, ReportOwnerSubmissionError)):
+            await builder.manual_approval_target(thread, requester)
+    else:
+        target = await builder.manual_approval_target(thread, requester)
+        assert target.root is root and target.thread is thread and target.requester is requester
+        assert target.response_route is DiscordResponseRoute.THREAD
+        assert target.structured_report_id == (321 if kind == "structured" else None)
+
+
+@pytest.mark.asyncio
 async def test_orphaned_thread_uses_oldest_visible_message_as_root(
     settings, persona, monkeypatch, caplog
 ) -> None:

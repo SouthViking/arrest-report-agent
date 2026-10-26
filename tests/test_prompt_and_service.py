@@ -530,6 +530,14 @@ def test_service_registers_terminal_publish_tool_and_trace_metadata(settings, mo
     assert "find_guild_members" not in owner_prompt
     assert "set_message_reaction" not in owner_prompt
     assert "approve_arrest_report" not in owner_prompt
+    owner_warrant_prompt = build_agent_instructions(
+        persona, AgentAccessLevel.REPORT_OWNER, arrest_warrants_enabled=True,
+    )
+    assert "approve_arrest_report" not in owner_warrant_prompt
+    assert "/aprobar-arresto" in owner_warrant_prompt
+    full_warrant_prompt = build_agent_instructions(persona, arrest_warrants_enabled=True)
+    assert "approval_message_id" in full_warrant_prompt
+    assert "IDs de roles actuales" in full_warrant_prompt
     assert "approve_arrest_report" not in owner_tool_names
     assert "mention_roles" not in owner_tool_names
     assert "list_manual_sections" not in owner_tool_names

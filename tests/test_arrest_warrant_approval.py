@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 from agents.tool_context import ToolContext
 
+from arrest_report_agent.application.approvals import StaffApproval
 from arrest_report_agent.application.ports import ArrestReportDetail, ArrestReportDetailResult
 from arrest_report_agent.application.service_context import ReviewRunContext
 from arrest_report_agent.application.tools import build_agent_tools
@@ -136,6 +137,65 @@ async def test_open_warrant_blocks_every_full_approval_path(signed, tool):
     run.publisher.publish.assert_awaited_once_with(run.publication)
     run.report_snapshot_refresher.assert_awaited_once_with(REPORT, ReviewVerdict.CORRECTIONS_REQUIRED)
     client.list_active_warrants.assert_awaited_once_with(44, page=1, limit=100)
+
+
+@pytest.mark.parametrize("signed", [True, False])
+async def test_verified_explicit_staff_approval_can_override_an_open_warrant(signed):
+    client = _client(signed=signed)
+    run = _run()
+    approval = StaffApproval(123, run.case.trigger_message_id, "Apruébalo aunque tenga una orden abierta.")
+    run.staff_approval_authorizer = AsyncMock(return_value=approval)
+    result = await _invoke(_tools(client), run, "approve_arrest_report", {
+        "summary": "Aprobado por instrucción de Command.",
+        "approval_message_id": approval.source_id,
+    })
+    assert result["verdict"] == "approved"
+    assert result["warrant_approval_check"] == "blocked"  # The warrant is still open.
+    assert result["warrant_approval_overridden"] is True
+    run.staff_approval_authorizer.assert_awaited_once_with(approval.source_id)
+    finding = run.publication.findings[0]
+    assert finding.severity is FindingSeverity.OBSERVATION
+    assert "#7" in finding.detail and "<@123>" in finding.detail
+    assert str(approval.source_id) in finding.evidence
+    run.report_snapshot_refresher.assert_awaited_once_with(REPORT, ReviewVerdict.APPROVED)
+
+
+@pytest.mark.parametrize("authorizer", [None, AsyncMock(return_value=None),
+                                      AsyncMock(side_effect=RuntimeError("Discord unavailable"))])
+async def test_unverified_staff_instruction_never_publishes_an_approval(authorizer):
+    run = _run()
+    run.staff_approval_authorizer = authorizer
+    result = await _invoke(_tools(_client()), run, "approve_arrest_report", {
+        "summary": "Aprobado.", "approval_message_id": run.case.trigger_message_id,
+    })
+    assert result["error"] == "staff_approval_not_authorized"
+    run.publisher.publish.assert_not_awaited()
+
+
+@pytest.mark.parametrize("failure", ["unavailable", "incomplete"])
+async def test_staff_conversational_override_does_not_bypass_failed_sarp_verification(failure):
+    run = _run()
+    run.staff_approval_authorizer = AsyncMock(return_value=StaffApproval(123, 444, "Apruébalo"))
+    client = _client()
+    if failure == "unavailable":
+        client.list_active_warrants.side_effect = RuntimeError("SARP unavailable")
+    else:
+        client.get_warrant.side_effect = RuntimeError("SARP detail unavailable")
+    result = await _invoke(_tools(client), run, "approve_arrest_report", {
+        "summary": "Aprobado.", "approval_message_id": 444,
+    })
+    assert result["verdict"] != "approved"
+    assert result["warrant_approval_overridden"] is False
+
+
+async def test_generic_review_cannot_use_staff_authorization_to_bypass_warrants():
+    run = _run()
+    run.staff_approval_authorizer = AsyncMock(return_value=StaffApproval(123, 444, "Apruébalo"))
+    result = await _invoke(_tools(_client()), run, "execute_arrest_report_review", {
+        "publication": _approved().model_dump(mode="json"),
+    })
+    assert result["verdict"] == "corrections_required"
+    run.staff_approval_authorizer.assert_not_awaited()
 
 
 async def test_refresh_clears_historical_context_but_publication_checks_again():

@@ -218,6 +218,32 @@ class DiscordContextBuilder:
             response_route=DiscordResponseRoute.THREAD,
         )
 
+    async def manual_approval_target(
+        self, thread: discord.Thread, requester: discord.Member,
+    ) -> ReviewTarget:
+        """Resolve a real report without loading images, history, SARP or the agent."""
+
+        channels = self.settings.report_channel_allowlist.ids
+        parent = thread.parent
+        if channels is None or not isinstance(parent, discord.TextChannel) or parent.id not in channels:
+            raise ContextUnavailableError("Thread is outside the configured report channels")
+        try:
+            root = await parent.fetch_message(thread.id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
+            raise ContextUnavailableError("Unable to verify the report root") from error
+        submission = await self._structured_submission(root, thread_id=thread.id)
+        if submission is None:
+            self._require_human_owner(root, root.author.id)
+            self._require_report_submission(
+                root, bot_user_id=self.bot.user.id if self.bot and self.bot.user else 0,
+            )
+        return ReviewTarget(
+            root=root, trigger=root, parent=parent, thread=thread,
+            response_route=DiscordResponseRoute.THREAD, requester=requester,
+            structured_submission_id=submission.id if submission else None,
+            structured_report_id=submission.sarp_arrest_id if submission else None,
+        )
+
     async def report_owner_for_thread(self, thread: discord.Thread) -> tuple[int, int]:
         """Resolve the quota's root and beneficiary from a configured report thread."""
 

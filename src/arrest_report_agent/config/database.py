@@ -381,9 +381,14 @@ class ArrestReportLookupOptions(FrozenConfigModel):
     warrant_alerts_enabled: bool = False
     warrant_alert_channel_ids: tuple[int, ...] = Field(default=(), max_length=10)
     warrant_alert_role_id: int | None = Field(default=None, gt=0)
+    approval_override_role_ids: tuple[int, ...] = Field(default=(), max_length=20)
 
     @model_validator(mode="after")
     def validate_warrant_alerts(self) -> ArrestReportLookupOptions:
+        if any(role_id <= 0 for role_id in self.approval_override_role_ids):
+            raise ValueError("approval override roles must contain positive IDs")
+        if len(set(self.approval_override_role_ids)) != len(self.approval_override_role_ids):
+            raise ValueError("approval override roles must be unique")
         if any(channel_id <= 0 for channel_id in self.warrant_alert_channel_ids):
             raise ValueError("warrant alert channels must contain positive IDs")
         if len(set(self.warrant_alert_channel_ids)) != len(self.warrant_alert_channel_ids):

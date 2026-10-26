@@ -1,5 +1,6 @@
 """Enforce warrant clearance independently of the agent's proposed verdict."""
 
+from arrest_report_agent.application.approvals import StaffApproval
 from arrest_report_agent.domain import (
     FindingSeverity,
     ReviewFinding,
@@ -14,12 +15,33 @@ from .lookup import ArrestWarrantCheck
 PENDING_REASON = "La aprobación queda pendiente de verificar las órdenes de arresto abiertas en SARP."
 
 
-def apply_warrant_policy(publication: ReviewPublication, check: ArrestWarrantCheck) -> ReviewPublication:
+def apply_warrant_policy(
+    publication: ReviewPublication,
+    check: ArrestWarrantCheck,
+    *,
+    approval: StaffApproval | None = None,
+    guild_id: int = 0,
+    channel_id: int = 0,
+) -> ReviewPublication:
     if publication.review_scope is not ReviewScope.FULL:
         return publication
     # A model-supplied historical finding cannot override the fresh authoritative check.
     findings = [f for f in publication.findings if f.issue_type is not ReviewIssueType.OPEN_ARREST_WARRANT]
     changes: dict[str, object] = {"findings": findings}
+    if (
+        approval is not None
+        and check.status == "confirmed"
+        and check.warrants
+        and publication.verdict is ReviewVerdict.APPROVED
+        and not any(f.severity is FindingSeverity.REQUIRED for f in findings)
+    ):
+        ids = ", ".join(f"#{w.warrant_id}" for w in check.warrants)
+        finding = approval.finding(
+            guild_id=guild_id,
+            channel_id=channel_id,
+            detail=f"SARP mantiene órdenes abiertas: {ids}. Esta autorización no cierra las órdenes.",
+        )
+        return publication.model_copy(update={"findings": [finding, *findings[:11]]})
     if check.warrants:
         ids = ", ".join(f"#{w.warrant_id}" for w in check.warrants)
         finding = ReviewFinding(
