@@ -76,7 +76,13 @@ queda pendiente de verificar SARP, sin inventar una orden ni una deficiencia del
 detalle, se informa la orden confirmada por el listado sin inventar el emisor ni el estado de firma.
 Solo una orden explícita actual de Command/Executive Staff permite al agente aprobar con órdenes
 abiertas confirmadas: `approve_arrest_report` recibe `approval_message_id` y el backend verifica
-el mensaje y los roles reales de Discord. No sirven citas, nombres de rol ni permisos genéricos
+el mensaje y los roles reales de Discord. Una ratificación actual como «ahora sí» o «es una orden»
+puede retomar una orden previa del mismo usuario en el mismo hilo. El backend relee el historial
+reciente de Discord, limitado al contexto disponible y a 50 mensajes, y enlaza la orden y su
+ratificación en la constancia. Una cancelación, una condición o una nueva petición de revisión
+posteriores invalidan esa orden previa. Usa siempre el ID del mensaje actual en la herramienta;
+un error devuelve ese ID para corregir la llamada y registra el motivo del rechazo en logs.
+No sirven citas, nombres de rol ni permisos genéricos
 de administrador. La revisión normal y la reacción ✅ siguen sujetas al bloqueo. La excepción
 conserva el estado real de las órdenes y deja constancia del autorizante; no permite saltar una
 consulta SARP fallida o incompleta.
