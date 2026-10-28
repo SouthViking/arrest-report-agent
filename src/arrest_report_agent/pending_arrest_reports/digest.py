@@ -76,14 +76,19 @@ def unique_member_match(
 def due_mentions(
     reports: tuple[PendingArrestReport, ...],
     matches: dict[int, int],
+    *, now: datetime | None = None,
 ) -> tuple[tuple[int, int, int], ...]:
-    """Mention every currently pending report with a resolved member each cycle."""
+    """Mention unexcused pending reports with a resolved member each cycle."""
 
     return tuple(
         (report.report_id, matches[report.report_id], reminder_stage(report))
         for report in reports
-        if report.report_id in matches
+        if report.report_id in matches and not _paused(report, now)
     )
+
+
+def _paused(report: PendingArrestReport, now: datetime | None = None) -> bool:
+    return report.justification is not None and report.justification.active_at(now or datetime.now(UTC))
 
 
 def grouped_reply_chunks(guild: discord.Guild, mentions: tuple[tuple[int, int, int], ...]) -> tuple[str, ...]:
@@ -149,10 +154,11 @@ def build_supervisor_alert_embed(
     matches: dict[int, int],
     *,
     summary_url: str,
+    now: datetime | None = None,
 ) -> discord.Embed:
     """Summarize expired cases, with a direct link to the full command digest."""
 
-    overdue = tuple(report for report in reports if overdue_reasons(report))
+    overdue = tuple(report for report in reports if overdue_reasons(report) and not _paused(report, now))
     by_officer: dict[int | str, tuple[str, list[str]]] = {}
     for report in overdue:
         user_id = matches.get(report.report_id)
@@ -364,7 +370,10 @@ class PendingArrestDigestWorker:
             raise RuntimeError("Pending digest guild is unavailable")
         deliveries = await self.repository.deliveries(guild_id, cycle_id)
         mention_target = next((target for target in options.digest_targets if target.mention_users), None)
-        overdue = tuple(report for report in result.pending_reports if overdue_reasons(report))
+        overdue = tuple(
+            report for report in result.pending_reports
+            if overdue_reasons(report) and not _paused(report, now)
+        )
         matches: dict[int, int] = {}
         mentions: tuple[tuple[int, int, int], ...] = ()
         mention_reply_due = mention_target is not None and not deliveries.get(
@@ -390,7 +399,7 @@ class PendingArrestDigestWorker:
                 if profile is not None:
                     matches[report.report_id] = profile.user_id
             if mention_reply_due:
-                mentions = due_mentions(result.pending_reports, matches)
+                mentions = due_mentions(result.pending_reports, matches, now=now)
             if ambiguous:
                 log_event(
                     LOGGER,
@@ -468,7 +477,7 @@ class PendingArrestDigestWorker:
         summary_url = (
             f"https://discord.com/channels/{guild_id}/{mention_target.channel_id}/{source[0]}"
         )
-        embed = build_supervisor_alert_embed(overdue, matches, summary_url=summary_url)
+        embed = build_supervisor_alert_embed(overdue, matches, summary_url=summary_url, now=now)
         allowed = discord.AllowedMentions(
             everyone=False,
             roles=[discord.Object(id=role.id)],

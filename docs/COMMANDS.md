@@ -112,6 +112,41 @@ El módulo **Reportes de arresto pendientes** recibe
 `{"faction_id": 3, "max_range_days": 90, "max_records": 1000}`. Habilita la consulta manual
 determinista, reutiliza `operational_staff_roles` y no requiere una política de canales.
 
+### `/justificar-arresto registrar` y `/justificar-arresto quitar`
+
+Ambos reciben `reporte`, el ID SARP del reporte de arresto. Solo permiten gestionar los avisos a
+los miembros de `pending_arrest_reports.justification_role_ids`: una lista independiente de roles,
+editable desde el módulo **Reportes de arresto pendientes** en `/config`, sin redesplegar. La migración
+configura inicialmente Supervisory, Command y Executive Staff en LSSD y preserva listas explícitas,
+incluso vacías. Otros servidores deben configurar sus IDs; una lista vacía impide gestionar pausas.
+Ser administrador o tener acceso al agente no sustituye estos roles. Usuarios bloqueados y bots
+no pueden gestionarlas.
+
+- `/justificar-arresto registrar reporte:1234` abre un modal con motivo obligatorio de 5–500
+  caracteres, duración **Con vencimiento** o **Sin vencimiento** y fecha opcional en
+  `DD/MM/AAAA HH:MM`, hora de Chile (`America/Santiago`). Una pausa temporal exige una fecha futura;
+  una indefinida exige dejarla vacía. Se rechazan horas inválidas por cambios de horario.
+- Al enviar se validan nuevamente el usuario, canal y servidor originales, la configuración y los
+  roles actuales de Discord. Se consulta SARP y la revisión para comprobar que ese reporte siga
+  pendiente en la facción configurada. Si no se puede comprobar o guardar, no se confirma el cambio.
+- Volver a **registrar** el mismo reporte reemplaza el motivo/vencimiento conservando el historial.
+- `/justificar-arresto quitar reporte:1234` retira la pausa con roles actuales, sin depender de SARP.
+  Las menciones vuelven en el siguiente ciclo si sigue pendiente.
+
+Las respuestas son privadas. Abrir o cerrar el modal no modifica nada. Las pausas afectan solo al
+reporte seleccionado, no a otros pendientes del mismo agente ni a reportes futuros. No aprueban,
+cierran ni extienden los plazos originales del reporte. PostgreSQL conserva motivo, autorizante,
+fechas y las interacciones que registran, reemplazan o retiran cada justificación.
+
+Los resúmenes manuales y automáticos mantienen los totales y la conformidad originales y separan
+los casos con justificación en **Con justificación · sin menciones**, indicando su vencimiento.
+Las pausas vigentes excluyen esos reportes de los pings al usuario y de las alertas recurrentes a
+Supervisory; si todos los vencidos están justificados, no se envía esa alerta al rol. Si el agente
+tiene otros reportes sin justificar, estos pueden seguir generando una mención. Una pausa temporal
+vence automáticamente. La indefinida termina al retirarla o al comprobar en un escaneo que el
+reporte ya está completo. La ausencia del reporte en la ventana consultada no implica que se
+completó. Los cambios rigen para los siguientes envíos; los mensajes anteriores no se editan.
+
 El módulo **Consulta y auditoría de radios** recibe
 `{"faction_id": 3, "query_max_range_days": 30, "query_max_records": 2000,
 "audit_max_range_days": 7, "audit_max_records": 500}`. `/radios-faccion` reutiliza

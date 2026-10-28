@@ -10,6 +10,7 @@ from typing import Protocol
 
 from arrest_report_agent.infrastructure.sarp import SarpClient, SarpFactionArrestSummary
 
+from .justifications import ArrestJustificationRepository
 from .models import (
     ArrestReportReviewReference,
     ArrestReviewSource,
@@ -74,10 +75,12 @@ class PendingArrestReportService:
         client: SarpClient,
         review_lookup: PendingArrestReviewLookup | None = None,
         legacy_review_lookup: PendingLegacyArrestReviewLookup | None = None,
+        justifications: ArrestJustificationRepository | None = None,
     ) -> None:
         self.client = client
         self.review_lookup = review_lookup
         self.legacy_review_lookup = legacy_review_lookup
+        self.justifications = justifications
 
     async def scan(
         self,
@@ -149,6 +152,14 @@ class PendingArrestReportService:
                 key=lambda item: (item.created_at, item.report_id),
             )
         )
+        if guild_id is not None and self.justifications is not None:
+            pauses = await self.justifications.for_scan(
+                guild_id=guild_id, faction_id=faction_id,
+                observed_ids=tuple(report.id for report in reports),
+                pending_ids=tuple(report.report_id for report in pending), now=current,
+            )
+            pending = tuple(report.model_copy(update={"justification": pauses.get(report.report_id)})
+                            for report in pending)
         return PendingArrestReportScan(
             faction_id=faction_id,
             date_from=date_from,

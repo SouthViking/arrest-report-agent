@@ -73,6 +73,18 @@ class ArrestReportReviewReference(FrozenPendingReportModel):
         )
 
 
+class PendingReportJustification(FrozenPendingReportModel):
+    """Human authorization to pause reminders, without changing compliance."""
+
+    reason: str = Field(min_length=5, max_length=500)
+    authorized_by: int = Field(gt=0)
+    created_at: datetime
+    expires_at: datetime | None = None
+
+    def active_at(self, now: datetime) -> bool:
+        return self.expires_at is None or self.expires_at > now
+
+
 class PendingArrestReport(FrozenPendingReportModel):
     report_id: int = Field(gt=0)
     officer_name: str = Field(min_length=1, max_length=100)
@@ -85,6 +97,7 @@ class PendingArrestReport(FrozenPendingReportModel):
     review_url: str | None = Field(default=None, min_length=1)
     reviewed_at: datetime | None = None
     review_age_hours: int | None = Field(default=None, ge=0)
+    justification: PendingReportJustification | None = None
 
     @model_validator(mode="after")
     def validate_pending_state(self) -> PendingArrestReport:

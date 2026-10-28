@@ -622,8 +622,9 @@ los reportes del período elegido, considera terminadas las narrativas que comie
 determinísticamente textos vacíos, placeholders, repeticiones o descripciones breves no estándar.
 Cruza cada caso con su revisión más reciente y prioriza los resultados mediante un score interno:
 PCU sin completar, revisiones ausentes o pendientes y plazos de 24 y 48 horas. Los círculos rojo,
-naranjo, amarillo y verde exponen la urgencia sin mostrar el score. No guarda narrativas ni resultados:
-PostgreSQL conserva configuración, referencias de revisión y metadatos de programación/avisos. El
+naranjo, amarillo y verde exponen la urgencia sin mostrar el score. No guarda narrativas ni resultados de los escaneos:
+PostgreSQL conserva configuración, referencias de revisión, metadatos de programación/avisos y
+justificaciones humanas. El
 formulario permite publicar el embed en el canal o recibirlo de forma efímera. El envío periódico
 guarda solo el estado de programación, las entregas y los avisos: en cada ciclo menciona de forma
 agrupada a los agentes que sigan pendientes, incluidos los que aún están dentro de plazo, y cruza
@@ -634,6 +635,18 @@ sin aprobar fuera de plazo (48 h). Se publica después del resumen general, enla
 mensaje y menciona únicamente al rol; los agentes figuran en el embed sin recibir otra notificación.
 Estos valores se administran desde `/config`. La primera publicación ocurre después del intervalo
 configurado, no inmediatamente al arrancar.
+
+`/justificar-arresto registrar reporte:ID` abre un modal con motivo y vencimiento opcional;
+`/justificar-arresto quitar reporte:ID` retira la pausa. La lista independiente
+`pending_arrest_reports.justification_role_ids` controla ambos permisos, inicialmente Supervisory,
+Command y Executive en LSSD. Se revalidan los roles reales al guardar o retirar. Cada autorización
+se conserva en PostgreSQL, incluidas las reemplazadas, retiradas, vencidas y completadas. Los casos
+justificados siguen pendientes en una sección sin menciones; quedan excluidos de los recordatorios
+al usuario y las alertas a Supervisory. Los demás reportes del mismo agente siguen notificándose.
+La pausa vence en la fecha elegida, o dura hasta que se retire o se observe el reporte completo.
+No modifica aprobaciones, plazos ni órdenes de arresto. Reutiliza el escaneo actual, sin nuevas
+consultas SARP periódicas ni LLM. Al registrar se verifica el reporte con un escaneo acotado al día
+del arresto y la facción configurada; quitar no depende de SARP.
 
 El módulo dinámico `service_calls` consulta `GET /police/emergency-calls` únicamente cuando la
 política `service_call_channels` contiene al menos un canal explícito. La primera sincronización fija

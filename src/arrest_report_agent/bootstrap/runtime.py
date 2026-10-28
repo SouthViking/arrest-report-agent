@@ -121,6 +121,7 @@ from arrest_report_agent.pending_arrest_reports import (
     PendingArrestReportService,
     PendingArrestReviewRepository,
 )
+from arrest_report_agent.pending_arrest_reports.justifications import ArrestJustificationRepository
 from arrest_report_agent.polls import DiscordPollService, PollEventCog, PollRepository
 from arrest_report_agent.radio_audit import (
     RadioAuditCog,
@@ -666,12 +667,16 @@ async def build_runtime(
                 persona.profile,
             )
         )
+        arrest_justifications = ArrestJustificationRepository(postgres)
         pending_report_service = PendingArrestReportService(
             sarp_client,
             PendingArrestReviewRepository(postgres),
             DiscordLegacyArrestReviewLookup(bot),
+            arrest_justifications,
         )
-        bot.add_cog(PendingArrestReportCog(config_provider, pending_report_service, persona.profile))
+        bot.add_cog(PendingArrestReportCog(
+            config_provider, pending_report_service, persona.profile, arrest_justifications,
+        ))
         pending_digest_guild_ids = tuple(
             bundle.snapshot.guild_id
             for bundle in all_bundles
