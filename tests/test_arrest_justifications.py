@@ -254,7 +254,7 @@ async def test_modal_rechecks_identity_permissions_sarp_and_audit(monkeypatch, p
         assert (saved["expires_at"] is not None) == (case == "temporary")
         if case == "temporary":
             assert saved["expires_at"] == datetime(2099, 1, 1, 17, tzinfo=UTC)
-            assert "America/Bogota" in ctx.respond.await_args.args[0]
+            assert "Hasta 01/01/2099 12:00 · 🇨🇴 America/Bogota" in ctx.respond.await_args.args[0]
         assert ctx.guild.fetch_member.await_count == 2
         assert cog.service.scan.await_args.kwargs["faction_id"] == 3
         ctx.defer.assert_awaited_once_with(ephemeral=True, invisible=False)

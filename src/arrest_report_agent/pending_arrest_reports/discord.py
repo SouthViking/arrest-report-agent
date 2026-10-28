@@ -179,9 +179,10 @@ class PendingArrestReportCog(commands.Cog):
                 officer_name=report.officer_name, reason=reason, authorized_by=requester_id,
                 interaction_id=interaction.id, now=datetime.now(UTC), expires_at=expires,
             )
-            until = f"Hasta <t:{int(expires.timestamp())}:f>" if expires else "Sin vencimiento"
-            if expires is not None:
-                until += f"\nZona ingresada: {timezone_label(timezone_key)}"
+            until = (
+                f"Hasta {raw_until.strip()} · {timezone_label(timezone_key)} "
+                f"(<t:{int(expires.timestamp())}:R>)" if expires else "Sin vencimiento"
+            )
             safe_reason = discord.utils.escape_markdown(discord.utils.escape_mentions(reason))
             await ctx.respond(
                 f"Justificación registrada para **#{report_id}** · "
