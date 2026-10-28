@@ -1,20 +1,16 @@
 {
   "schema_version": 3,
-  "version": "1.1.18",
-  "title": "Justificaciones de reportes pendientes",
-  "summary": "Permite pausar los avisos de reportes de arresto específicos sin dejar de mostrarlos como pendientes.",
+  "version": "1.1.19",
+  "title": "Zona horaria para justificaciones de arrestos",
+  "summary": "Los vencimientos de las justificaciones se ingresan en la zona horaria que elija el usuario.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "added",
-      "text": "Agregamos /justificar-arresto registrar y quitar, con motivo, vencimiento opcional y roles configurables; inicialmente Supervisory, Command y Executive en LSSD."
-    },
-    {
-      "type": "added",
-      "text": "Los reportes justificados siguen visibles y pendientes, sin provocar menciones al responsable ni alertas recurrentes a Supervisory. Las pausas vencen automáticamente o se pueden retirar, conservando su historial."
+      "type": "fixed",
+      "text": "El formulario de /justificar-arresto usa el selector compartido de zonas horarias. Las pausas temporales exigen una elección explícita; las indefinidas no requieren fecha ni zona. Se validan los cambios de horario y los vencimientos se guardan en UTC."
     }
   ],
   "acknowledgements": []

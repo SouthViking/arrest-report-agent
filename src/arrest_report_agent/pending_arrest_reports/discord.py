@@ -12,9 +12,10 @@ import discord
 from discord.ext import commands
 
 from arrest_report_agent.application.date_ranges import DateRangePeriod, resolve_date_range
-from arrest_report_agent.application.timezones import parse_local_datetime
+from arrest_report_agent.application.timezones import parse_local_datetime, timezone_label
 from arrest_report_agent.config import BotPersona, PersonaPendingArrestReportsMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.infrastructure.discord.forms import build_timezone_select
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider, GuildRuntimeBundle
 
 from .justifications import ArrestJustificationRepository
@@ -141,7 +142,7 @@ class PendingArrestReportCog(commands.Cog):
 
     async def save_justification(
         self, interaction: discord.Interaction, *, requester_id: int, guild_id: int,
-        channel_id: int, report_id: int, reason: str, duration: str, raw_until: str,
+        channel_id: int, report_id: int, reason: str, duration: str, raw_until: str, timezone_key: str,
     ) -> None:
         if (interaction.guild is None or interaction.channel is None
                 or interaction.user.id != requester_id or interaction.guild.id != guild_id
@@ -156,7 +157,7 @@ class PendingArrestReportCog(commands.Cog):
             reason = reason.strip()
             if not 5 <= len(reason) <= 500:
                 raise ValueError("El motivo debe tener entre 5 y 500 caracteres.")
-            expires = justification_expiry(duration, raw_until, now=datetime.now(UTC))
+            expires = justification_expiry(duration, raw_until, timezone_key, now=datetime.now(UTC))
             # A day-scoped faction scan verifies membership and current pending status;
             # a globally accessible arrest detail alone cannot establish its faction.
             detail = await self.service.client.get_arrest(report_id)
@@ -178,7 +179,10 @@ class PendingArrestReportCog(commands.Cog):
                 officer_name=report.officer_name, reason=reason, authorized_by=requester_id,
                 interaction_id=interaction.id, now=datetime.now(UTC), expires_at=expires,
             )
-            until = f"Hasta <t:{int(expires.timestamp())}:f>" if expires else "Sin vencimiento"
+            until = (
+                f"Hasta {raw_until.strip()} · {timezone_label(timezone_key)} "
+                f"(<t:{int(expires.timestamp())}:R>)" if expires else "Sin vencimiento"
+            )
             safe_reason = discord.utils.escape_markdown(discord.utils.escape_mentions(reason))
             await ctx.respond(
                 f"Justificación registrada para **#{report_id}** · "
@@ -371,14 +375,16 @@ class PendingArrestReportCog(commands.Cog):
             )
 
 
-def justification_expiry(duration: str, raw_until: str, *, now: datetime) -> datetime | None:
+def justification_expiry(
+    duration: str, raw_until: str, timezone_key: str, *, now: datetime,
+) -> datetime | None:
     if duration == "indefinite":
         if raw_until.strip():
             raise ValueError("Para usar una fecha, selecciona «Con vencimiento».")
         return None
     if duration != "temporary" or not raw_until.strip():
         raise ValueError("Selecciona la duración e indica el vencimiento si corresponde.")
-    expiry = parse_local_datetime(raw_until, "America/Santiago")
+    expiry = parse_local_datetime(raw_until, timezone_key)
     if expiry <= now:
         raise ValueError("El vencimiento debe estar en el futuro.")
     return expiry
@@ -406,10 +412,16 @@ class ArrestJustificationModal(discord.ui.DesignerModal):
         self.until = discord.ui.InputText(
             required=False, placeholder="DD/MM/AAAA HH:MM", max_length=16,
         )
+        self.timezone = build_timezone_select("arrest-justification:v1:timezone")
+        # Indefinite justifications do not need a local date or timezone.
+        # Temporary justifications require an explicit choice when submitted.
+        self.timezone.required = False
+        self.timezone.min_values = 0
         super().__init__(
             discord.ui.Label("Motivo", self.reason),
             discord.ui.Label("Duración", self.duration),
-            discord.ui.Label("Hasta · hora de Chile · solo con vencimiento", self.until),
+            discord.ui.Label("Hasta · hora local · solo con vencimiento", self.until),
+            discord.ui.Label("Zona horaria · solo con vencimiento", self.timezone),
             title=f"Justificar reporte #{report_id}", timeout=MODAL_TIMEOUT_SECONDS,
         )
 
@@ -418,6 +430,7 @@ class ArrestJustificationModal(discord.ui.DesignerModal):
             interaction, requester_id=self.requester_id, guild_id=self.guild_id,
             channel_id=self.channel_id, report_id=self.report_id, reason=self.reason.value or "",
             duration=next(iter(self.duration.values or ()), "temporary"), raw_until=self.until.value or "",
+            timezone_key=next(iter(self.timezone.values or ()), ""),
         )
 
 

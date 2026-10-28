@@ -14,6 +14,7 @@ from alembic import command
 from alembic.config import Config
 from test_pending_arrest_digest import NOW, _FakeRepository, _member, _report
 
+from arrest_report_agent.application.timezones import TIMEZONE_OPTIONS
 from arrest_report_agent.config import PendingArrestReportsOptions
 from arrest_report_agent.infrastructure.postgres import PostgresClient, PostgresClientConfig
 from arrest_report_agent.infrastructure.postgres.schema import (
@@ -63,14 +64,53 @@ def test_invalid_justification_roles_are_rejected(roles):
 ])
 def test_expiration_rejects_invalid_past_or_ambiguous_input(duration, raw_until):
     with pytest.raises(ValueError):
-        forms.justification_expiry(duration, raw_until, now=NOW)
+        forms.justification_expiry(duration, raw_until, "America/Santiago", now=NOW)
 
 
-def test_optional_expiration_uses_chile_local_time():
-    assert forms.justification_expiry("indefinite", "", now=NOW) is None
-    assert forms.justification_expiry("temporary", "26/09/2026 12:00", now=NOW) == datetime(
-        2026, 9, 26, 15, tzinfo=UTC,
+@pytest.mark.parametrize("timezone_key,utc_hour", [
+    ("America/Argentina/Buenos_Aires", 15), ("America/Santiago", 15),
+    ("America/Bogota", 17), ("America/Caracas", 16), ("Europe/Madrid", 11),
+    ("Atlantic/Canary", 12), ("America/Mexico_City", 18),
+    ("America/Mazatlan", 19), ("America/Hermosillo", 19),
+    ("America/Cancun", 17), ("America/Tijuana", 20),
+])
+def test_expiration_uses_selected_timezone(timezone_key, utc_hour):
+    assert forms.justification_expiry("temporary", "26/11/2026 12:00", timezone_key, now=NOW) == datetime(
+        2026, 11, 26, utc_hour, tzinfo=UTC,
     )
+
+
+@pytest.mark.parametrize("timezone_key", ["", "UTC", "not-a-timezone"])
+def test_temporary_expiration_requires_an_explicit_supported_timezone(timezone_key):
+    with pytest.raises(ValueError, match="zona horaria"):
+        forms.justification_expiry("temporary", "26/11/2026 12:00", timezone_key, now=NOW)
+
+
+def test_indefinite_justification_needs_neither_date_nor_timezone():
+    assert forms.justification_expiry("indefinite", "", "", now=NOW) is None
+
+
+@pytest.mark.parametrize("raw_until,timezone_key,now,reason", [
+    ("06/09/2026 00:30", "America/Santiago", datetime(2026, 1, 1, tzinfo=UTC), "no existe"),
+    ("25/10/2026 02:30", "Europe/Madrid", NOW, "se repite"),
+])
+def test_expiration_rejects_dst_gaps_and_ambiguities(raw_until, timezone_key, now, reason):
+    with pytest.raises(ValueError, match=reason):
+        forms.justification_expiry("temporary", raw_until, timezone_key, now=now)
+
+
+@pytest.mark.parametrize("timezone_key", ["America/Bogota", "Europe/Madrid", ""])
+async def test_modal_passes_timezone_selection_to_saving(timezone_key):
+    cog = SimpleNamespace(save_justification=AsyncMock())
+    modal = forms.ArrestJustificationModal(cog, requester_id=11, guild_id=1, channel_id=55, report_id=1)
+    assert [(str(option.emoji), option.value) for option in modal.timezone.options] == list(TIMEZONE_OPTIONS)
+    assert not any(option.default for option in modal.timezone.options)
+    assert not modal.timezone.required and modal.timezone.min_values == 0
+    modal.timezone.refresh_from_modal(
+        SimpleNamespace(data={}), {"values": [timezone_key] if timezone_key else []},
+    )
+    await modal.callback(SimpleNamespace())
+    assert cog.save_justification.await_args.kwargs["timezone_key"] == timezone_key
 
 
 def test_suppression_is_per_report_and_expiration_restores_mentions():
@@ -165,6 +205,7 @@ def _scan(reports):
 @pytest.mark.parametrize("case", [
     "temporary", "indefinite", "revoked", "changed_config", "wrong_user", "wrong_guild", "wrong_channel",
     "not_pending", "sarp_failure", "audit_failure", "changed_after_scan", "empty_reason",
+    "missing_timezone", "invalid_timezone",
 ])
 async def test_modal_rechecks_identity_permissions_sarp_and_audit(monkeypatch, persona, case):
     cog, ctx, bundle, repository = _command(persona)
@@ -198,16 +239,22 @@ async def test_modal_rechecks_identity_permissions_sarp_and_audit(monkeypatch, p
             ctx.guild.fetch_member.return_value.roles = []
             return _scan((_report(1, age_hours=50),))
         cog.service.scan.side_effect = revoke
+    temporary = case in {"temporary", "missing_timezone", "invalid_timezone"}
     await cog.save_justification(
         interaction, requester_id=11, guild_id=1, channel_id=55, report_id=1,
         reason=" " if case == "empty_reason" else "Ausencia justificada",
-        duration="temporary" if case == "temporary" else "indefinite",
-        raw_until="01/01/2099 12:00" if case == "temporary" else "",
+        duration="temporary" if temporary else "indefinite",
+        raw_until="01/01/2099 12:00" if temporary else "",
+        timezone_key="invalid" if case == "invalid_timezone" else "" if case == "missing_timezone"
+            else "America/Bogota",
     )
     if case in {"temporary", "indefinite"}:
         saved = repository.register.await_args.kwargs
         assert saved["report_id"] == 1 and saved["authorized_by"] == 11 and saved["interaction_id"] == 101
         assert (saved["expires_at"] is not None) == (case == "temporary")
+        if case == "temporary":
+            assert saved["expires_at"] == datetime(2099, 1, 1, 17, tzinfo=UTC)
+            assert "Hasta 01/01/2099 12:00 · 🇨🇴 America/Bogota" in ctx.respond.await_args.args[0]
         assert ctx.guild.fetch_member.await_count == 2
         assert cog.service.scan.await_args.kwargs["faction_id"] == 3
         ctx.defer.assert_awaited_once_with(ephemeral=True, invisible=False)

@@ -124,8 +124,10 @@ no pueden gestionarlas.
 
 - `/justificar-arresto registrar reporte:1234` abre un modal con motivo obligatorio de 5–500
   caracteres, duración **Con vencimiento** o **Sin vencimiento** y fecha opcional en
-  `DD/MM/AAAA HH:MM`, hora de Chile (`America/Santiago`). Una pausa temporal exige una fecha futura;
-  una indefinida exige dejarla vacía. Se rechazan horas inválidas por cambios de horario.
+  `DD/MM/AAAA HH:MM`, interpretada en la zona elegida mediante el mismo selector con banderas de
+  FTP y estadísticas de llamadas. Una pausa temporal exige una fecha futura y una zona explícita;
+  una indefinida exige dejar la fecha vacía y no requiere zona horaria. No hay zona preseleccionada.
+  Se rechazan horas inexistentes o ambiguas por cambios de horario y el vencimiento se guarda en UTC.
 - Al enviar se validan nuevamente el usuario, canal y servidor originales, la configuración y los
   roles actuales de Discord. Se consulta SARP y la revisión para comprobar que ese reporte siga
   pendiente en la facción configurada. Si no se puede comprobar o guardar, no se confirma el cambio.

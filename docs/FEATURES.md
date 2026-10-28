@@ -636,7 +636,9 @@ mensaje y menciona únicamente al rol; los agentes figuran en el embed sin recib
 Estos valores se administran desde `/config`. La primera publicación ocurre después del intervalo
 configurado, no inmediatamente al arrancar.
 
-`/justificar-arresto registrar reporte:ID` abre un modal con motivo y vencimiento opcional;
+`/justificar-arresto registrar reporte:ID` abre un modal con motivo, vencimiento opcional y el
+selector compartido de zonas horarias. Las pausas temporales exigen elegir una zona explícita y
+convierten la fecha local a UTC; las indefinidas no requieren fecha ni zona horaria.
 `/justificar-arresto quitar reporte:ID` retira la pausa. La lista independiente
 `pending_arrest_reports.justification_role_ids` controla ambos permisos, inicialmente Supervisory,
 Command y Executive en LSSD. Se revalidan los roles reales al guardar o retirar. Cada autorización
