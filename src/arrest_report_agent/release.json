@@ -1,16 +1,20 @@
 {
   "schema_version": 3,
-  "version": "1.1.17",
-  "title": "Corrección de autorizaciones por conversación",
-  "summary": "Las confirmaciones actuales de Command/Executive Staff pueden ratificar su orden de aprobación previa.",
+  "version": "1.1.18",
+  "title": "Justificaciones de reportes pendientes",
+  "summary": "Permite pausar los avisos de reportes de arresto específicos sin dejar de mostrarlos como pendientes.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
   ],
   "changes": [
     {
-      "type": "fixed",
-      "text": "Corregimos el rechazo de órdenes expresadas de forma natural y de ratificaciones como «ahora sí» o «es una orden». Se comprueban el rol vigente y la orden previa del mismo usuario en el mismo hilo, conservando ambos mensajes en la constancia y rechazando cancelaciones o condiciones posteriores."
+      "type": "added",
+      "text": "Agregamos /justificar-arresto registrar y quitar, con motivo, vencimiento opcional y roles configurables; inicialmente Supervisory, Command y Executive en LSSD."
+    },
+    {
+      "type": "added",
+      "text": "Los reportes justificados siguen visibles y pendientes, sin provocar menciones al responsable ni alertas recurrentes a Supervisory. Las pausas vencen automáticamente o se pueden retirar, conservando su historial."
     }
   ],
   "acknowledgements": []

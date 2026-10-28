@@ -1778,6 +1778,7 @@ async def _assert_arrest_lookup_configuration(database_url: str) -> None:
         pending = {int(row["guild_id"]): row for row in pending_rows}
         assert pending[1234674521416663070]["enabled"] is True
         assert pending[1234674521416663070]["payload"] == {
+        "justification_role_ids": [1234676131240869949, 1234678029662294047, 1234678238182244414],
             "faction_id": 3,
             "max_range_days": 90,
             "max_records": 1000,

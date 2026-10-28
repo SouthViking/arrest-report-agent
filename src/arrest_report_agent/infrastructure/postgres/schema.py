@@ -70,6 +70,36 @@ pending_arrest_digest_mentions = sa.Table(
 )
 
 
+pending_arrest_justifications = sa.Table(
+    "pending_arrest_justifications",
+    metadata,
+    sa.Column("interaction_id", sa.BigInteger, primary_key=True),
+    sa.Column("guild_id", sa.BigInteger,
+              sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"), nullable=False),
+    sa.Column("faction_id", sa.BigInteger, nullable=False),
+    sa.Column("report_id", sa.BigInteger, nullable=False),
+    sa.Column("officer_name", sa.String(100), nullable=False),
+    sa.Column("reason", sa.String(500), nullable=False),
+    sa.Column("authorized_by", sa.BigInteger, nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("expires_at", sa.DateTime(timezone=True)),
+    sa.Column("ended_at", sa.DateTime(timezone=True)),
+    sa.Column("ended_by", sa.BigInteger),
+    sa.Column("end_interaction_id", sa.BigInteger),
+    sa.Column("end_reason", sa.String(20)),
+    sa.CheckConstraint("end_reason IN ('replaced','removed','expired','completed')",
+                       name="ck_arrest_justification_end_reason"),
+)
+sa.Index(
+    "uq_active_arrest_justification",
+    pending_arrest_justifications.c.guild_id,
+    pending_arrest_justifications.c.faction_id,
+    pending_arrest_justifications.c.report_id,
+    unique=True,
+    postgresql_where=pending_arrest_justifications.c.ended_at.is_(None),
+)
+
+
 rumor_publications = sa.Table(
     "rumor_publications",
     metadata,

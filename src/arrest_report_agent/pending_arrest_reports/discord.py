@@ -12,10 +12,12 @@ import discord
 from discord.ext import commands
 
 from arrest_report_agent.application.date_ranges import DateRangePeriod, resolve_date_range
+from arrest_report_agent.application.timezones import parse_local_datetime
 from arrest_report_agent.config import BotPersona, PersonaPendingArrestReportsMessages
 from arrest_report_agent.config.logging import exception_fields, log_event
-from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
+from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider, GuildRuntimeBundle
 
+from .justifications import ArrestJustificationRepository
 from .models import (
     ArrestReviewStatus,
     PendingArrestReport,
@@ -58,20 +60,142 @@ PendingReportPeriod = DateRangePeriod
 
 
 class PendingArrestReportCog(commands.Cog):
-    """Expose one manual, role-gated scan without coupling it to scheduling."""
+    """Manual scans and role-configurable justifications for individual reports."""
+
+    justify_arrest = discord.SlashCommandGroup(
+        "justificar-arresto", "Gestiona justificaciones de avisos de reportes de arresto",
+    )
 
     def __init__(
         self,
         provider: DatabaseConfigProvider,
         service: PendingArrestReportService,
         persona: BotPersona,
+        justifications: ArrestJustificationRepository | None = None,
     ) -> None:
         self.provider = provider
         self.service = service
         self.default_persona = persona
+        self.justifications = justifications
         self._guild_locks: dict[int, asyncio.Lock] = {}
         self.pending_arrest_reports.description = (
             persona.messages.interface.commands.pending_arrest_reports_description
+        )
+
+    @justify_arrest.command(
+        name="registrar", description="Pausa los avisos de un reporte de arresto pendiente",
+    )
+    @discord.option("reporte", int, description="ID del reporte de arresto", min_value=1)
+    async def register_justification(
+        self, ctx: discord.ApplicationContext, reporte: int,
+    ) -> None:
+        try:
+            await self._justification_access(ctx)
+            await ctx.send_modal(ArrestJustificationModal(
+                self, requester_id=ctx.author.id, guild_id=ctx.guild.id,
+                channel_id=ctx.channel.id, report_id=reporte,
+            ))
+        except ValueError as error:
+            await ctx.respond(str(error), ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        except Exception as error:
+            await self._justification_failure(ctx, error)
+
+    @justify_arrest.command(
+        name="quitar", description="Retira la justificación y reactiva los avisos pendientes",
+    )
+    @discord.option("reporte", int, description="ID del reporte de arresto", min_value=1)
+    async def remove_justification(
+        self, ctx: discord.ApplicationContext, reporte: int,
+    ) -> None:
+        await ctx.defer(ephemeral=True)
+        try:
+            bundle = await self._justification_access(ctx, fresh=True)
+            options = bundle.settings.pending_arrest_reports_options
+            removed = await self.justifications.remove(
+                guild_id=ctx.guild.id, faction_id=options.faction_id, report_id=reporte,
+                user_id=ctx.author.id, interaction_id=ctx.interaction.id, now=datetime.now(UTC),
+            )
+            text = (f"Justificación retirada del reporte **#{reporte}**. "
+                    "Los avisos vuelven en el siguiente ciclo si sigue pendiente." if removed
+                    else f"El reporte **#{reporte}** no tiene una justificación vigente registrada.")
+            await ctx.respond(text, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        except ValueError as error:
+            await ctx.respond(str(error), ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        except Exception as error:
+            await self._justification_failure(ctx, error)
+
+    async def _justification_access(
+        self, ctx: discord.ApplicationContext, *, fresh: bool = False,
+    ) -> GuildRuntimeBundle:
+        if ctx.guild is None or ctx.channel is None or not isinstance(ctx.author, discord.Member):
+            raise ValueError("Este comando solo funciona dentro de un servidor.")
+        bundle = await self.provider.cached(ctx.guild.id)
+        options = bundle.settings.pending_arrest_reports_options
+        if options is None or self.justifications is None:
+            raise ValueError("El módulo de reportes pendientes no está disponible.")
+        member = await ctx.guild.fetch_member(ctx.author.id) if fresh else ctx.author
+        if (member.bot or member.id in bundle.settings.agent_blocked_user_allowlist.ids
+                or not _member_has_any_role(member, options.justification_role_ids)):
+            raise ValueError("No tienes uno de los roles configurados para gestionar justificaciones.")
+        return bundle
+
+    async def save_justification(
+        self, interaction: discord.Interaction, *, requester_id: int, guild_id: int,
+        channel_id: int, report_id: int, reason: str, duration: str, raw_until: str,
+    ) -> None:
+        if (interaction.guild is None or interaction.channel is None
+                or interaction.user.id != requester_id or interaction.guild.id != guild_id
+                or interaction.channel.id != channel_id):
+            await interaction.response.send_message("Este formulario ya no es válido.", ephemeral=True)
+            return
+        ctx = discord.ApplicationContext(interaction.client, interaction)
+        await ctx.defer(ephemeral=True, invisible=False)
+        try:
+            bundle = await self._justification_access(ctx, fresh=True)
+            options = bundle.settings.pending_arrest_reports_options
+            reason = reason.strip()
+            if not 5 <= len(reason) <= 500:
+                raise ValueError("El motivo debe tener entre 5 y 500 caracteres.")
+            expires = justification_expiry(duration, raw_until, now=datetime.now(UTC))
+            # A day-scoped faction scan verifies membership and current pending status;
+            # a globally accessible arrest detail alone cannot establish its faction.
+            detail = await self.service.client.get_arrest(report_id)
+            result = await self.service.scan(
+                faction_id=options.faction_id, date_from=detail.created_at.date(),
+                date_to=detail.created_at.date(), max_records=options.max_records, guild_id=guild_id,
+                report_channel_ids=bundle.settings.report_channel_allowlist.ids,
+                authorized_reviewer_role_ids=bundle.settings.supervisor_role_allowlist.ids,
+            )
+            report = next((r for r in result.pending_reports if r.report_id == report_id), None)
+            if report is None:
+                raise ValueError("El reporte no figura pendiente en la facción configurada.")
+            # Recheck after SARP I/O: settings or membership may have changed while the modal ran.
+            current_bundle = await self._justification_access(ctx, fresh=True)
+            if current_bundle.settings.pending_arrest_reports_options.faction_id != options.faction_id:
+                raise ValueError("La facción configurada cambió. Vuelve a ejecutar el comando.")
+            await self.justifications.register(
+                guild_id=guild_id, faction_id=options.faction_id, report_id=report_id,
+                officer_name=report.officer_name, reason=reason, authorized_by=requester_id,
+                interaction_id=interaction.id, now=datetime.now(UTC), expires_at=expires,
+            )
+            until = f"Hasta <t:{int(expires.timestamp())}:f>" if expires else "Sin vencimiento"
+            safe_reason = discord.utils.escape_markdown(discord.utils.escape_mentions(reason))
+            await ctx.respond(
+                f"Justificación registrada para **#{report_id}** · "
+                f"{_compact_name(report.officer_name)}.\n{until}.\nMotivo: {safe_reason}\n"
+                "Seguirá pendiente y visible, sin provocar menciones desde el siguiente ciclo.",
+                ephemeral=True, allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except ValueError as error:
+            await ctx.respond(str(error), ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        except Exception as error:
+            await self._justification_failure(ctx, error)
+
+    async def _justification_failure(self, ctx: discord.ApplicationContext, error: Exception) -> None:
+        log_event(LOGGER, "error", "arrest_justification_failed", exc_info=error, **exception_fields(error))
+        await ctx.respond(
+            "No se pudo confirmar la operación. Consulta el estado antes de volver a intentarlo.",
+            ephemeral=True, allowed_mentions=discord.AllowedMentions.none(),
         )
 
     @discord.slash_command(
@@ -247,6 +371,56 @@ class PendingArrestReportCog(commands.Cog):
             )
 
 
+def justification_expiry(duration: str, raw_until: str, *, now: datetime) -> datetime | None:
+    if duration == "indefinite":
+        if raw_until.strip():
+            raise ValueError("Para usar una fecha, selecciona «Con vencimiento».")
+        return None
+    if duration != "temporary" or not raw_until.strip():
+        raise ValueError("Selecciona la duración e indica el vencimiento si corresponde.")
+    expiry = parse_local_datetime(raw_until, "America/Santiago")
+    if expiry <= now:
+        raise ValueError("El vencimiento debe estar en el futuro.")
+    return expiry
+
+
+class ArrestJustificationModal(discord.ui.DesignerModal):
+    def __init__(
+        self, cog: PendingArrestReportCog, *, requester_id: int,
+        guild_id: int, channel_id: int, report_id: int,
+    ) -> None:
+        self.cog = cog
+        self.requester_id = requester_id
+        self.guild_id = guild_id
+        self.channel_id = channel_id
+        self.report_id = report_id
+        self.reason = discord.ui.InputText(
+            style=discord.InputTextStyle.long, required=True, min_length=5, max_length=500,
+            placeholder="Motivo de la justificación",
+        )
+        self.duration = discord.ui.StringSelect(
+            options=[discord.SelectOption(label="Con vencimiento", value="temporary", default=True),
+                     discord.SelectOption(label="Sin vencimiento", value="indefinite")],
+            min_values=1, max_values=1,
+        )
+        self.until = discord.ui.InputText(
+            required=False, placeholder="DD/MM/AAAA HH:MM", max_length=16,
+        )
+        super().__init__(
+            discord.ui.Label("Motivo", self.reason),
+            discord.ui.Label("Duración", self.duration),
+            discord.ui.Label("Hasta · hora de Chile · solo con vencimiento", self.until),
+            title=f"Justificar reporte #{report_id}", timeout=MODAL_TIMEOUT_SECONDS,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        await self.cog.save_justification(
+            interaction, requester_id=self.requester_id, guild_id=self.guild_id,
+            channel_id=self.channel_id, report_id=self.report_id, reason=self.reason.value or "",
+            duration=next(iter(self.duration.values or ()), "temporary"), raw_until=self.until.value or "",
+        )
+
+
 class PendingArrestReportModal(discord.ui.DesignerModal):
     """Collect a bounded date range and result visibility."""
 
@@ -381,7 +555,11 @@ def build_pending_arrest_reports_embed(
 ) -> discord.Embed:
     """Render one compact, single-list embed for every incomplete workflow."""
 
-    ordered_reports = _group_reports_by_officer(result.pending_reports)
+    ordinary = _group_reports_by_officer(tuple(r for r in result.pending_reports if r.justification is None))
+    justified = _group_reports_by_officer(
+        tuple(r for r in result.pending_reports if r.justification is not None)
+    )
+    ordered_reports = ordinary + justified
     page_count = max(1, ceil(len(ordered_reports) / REPORTS_PER_PAGE))
     bounded_page = min(max(page, 0), page_count - 1)
     start = bounded_page * REPORTS_PER_PAGE
@@ -390,15 +568,20 @@ def build_pending_arrest_reports_embed(
         f"**{_format_date(result.date_from)} — {_format_date(result.date_to)}** · "
         f"{result.pending_count} de {result.total_reports} pendientes"
     )
+    if justified:
+        summary += f" · {len(justified)} con justificación"
     description_parts = [summary]
     if reports:
-        description_parts.append(
-            _format_grouped_report_entries(
-                reports,
-                ordered_reports=ordered_reports,
-                page_start=start,
+        for paused, heading in ((False, "Pendientes sin justificación"),
+                                (True, "💤 Con justificación · sin menciones")):
+            section = tuple(r for r in reports if (r.justification is not None) == paused)
+            if not section:
+                continue
+            offset = ordered_reports.index(section[0])
+            rendered = _format_grouped_report_entries(
+                section, ordered_reports=ordered_reports, page_start=offset,
             )
-        )
+            description_parts.append(f"**{heading}**\n{rendered}" if justified else rendered)
         description_parts.append(SEVERITY_LEGEND)
     else:
         description_parts.append(ui.no_pending)
@@ -464,6 +647,8 @@ def _format_grouped_report_entries(
     previous_key = (
         _officer_key(ordered_reports[page_start - 1])
         if page_start > 0 and ordered_reports
+        and (ordered_reports[page_start - 1].justification is None)
+            == (reports[0].justification is None)
         else None
     )
     sections: list[str] = []
@@ -492,6 +677,9 @@ def _format_report_entry(report: PendingArrestReport) -> str:
     if pcu_state := _format_pcu_state(report):
         reasons.append(pcu_state)
     reasons.append(_format_review_state(report))
+    if report.justification is not None:
+        expiry = report.justification.expires_at
+        reasons.append(f"💤 Hasta <t:{int(expiry.timestamp())}:f>" if expiry else "💤 Sin vencimiento")
     return (
         f"{SEVERITY_EMOJIS[severity]} **#{report.report_id}** · {suspect} · "
         f"<t:{int(report.created_at.timestamp())}:R> — "
