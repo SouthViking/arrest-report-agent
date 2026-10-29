@@ -30,8 +30,7 @@ from arrest_report_agent.infrastructure.discord.stolen_weapons import (
     RegistrationContext,
     StolenWeaponCog,
     TheftDetailsModal,
-    TheftEvidenceModal,
-    TheftPreviewView,
+    TheftPublicationView,
     build_theft_embeds,
 )
 from arrest_report_agent.infrastructure.storage import MemoryObjectStorage, ObjectStorageError
@@ -71,6 +70,7 @@ def _file(format="PNG", color="red"):
 def _setup():
     member = MagicMock(spec=discord.Member)
     member.id, member.roles, member.bot = USER, [SimpleNamespace(id=50)], False
+    member.display_name = "Andrew Sánchez"
     guild = SimpleNamespace(id=GUILD, me=SimpleNamespace(id=999), filesize_limit=10_000_000)
     source, destination = MagicMock(spec=discord.TextChannel), MagicMock(spec=discord.TextChannel)
     source.id, destination.id = SOURCE, DESTINATION
@@ -83,6 +83,7 @@ def _setup():
         attach_files=True,
     )
     guild.get_channel = lambda id: destination if id == DESTINATION else None
+    guild.fetch_member = AsyncMock(return_value=member)
     destination.send = AsyncMock(return_value=SimpleNamespace(id=555))
     options = StolenWeaponOptions(source_channel_ids=(SOURCE,), destination_channel_id=DESTINATION)
     settings = SimpleNamespace(
@@ -157,11 +158,9 @@ def _interaction(state, id=100):
     )
 
 
-def _preview(state):
-    view = TheftPreviewView(state.cog, state.context, _details(), submission_id=101)
-    view.message = SimpleNamespace(delete=AsyncMock(), edit=AsyncMock())
+def _publication(state):
+    view = TheftPublicationView(state.cog, state.context, _details(), submission_id=101)
     view.files = (_file(),)
-    view.confirm_button.disabled = False
     return view
 
 
@@ -345,49 +344,97 @@ async def test_help_shows_registration_only_where_authorized(
     assert ("/registrar-robo-arma" in str(ctx.respond.await_args.kwargs["embed"].to_dict())) is visible
 
 
-async def test_modals_fit_five_components_and_command_opens_text_form_without_writing():
-    state = _setup()
-    ctx = SimpleNamespace(
-        guild=state.guild,
-        channel=state.source,
-        author=state.member,
-        send_modal=AsyncMock(),
-        respond=AsyncMock(),
-    )
-    await StolenWeaponCog.register_theft.callback(state.cog, ctx)
-    modal = ctx.send_modal.await_args.args[0]
-    assert isinstance(modal, TheftDetailsModal)
-    assert len(modal.to_dict()["components"]) == 5
-    assert modal.description.max_length == 2000
-    assert all(
-        item.required
-        for item in (modal.serial, modal.description, modal.stolen_on, modal.victim, modal.officer)
-    )
-    view = _preview(state)
-    modal = TheftEvidenceModal(view)
-    assert modal.upload.min_values == 1 and modal.upload.max_values == 5
-    state.repository.create.assert_not_awaited()
-    assert state.storage.objects == {}
-
-
-async def test_valid_text_submission_previews_then_requires_evidence():
-    state = _setup()
+def _registration_modal(state, count=1):
     modal = TheftDetailsModal(state.cog, state.context)
     for field, value in (
         (modal.serial, "SA-001234"),
         (modal.description, "Sustraída desde el vehículo."),
         (modal.stolen_on, "27/10/2026"),
         (modal.victim, "Peter Kinsella"),
-        (modal.officer, "Andrew Sánchez"),
     ):
         field.refresh_state({"value": value})
+    modal.upload._attachments = [SimpleNamespace(
+        filename="foto.png", content_type="image/png", size=len(_image()),
+        read=AsyncMock(return_value=_image()),
+    ) for _ in range(count)]
+    return modal
+
+
+async def test_command_without_arguments_opens_one_modal_with_text_and_images():
+    state = _setup()
+    ctx = SimpleNamespace(
+        guild=state.guild, channel=state.source, author=state.member,
+        send_modal=AsyncMock(), respond=AsyncMock(),
+    )
+    await StolenWeaponCog.register_theft.callback(state.cog, ctx)
+    modal = ctx.send_modal.await_args.args[0]
+    assert isinstance(modal, TheftDetailsModal)
+    bot = discord.Bot(intents=discord.Intents.none())
+    bot.add_cog(state.cog)
+    command = next(c for c in bot.pending_application_commands if c.name == "registrar-robo-arma")
+    command.integration_types = {discord.IntegrationType.guild_install}
+    assert command.to_dict().get("options", []) == []
+    assert len(modal.to_dict()["components"]) == 5
+    assert modal.description.max_length == 2000
+    assert all(item.required for item in (modal.serial, modal.description, modal.stolen_on, modal.victim))
+    assert modal.upload.required and modal.upload.min_values == 1 and modal.upload.max_values == 5
+    assert not hasattr(modal, "officer")
+    state.repository.create.assert_not_awaited()
+    assert state.storage.objects == {}
+
+
+async def test_missing_evidence_shows_only_private_error_without_creating_record():
+    state = _setup()
+    modal = _registration_modal(state, count=0)
     interaction = _interaction(state)
     await modal.callback(interaction)
-    result = interaction.edit_original_response.await_args.kwargs
-    assert result["view"].confirm_button.disabled
-    assert result["view"].files == ()
-    assert "1 a 5" in result["content"]
+    assert "1 y 5" in interaction.edit_original_response.await_args.kwargs["content"]
     state.repository.create.assert_not_awaited()
+    state.destination.send.assert_not_awaited()
+    assert not state.storage.objects
+
+
+@pytest.mark.parametrize("count", [1, 5])
+async def test_modal_submission_directly_publishes_and_captures_actual_actor_without_success_message(count):
+    state = _setup()
+    modal = _registration_modal(state, count=count)
+    interaction = _interaction(state)
+    await modal.callback(interaction)
+    assert state.repository.create.await_count == 1
+    assert state.destination.send.await_count == 1
+    saved = state.repository.create.await_args.kwargs
+    assert saved["registered_by"] == USER
+    assert saved["details"].reporting_officer_name == f"Andrew Sánchez ({USER})"
+    interaction.edit_original_response.assert_not_awaited()
+    interaction.followup.send.assert_not_awaited()
+    interaction.response.send_message.assert_not_awaited()
+    interaction.delete_original_response.assert_awaited_once()
+    assert modal.publication.closed
+    # Duplicate deliveries of a modal submission reuse the original registration.
+    await modal.callback(_interaction(state, 101))
+    state.repository.create.assert_awaited_once()
+    state.destination.send.assert_awaited_once()
+
+
+async def test_role_revoked_while_downloading_evidence_prevents_registration():
+    state = _setup()
+    modal = _registration_modal(state)
+    revoked = MagicMock(spec=discord.Member)
+    revoked.id, revoked.bot, revoked.roles = USER, False, []
+    state.guild.fetch_member.side_effect = [state.member, revoked]
+    interaction = _interaction(state)
+    await modal.callback(interaction)
+    state.repository.create.assert_not_awaited()
+    state.destination.send.assert_not_awaited()
+    assert "rol habilitado" in interaction.edit_original_response.await_args.kwargs["content"]
+
+
+async def test_concurrent_modal_submissions_register_and_publish_once():
+    state = _setup()
+    modal = _registration_modal(state)
+    await asyncio.gather(modal.callback(_interaction(state, 101)), modal.callback(_interaction(state, 102)))
+    state.repository.create.assert_awaited_once()
+    state.destination.send.assert_awaited_once()
 
 
 @pytest.mark.parametrize("invalid", ["channel", "role", "bot", "dm", "disabled", "permissions"])
@@ -418,35 +465,32 @@ async def test_command_rejects_unauthorized_usage_including_administrator_withou
     assert ctx.respond.await_args.kwargs["ephemeral"]
 
 
-async def test_evidence_preview_uses_picker_and_does_not_store_until_confirmed():
+@pytest.mark.parametrize("invalid", ["bad_bytes", "too_big", "wrong_user", "invalid_text", "lost_role"])
+async def test_direct_form_rejects_invalid_evidence_or_changed_identity_before_persisting(invalid):
     state = _setup()
-    view = _preview(state)
-    view.files = ()
-    view.confirm_button.disabled = True
-    old = view.message
-    modal = TheftEvidenceModal(view)
-    modal.upload._attachments = [
-        SimpleNamespace(
-            filename="foto.png",
-            content_type="image/png",
-            size=len(_image()),
-            read=AsyncMock(return_value=_image()),
-        )
-    ]
+    modal = _registration_modal(state)
     interaction = _interaction(state)
+    if invalid == "bad_bytes":
+        modal.upload._attachments[0].read.return_value = b"not an image"
+    elif invalid == "too_big":
+        modal.upload._attachments[0].size = 2_000_000
+    elif invalid == "wrong_user":
+        interaction.user = SimpleNamespace(id=999)
+    elif invalid == "invalid_text":
+        modal.stolen_on.refresh_state({"value": "not-a-date"})
+    else:
+        state.member.roles = []
     await modal.callback(interaction)
-    assert len(view.files) == 1
-    assert not view.confirm_button.disabled
-    assert len(interaction.edit_original_response.await_args.kwargs["files"]) == 1
-    old.delete.assert_awaited_once()
     state.repository.create.assert_not_awaited()
+    state.destination.send.assert_not_awaited()
     assert not state.storage.objects
+    assert interaction.edit_original_response.await_args.kwargs["content"]
 
 
 @pytest.mark.parametrize("change", ["role", "source", "guild", "user", "destination", "disabled"])
-async def test_confirmation_rechecks_context_and_current_config(change):
+async def test_publication_rechecks_context_and_current_config(change):
     state = _setup()
-    view, interaction = _preview(state), _interaction(state)
+    view, interaction = _publication(state), _interaction(state)
     if change == "role":
         state.member.roles = []
     elif change == "source":
@@ -462,18 +506,17 @@ async def test_confirmation_rechecks_context_and_current_config(change):
         )
     else:
         state.settings.stolen_weapon_options = None
-    await view.confirm_button.callback(interaction)
+    await view.publish(interaction)
     state.repository.create.assert_not_awaited()
     state.destination.send.assert_not_awaited()
     assert interaction.edit_original_response.await_args.kwargs["content"]
 
 
 @pytest.mark.parametrize("count", [1, 5])
-async def test_confirm_persists_bucket_and_database_before_publishing_and_cleans_private_ui(count):
+async def test_publication_persists_bucket_and_database_before_publishing_without_success_message(count):
     state = _setup()
-    view, interaction = _preview(state), _interaction(state)
+    view, interaction = _publication(state), _interaction(state)
     view.files = tuple(_file(color="red" if i % 2 else "blue") for i in range(count))
-    private_message = view.message
     events = []
     original_create = state.repository.create.side_effect
 
@@ -491,7 +534,7 @@ async def test_confirm_persists_bucket_and_database_before_publishing_and_cleans
 
     state.repository.create.side_effect = create
     state.destination.send.side_effect = publish
-    await view.confirm_button.callback(interaction)
+    await view.publish(interaction)
     assert events == ["database", "discord"]
     report = view.report
     assert report.registered_by == USER
@@ -501,17 +544,16 @@ async def test_confirm_persists_bucket_and_database_before_publishing_and_cleans
         assert await state.storage.get(asset.object_key) in {_image(color="red"), _image(color="blue")}
         assert asset.object_key.startswith(f"stolen-weapons/{GUILD}/")
     state.repository.mark_published.assert_awaited_once_with(GUILD, report.id, 555)
-    private_message.delete.assert_awaited_once()
     interaction.delete_original_response.assert_awaited_once()
     assert view.closed and not view.files
 
 
-async def test_double_confirm_does_not_register_or_publish_twice():
+async def test_concurrent_submissions_do_not_register_or_publish_twice():
     state = _setup()
-    view = _preview(state)
+    view = _publication(state)
     await asyncio.gather(
-        view.confirm_button.callback(_interaction(state, 111)),
-        view.confirm_button.callback(_interaction(state, 112)),
+        view.publish(_interaction(state, 111)),
+        view.publish(_interaction(state, 112)),
     )
     state.repository.create.assert_awaited_once()
     state.destination.send.assert_awaited_once()
@@ -520,8 +562,8 @@ async def test_double_confirm_does_not_register_or_publish_twice():
 async def test_bucket_write_failure_does_not_create_record_or_publish():
     state = _setup()
     state.storage.put = AsyncMock(side_effect=ObjectStorageError("unavailable"))
-    view, interaction = _preview(state), _interaction(state)
-    await view.confirm_button.callback(interaction)
+    view, interaction = _publication(state), _interaction(state)
+    await view.publish(interaction)
     state.repository.create.assert_not_awaited()
     state.destination.send.assert_not_awaited()
     assert not view.closed
@@ -532,11 +574,11 @@ async def test_database_failure_does_not_publish_and_uploads_are_reused_on_retry
     state.storage.put = AsyncMock(wraps=state.storage.put)
     create = state.repository.create.side_effect
     state.repository.create.side_effect = RuntimeError("database offline")
-    view = _preview(state)
-    await view.confirm_button.callback(_interaction(state))
+    view = _publication(state)
+    await view.publish(_interaction(state))
     state.destination.send.assert_not_awaited()
     state.repository.create.side_effect = create
-    await view.confirm_button.callback(_interaction(state, 102))
+    await view.retry_button.callback(_interaction(state, 102))
     state.destination.send.assert_awaited_once()
     state.storage.put.assert_awaited_once()
 
@@ -545,11 +587,11 @@ async def test_bucket_read_failure_can_retry_without_losing_record_or_claiming_p
     state = _setup()
     get = state.storage.get
     state.storage.get = AsyncMock(side_effect=ObjectStorageError("temporary"))
-    view = _preview(state)
-    await view.confirm_button.callback(_interaction(state))
+    view = _publication(state)
+    await view.publish(_interaction(state))
     state.repository.claim_publication.assert_not_awaited()
     state.storage.get = get
-    await view.confirm_button.callback(_interaction(state, 102))
+    await view.retry_button.callback(_interaction(state, 102))
     state.repository.create.assert_awaited_once()
     state.destination.send.assert_awaited_once()
 
@@ -559,12 +601,12 @@ async def test_definitive_discord_permission_failure_can_retry_same_saved_record
     state.destination.send.side_effect = discord.Forbidden(
         SimpleNamespace(status=403, reason="Forbidden"), {}
     )
-    view = _preview(state)
-    await view.confirm_button.callback(_interaction(state))
+    view = _publication(state)
+    await view.publish(_interaction(state))
     state.repository.mark_failed.assert_awaited_once_with(GUILD, view.report.id)
     assert not view.closed
     state.destination.send.side_effect = None
-    await view.confirm_button.callback(_interaction(state, 102))
+    await view.retry_button.callback(_interaction(state, 102))
     state.repository.create.assert_awaited_once()
     state.repository.mark_published.assert_awaited_once()
 
@@ -572,35 +614,32 @@ async def test_definitive_discord_permission_failure_can_retry_same_saved_record
 async def test_unknown_delivery_failure_preserves_record_and_prevents_duplicate_publication():
     state = _setup()
     state.destination.send.side_effect = TimeoutError("delivery uncertain")
-    view, interaction = _preview(state), _interaction(state)
-    await view.confirm_button.callback(interaction)
+    view, interaction = _publication(state), _interaction(state)
+    await view.publish(interaction)
     assert view.closed and view.report.assets
     state.repository.mark_failed.assert_not_awaited()
     assert "están guardados" in interaction.edit_original_response.await_args.kwargs["content"]
-    await view.confirm_button.callback(_interaction(state, 102))
+    await view.retry_button.callback(_interaction(state, 102))
     state.destination.send.assert_awaited_once()
 
 
 async def test_message_link_failure_does_not_delete_evidence_or_republish():
     state = _setup()
     state.repository.mark_published.side_effect = RuntimeError("db link failed")
-    view, interaction = _preview(state), _interaction(state)
-    await view.confirm_button.callback(interaction)
+    view, interaction = _publication(state), _interaction(state)
+    await view.publish(interaction)
     assert view.closed
     assert "se publicó" in interaction.edit_original_response.await_args.kwargs["content"]
     state.repository.mark_failed.assert_not_awaited()
     assert state.storage.objects
 
 
-async def test_cancel_and_timeout_discard_unconfirmed_data():
+async def test_retry_timeout_clears_temporary_files_without_registering_or_publishing():
     state = _setup()
-    view = _preview(state)
-    await view.cancel_button.callback(_interaction(state))
-    assert view.closed and not view.files
-    state.repository.create.assert_not_awaited()
-    view = _preview(state)
+    view = _publication(state)
     await view.on_timeout()
     assert view.closed and not view.files
+    state.repository.create.assert_not_awaited()
     state.destination.send.assert_not_awaited()
 
 
@@ -614,7 +653,7 @@ def test_embed_has_all_data_and_images_without_mentions_or_field_overflow():
     data = embeds[0].to_dict()
     values = {field["name"]: field["value"] for field in data["fields"]}
     assert values["Fecha del robo"] == "27/10/2026"
-    assert values["Ayudante que reporta"] == "Andrew Sánchez"
+    assert "Ayudante que reporta" not in values
     assert "<@123456789012345678>" not in values["Propietario / víctima"]
     assert values["Registrado por"] == f"<@{USER}>"
     assert all(len(field["value"]) <= 1024 for field in data["fields"])

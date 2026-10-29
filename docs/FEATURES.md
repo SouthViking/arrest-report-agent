@@ -649,8 +649,10 @@ explícita de canales de origen y un canal de publicación:
 }
 ```
 
-Un formulario de datos y un selector de una a cinco imágenes conducen a una previsualización
-privada con confirmación. PostgreSQL conserva cada evento, su autor, serial original y normalizado,
+El comando abre un único formulario, sin argumentos, con los datos del robo y una a cinco
+imágenes. Enviar el modal registra y publica directamente, sin vista previa ni confirmación efímera
+de éxito. Solo los errores se muestran privadamente y permiten reintentar cuando es seguro.
+El ayudante se toma automáticamente del usuario de Discord y se conserva como auditoría interna. PostgreSQL conserva cada evento, su autor, serial original y normalizado,
 fecha del robo, descripción, víctima, ayudante, mensaje publicado y metadatos de evidencias. El bucket
 conserva los archivos inmutables bajo `stolen-weapons/<guild_id>/`, con claves basadas en SHA-256.
 El índice por servidor/serial permite recuperar el historial de una o varias armas sin consultar

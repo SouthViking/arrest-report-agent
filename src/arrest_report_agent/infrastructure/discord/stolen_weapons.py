@@ -1,4 +1,4 @@
-"""Private theft forms, evidence preview and confirmed publication to a configured channel."""
+"""Direct theft registration and durable publication with private error recovery."""
 
 from __future__ import annotations
 
@@ -16,7 +16,11 @@ from discord.ext import commands
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.assets import UploadedAsset
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
-from arrest_report_agent.stolen_weapons.models import MAX_EVIDENCE_IMAGES, StolenWeaponReport, TheftDetails
+from arrest_report_agent.stolen_weapons.models import (
+    MAX_EVIDENCE_IMAGES,
+    StolenWeaponReport,
+    TheftDetails,
+)
 from arrest_report_agent.stolen_weapons.service import StolenWeaponService, validate_images
 
 LOGGER = logging.getLogger(__name__)
@@ -61,7 +65,6 @@ def build_theft_embeds(
     embed.add_field(name="Serial", value=_text(details.serial), inline=True)
     embed.add_field(name="Fecha del robo", value=details.stolen_on.strftime("%d/%m/%Y"), inline=True)
     embed.add_field(name="Propietario / víctima", value=_text(details.victim_name), inline=False)
-    embed.add_field(name="Ayudante que reporta", value=_text(details.reporting_officer_name), inline=False)
     description = _text(details.description)
     for start in range(0, len(description), 1000):
         embed.add_field(
@@ -83,7 +86,7 @@ def build_theft_embeds(
         embed.add_field(
             name="Motivo del cierre", value=_text(closed_report.closure_reason or ""), inline=False
         )
-    embed.set_footer(text=reference or "Vista previa · aún sin publicar")
+    embed.set_footer(text=reference or "Registro de robo de arma")
     embeds = [embed]
     names = image_names or tuple(item.filename for item in files)
     for index, filename in enumerate(names):
@@ -170,10 +173,11 @@ class StolenWeaponCog(commands.Cog):
     async def authorize_form(self, interaction: discord.Interaction, context: RegistrationContext):
         if not context.matches(interaction):
             raise ValueError("Este formulario pertenece a otra persona o canal.")
+        member = await interaction.guild.fetch_member(context.requester_id)
         return await self.authorize(
             interaction.guild,
             interaction.channel,
-            interaction.user,
+            member,
             expected_destination=context.destination_channel_id,
         )
 
@@ -292,57 +296,78 @@ class TheftDetailsModal(discord.ui.DesignerModal):
     def __init__(self, cog: StolenWeaponCog, context: RegistrationContext) -> None:
         self.cog, self.context = cog, context
         self.serial = discord.ui.InputText(placeholder="Ej.: SA-001234", min_length=1, max_length=100)
+        self.lock = asyncio.Lock()
+        self.publication: TheftPublicationView | None = None
         self.description = discord.ui.InputText(
             style=discord.InputTextStyle.long, min_length=10, max_length=2000
         )
         self.stolen_on = discord.ui.InputText(placeholder="DD/MM/AAAA", min_length=10, max_length=10)
         self.victim = discord.ui.InputText(min_length=2, max_length=100)
-        self.officer = discord.ui.InputText(min_length=2, max_length=100)
+        self.upload = discord.ui.FileUpload(min_values=1, max_values=MAX_EVIDENCE_IMAGES, required=True)
         super().__init__(
             discord.ui.Label("Serial del arma", self.serial),
             discord.ui.Label("Hechos / descripción", self.description),
             discord.ui.Label("Fecha del robo", self.stolen_on),
             discord.ui.Label("Nombre del propietario (víctima)", self.victim),
-            discord.ui.Label("Nombre del ayudante que reporta", self.officer),
+            discord.ui.Label(
+                "Evidencias del robo", self.upload, description="De 1 a 5 imágenes · PNG, JPEG, WebP o GIF"
+            ),
             title="Registrar robo de arma",
             timeout=FORM_TIMEOUT_SECONDS,
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True, invisible=False)
-        try:
-            await self.cog.authorize_form(interaction, self.context)
-            details = TheftDetails.parse(
-                serial=self.serial.value or "",
-                description=self.description.value or "",
-                stolen_on=self.stolen_on.value or "",
-                victim_name=self.victim.value or "",
-                reporting_officer_name=self.officer.value or "",
-            )
-            view = TheftPreviewView(self.cog, self.context, details, submission_id=interaction.id)
-            view.message = await interaction.edit_original_response(
-                content="Adjunta de 1 a 5 imágenes de evidencia y confirma el registro.",
-                embeds=build_theft_embeds(details, registered_by=self.context.requester_id),
-                view=view,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
-        except ValueError as error:
-            await interaction.edit_original_response(
-                content=str(error), allowed_mentions=discord.AllowedMentions.none()
-            )
-        except Exception as error:
-            log_event(
-                LOGGER,
-                "error",
-                "stolen_weapon_preview_failed",
-                interaction_id=interaction.id,
-                exc_info=error,
-                **exception_fields(error),
-            )
-            await interaction.edit_original_response(content="No pude preparar el registro. Prueba de nuevo.")
+        async with self.lock:
+            try:
+                if self.publication is not None:
+                    await self.publication.publish(interaction)
+                    return
+                _destination, file_limit, total_limit = await self.cog.authorize_form(
+                    interaction, self.context
+                )
+                details = TheftDetails.parse(
+                    serial=self.serial.value or "",
+                    description=self.description.value or "",
+                    stolen_on=self.stolen_on.value or "",
+                    victim_name=self.victim.value or "",
+                    reporting_officer_name=f"{interaction.user.display_name} ({interaction.user.id})",
+                )
+                attachments = tuple(cast(list[discord.Attachment], self.upload.values or []))
+                if not 1 <= len(attachments) <= MAX_EVIDENCE_IMAGES:
+                    raise ValueError("Adjunta entre 1 y 5 imágenes de evidencia.")
+                if any(not 0 < item.size <= file_limit for item in attachments):
+                    raise ValueError("Una evidencia está vacía o supera el tamaño permitido por imagen.")
+                if sum(item.size for item in attachments) > total_limit:
+                    raise ValueError("Las evidencias superan el tamaño total permitido.")
+                async with asyncio.timeout(90):
+                    files = tuple([
+                        UploadedAsset(item.filename, item.content_type, await item.read())
+                        for item in attachments
+                    ])
+                files = await asyncio.to_thread(
+                    validate_images, files, max_file_bytes=file_limit, max_total_bytes=total_limit,
+                )
+                self.publication = TheftPublicationView(
+                    self.cog, self.context, details, submission_id=interaction.id,
+                )
+                self.publication.files = files
+                await self.publication.publish(interaction)
+            except ValueError as error:
+                await interaction.edit_original_response(
+                    content=str(error), allowed_mentions=discord.AllowedMentions.none()
+                )
+            except Exception as error:
+                log_event(
+                    LOGGER, "error", "stolen_weapon_form_failed", interaction_id=interaction.id,
+                    exc_info=error, **exception_fields(error),
+                )
+                await interaction.edit_original_response(
+                    content="No pude procesar los datos o las evidencias. Vuelve a abrir el comando.",
+                )
 
 
-class TheftPreviewView(discord.ui.View):
+class TheftPublicationView(discord.ui.View):
     def __init__(
         self, cog: StolenWeaponCog, context: RegistrationContext, details: TheftDetails, *, submission_id: int
     ) -> None:
@@ -358,7 +383,7 @@ class TheftPreviewView(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if not self.context.matches(interaction) or self.closed:
             await _error(
-                interaction, "Esta previsualización ya no está disponible o pertenece a otra persona."
+                interaction, "Este reintento ya no está disponible o pertenece a otra persona."
             )
             return False
         return True
@@ -371,30 +396,14 @@ class TheftPreviewView(discord.ui.View):
                 with suppress(discord.HTTPException):
                     await self.message.edit(view=None)
 
-    @discord.ui.button(label="Adjuntar evidencias", emoji="📎", style=discord.ButtonStyle.secondary)
-    async def evidence_button(self, _button: discord.ui.Button, interaction: discord.Interaction) -> None:
-        try:
-            await self.cog.authorize_form(interaction, self.context)
-            if self.report is not None:
-                raise ValueError("El registro ya está guardado. Solo puedes reintentar su publicación.")
-            await interaction.response.send_modal(TheftEvidenceModal(self))
-        except ValueError as error:
-            await _error(interaction, str(error))
-        except Exception as error:
-            log_event(
-                LOGGER,
-                "error",
-                "stolen_weapon_evidence_form_failed",
-                exc_info=error,
-                **exception_fields(error),
-            )
-            await _error(interaction, "No pude abrir la carga de evidencias. Prueba de nuevo.")
+    @discord.ui.button(label="Reintentar publicación", emoji="🔄", style=discord.ButtonStyle.secondary)
+    async def retry_button(self, _button: discord.ui.Button, interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
+        await self.publish(interaction)
 
-    @discord.ui.button(
-        label="Confirmar registro", emoji="✅", style=discord.ButtonStyle.success, disabled=True
-    )
-    async def confirm_button(self, _button: discord.ui.Button, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True, invisible=False)
+    async def publish(self, interaction: discord.Interaction) -> None:
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True, invisible=False)
         async with self.lock:
             if self.closed:
                 await interaction.delete_original_response()
@@ -404,7 +413,7 @@ class TheftPreviewView(discord.ui.View):
                     interaction, self.context
                 )
                 if not self.files:
-                    raise ValueError("Adjunta de 1 a 5 imágenes antes de confirmar el registro.")
+                    raise ValueError("Adjunta de 1 a 5 imágenes para registrar el robo.")
                 if self.report is None:
                     self.report = await self.cog.service.register(
                         submission_id=self.submission_id,
@@ -447,6 +456,7 @@ class TheftPreviewView(discord.ui.View):
                             f"El registro `{report.reference}` ya se está publicando. "
                             "Revisa el canal de destino."
                         ),
+                        view=None,
                     )
                     return
                 # Publish the persisted bytes, so the visible evidence matches the durable record.
@@ -466,7 +476,7 @@ class TheftPreviewView(discord.ui.View):
                     await self.cog.service.repository.mark_failed(self.context.guild_id, report.id)
                     raise ValueError(
                         "El registro quedó guardado, pero el bot no puede publicar en el destino. "
-                        "Revisa sus permisos y vuelve a confirmar."
+                        "Revisa sus permisos y reintenta la publicación de este mismo registro."
                     ) from error
                 except Exception:
                     # A timeout/5xx may have delivered the message. Do not blindly publish it twice.
@@ -493,6 +503,7 @@ class TheftPreviewView(discord.ui.View):
                             "El registro se publicó, pero no pude guardar el enlace. "
                             f"Referencia: `{report.reference}`."
                         ),
+                        view=None,
                     )
                     return
                 log_event(
@@ -509,8 +520,9 @@ class TheftPreviewView(discord.ui.View):
                 await self.finish()
                 await interaction.delete_original_response()
             except ValueError as error:
-                await interaction.edit_original_response(
-                    content=str(error), allowed_mentions=discord.AllowedMentions.none()
+                self.message = await interaction.edit_original_response(
+                    content=str(error), view=self,
+                    allowed_mentions=discord.AllowedMentions.none(),
                 )
             except Exception as error:
                 log_event(
@@ -529,96 +541,14 @@ class TheftPreviewView(discord.ui.View):
                     "No pude confirmar su publicación; revisa el canal de destino "
                     "antes de volver a registrarlo."
                     if self.closed and self.report
-                    else "No pude completar el registro. Puedes volver a confirmar."
+                    else "No pude completar el registro. Puedes reintentar sin volver a cargar los datos."
                 )
-                await interaction.edit_original_response(content=text)
+                self.message = await interaction.edit_original_response(
+                    content=text, view=None if self.closed else self,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
 
     async def finish(self) -> None:
         self.closed = True
         self.files = ()
         self.stop()
-        if self.message is not None:
-            with suppress(discord.HTTPException):
-                await self.message.delete()
-
-    @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.secondary)
-    async def cancel_button(self, _button: discord.ui.Button, interaction: discord.Interaction) -> None:
-        await interaction.response.defer()
-        async with self.lock:
-            await self.finish()
-
-
-class TheftEvidenceModal(discord.ui.DesignerModal):
-    def __init__(self, preview: TheftPreviewView) -> None:
-        self.preview = preview
-        self.upload = discord.ui.FileUpload(min_values=1, max_values=MAX_EVIDENCE_IMAGES, required=True)
-        super().__init__(
-            discord.ui.Label(
-                "Evidencias del robo", self.upload, description="De 1 a 5 imágenes · PNG, JPEG, WebP o GIF"
-            ),
-            title="Adjuntar evidencias",
-            timeout=FORM_TIMEOUT_SECONDS,
-        )
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True, invisible=False)
-        view = self.preview
-        async with view.lock:
-            try:
-                if view.closed or view.report is not None:
-                    raise ValueError("Este registro ya no admite cambios de evidencias.")
-                _destination, file_limit, total_limit = await view.cog.authorize_form(
-                    interaction, view.context
-                )
-                attachments = tuple(cast(list[discord.Attachment], self.upload.values or []))
-                if not 1 <= len(attachments) <= MAX_EVIDENCE_IMAGES:
-                    raise ValueError("Adjunta entre 1 y 5 imágenes de evidencia.")
-                if any(not 0 < item.size <= file_limit for item in attachments):
-                    raise ValueError("Una evidencia está vacía o supera el tamaño permitido por imagen.")
-                if sum(item.size for item in attachments) > total_limit:
-                    raise ValueError("Las evidencias superan el tamaño total permitido.")
-                async with asyncio.timeout(90):
-                    files = tuple(
-                        [
-                            UploadedAsset(item.filename, item.content_type, await item.read())
-                            for item in attachments
-                        ]
-                    )
-                files = await asyncio.to_thread(
-                    validate_images,
-                    files,
-                    max_file_bytes=file_limit,
-                    max_total_bytes=total_limit,
-                )
-                old_message = view.message
-                view.confirm_button.disabled = False
-                view.evidence_button.label = "Cambiar evidencias"
-                message = await interaction.edit_original_response(
-                    content="Revisa los datos y las evidencias antes de confirmar.",
-                    embeds=build_theft_embeds(
-                        view.details, registered_by=view.context.requester_id, files=files
-                    ),
-                    files=_discord_files(files),
-                    view=view,
-                    allowed_mentions=discord.AllowedMentions.none(),
-                )
-                view.files, view.message = files, message
-                if old_message is not None:
-                    with suppress(discord.HTTPException):
-                        await old_message.delete()
-            except ValueError as error:
-                await interaction.edit_original_response(
-                    content=str(error), allowed_mentions=discord.AllowedMentions.none()
-                )
-            except Exception as error:
-                log_event(
-                    LOGGER,
-                    "error",
-                    "stolen_weapon_evidence_preview_failed",
-                    interaction_id=interaction.id,
-                    exc_info=error,
-                    **exception_fields(error),
-                )
-                await interaction.edit_original_response(
-                    content="No pude preparar las evidencias. Vuelve a adjuntarlas desde la vista previa.",
-                )

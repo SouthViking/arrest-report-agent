@@ -117,21 +117,25 @@ determinista, reutiliza `operational_staff_roles` y no requiere una política de
 Registra un robo de arma en PostgreSQL y publica su ficha con las evidencias en el canal configurado.
 Solo funciona para `operational_staff_roles` desde los canales exactos de
 `stolen_weapons.source_channel_ids`; los hilos no heredan esa autorización. Los permisos y el destino
-se comprueban nuevamente al adjuntar y confirmar. La migración habilita inicialmente el canal de
-origen `1421923642983317545` y el destino `1565184787591860345` en LSSD. Se pueden cambiar o
+se comprueban nuevamente al enviar el formulario y reintentar una publicación. La migración
+habilita inicialmente el canal de origen `1421923642983317545` y el destino `1565184787591860345` en LSSD. Se pueden cambiar o
 deshabilitar desde `/config` sin redesplegar.
 
-1. El formulario pide serial (1–100 caracteres), hechos (10–2000), fecha del robo (`DD/MM/AAAA`),
-   propietario/víctima y ayudante que reporta (2–100 caracteres cada nombre).
-2. Una previsualización privada permite adjuntar o cambiar entre una y cinco imágenes PNG, JPEG,
-   WebP o GIF. Los archivos se validan por su contenido y con los límites de tamaño del servidor y
-   del proceso. Solo el solicitante puede usar los controles.
-3. **Confirmar registro** guarda las evidencias en el bucket privado y el reporte con sus referencias
-   en BD antes de publicar. Tras publicarlo se elimina la previsualización privada. Cancelar o dejar
-   expirar el formulario sin confirmar no crea un registro.
+El comando no recibe argumentos y abre un único modal:
+
+1. Pide serial (1–100 caracteres), hechos (10–2000), fecha del robo (`DD/MM/AAAA`),
+   propietario/víctima y una a cinco imágenes PNG, JPEG, WebP o GIF.
+2. Al enviar se validan datos, imágenes, permisos y destino; guarda las evidencias en el bucket
+   privado y el reporte con sus referencias en BD antes de publicar directamente la ficha.
+3. No hay vista previa, botón de confirmación ni mensaje efímero de éxito. Solo los errores se
+   muestran de forma privada; los fallos que admiten reintento ofrecen **Reintentar publicación**
+   sobre el mismo registro. Una entrega incierta no ofrece reenvío automático.
+
+Cerrar el modal sin enviarlo no crea un registro.
 
 La fecha del robo es una fecha de calendario, separada del instante UTC de creación. El ayudante
-indicado en el formulario y el usuario de Discord que registra quedan identificados por separado.
+se identifica automáticamente con el ID y nombre de Discord de quien ejecuta el comando y queda
+registrado internamente, sin un campo editable ni un campo adicional en la ficha pública.
 El serial original se conserva y la búsqueda interna normaliza mayúsculas y espacios, manteniendo
 ceros iniciales y separadores. Distintos robos del mismo serial generan registros independientes.
 PostgreSQL conserva claves estables del bucket, hashes, tipos, tamaños y orden de las imágenes;
