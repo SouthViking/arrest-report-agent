@@ -659,6 +659,15 @@ El índice por servidor/serial permite recuperar el historial de una o varias ar
 SARP ni descargar imágenes. `/cerrar-reporte-robo` cierra un registro con motivo y auditoría sin
 eliminar el evento ni sus evidencias; su tarjeta conserva los datos y muestra el cierre.
 
+`/info-robos-armas` publica una guía desde cualquier canal o hilo, exclusivamente para
+`operational_staff_roles`, tomando los canales de la configuración vigente. `/ayuda` ofrece la guía
+al staff fuera de los canales de registro, sin habilitar allí los comandos para registrar o cerrar.
+
+`/ver-evidencia` cruza esos mismos seriales con los robos abiertos del servidor y añade serial y
+enlace a cada ficha al embed público. Es una lectura independiente de las alertas, sin nuevas
+notificaciones ni datos del denunciante en el resultado. Si falla el registro, muestra el contenido
+de la bolsa con una advertencia; los cerrados no se presentan como robos abiertos.
+
 `get_weapon_theft_reports({"serials":["71380487","00012345"]})` devuelve el historial abierto y
 cerrado del servidor. El agente consulta todos los seriales de las bolsas en una sola llamada.
 El backend también comprueba automáticamente los seriales explícitos al leer análisis de armas,

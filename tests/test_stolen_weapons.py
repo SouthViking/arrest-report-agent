@@ -342,6 +342,8 @@ async def test_help_shows_registration_only_where_authorized(
     )
     await ReviewCog.review_help.callback(cog, ctx)
     assert ("/registrar-robo-arma" in str(ctx.respond.await_args.kwargs["embed"].to_dict())) is visible
+    shown = str(ctx.respond.await_args.kwargs["embed"].to_dict())
+    assert ("/info-robos-armas" in shown) is (enabled and staff)
 
 
 def _registration_modal(state, count=1):
@@ -659,3 +661,43 @@ def test_embed_has_all_data_and_images_without_mentions_or_field_overflow():
     assert all(len(field["value"]) <= 1024 for field in data["fields"])
     assert sum(len(embed) for embed in embeds) <= 6000
     assert [embed.image.url for embed in embeds] == [f"attachment://{file.filename}" for file in files]
+
+
+@pytest.mark.parametrize("channel_id", [SOURCE, 888])
+async def test_weapon_theft_help_publishes_for_operational_staff_in_any_channel(channel_id):
+    state = _setup()
+    ctx = SimpleNamespace(
+        guild=state.guild, author=state.member, channel=SimpleNamespace(id=channel_id), respond=AsyncMock(),
+    )
+    await StolenWeaponCog.theft_info.callback(state.cog, ctx)
+    sent = ctx.respond.await_args.kwargs
+    assert sent["ephemeral"] is False
+    assert sent["allowed_mentions"].users is False and sent["allowed_mentions"].roles is False
+    text = str(sent["embed"].to_dict())
+    assert "/registrar-robo-arma" in text and "/cerrar-reporte-robo" in text and "/ver-evidencia" in text
+    assert str(SOURCE) in text and str(DESTINATION) in text
+    assert "automáticamente" in text
+    state.repository.create.assert_not_awaited()
+    state.destination.send.assert_not_awaited()
+    assert not state.storage.objects
+
+
+@pytest.mark.parametrize("case", ["no_role", "bot", "dm", "disabled", "config_error"])
+async def test_weapon_theft_help_rejects_unauthorized_or_unavailable_requests_privately(case):
+    state = _setup()
+    ctx = SimpleNamespace(guild=state.guild, author=state.member, respond=AsyncMock())
+    if case == "no_role":
+        state.member.roles = []
+        state.member.guild_permissions = SimpleNamespace(administrator=True)
+    elif case == "bot":
+        state.member.bot = True
+    elif case == "dm":
+        ctx.guild = None
+    elif case == "disabled":
+        state.settings.stolen_weapon_options = None
+    else:
+        state.cog.provider.cached.side_effect = RuntimeError("private-configuration-error")
+    await StolenWeaponCog.theft_info.callback(state.cog, ctx)
+    assert ctx.respond.await_args.kwargs["ephemeral"] is True
+    assert "embed" not in ctx.respond.await_args.kwargs
+    assert "private-configuration-error" not in ctx.respond.await_args.args[0]

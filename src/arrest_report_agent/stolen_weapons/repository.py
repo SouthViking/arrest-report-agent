@@ -18,12 +18,46 @@ from arrest_report_agent.infrastructure.postgres.schema import (
     weapon_theft_alerts,
 )
 
-from .models import MAX_EVIDENCE_IMAGES, StolenWeaponReport, TheftDetails, normalize_serial
+from .models import (
+    MAX_EVIDENCE_IMAGES,
+    StolenWeaponReport,
+    StolenWeaponReportLink,
+    TheftDetails,
+    normalize_serial,
+)
 
 
 class StolenWeaponRepository:
     def __init__(self, client: PostgresClient) -> None:
         self.client = client
+
+    async def find_open_report_links(
+        self, guild_id: int, serials: tuple[str, ...],
+    ) -> tuple[StolenWeaponReportLink, ...]:
+        """Read open matches in one query without loading evidence or internal report details."""
+
+        keys = tuple(dict.fromkeys(normalize_serial(serial) for serial in serials))
+        if not keys:
+            return ()
+        table = stolen_weapon_reports
+        rows = await self.client.fetch_all(
+            sa.select(table.c.id, table.c.serial, table.c.destination_channel_id, table.c.message_id)
+            .where(
+                table.c.guild_id == guild_id, table.c.status == "open", table.c.normalized_serial.in_(keys),
+            )
+            .order_by(table.c.normalized_serial, table.c.created_at.desc(), table.c.id)
+        )
+        return tuple(
+            StolenWeaponReportLink(
+                serial=str(row["serial"]),
+                reference=f"ARM-{row['id'].hex[:12].upper()}",
+                jump_url=(
+                    f"https://discord.com/channels/{guild_id}/{row['destination_channel_id']}/{row['message_id']}"
+                    if row["message_id"] is not None else None
+                ),
+            )
+            for row in rows
+        )
 
     async def get(self, guild_id: int, report_id: UUID) -> StolenWeaponReport | None:
         row = await self.client.fetch_one(

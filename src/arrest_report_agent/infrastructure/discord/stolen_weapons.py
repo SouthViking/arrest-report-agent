@@ -13,6 +13,7 @@ from typing import cast
 import discord
 from discord.ext import commands
 
+from arrest_report_agent.config import StolenWeaponOptions
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.assets import UploadedAsset
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
@@ -47,6 +48,41 @@ class RegistrationContext:
 
 def _text(value: str) -> str:
     return discord.utils.escape_mentions(discord.utils.escape_markdown(value))
+
+
+def build_theft_info_embed(options: StolenWeaponOptions) -> discord.Embed:
+    sources = ", ".join(f"<#{channel_id}>" for channel_id in options.source_channel_ids)
+    embed = discord.Embed(
+        title="🔫 Reportes de robo de armas",
+        description="Registra el robo de un arma y conserva sus evidencias para facilitar su seguimiento.",
+        color=discord.Color.dark_teal(),
+    )
+    embed.add_field(
+        name="📝 Registrar un robo",
+        value=(f"Usa `/registrar-robo-arma` en {sources}. Abre un formulario sin argumentos: "
+               "serial, hechos, fecha del robo, víctima y entre 1 y 5 imágenes. "
+               "Al enviarlo se registra y publica directamente. Quien lo ejecuta queda registrado "
+               "automáticamente en la auditoría."),
+        inline=False,
+    )
+    embed.add_field(
+        name="✅ Cerrar el seguimiento",
+        value=(f"Usa `/cerrar-reporte-robo` en {sources}, con la referencia `ARM-…` y el motivo del cierre. "
+               "La ficha se actualiza y conserva el historial y las evidencias."),
+        inline=False,
+    )
+    embed.add_field(
+        name="🔎 Consultar coincidencias",
+        value=("`/ver-evidencia` muestra los reportes de robo abiertos de los seriales de la bolsa, "
+               "con enlaces a sus fichas. Las revisiones de arresto también comprueban las coincidencias "
+               "y avisan internamente; son informativas y no bloquean la aprobación."),
+        inline=False,
+    )
+    embed.add_field(
+        name="📂 Registro de robos",
+        value=f"Las fichas se publican en <#{options.destination_channel_id}>.", inline=False,
+    )
+    return embed
 
 
 def build_theft_embeds(
@@ -118,6 +154,33 @@ class StolenWeaponCog(commands.Cog):
     def __init__(self, provider: DatabaseConfigProvider, service: StolenWeaponService) -> None:
         self.provider = provider
         self.service = service
+
+    @discord.slash_command(
+        name="info-robos-armas", description="Explica cómo registrar y seguir los robos de armas",
+        contexts={discord.InteractionContextType.guild},
+    )
+    async def theft_info(self, ctx: discord.ApplicationContext) -> None:
+        if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+            await ctx.respond("Este comando solo funciona dentro de un servidor.", ephemeral=True)
+            return
+        try:
+            bundle = await self.provider.cached(ctx.guild.id)
+            options = bundle.settings.stolen_weapon_options
+            if options is None:
+                raise ValueError("El registro de armas robadas no está habilitado en este servidor.")
+            if ctx.author.bot or not set(bundle.settings.operational_staff_role_ids).intersection(
+                role.id for role in ctx.author.roles
+            ):
+                raise ValueError("Esta guía está reservada al personal operativo autorizado.")
+            await ctx.respond(
+                embed=build_theft_info_embed(options), ephemeral=False,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except ValueError as error:
+            await ctx.respond(str(error), ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        except Exception as error:
+            log_event(LOGGER, "error", "weapon_theft_info_failed", **exception_fields(error))
+            await ctx.respond("No pude cargar la guía de robos de armas. Prueba de nuevo.", ephemeral=True)
 
     async def authorize(
         self,
