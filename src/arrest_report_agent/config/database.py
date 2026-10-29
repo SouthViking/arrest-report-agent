@@ -464,6 +464,19 @@ class RumorOptions(FrozenConfigModel):
         return next((item for item in self.channels if item.channel_id == channel_id), None)
 
 
+class StolenWeaponOptions(FrozenConfigModel):
+    source_channel_ids: tuple[int, ...] = Field(min_length=1, max_length=25)
+    destination_channel_id: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_channels(self) -> StolenWeaponOptions:
+        if any(channel_id <= 0 for channel_id in self.source_channel_ids):
+            raise ValueError("stolen weapon source channels must be positive")
+        if len(set(self.source_channel_ids)) != len(self.source_channel_ids):
+            raise ValueError("stolen weapon source channels must be unique")
+        return self
+
+
 class FactionReportOptions(FrozenConfigModel):
     faction_id: int = Field(gt=0)
     max_range_days: int = Field(default=366, ge=1, le=730)
@@ -803,6 +816,14 @@ class GuildConfigSnapshot(FrozenConfigModel):
             if rumors_feature.schema_version != 1:
                 raise ValueError("rumors requires feature schema version 1")
             RumorOptions.model_validate(rumors_feature.payload)
+        stolen_weapons_feature = self.features.get("stolen_weapons")
+        if stolen_weapons_feature is not None and stolen_weapons_feature.enabled:
+            if stolen_weapons_feature.schema_version != 1:
+                raise ValueError("stolen_weapons requires feature schema version 1")
+            StolenWeaponOptions.model_validate(stolen_weapons_feature.payload)
+            operational_roles = self.policies[AccessPolicyKey.OPERATIONAL_STAFF_ROLES]
+            if operational_roles.mode is not AccessPolicyMode.RESTRICTED:
+                raise ValueError("enabled stolen_weapons requires restricted operational staff roles")
         faction_report_feature = self.features.get("faction_reports")
         if faction_report_feature is not None and faction_report_feature.enabled:
             if faction_report_feature.schema_version != 1:
@@ -1130,6 +1151,13 @@ class GuildRuntimeSettings:
         if feature is None or not feature.enabled:
             return None
         return RumorOptions.model_validate(feature.payload)
+
+    @property
+    def stolen_weapon_options(self) -> StolenWeaponOptions | None:
+        feature = self.snapshot.features.get("stolen_weapons")
+        if feature is None or not feature.enabled:
+            return None
+        return StolenWeaponOptions.model_validate(feature.payload)
 
     @property
     def pending_arrest_reports_faction_id(self) -> int | None:

@@ -112,6 +112,34 @@ El módulo **Reportes de arresto pendientes** recibe
 `{"faction_id": 3, "max_range_days": 90, "max_records": 1000}`. Habilita la consulta manual
 determinista, reutiliza `operational_staff_roles` y no requiere una política de canales.
 
+### `/registrar-robo-arma`
+
+Registra un robo de arma en PostgreSQL y publica su ficha con las evidencias en el canal configurado.
+Solo funciona para `operational_staff_roles` desde los canales exactos de
+`stolen_weapons.source_channel_ids`; los hilos no heredan esa autorización. Los permisos y el destino
+se comprueban nuevamente al adjuntar y confirmar. La migración habilita inicialmente el canal de
+origen `1421923642983317545` y el destino `1565184787591860345` en LSSD. Se pueden cambiar o
+deshabilitar desde `/config` sin redesplegar.
+
+1. El formulario pide serial (1–100 caracteres), hechos (10–2000), fecha del robo (`DD/MM/AAAA`),
+   propietario/víctima y ayudante que reporta (2–100 caracteres cada nombre).
+2. Una previsualización privada permite adjuntar o cambiar entre una y cinco imágenes PNG, JPEG,
+   WebP o GIF. Los archivos se validan por su contenido y con los límites de tamaño del servidor y
+   del proceso. Solo el solicitante puede usar los controles.
+3. **Confirmar registro** guarda las evidencias en el bucket privado y el reporte con sus referencias
+   en BD antes de publicar. Tras publicarlo se elimina la previsualización privada. Cancelar o dejar
+   expirar el formulario sin confirmar no crea un registro.
+
+La fecha del robo es una fecha de calendario, separada del instante UTC de creación. El ayudante
+indicado en el formulario y el usuario de Discord que registra quedan identificados por separado.
+El serial original se conserva y la búsqueda interna normaliza mayúsculas y espacios, manteniendo
+ceros iniciales y separadores. Distintos robos del mismo serial generan registros independientes.
+PostgreSQL conserva claves estables del bucket, hashes, tipos, tamaños y orden de las imágenes;
+las referencias no dependen de enlaces temporales de Discord. Si falla la publicación después de
+guardar, el registro y las evidencias permanecen en BD/bucket. Una entrega incierta no se reintenta
+automáticamente para evitar mensajes duplicados. La consulta por serial ya existe a nivel de
+repositorio; su herramienta para el agente se incorporará por separado.
+
 ### `/justificar-arresto registrar` y `/justificar-arresto quitar`
 
 Ambos reciben `reporte`, el ID SARP del reporte de arresto. Solo permiten gestionar los avisos a

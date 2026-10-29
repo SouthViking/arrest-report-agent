@@ -730,6 +730,16 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                         payload={},
                     ),
                     GuildFeatureSnapshot(
+                        key="stolen_weapons",
+                        enabled=guild_id == LSSD_GUILD_ID,
+                        schema_version=1,
+                        payload=(
+                            {"source_channel_ids": [1421923642983317545],
+                             "destination_channel_id": 1565184787591860345}
+                            if guild_id == LSSD_GUILD_ID else {}
+                        ),
+                    ),
+                    GuildFeatureSnapshot(
                         key="blacklists",
                         enabled=(guild_id == LSSD_GUILD_ID and bool(supervisor_roles[guild_id])),
                         schema_version=1,

@@ -31,6 +31,7 @@ from arrest_report_agent.config import (
     RadioAuditOptions,
     ReviewFailureNotificationOptions,
     ServiceCallOptions,
+    StolenWeaponOptions,
     WarrantNotificationOptions,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
@@ -94,6 +95,7 @@ FEATURE_LABELS = {
     "logbook": "Bitácora",
     "blacklists": "Blacklists",
     "rumors": "Rumores",
+    "stolen_weapons": "Registro de armas robadas",
     "radio_audit": "Consulta y auditoría de radios",
     "review_failure_notifications": "Avisos de revisión manual tras reintentos",
 }
@@ -1013,6 +1015,7 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                     value="pending_arrest_reports",
                 ),
                 discord.SelectOption(label="Rumores", value="rumors"),
+                discord.SelectOption(label="Registro de armas robadas", value="stolen_weapons"),
                 discord.SelectOption(
                     label="Consulta y auditoría de radios",
                     value="radio_audit",
@@ -1146,6 +1149,8 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 payload.setdefault("max_records", 1000)
                 if self.enabled.values[0] == "true" and "faction_id" not in payload:
                     raise ValueError("Reportes pendientes requiere `faction_id`.")
+            if key == "stolen_weapons" and self.enabled.values[0] == "true":
+                StolenWeaponOptions.model_validate(payload)
             if key == "report_owner_access" and "max_rounds" not in payload:
                 payload["max_rounds"] = 5
             feature = GuildFeatureSnapshot(

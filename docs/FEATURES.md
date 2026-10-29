@@ -636,6 +636,29 @@ mensaje y menciona únicamente al rol; los agentes figuran en el embed sin recib
 Estos valores se administran desde `/config`. La primera publicación ocurre después del intervalo
 configurado, no inmediatamente al arrancar.
 
+### Registro de armas robadas
+
+`/registrar-robo-arma` usa el módulo `stolen_weapons` (esquema 1), la política existente
+`operational_staff_roles` y el almacenamiento privado compartido. La configuración exige una lista
+explícita de canales de origen y un canal de publicación:
+
+```json
+{
+  "source_channel_ids": [1421923642983317545],
+  "destination_channel_id": 1565184787591860345
+}
+```
+
+Un formulario de datos y un selector de una a cinco imágenes conducen a una previsualización
+privada con confirmación. PostgreSQL conserva cada evento, su autor, serial original y normalizado,
+fecha del robo, descripción, víctima, ayudante, mensaje publicado y metadatos de evidencias. El bucket
+conserva los archivos inmutables bajo `stolen-weapons/<guild_id>/`, con claves basadas en SHA-256.
+El índice por servidor/serial permite recuperar el historial de una o varias armas sin consultar
+SARP ni descargar imágenes. La futura herramienta de revisiones utilizará este repositorio; este
+cambio no añade llamadas al agente ni modifica las revisiones actuales.
+
+### Justificaciones de reportes pendientes
+
 `/justificar-arresto registrar reporte:ID` abre un modal con motivo, vencimiento opcional y el
 selector compartido de zonas horarias. Las pausas temporales exigen elegir una zona explícita y
 convierten la fecha local a UTC; las indefinidas no requieren fecha ni zona horaria.

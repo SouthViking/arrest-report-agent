@@ -75,6 +75,7 @@ from arrest_report_agent.infrastructure.discord.member_directory import (
     DiscordGuildMemberDirectory,
 )
 from arrest_report_agent.infrastructure.discord.service_call_statistics import ServiceCallStatisticsCog
+from arrest_report_agent.infrastructure.discord.stolen_weapons import StolenWeaponCog
 from arrest_report_agent.infrastructure.postgres import (
     ConfigurationRepository,
     DatabaseConfigProvider,
@@ -147,6 +148,8 @@ from arrest_report_agent.stolen_vehicles import (
     StolenVehicleFeedWorker,
     StolenVehicleService,
 )
+from arrest_report_agent.stolen_weapons.repository import StolenWeaponRepository
+from arrest_report_agent.stolen_weapons.service import StolenWeaponService
 from arrest_report_agent.structured_arrest_reports import (
     StructuredArrestReportRepository,
     StructuredArrestReportService,
@@ -778,6 +781,9 @@ async def build_runtime(
     )
     bot.add_cog(BlacklistCog(config_provider, BlacklistRepository(postgres)))
     bot.add_cog(RumorCog(config_provider, RumorRepository(postgres)))
+    bot.add_cog(StolenWeaponCog(
+        config_provider, StolenWeaponService(StolenWeaponRepository(postgres), object_storage),
+    ))
     log_event(
         LOGGER,
         "info",

@@ -1791,6 +1791,45 @@ blacklist_counters = sa.Table(
     sa.CheckConstraint("last_number > 0", name="ck_blacklist_counter_positive"),
 )
 
+stolen_weapon_reports = sa.Table(
+    "stolen_weapon_reports", metadata,
+    uuid_column(primary_key=True),
+    sa.Column("submission_id", sa.BigInteger, nullable=False, unique=True),
+    sa.Column("guild_id", sa.BigInteger,
+              sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"), nullable=False),
+    sa.Column("source_channel_id", sa.BigInteger, nullable=False),
+    sa.Column("destination_channel_id", sa.BigInteger, nullable=False),
+    sa.Column("registered_by", sa.BigInteger, nullable=False),
+    sa.Column("serial", sa.String(100), nullable=False),
+    sa.Column("normalized_serial", sa.String(100), nullable=False),
+    sa.Column("description", sa.String(2000), nullable=False),
+    sa.Column("stolen_on", sa.Date, nullable=False),
+    sa.Column("victim_name", sa.String(100), nullable=False),
+    sa.Column("reporting_officer_name", sa.String(100), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("publication_status", sa.String(20), nullable=False, server_default="pending"),
+    sa.Column("message_id", sa.BigInteger),
+    sa.CheckConstraint("publication_status IN ('pending','publishing','published','failed')",
+                       name="ck_stolen_weapon_publication_status"),
+    sa.UniqueConstraint("guild_id", "destination_channel_id", "message_id", name="uq_stolen_weapon_message"),
+    sa.Index("ix_stolen_weapon_guild_serial", "guild_id", "normalized_serial", "created_at"),
+)
+
+stolen_weapon_assets = sa.Table(
+    "stolen_weapon_assets", metadata,
+    sa.Column("report_id", sa.Uuid,
+              sa.ForeignKey("stolen_weapon_reports.id", ondelete="CASCADE"), primary_key=True),
+    sa.Column("position", sa.SmallInteger, primary_key=True),
+    sa.Column("object_key", sa.String(512), nullable=False),
+    sa.Column("sha256", sa.String(64), nullable=False),
+    sa.Column("filename", sa.String(255), nullable=False),
+    sa.Column("content_type", sa.String(100), nullable=False),
+    sa.Column("size_bytes", sa.BigInteger, nullable=False),
+    sa.CheckConstraint("position BETWEEN 0 AND 4", name="ck_stolen_weapon_asset_position"),
+    sa.CheckConstraint("size_bytes > 0", name="ck_stolen_weapon_asset_size"),
+)
+
+
 blacklist_entries = sa.Table(
     "blacklist_entries",
     metadata,

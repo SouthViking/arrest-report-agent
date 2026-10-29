@@ -1557,6 +1557,19 @@ class ReviewCog(commands.Cog):
                         "• `/resumen-bitacora`: resume registros por período, categoría y tipo."
                     )
                 blacklist_feature = bundle.snapshot.features.get("blacklists")
+                stolen_weapon_options = getattr(bundle.settings, "stolen_weapon_options", None)
+                if (
+                    stolen_weapon_options is not None
+                    and ctx.channel.id in stolen_weapon_options.source_channel_ids
+                    and isinstance(ctx.author, discord.Member)
+                    and any(
+                        role.id in bundle.settings.operational_staff_role_ids for role in ctx.author.roles
+                    )
+                ):
+                    extra_feature_lines.append(
+                        "• `/registrar-robo-arma`: registra el serial, los hechos y las evidencias "
+                        "de un robo de arma."
+                    )
                 if blacklist_feature is not None and blacklist_feature.enabled:
                     extra_feature_lines.append(
                         "• `/blacklist info`: cómo registrar, consultar y administrar blacklists."
