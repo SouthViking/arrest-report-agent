@@ -163,6 +163,19 @@ async def test_migration_and_durable_serial_history(monkeypatch):
         batch = await repository.find_by_serials(GUILD, ("sa-001234", "000012", "SA-001234"))
         assert {report.id for report in batch} == {first.id, second.id, third.id}
 
+        # Public evidence queries expose only open links, including unpublished records,
+        # without loading private identities/evidence or creating notification deliveries.
+        links = await repository.find_open_report_links(GUILD, (" sa-001234 ", "SA-001234"))
+        assert {link.reference for link in links} == {first.reference, second.reference}
+        first_link = next(link for link in links if link.reference == first.reference)
+        assert first_link.jump_url == published.jump_url
+        assert next(link for link in links if link.reference == second.reference).jump_url is None
+        assert _details().victim_name not in str(links) and _details().description not in str(links)
+        assert len(await repository.find_open_report_links(999, ("SA-001234",))) == 1
+        assert await repository.find_open_report_links(GUILD, ("SA001234", "12")) == ()
+        assert await repository.find_open_report_links(GUILD, ()) == ()
+        assert len(await client.fetch_all(sa.select(weapon_theft_alerts))) == 0
+
         # Alerts deduplicate across independent instances, retries and concurrent runs.
         alert = dict(review_root_message_id=8001, channel_id=DESTINATION, evidence_ids=(5303358,))
         claimed = await asyncio.gather(*(repository.claim_alert(GUILD, first.id, **alert) for _ in range(2)))
@@ -193,6 +206,8 @@ async def test_migration_and_durable_serial_history(monkeypatch):
         assert not changed and old.closed_by == USER and old.closure_reason == closure["reason"]
         assert old.closure_interaction_id == 9001
         assert not await repository.claim_alert(GUILD, first.id, **{**alert, "review_root_message_id": 8003})
+        open_links = await repository.find_open_report_links(GUILD, ("SA-001234",))
+        assert [link.reference for link in open_links] == [second.reference]
         from arrest_report_agent.stolen_weapons.lookup import WeaponTheftLookupService
 
         lookup = WeaponTheftLookupService(repository)
@@ -205,6 +220,7 @@ async def test_migration_and_durable_serial_history(monkeypatch):
         assert sorted(changed for _report, changed in races) == [False, True]
         assert (await lookup.lookup(GUILD, ("sa-001234",)))[0].status == "closed"
         assert len(await repository.find_by_serials(GUILD, ("sa-001234",))) == 2
+        assert await repository.find_open_report_links(GUILD, ("sa-001234",)) == ()
 
         # A failed evidence insert rolls back its parent, avoiding incomplete theft records.
         with pytest.raises(DatabaseUnavailableError):

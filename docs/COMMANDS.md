@@ -144,6 +144,34 @@ guardar, el registro y las evidencias permanecen en BD/bucket. Una entrega incie
 automáticamente para evitar mensajes duplicados. La consulta por serial ya existe a nivel de
 repositorio y mediante la herramienta `get_weapon_theft_reports`.
 
+### `/info-robos-armas`
+
+Abre una guía pública sobre registro, cierre y consulta de robos de armas. Puede ejecutarse desde
+cualquier canal o hilo del servidor, sin argumentos ni restricción a los canales de registro,
+pero exige un rol de `operational_staff_roles` y el módulo `stolen_weapons` habilitado. No hay
+excepción por permisos de administrador. Los errores son efímeros y la guía se publica sin menciones.
+Muestra los canales vigentes de origen/destino, los cinco campos del modal, la auditoría automática
+del ejecutor y los avisos informativos durante las revisiones. No consulta SARP, no usa IA y no
+registra ni modifica reportes. `/ayuda` ofrece este acceso al staff en cualquier canal; los accesos
+a registrar/cerrar siguen mostrándose solo donde esos comandos están habilitados.
+
+### Robos abiertos en `/ver-evidencia`
+
+La consulta pública mantiene el contenido registrado y la cadena de custodia. Cuando el módulo
+`stolen_weapons` está habilitado, extrae los seriales explícitos mediante las mismas reglas de las
+revisiones y consulta todos juntos en PostgreSQL, únicamente en el servidor actual. Si hay robos
+abiertos, agrega **Armas reportadas como robadas** con serial y enlaces a las fichas originales.
+Se usa el destino guardado en cada registro, incluso si la configuración cambió posteriormente.
+Los hechos, víctimas, registradores e imágenes del robo no se copian al resultado; el acceso al
+enlace sigue sujeto a los permisos de Discord del canal original. Si la ficha aún no tiene enlace
+publicado, muestra su referencia y **enlace no disponible**.
+
+Los registros cerrados no aparecen en este apartado. Si no hay coincidencias abiertas, conserva
+el formato habitual. Si el registro de robos falla, muestra la bolsa y un aviso de verificación
+no disponible. La consulta no utiliza IA, no modifica reportes ni envía alertas adicionales y
+sigue funcionando aunque `notifications_enabled` esté desactivado. Los permisos existentes de
+`/ver-evidencia` se mantienen.
+
 ### `/cerrar-reporte-robo`
 
 Usa los mismos canales habilitados y roles operativos que `/registrar-robo-arma`. Abre un formulario

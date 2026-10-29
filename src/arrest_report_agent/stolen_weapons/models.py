@@ -15,6 +15,7 @@ __all__ = [
     "MAX_DESCRIPTION_LENGTH",
     "TheftDetails",
     "StolenWeaponReport",
+    "StolenWeaponReportLink",
     "normalize_serial",
 ]
 
@@ -98,3 +99,12 @@ class StolenWeaponReport:
         if self.message_id is None:
             return None
         return f"https://discord.com/channels/{self.guild_id}/{self.destination_channel_id}/{self.message_id}"
+
+
+@dataclass(frozen=True, slots=True)
+class StolenWeaponReportLink:
+    """Minimal public projection of an open theft, without identities or narratives."""
+
+    serial: str
+    reference: str
+    jump_url: str | None

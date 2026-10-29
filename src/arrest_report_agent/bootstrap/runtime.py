@@ -635,6 +635,7 @@ async def build_runtime(
                 config_provider,
                 evidence_bag_service,
                 persona.profile,
+                weapon_reports=stolen_weapon_repository,
             )
         )
         bot.add_cog(

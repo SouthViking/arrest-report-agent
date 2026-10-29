@@ -11,7 +11,10 @@ from discord.ext import commands
 from arrest_report_agent.application.ports import EvidenceBagDetail, EvidenceBagLookup
 from arrest_report_agent.config import BotPersona
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.domain.weapon_serials import extract_weapon_serials
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
+from arrest_report_agent.stolen_weapons.models import StolenWeaponReportLink
+from arrest_report_agent.stolen_weapons.repository import StolenWeaponRepository
 
 LOGGER = logging.getLogger(__name__)
 MAX_FIELD_LENGTH = 1024
@@ -25,10 +28,13 @@ class EvidenceBagCog(commands.Cog):
         provider: DatabaseConfigProvider,
         service: EvidenceBagLookup,
         persona: BotPersona,
+        *,
+        weapon_reports: StolenWeaponRepository | None = None,
     ) -> None:
         self.provider = provider
         self.service = service
         self.default_persona = persona
+        self.weapon_reports = weapon_reports
         self.view_evidence.description = "Consulta una bolsa de evidencias"
 
     @discord.slash_command(
@@ -86,10 +92,29 @@ class EvidenceBagCog(commands.Cog):
                 )
                 return
 
+            reports: tuple[StolenWeaponReportLink, ...] = ()
+            theft_lookup_failed = False
+            serials = tuple(dict.fromkeys(
+                serial for item in result.detail.items for serial in extract_weapon_serials(item.result)
+            ))
+            if serials and getattr(bundle.settings, "stolen_weapon_options", None) is not None:
+                try:
+                    if self.weapon_reports is None:
+                        raise RuntimeError("Weapon theft registry is unavailable")
+                    reports = await self.weapon_reports.find_open_report_links(guild_id, serials)
+                except Exception as error:
+                    theft_lookup_failed = True
+                    log_event(
+                        LOGGER, "warning", "evidence_bag_theft_lookup_failed", guild_id=guild_id,
+                        evidence_id=evidence_id, **exception_fields(error),
+                    )
+
             await ctx.followup.send(
                 embed=build_evidence_bag_embed(
                     result.detail,
                     requested_by=ctx.author.display_name,
+                    stolen_weapon_reports=reports,
+                    theft_lookup_failed=theft_lookup_failed,
                 ),
                 ephemeral=False,
                 allowed_mentions=discord.AllowedMentions.none(),
@@ -131,6 +156,8 @@ def build_evidence_bag_embed(
     detail: EvidenceBagDetail,
     *,
     requested_by: str | None = None,
+    stolen_weapon_reports: tuple[StolenWeaponReportLink, ...] = (),
+    theft_lookup_failed: bool = False,
 ) -> discord.Embed:
     """Render one bounded embed without reinterpreting SARP result text."""
 
@@ -163,6 +190,26 @@ def build_evidence_bag_embed(
         ),
         inline=False,
     )
+    if stolen_weapon_reports:
+        lines = []
+        for report in stolen_weapon_reports:
+            serial = discord.utils.escape_markdown(discord.utils.escape_mentions(report.serial))
+            link = (
+                f"[Ver reporte {report.reference}]({report.jump_url})"
+                if report.jump_url else f"{report.reference} · enlace no disponible"
+            )
+            lines.append(f"• **Serial {serial}** · {link}")
+        embed.add_field(
+            name="🚨 Armas reportadas como robadas",
+            value=_bounded_lines(lines, empty=""), inline=False,
+        )
+    elif theft_lookup_failed:
+        embed.add_field(
+            name="⚠️ Registro de robos de armas",
+            value=("No se pudo comprobar el registro de robos de armas. "
+                   "El contenido de la bolsa sigue disponible."),
+            inline=False,
+        )
     if requested_by:
         embed.set_footer(text=f"Consulta realizada por {requested_by}")
     return embed
