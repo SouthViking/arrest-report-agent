@@ -43,6 +43,7 @@ from .ports import (
     FactionFrequencyLookup,
     FactionOfficerRankLookup,
     ReportImageLookup,
+    WeaponTheftLookup,
 )
 from .prompt import PROMPT_VERSION, build_agent_instructions
 from .service_context import ReviewRunContext
@@ -74,6 +75,7 @@ class ReviewService:
         max_rank_names_per_lookup: int = 20,
         arrest_warrant_lookup: ArrestWarrantLookup | None = None,
         warrant_check_required: bool = False,
+        weapon_theft_lookup: WeaponTheftLookup | None = None,
     ) -> None:
         self.settings = settings
         self.catalog_provider = as_charge_catalog_provider(catalog)
@@ -102,6 +104,7 @@ class ReviewService:
             warrant_check_required=require_warrant_clearance,
             character_legal_facts_lookup=character_legal_facts_lookup,
             evidence_bag_lookup=evidence_bag_lookup,
+            weapon_theft_lookup=weapon_theft_lookup,
             faction_frequency_lookup=faction_frequency_lookup,
             faction_officer_rank_lookup=faction_officer_rank_lookup,
             max_rank_names_per_lookup=max_rank_names_per_lookup,
@@ -126,6 +129,7 @@ class ReviewService:
             warrant_check_required=require_warrant_clearance,
             character_legal_facts_lookup=character_legal_facts_lookup,
             evidence_bag_lookup=evidence_bag_lookup,
+            weapon_theft_lookup=weapon_theft_lookup,
             faction_frequency_lookup=None,
             faction_officer_rank_lookup=faction_officer_rank_lookup,
             max_rank_names_per_lookup=max_rank_names_per_lookup,
@@ -151,6 +155,7 @@ class ReviewService:
                 arrest_warrants_enabled=require_warrant_clearance,
                 character_legal_facts_enabled=character_legal_facts_lookup is not None,
                 evidence_lookup_enabled=evidence_bag_lookup is not None,
+                weapon_theft_lookup_enabled=weapon_theft_lookup is not None,
                 faction_frequency_lookup_enabled=faction_frequency_lookup is not None,
                 faction_officer_rank_lookup_enabled=faction_officer_rank_lookup is not None,
                 max_rank_names_per_lookup=max_rank_names_per_lookup,
@@ -170,6 +175,7 @@ class ReviewService:
                 arrest_warrants_enabled=require_warrant_clearance,
                 character_legal_facts_enabled=character_legal_facts_lookup is not None,
                 evidence_lookup_enabled=evidence_bag_lookup is not None,
+                weapon_theft_lookup_enabled=weapon_theft_lookup is not None,
                 faction_frequency_lookup_enabled=False,
                 faction_officer_rank_lookup_enabled=faction_officer_rank_lookup is not None,
                 max_rank_names_per_lookup=max_rank_names_per_lookup,

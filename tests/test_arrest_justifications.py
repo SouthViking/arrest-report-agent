@@ -361,7 +361,9 @@ async def test_migration_and_durable_lifecycle_are_scoped_and_preserve_history(m
                         payload=payload, enabled=True,
                     ))
         await asyncio.to_thread(command.upgrade, alembic, "head")
-        rows = await client.fetch_all(sa.select(guild_feature_settings))
+        rows = await client.fetch_all(sa.select(guild_feature_settings).where(
+            guild_feature_settings.c.feature_key == "pending_arrest_reports",
+        ))
         for row in rows:
             key = next(key for key, rev in revisions.items() if rev == row["config_revision_id"])
             guild, status, custom = key

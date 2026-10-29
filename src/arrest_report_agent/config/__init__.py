@@ -38,6 +38,7 @@ from .database import (
     RumorChannelOptions,
     RumorOptions,
     ServiceCallOptions,
+    StolenWeaponOptions,
     WarrantNotificationOptions,
 )
 from .model_catalog import ModelCatalog, ResolvedModel
@@ -125,6 +126,7 @@ __all__ = [
     "RumorChannelOptions",
     "RumorOptions",
     "ServiceCallOptions",
+    "StolenWeaponOptions",
     "WarrantNotificationOptions",
     "LoadedPersona",
     "ModelCatalog",

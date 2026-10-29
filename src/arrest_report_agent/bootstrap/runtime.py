@@ -75,6 +75,8 @@ from arrest_report_agent.infrastructure.discord.member_directory import (
     DiscordGuildMemberDirectory,
 )
 from arrest_report_agent.infrastructure.discord.service_call_statistics import ServiceCallStatisticsCog
+from arrest_report_agent.infrastructure.discord.stolen_weapons import StolenWeaponCog
+from arrest_report_agent.infrastructure.discord.weapon_theft_alerts import WeaponTheftAlertNotifier
 from arrest_report_agent.infrastructure.postgres import (
     ConfigurationRepository,
     DatabaseConfigProvider,
@@ -147,6 +149,9 @@ from arrest_report_agent.stolen_vehicles import (
     StolenVehicleFeedWorker,
     StolenVehicleService,
 )
+from arrest_report_agent.stolen_weapons.lookup import WeaponTheftLookupService
+from arrest_report_agent.stolen_weapons.repository import StolenWeaponRepository
+from arrest_report_agent.stolen_weapons.service import StolenWeaponService
 from arrest_report_agent.structured_arrest_reports import (
     StructuredArrestReportRepository,
     StructuredArrestReportService,
@@ -323,6 +328,8 @@ async def build_runtime(
         object_storage,
     )
     repository = ConfigurationRepository(postgres, object_storage)
+    stolen_weapon_repository = StolenWeaponRepository(postgres)
+    weapon_theft_lookup = WeaponTheftLookupService(stolen_weapon_repository)
     config_provider = DatabaseConfigProvider(
         postgres,
         repository,
@@ -336,6 +343,7 @@ async def build_runtime(
         evidence_bag_lookup=evidence_bag_service,
         manual_catalog=manual_catalog,
         report_image_lookup=structured_report_service,
+        weapon_theft_lookup=weapon_theft_lookup,
     )
     try:
         if sarp_penal_code_provider is not None:
@@ -361,6 +369,7 @@ async def build_runtime(
     set_default_openai_key(settings.openai_api_key.get_secret_value(), use_for_tracing=True)
     model = initial_bundle.model
     bot = create_bot(settings, persona.profile, guild_ids=guild_ids)
+    weapon_theft_lookup.notifier = WeaponTheftAlertNotifier(bot, config_provider, stolen_weapon_repository)
     profile_synchronizer = DiscordProfileSynchronizer(
         bot,
         persona,
@@ -778,6 +787,9 @@ async def build_runtime(
     )
     bot.add_cog(BlacklistCog(config_provider, BlacklistRepository(postgres)))
     bot.add_cog(RumorCog(config_provider, RumorRepository(postgres)))
+    bot.add_cog(StolenWeaponCog(
+        config_provider, StolenWeaponService(stolen_weapon_repository, object_storage),
+    ))
     log_event(
         LOGGER,
         "info",

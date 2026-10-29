@@ -53,6 +53,8 @@ from arrest_report_agent.application.ports import (
     ReportImageCategory,
     ReportImageLookup,
     ReportImageResult,
+    WeaponTheftLookup,
+    WeaponTheftSerialResult,
 )
 from arrest_report_agent.application.session_visibility import owner_visible_session_items
 from arrest_report_agent.config import (
@@ -475,6 +477,8 @@ async def _run_agent(
     evidence_bag_arguments: list[dict[str, object]] | None = None,
     session: Session | None = None,
     after_message_id: int | None = None,
+    weapon_theft_lookup: WeaponTheftLookup | None = None,
+    weapon_theft_arguments: list[dict[str, object]] | None = None,
 ) -> tuple[ReviewRunContext, InMemoryPublisher]:
     model = ModelCatalog.load_default().resolve(
         settings.openai_model,
@@ -503,15 +507,21 @@ async def _run_agent(
         report_image_lookup=report_image_lookup,
         faction_officer_rank_lookup=faction_officer_rank_lookup,
         evidence_bag_lookup=evidence_bag_lookup,
+        weapon_theft_lookup=weapon_theft_lookup,
     )
-    if evidence_bag_arguments is not None:
+    for tool_name, recorded in (("get_evidence_bag", evidence_bag_arguments),
+                                ("get_weapon_theft_reports", weapon_theft_arguments)):
+        if recorded is None:
+            continue
         agent = service.report_owner_agent if access_level is AgentAccessLevel.REPORT_OWNER else service.agent
-        evidence_tool = next(tool for tool in agent.tools if tool.name == "get_evidence_bag")
+        evidence_tool = next(tool for tool in agent.tools if tool.name == tool_name)
         invoke = evidence_tool.on_invoke_tool  # type: ignore[attr-defined]
 
-        async def record_evidence_call(ctx: object, arguments: str) -> object:
-            evidence_bag_arguments.append(json.loads(arguments))
-            return await invoke(ctx, arguments)
+        async def record_evidence_call(
+            ctx: object, arguments: str, _recorded=recorded, _invoke=invoke,
+        ) -> object:
+            _recorded.append(json.loads(arguments))
+            return await _invoke(ctx, arguments)
 
         evidence_tool.on_invoke_tool = record_evidence_call  # type: ignore[attr-defined]
 
@@ -2750,3 +2760,124 @@ async def test_review_calibration_optional_style_does_not_hide_missing_rank(
     assert all("rango" in (finding.title + finding.detail).casefold() for finding in required)
     optional = [finding for finding in publication.findings if finding.title == "Sugerencias de redacción"]
     assert len(optional) == 1 and optional[0].severity.value == "observation"
+
+
+class RecordingWeaponTheftLookup:
+    """Live model, production tools, deterministic theft records and captured internal notifications."""
+
+    def __init__(self, status="reported_stolen"):
+        self.status = status
+        self.calls: list[tuple[int, tuple[str, ...]]] = []
+        self.notifications: list[dict[int, tuple[str, ...]]] = []
+
+    async def lookup(self, guild_id, serials):
+        self.calls.append((guild_id, serials))
+        return tuple(WeaponTheftSerialResult(
+            serial, self.status,
+            reports=({"reference": "ARM-A1B2C3D4E5F6",
+                      "status": "closed" if self.status == "closed" else "open",
+                      "stolen_on": "2026-09-28", "victim_name": "VICTIMA_INTERNA_PRUEBA",
+                      "description": "DESCRIPCION_INTERNA_PRUEBA", "evidence_count": 2},)
+            if self.status in {"reported_stolen", "closed"} else (),
+        ) for serial in serials)
+
+    async def notify(self, case, serials_by_bag):
+        self.notifications.append(serials_by_bag)
+
+
+class RecordingSerialEvidenceLookup:
+    def __init__(self, descriptions):
+        self.descriptions = descriptions
+        self.calls = []
+
+    async def get(self, evidence_id):
+        self.calls.append(evidence_id)
+        return EvidenceBagLookupResult(detail=EvidenceBagDetail(
+            evidence_id=evidence_id, custody=(), items=tuple(EvidenceBagItem(
+                analysis_id=bag_index + 100, sample_id=bag_index + 200, result=result,
+                officer_name="Analista de prueba", agency="LSSD",
+                examined_at=datetime(2026, 9, 30, 14, tzinfo=UTC),
+            ) for bag_index, result in enumerate(self.descriptions[evidence_id])),
+        ))
+
+
+async def _run_weapon_theft_review(settings, *, access_level, bag_count, status="reported_stolen"):
+    lookup = RecordingArrestReportLookup()
+    bag_ids = (5303358, 5303359)[:bag_count]
+    serials = ("71380487", "00012345")[:bag_count]
+    references = " y ".join(f"la bolsa de evidencia #{bag}" for bag in bag_ids)
+    lookup.report = replace(
+        lookup.report,
+        created_at=datetime(2026, 9, 30, 12, tzinfo=UTC),
+        updated_at=datetime(2026, 9, 30, 13, tzinfo=UTC),
+        charges=(replace(lookup.report.charges[0], charge_id=115, charge_type="MENOR", hours=2, fine=1500),),
+        description=_firearm_prior_narrative(
+            "Durante el registro encontré las armas en su cintura. Estas quedaron guardadas en "
+            f"{references}. Se documentaron las fotografías frontal y lateral del sospechoso."
+        ),
+    )
+    case = _case(
+        ("user", "Revisa el reporte completo. "
+         "Las fotografías reglamentarias están presentes y son legibles."),
+        initial_channel_id=4002, structured_submission_id=UUID("00000000-0000-0000-0000-000000000756"),
+        structured_report_id=lookup.report.report_id, structured_suspect_name=lookup.report.suspect_name,
+    )
+    evidence = RecordingSerialEvidenceLookup({bag: (
+        f"[Balística: 5250444] Pistola de prueba, serial: {serial}, huellas: Terry McKenzie;",
+    ) for bag, serial in zip(bag_ids, serials, strict=True)})
+    theft = RecordingWeaponTheftLookup(status)
+    bag_arguments, theft_arguments = [], []
+    context, publisher = await _run_agent(
+        settings, case, access_level=access_level, preloaded_arrest_report=lookup.report,
+        arrest_report_lookup=lookup, evidence_bag_lookup=evidence, weapon_theft_lookup=theft,
+        evidence_bag_arguments=bag_arguments, weapon_theft_arguments=theft_arguments,
+        faction_officer_rank_lookup=RecordingOfficerRankLookup(current_rank="Deputy Sheriff"),
+    )
+    return context, publisher, evidence, theft, bag_arguments, theft_arguments, serials, bag_ids
+
+
+@pytest.mark.parametrize("bag_count", [1, 2], ids=["one-bag", "multiple-bags"])
+@pytest.mark.parametrize("access_level", [AgentAccessLevel.REPORT_OWNER, AgentAccessLevel.FULL])
+async def test_weapon_theft_review_uses_real_agent_tools_and_informational_only_result(
+    ai_eval_settings, bag_count, access_level, record_property,
+):
+    context, publisher, evidence, theft, bags, calls, serials, bag_ids = await _run_weapon_theft_review(
+        ai_eval_settings, access_level=access_level, bag_count=bag_count,
+    )
+    publication = _single_publication(publisher)
+    record_property("review", publication.model_dump_json())
+    record_property("theft_arguments", json.dumps(calls))
+    assert evidence.calls == list(bag_ids)
+    assert len(bags) == 1
+    assert len(calls) == 1, calls
+    assert set(calls[0]) == {"serials"}
+    assert set(calls[0]["serials"]) == set(serials)
+    assert context.weapon_theft_tool_calls == 1
+    assert len(theft.calls) == 1, "automatic lookup and agent tool must share their per-run cache"
+    assert len(theft.notifications) == 1
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+    assert len(publication.informational_notes) == bag_count
+    for serial, bag in zip(serials, bag_ids, strict=True):
+        assert any(serial in note and str(bag) in note for note in publication.informational_notes)
+    assert not any(finding.severity.value == "required" for finding in publication.findings)
+    visible = publication.model_dump_json() + "\n".join(publisher.messages)
+    assert "VICTIMA_INTERNA_PRUEBA" not in visible
+    assert "DESCRIPCION_INTERNA_PRUEBA" not in visible
+    assert "ARM-A1B2C3D4E5F6" not in visible
+    assert "https://discord.com/channels/" not in visible
+
+
+@pytest.mark.parametrize("status", ["closed", "no_records", "unavailable"])
+async def test_weapon_theft_review_closed_missing_or_unavailable_is_nonblocking(
+    ai_eval_settings, status, record_property,
+):
+    _context, publisher, _evidence, theft, _bags, calls, _serials, _ids = await _run_weapon_theft_review(
+        ai_eval_settings, access_level=AgentAccessLevel.REPORT_OWNER, bag_count=1, status=status,
+    )
+    publication = _single_publication(publisher)
+    record_property("review", publication.model_dump_json())
+    assert calls, "the real agent must consult serials even when no open theft exists"
+    assert publication.verdict is ReviewVerdict.APPROVED, publication.model_dump(mode="json")
+    assert publication.informational_notes == []
+    assert theft.notifications == []
+    assert "ARM-A1B2C3D4E5F6" not in publication.model_dump_json()

@@ -636,6 +636,41 @@ mensaje y menciona únicamente al rol; los agentes figuran en el embed sin recib
 Estos valores se administran desde `/config`. La primera publicación ocurre después del intervalo
 configurado, no inmediatamente al arrancar.
 
+### Registro de armas robadas
+
+`/registrar-robo-arma` usa el módulo `stolen_weapons` (esquema 1), la política existente
+`operational_staff_roles` y el almacenamiento privado compartido. La configuración exige una lista
+explícita de canales de origen y un canal de publicación:
+
+```json
+{
+  "source_channel_ids": [1421923642983317545],
+  "destination_channel_id": 1565184787591860345
+}
+```
+
+El comando abre un único formulario, sin argumentos, con los datos del robo y una a cinco
+imágenes. Enviar el modal registra y publica directamente, sin vista previa ni confirmación efímera
+de éxito. Solo los errores se muestran privadamente y permiten reintentar cuando es seguro.
+El ayudante se toma automáticamente del usuario de Discord y se conserva como auditoría interna. PostgreSQL conserva cada evento, su autor, serial original y normalizado,
+fecha del robo, descripción, víctima, ayudante, mensaje publicado y metadatos de evidencias. El bucket
+conserva los archivos inmutables bajo `stolen-weapons/<guild_id>/`, con claves basadas en SHA-256.
+El índice por servidor/serial permite recuperar el historial de una o varias armas sin consultar
+SARP ni descargar imágenes. `/cerrar-reporte-robo` cierra un registro con motivo y auditoría sin
+eliminar el evento ni sus evidencias; su tarjeta conserva los datos y muestra el cierre.
+
+`get_weapon_theft_reports({"serials":["71380487","00012345"]})` devuelve el historial abierto y
+cerrado del servidor. El agente consulta todos los seriales de las bolsas en una sola llamada.
+El backend también comprueba automáticamente los seriales explícitos al leer análisis de armas,
+reutilizando el resultado durante el run. Las coincidencias abiertas generan una alerta determinista
+en el destino configurado, deduplicada en PostgreSQL por registro y revisión. La alerta interna
+incluye enlaces; la revisión solo agrega una nota con serial y bolsa, separada de las deficiencias
+y sin alterar la aprobación. `notifications_enabled` (predeterminado `true`) controla el envío;
+los reportes cerrados no generan alertas. Las pruebas reales del agente permanecen opt-in en
+`tests/ai_eval/test_live_agent.py`, siguiendo el mismo patrón de mocks de los otros conectores.
+
+### Justificaciones de reportes pendientes
+
 `/justificar-arresto registrar reporte:ID` abre un modal con motivo, vencimiento opcional y el
 selector compartido de zonas horarias. Las pausas temporales exigen elegir una zona explícita y
 convierten la fecha local a UTC; las indefinidas no requieren fecha ni zona horaria.

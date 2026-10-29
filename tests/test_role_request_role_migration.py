@@ -129,7 +129,8 @@ async def _assert_configuration(database_url, cases, request):
     try:
         for revision_id, (expected_payload, expected_catalog, original_catalog) in cases.items():
             feature = await client.fetch_one(
-                sa.text("SELECT payload FROM guild_feature_settings WHERE config_revision_id = :id"),
+                sa.text("SELECT payload FROM guild_feature_settings WHERE config_revision_id = :id "
+                        "AND feature_key = 'role_requests'"),
                 {"id": revision_id},
             )
             assert feature["payload"] == expected_payload

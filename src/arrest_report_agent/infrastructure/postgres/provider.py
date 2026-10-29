@@ -33,7 +33,7 @@ from .client import PostgresClient
 from .repository import CONFIG_NOTIFY_CHANNEL, ConfigurationRepository
 
 if TYPE_CHECKING:
-    from arrest_report_agent.application.ports import EvidenceBagLookup, ReportImageLookup
+    from arrest_report_agent.application.ports import EvidenceBagLookup, ReportImageLookup, WeaponTheftLookup
     from arrest_report_agent.faction_directory import FactionDirectoryService
     from arrest_report_agent.infrastructure.sarp import SarpClient
 
@@ -66,6 +66,7 @@ class DatabaseConfigProvider:
         evidence_bag_lookup: EvidenceBagLookup | None = None,
         manual_catalog: ManualCatalog | None = None,
         report_image_lookup: ReportImageLookup | None = None,
+        weapon_theft_lookup: WeaponTheftLookup | None = None,
     ) -> None:
         self.client = client
         self.repository = repository
@@ -79,6 +80,7 @@ class DatabaseConfigProvider:
         self.faction_directory = faction_directory
         self.evidence_bag_lookup = evidence_bag_lookup
         self.report_image_lookup = report_image_lookup
+        self.weapon_theft_lookup = weapon_theft_lookup
         # Import lazily so repositories can import the PostgreSQL schema without
         # creating a package-initialization cycle through this provider.
         from arrest_report_agent.arrest_reports import ArrestReportBindingRepository
@@ -198,6 +200,7 @@ class DatabaseConfigProvider:
                 arrest_lookup,
                 character_legal_facts_lookup,
                 evidence_bag_lookup=(self.evidence_bag_lookup if faction_id is not None else None),
+                weapon_theft_lookup=(self.weapon_theft_lookup if settings.stolen_weapon_options else None),
                 faction_frequency_lookup=faction_frequency_lookup,
                 faction_officer_rank_lookup=faction_officer_rank_lookup,
                 max_rank_names_per_lookup=settings.max_rank_names_per_lookup,

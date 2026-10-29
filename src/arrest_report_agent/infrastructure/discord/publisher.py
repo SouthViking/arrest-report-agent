@@ -720,6 +720,26 @@ def build_review_embeds(publication: ReviewPublication, persona: BotPersona) -> 
                     inline=False,
                 )
             embeds.append(charge_embed)
+    if publication.informational_notes:
+        informational = discord.Embed(title="ℹ️ Información adicional", color=colors[publication.verdict])
+        chunks: list[str] = []
+        current = ""
+        for note in publication.informational_notes:
+            note = note[:1000]
+            if len(current) + len(note) + 1 > 1000:
+                chunks.append(current)
+                current = ""
+            current = f"{current}\n{note}".strip()
+        if current:
+            chunks.append(current)
+        for index, chunk in enumerate(chunks):
+            if index and index % 5 == 0:
+                embeds.append(informational)
+                informational = discord.Embed(
+                    title="ℹ️ Información adicional", color=colors[publication.verdict],
+                )
+            informational.add_field(name="Antecedentes del arma", value=chunk, inline=False)
+        embeds.append(informational)
     return embeds[:10]
 
 

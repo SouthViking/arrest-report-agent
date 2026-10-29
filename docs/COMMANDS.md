@@ -112,6 +112,73 @@ El módulo **Reportes de arresto pendientes** recibe
 `{"faction_id": 3, "max_range_days": 90, "max_records": 1000}`. Habilita la consulta manual
 determinista, reutiliza `operational_staff_roles` y no requiere una política de canales.
 
+### `/registrar-robo-arma`
+
+Registra un robo de arma en PostgreSQL y publica su ficha con las evidencias en el canal configurado.
+Solo funciona para `operational_staff_roles` desde los canales exactos de
+`stolen_weapons.source_channel_ids`; los hilos no heredan esa autorización. Los permisos y el destino
+se comprueban nuevamente al enviar el formulario y reintentar una publicación. La migración
+habilita inicialmente el canal de origen `1421923642983317545` y el destino `1565184787591860345` en LSSD. Se pueden cambiar o
+deshabilitar desde `/config` sin redesplegar.
+
+El comando no recibe argumentos y abre un único modal:
+
+1. Pide serial (1–100 caracteres), hechos (10–2000), fecha del robo (`DD/MM/AAAA`),
+   propietario/víctima y una a cinco imágenes PNG, JPEG, WebP o GIF.
+2. Al enviar se validan datos, imágenes, permisos y destino; guarda las evidencias en el bucket
+   privado y el reporte con sus referencias en BD antes de publicar directamente la ficha.
+3. No hay vista previa, botón de confirmación ni mensaje efímero de éxito. Solo los errores se
+   muestran de forma privada; los fallos que admiten reintento ofrecen **Reintentar publicación**
+   sobre el mismo registro. Una entrega incierta no ofrece reenvío automático.
+
+Cerrar el modal sin enviarlo no crea un registro.
+
+La fecha del robo es una fecha de calendario, separada del instante UTC de creación. El ayudante
+se identifica automáticamente con el ID y nombre de Discord de quien ejecuta el comando y queda
+registrado internamente, sin un campo editable ni un campo adicional en la ficha pública.
+El serial original se conserva y la búsqueda interna normaliza mayúsculas y espacios, manteniendo
+ceros iniciales y separadores. Distintos robos del mismo serial generan registros independientes.
+PostgreSQL conserva claves estables del bucket, hashes, tipos, tamaños y orden de las imágenes;
+las referencias no dependen de enlaces temporales de Discord. Si falla la publicación después de
+guardar, el registro y las evidencias permanecen en BD/bucket. Una entrega incierta no se reintenta
+automáticamente para evitar mensajes duplicados. La consulta por serial ya existe a nivel de
+repositorio y mediante la herramienta `get_weapon_theft_reports`.
+
+### `/cerrar-reporte-robo`
+
+Usa los mismos canales habilitados y roles operativos que `/registrar-robo-arma`. Abre un formulario
+con la referencia `ARM-…` del registro y un **Motivo del cierre** obligatorio de 5–500 caracteres.
+Abrir el formulario no cambia nada; al enviarlo se revalidan solicitante, servidor, canal, módulo
+y roles actuales. Cierra únicamente ese reporte, conservando archivos e historial, y actualiza
+la ficha original a **Reporte de robo cerrado**, con **Cerrado por**, **Fecha de cierre** y el motivo.
+Dos cierres concurrentes no sobrescriben la primera autorización. Repetir el comando sobre un
+registro cerrado permite reintentar la actualización del mensaje sin cambiar su auditoría.
+
+Si Discord falla después de guardar, el registro permanece cerrado y deja de generar alertas.
+No existe borrado automático, reapertura ni cierre por decisión del agente.
+
+### Seriales de armas en las revisiones
+
+Cuando `get_evidence_bag` devuelve un serial explícito dentro de un análisis de arma, el backend
+lo contrasta con la BD por servidor y el agente consulta `get_weapon_theft_reports` con todos los
+seriales distintos en una lista `serials` (uno a cincuenta por llamada). Ambas rutas comparten
+el resultado del mismo run; no repiten la consulta a BD cuando los datos ya están disponibles.
+El resultado distingue `reported_stolen`, `closed`, `no_records`, `invalid_serial` y `unavailable`.
+Los reportes cerrados se conservan en la respuesta como antecedentes históricos.
+
+En un hilo de revisión, un robo abierto genera una alerta con plantilla fija en
+`stolen_weapons.destination_channel_id`, con enlaces a la revisión y al registro del robo.
+Se registra una entrega por reporte de robo y raíz de revisión, incluso entre reintentos o reinicios.
+Una entrega incierta no se reenvía; un error definitivo admite reintento en otra consulta, sin un
+temporizador de reenvíos. `notifications_enabled` permite desactivar las alertas desde `/config`.
+Consultar seriales fuera de un reporte o sin una bolsa asociada no genera estas notificaciones.
+
+La revisión muestra por separado una nota básica con serial y bolsa, sin enlaces internos ni datos
+del denunciante. Es solo información: no modifica el veredicto, no se registra como deficiencia ni
+genera cargos. Un registro cerrado, sin coincidencias o una consulta fallida no bloquea la aprobación.
+El propietario del reporte recibe únicamente una proyección de metadatos del historial y puede
+consultar seriales verificados en las bolsas de su propio reporte.
+
 ### `/justificar-arresto registrar` y `/justificar-arresto quitar`
 
 Ambos reciben `reporte`, el ID SARP del reporte de arresto. Solo permiten gestionar los avisos a
