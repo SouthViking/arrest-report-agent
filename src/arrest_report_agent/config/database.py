@@ -467,6 +467,7 @@ class RumorOptions(FrozenConfigModel):
 class StolenWeaponOptions(FrozenConfigModel):
     source_channel_ids: tuple[int, ...] = Field(min_length=1, max_length=25)
     destination_channel_id: int = Field(gt=0)
+    notifications_enabled: bool = True
 
     @model_validator(mode="after")
     def validate_channels(self) -> StolenWeaponOptions:

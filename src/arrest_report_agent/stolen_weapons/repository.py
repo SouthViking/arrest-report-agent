@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
@@ -9,7 +12,11 @@ from sqlalchemy.dialects.postgresql import insert
 
 from arrest_report_agent.infrastructure.assets import StoredAsset
 from arrest_report_agent.infrastructure.postgres import PostgresClient
-from arrest_report_agent.infrastructure.postgres.schema import stolen_weapon_assets, stolen_weapon_reports
+from arrest_report_agent.infrastructure.postgres.schema import (
+    stolen_weapon_assets,
+    stolen_weapon_reports,
+    weapon_theft_alerts,
+)
 
 from .models import MAX_EVIDENCE_IMAGES, StolenWeaponReport, TheftDetails, normalize_serial
 
@@ -17,6 +24,137 @@ from .models import MAX_EVIDENCE_IMAGES, StolenWeaponReport, TheftDetails, norma
 class StolenWeaponRepository:
     def __init__(self, client: PostgresClient) -> None:
         self.client = client
+
+    async def get(self, guild_id: int, report_id: UUID) -> StolenWeaponReport | None:
+        row = await self.client.fetch_one(
+            sa.select(stolen_weapon_reports).where(
+                stolen_weapon_reports.c.id == report_id,
+                stolen_weapon_reports.c.guild_id == guild_id,
+            )
+        )
+        if row is None:
+            return None
+        assets = await self.client.fetch_all(
+            sa.select(stolen_weapon_assets)
+            .where(
+                stolen_weapon_assets.c.report_id == report_id,
+            )
+            .order_by(stolen_weapon_assets.c.position)
+        )
+        return self._report(row, tuple(self._asset(asset) for asset in assets))
+
+    async def get_by_reference(self, guild_id: int, reference: str) -> StolenWeaponReport:
+        match = re.fullmatch(r"ARM-([0-9A-Fa-f]{12})", reference.strip(), re.IGNORECASE)
+        if match is None:
+            raise ValueError("Usa la referencia del registro, por ejemplo ARM-A1B2C3D4E5F6.")
+        prefix = match.group(1).lower()
+        rows = await self.client.fetch_all(
+            sa.select(stolen_weapon_reports.c.id)
+            .where(
+                stolen_weapon_reports.c.guild_id == guild_id,
+                stolen_weapon_reports.c.id.between(UUID(prefix + "0" * 20), UUID(prefix + "f" * 20)),
+            )
+            .limit(2)
+        )
+        if not rows:
+            raise ValueError("No encontré ese reporte de robo en este servidor.")
+        if len(rows) != 1:
+            raise ValueError("La referencia coincide con más de un registro. Solicita revisión del registro.")
+        report = await self.get(guild_id, rows[0]["id"])
+        if report is None:
+            raise ValueError("El reporte de robo ya no está disponible.")
+        return report
+
+    async def close(
+        self, guild_id: int, report_id: UUID, *, user_id: int, interaction_id: int, reason: str
+    ) -> tuple[StolenWeaponReport, bool]:
+        reason = reason.strip()
+        if not 5 <= len(reason) <= 500:
+            raise ValueError("El motivo del cierre debe tener entre 5 y 500 caracteres.")
+        table = stolen_weapon_reports
+        result = await self.client.execute(
+            sa.update(table)
+            .where(
+                table.c.id == report_id,
+                table.c.guild_id == guild_id,
+                table.c.status == "open",
+            )
+            .values(
+                status="closed",
+                closed_by=user_id,
+                closed_at=datetime.now(UTC),
+                closure_reason=reason,
+                closure_interaction_id=interaction_id,
+            )
+            .returning(table.c.id)
+        )
+        changed = result.scalar_one_or_none() is not None
+        report = await self.get(guild_id, report_id)
+        if report is None:
+            raise ValueError("El reporte de robo ya no está disponible.")
+        return report, changed
+
+    async def claim_alert(
+        self,
+        guild_id: int,
+        report_id: UUID,
+        *,
+        review_root_message_id: int,
+        channel_id: int,
+        evidence_ids: tuple[int, ...],
+    ) -> bool:
+        async with self.client.transaction() as connection:
+            row = (
+                await connection.execute(
+                    sa.select(stolen_weapon_reports.c.status)
+                    .where(
+                        stolen_weapon_reports.c.guild_id == guild_id,
+                        stolen_weapon_reports.c.id == report_id,
+                    )
+                    .with_for_update()
+                )
+            ).one_or_none()
+            if row is None or row.status != "open":
+                return False
+            table = weapon_theft_alerts
+            result = await connection.execute(
+                insert(table)
+                .values(
+                    report_id=report_id,
+                    review_root_message_id=review_root_message_id,
+                    guild_id=guild_id,
+                    channel_id=channel_id,
+                    evidence_ids=list(evidence_ids),
+                )
+                .on_conflict_do_update(
+                    index_elements=[table.c.report_id, table.c.review_root_message_id],
+                    set_={"status": "sending", "channel_id": channel_id, "evidence_ids": list(evidence_ids)},
+                    where=table.c.status == "failed",
+                )
+                .returning(table.c.report_id)
+            )
+            return result.scalar_one_or_none() is not None
+
+    async def mark_alert(
+        self,
+        guild_id: int,
+        report_id: UUID,
+        review_root_message_id: int,
+        *,
+        status: Literal["sent", "failed", "unknown"],
+        message_id: int | None = None,
+    ) -> None:
+        table = weapon_theft_alerts
+        await self.client.execute(
+            sa.update(table)
+            .where(
+                table.c.guild_id == guild_id,
+                table.c.report_id == report_id,
+                table.c.review_root_message_id == review_root_message_id,
+                table.c.status == "sending",
+            )
+            .values(status=status, message_id=message_id)
+        )
 
     async def create(
         self,
@@ -204,6 +342,11 @@ class StolenWeaponRepository:
             publication_status=row["publication_status"],
             message_id=row["message_id"],
             assets=assets,
+            status=row["status"],
+            closed_by=row["closed_by"],
+            closed_at=row["closed_at"],
+            closure_reason=row["closure_reason"],
+            closure_interaction_id=row["closure_interaction_id"],
             details=TheftDetails(
                 serial=row["serial"],
                 normalized_serial=row["normalized_serial"],

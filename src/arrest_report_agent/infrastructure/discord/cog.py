@@ -1570,6 +1570,9 @@ class ReviewCog(commands.Cog):
                         "• `/registrar-robo-arma`: registra el serial, los hechos y las evidencias "
                         "de un robo de arma."
                     )
+                    extra_feature_lines.append(
+                        "• `/cerrar-reporte-robo`: cierra un reporte conservando su historial y evidencias."
+                    )
                 if blacklist_feature is not None and blacklist_feature.enabled:
                     extra_feature_lines.append(
                         "• `/blacklist info`: cómo registrar, consultar y administrar blacklists."

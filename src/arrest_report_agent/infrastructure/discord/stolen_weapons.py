@@ -52,6 +52,8 @@ def build_theft_embeds(
     files: tuple[UploadedAsset, ...] = (),
     reference: str | None = None,
     created_at: datetime | None = None,
+    closed_report: StolenWeaponReport | None = None,
+    image_names: tuple[str, ...] = (),
 ) -> list[discord.Embed]:
     embed = discord.Embed(
         title="🔫 Registro de robo de arma", color=discord.Color.orange(), timestamp=created_at
@@ -68,11 +70,25 @@ def build_theft_embeds(
             inline=False,
         )
     embed.add_field(name="Registrado por", value=f"<@{registered_by}>", inline=False)
+    closed = closed_report is not None and closed_report.status == "closed"
+    embed.add_field(name="Estado", value="Cerrado" if closed else "Abierto", inline=False)
+    if closed and closed_report is not None:
+        embed.title = "✅ Reporte de robo cerrado"
+        embed.color = discord.Color.green()
+        embed.add_field(name="Cerrado por", value=f"<@{closed_report.closed_by}>", inline=True)
+        if closed_report.closed_at is not None:
+            embed.add_field(
+                name="Fecha de cierre", value=f"<t:{int(closed_report.closed_at.timestamp())}:f>", inline=True
+            )
+        embed.add_field(
+            name="Motivo del cierre", value=_text(closed_report.closure_reason or ""), inline=False
+        )
     embed.set_footer(text=reference or "Vista previa · aún sin publicar")
     embeds = [embed]
-    for index, item in enumerate(files):
+    names = image_names or tuple(item.filename for item in files)
+    for index, filename in enumerate(names):
         image_embed = embed if index == 0 else discord.Embed(color=embed.color)
-        image_embed.set_image(url=f"attachment://{item.filename}")
+        image_embed.set_image(url=f"attachment://{filename}")
         if index:
             embeds.append(image_embed)
     return embeds
@@ -178,6 +194,98 @@ class StolenWeaponCog(commands.Cog):
                 LOGGER, "error", "stolen_weapon_form_open_failed", exc_info=error, **exception_fields(error)
             )
             await ctx.respond("No pude abrir el formulario. Prueba de nuevo más tarde.", ephemeral=True)
+
+    @discord.slash_command(
+        name="cerrar-reporte-robo",
+        description="Cierra un reporte de robo de arma",
+        contexts={discord.InteractionContextType.guild},
+    )
+    async def close_theft(self, ctx: discord.ApplicationContext) -> None:
+        try:
+            destination, _file_limit, _total_limit = await self.authorize(ctx.guild, ctx.channel, ctx.author)
+            context = RegistrationContext(ctx.author.id, ctx.guild.id, ctx.channel.id, destination.id)
+            await ctx.send_modal(TheftClosureModal(self, context))
+        except ValueError as error:
+            await ctx.respond(str(error), ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        except Exception as error:
+            log_event(LOGGER, "error", "weapon_theft_closure_form_failed", **exception_fields(error))
+            await ctx.respond("No pude abrir el cierre del reporte. Prueba de nuevo.", ephemeral=True)
+
+
+class TheftClosureModal(discord.ui.DesignerModal):
+    def __init__(self, cog: StolenWeaponCog, context: RegistrationContext) -> None:
+        self.cog, self.context = cog, context
+        self.reference = discord.ui.InputText(placeholder="ARM-A1B2C3D4E5F6", min_length=16, max_length=16)
+        self.reason = discord.ui.InputText(style=discord.InputTextStyle.long, min_length=5, max_length=500)
+        super().__init__(
+            discord.ui.Label("Referencia del reporte de robo", self.reference),
+            discord.ui.Label("Motivo del cierre", self.reason),
+            title="Cerrar reporte de robo",
+            timeout=FORM_TIMEOUT_SECONDS,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, invisible=False)
+        report = None
+        try:
+            await self.cog.authorize_form(interaction, self.context)
+            repository = self.cog.service.repository
+            existing = await repository.get_by_reference(self.context.guild_id, self.reference.value or "")
+            report, changed = await repository.close(
+                self.context.guild_id,
+                existing.id,
+                user_id=self.context.requester_id,
+                interaction_id=interaction.id,
+                reason=self.reason.value or "",
+            )
+            if report.message_id is not None:
+                # The report can predate a configured destination change; edit its actual original message.
+                channel = interaction.guild.get_channel(report.destination_channel_id)
+                if not isinstance(channel, discord.TextChannel):
+                    raise RuntimeError("Original theft channel unavailable")
+                message = await channel.fetch_message(report.message_id)
+                await message.edit(
+                    embeds=build_theft_embeds(
+                        report.details,
+                        registered_by=report.registered_by,
+                        reference=report.reference,
+                        created_at=report.created_at,
+                        closed_report=report,
+                        image_names=tuple(asset.filename for asset in report.assets),
+                    ),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            log_event(
+                LOGGER,
+                "info",
+                "weapon_theft_report_closed",
+                report_id=str(report.id),
+                guild_id=self.context.guild_id,
+                user_id=self.context.requester_id,
+                changed=changed,
+            )
+            await interaction.delete_original_response()
+        except ValueError as error:
+            await interaction.edit_original_response(
+                content=str(error), allowed_mentions=discord.AllowedMentions.none()
+            )
+        except Exception as error:
+            log_event(
+                LOGGER,
+                "error",
+                "weapon_theft_closure_failed",
+                guild_id=self.context.guild_id,
+                report_id=str(report.id) if report else None,
+                **exception_fields(error),
+            )
+            await interaction.edit_original_response(
+                content=(
+                    f"El reporte `{report.reference}` quedó cerrado, pero no pude actualizar su mensaje. "
+                    "Puedes repetir el cierre para actualizarlo."
+                    if report
+                    else "No pude cerrar el reporte. Prueba de nuevo."
+                )
+            )
 
 
 class TheftDetailsModal(discord.ui.DesignerModal):

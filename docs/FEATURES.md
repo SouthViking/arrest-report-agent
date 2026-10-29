@@ -654,8 +654,18 @@ privada con confirmación. PostgreSQL conserva cada evento, su autor, serial ori
 fecha del robo, descripción, víctima, ayudante, mensaje publicado y metadatos de evidencias. El bucket
 conserva los archivos inmutables bajo `stolen-weapons/<guild_id>/`, con claves basadas en SHA-256.
 El índice por servidor/serial permite recuperar el historial de una o varias armas sin consultar
-SARP ni descargar imágenes. La futura herramienta de revisiones utilizará este repositorio; este
-cambio no añade llamadas al agente ni modifica las revisiones actuales.
+SARP ni descargar imágenes. `/cerrar-reporte-robo` cierra un registro con motivo y auditoría sin
+eliminar el evento ni sus evidencias; su tarjeta conserva los datos y muestra el cierre.
+
+`get_weapon_theft_reports({"serials":["71380487","00012345"]})` devuelve el historial abierto y
+cerrado del servidor. El agente consulta todos los seriales de las bolsas en una sola llamada.
+El backend también comprueba automáticamente los seriales explícitos al leer análisis de armas,
+reutilizando el resultado durante el run. Las coincidencias abiertas generan una alerta determinista
+en el destino configurado, deduplicada en PostgreSQL por registro y revisión. La alerta interna
+incluye enlaces; la revisión solo agrega una nota con serial y bolsa, separada de las deficiencias
+y sin alterar la aprobación. `notifications_enabled` (predeterminado `true`) controla el envío;
+los reportes cerrados no generan alertas. Las pruebas reales del agente permanecen opt-in en
+`tests/ai_eval/test_live_agent.py`, siguiendo el mismo patrón de mocks de los otros conectores.
 
 ### Justificaciones de reportes pendientes
 

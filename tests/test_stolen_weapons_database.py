@@ -24,6 +24,7 @@ from arrest_report_agent.infrastructure.postgres.schema import (
     guild_feature_settings,
     stolen_weapon_assets,
     stolen_weapon_reports,
+    weapon_theft_alerts,
 )
 from arrest_report_agent.infrastructure.storage import MemoryObjectStorage
 from arrest_report_agent.stolen_weapons.repository import StolenWeaponRepository
@@ -161,6 +162,49 @@ async def test_migration_and_durable_serial_history(monkeypatch):
         assert await repository.find_by_serials(GUILD, ()) == ()
         batch = await repository.find_by_serials(GUILD, ("sa-001234", "000012", "SA-001234"))
         assert {report.id for report in batch} == {first.id, second.id, third.id}
+
+        # Alerts deduplicate across independent instances, retries and concurrent runs.
+        alert = dict(review_root_message_id=8001, channel_id=DESTINATION, evidence_ids=(5303358,))
+        claimed = await asyncio.gather(*(repository.claim_alert(GUILD, first.id, **alert) for _ in range(2)))
+        assert sorted(claimed) == [False, True]
+        await repository.mark_alert(GUILD, first.id, 8001, status="unknown")
+        assert not await StolenWeaponRepository(client).claim_alert(GUILD, first.id, **alert)
+        assert not await repository.claim_alert(999, first.id, **alert)
+        next_alert = {**alert, "review_root_message_id": 8002}
+        assert await repository.claim_alert(GUILD, first.id, **next_alert)
+        await repository.mark_alert(GUILD, first.id, 8002, status="failed")
+        assert await repository.claim_alert(GUILD, first.id, **next_alert)
+        await repository.mark_alert(GUILD, first.id, 8002, status="sent", message_id=444)
+        assert not await repository.claim_alert(GUILD, first.id, **next_alert)
+        assert len(await client.fetch_all(sa.select(weapon_theft_alerts))) == 2
+
+        # Close one event, retaining the second open event for the same serial.
+        assert (await repository.get_by_reference(GUILD, first.reference)).id == first.id
+        with pytest.raises(ValueError, match="No encontré"):
+            await repository.get_by_reference(999, first.reference)
+        closure = dict(user_id=USER, interaction_id=9001, reason="Arma encontrada y seguimiento terminado")
+        closed, changed = await repository.close(GUILD, first.id, **closure)
+        assert changed and closed.status == "closed" and closed.closed_by == USER
+        assert closed.closed_at.utcoffset().total_seconds() == 0
+        assert closed.assets == first.assets and closed.message_id == 555
+        old, changed = await repository.close(
+            GUILD, first.id, user_id=555, interaction_id=9002, reason="Otro motivo"
+        )
+        assert not changed and old.closed_by == USER and old.closure_reason == closure["reason"]
+        assert old.closure_interaction_id == 9001
+        assert not await repository.claim_alert(GUILD, first.id, **{**alert, "review_root_message_id": 8003})
+        from arrest_report_agent.stolen_weapons.lookup import WeaponTheftLookupService
+
+        lookup = WeaponTheftLookupService(repository)
+        result = (await lookup.lookup(GUILD, ("sa-001234",)))[0]
+        assert result.status == "reported_stolen" and len(result.reports) == 2
+        races = await asyncio.gather(
+            repository.close(GUILD, second.id, user_id=USER, interaction_id=9010, reason="Cierre verificado"),
+            repository.close(GUILD, second.id, user_id=555, interaction_id=9011, reason="Segundo cierre"),
+        )
+        assert sorted(changed for _report, changed in races) == [False, True]
+        assert (await lookup.lookup(GUILD, ("sa-001234",)))[0].status == "closed"
+        assert len(await repository.find_by_serials(GUILD, ("sa-001234",))) == 2
 
         # A failed evidence insert rolls back its parent, avoiding incomplete theft records.
         with pytest.raises(DatabaseUnavailableError):

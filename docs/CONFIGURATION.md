@@ -94,7 +94,8 @@ El modo de imagen es `generated` por defecto: el reporte se genera desde PCU. La
 sospechoso siguen siendo obligatorias. Si necesitas adjuntar también la imagen del reporte manualmente,
 usa `"report_attachment_mode":"manual"` dentro del mismo módulo.
 
-El módulo `stolen_weapons` habilita `/registrar-robo-arma`. Configura
+El módulo `stolen_weapons` habilita `/registrar-robo-arma`, `/cerrar-reporte-robo` y la consulta de
+seriales del agente. Configura
 `{"source_channel_ids":[1421923642983317545],"destination_channel_id":1565184787591860345}`
 desde **Configurar módulo → Registro de armas robadas**. Requiere la política
 `operational_staff_roles` restringida y el bucket ya usado por los adjuntos; no añade variables de
@@ -102,6 +103,10 @@ entorno. El bot necesita ver el destino, enviar mensajes, insertar enlaces y adj
 Los IDs anteriores se cargan inicialmente para LSSD, preservando configuraciones existentes y
 habilitando el módulo solo si ya hay una política restringida de roles operativos. No se habilita
 en otros servidores.
+`notifications_enabled` controla las alertas por coincidencias abiertas durante una revisión y
+vale `true` si se omite. Las alertas se publican en `destination_channel_id`; el backend fija su
+plantilla y evita duplicados por registro y revisión. Desactivar las alertas no desactiva la
+consulta ni convierte sus resultados informativos en requisitos para aprobar.
 
 Las órdenes abiertas del sospechoso bloquean la aprobación completa hasta verificar su cierre.
 La excepción de Command/Executive Staff requiere una instrucción explícita actual y un ID de rol

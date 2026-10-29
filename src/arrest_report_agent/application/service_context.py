@@ -23,6 +23,7 @@ from .ports import (
     GuildMessageDirectory,
     PollManager,
     ReviewPublisher,
+    WeaponTheftSerialResult,
 )
 
 ReportSnapshotRefresher = Callable[
@@ -75,6 +76,11 @@ class ReviewRunContext:
     character_legal_fact_calls: int = 0
     evidence_bag_calls: int = 0
     evidence_bag_ids_queried: int = 0
+    weapon_theft_tool_calls: int = 0
+    weapon_theft_lookup_batches: int = 0
+    weapon_theft_results: dict[str, WeaponTheftSerialResult] = field(default_factory=dict)
+    weapon_serials_by_bag: dict[int, tuple[str, ...]] = field(default_factory=dict)
+    weapon_theft_notified_serials: set[str] = field(default_factory=set)
     faction_frequency_calls: int = 0
     faction_officer_rank_calls: int = 0
     manual_list_calls: int = 0

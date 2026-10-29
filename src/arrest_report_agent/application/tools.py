@@ -31,6 +31,7 @@ from arrest_report_agent.domain import (
     ReviewScope,
     ReviewVerdict,
 )
+from arrest_report_agent.domain.weapon_serials import extract_weapon_serials, normalize_serial
 from arrest_report_agent.knowledge import (
     ChargeCatalog,
     ChargeCatalogProvider,
@@ -78,9 +79,11 @@ from .ports import (
     PriorSeriousConvictionMatch,
     ReportImageCategory,
     ReportImageLookup,
+    WeaponTheftLookup,
 )
 from .service_context import ReviewRunContext
 from .tool_errors import recover_tool_argument_error
+from .weapon_thefts import MAX_SERIALS_PER_CALL, lookup_weapon_thefts, theft_informational_notes
 
 if TYPE_CHECKING:
     from arrest_report_agent.arrest_warrants.lookup import ArrestWarrantCheck
@@ -249,6 +252,7 @@ def build_agent_tools(
     report_channel_ids: frozenset[int] = frozenset(),
     manual_catalog: ManualCatalog | None = None,
     report_image_lookup: ReportImageLookup | None = None,
+    weapon_theft_lookup: WeaponTheftLookup | None = None,
 ) -> list[object]:
     """Create tools bound to immutable knowledge snapshots."""
 
@@ -1478,6 +1482,9 @@ def build_agent_tools(
             )
         if deferred := await _defer_live_output(run_context):
             return deferred
+        publication = publication.model_copy(
+            update={"informational_notes": theft_informational_notes(run_context)}
+        )
         await run_context.publisher.publish(publication)
         overridden = (
             approval is not None and warrant_check is not None and bool(warrant_check.warrants)
@@ -2177,6 +2184,20 @@ def build_agent_tools(
 
         fetched = await asyncio.gather(*(fetch_one(bag_id) for bag_id in unique_ids))
         results_by_id = dict(zip(unique_ids, fetched, strict=True))
+        serials_by_bag: dict[int, tuple[str, ...]] = {}
+        if weapon_theft_lookup is not None:
+            for bag_id, result in results_by_id.items():
+                if result.detail is not None and result.error is None:
+                    serials = tuple(dict.fromkeys(serial for item in result.detail.items
+                                                 for serial in extract_weapon_serials(item.result)))
+                    if serials:
+                        serials_by_bag[bag_id] = serials
+            run_context.weapon_serials_by_bag.update(serials_by_bag)
+            serials = tuple(dict.fromkeys(serial for values in serials_by_bag.values() for serial in values))
+            for offset in range(0, len(serials), MAX_SERIALS_PER_CALL):
+                await lookup_weapon_thefts(run_context, weapon_theft_lookup,
+                                           serials[offset:offset + MAX_SERIALS_PER_CALL],
+                                           report_channel_ids=report_channel_ids)
 
         def format_one(query: EvidenceBagQuery) -> dict[str, object]:
             result = results_by_id[query.evidence_id]
@@ -2194,6 +2215,8 @@ def build_agent_tools(
             items: list[dict[str, object]] = []
             for item in detail.items:
                 item_payload: dict[str, object] = {"result": item.result}
+                if weapon_theft_lookup is not None and (serials := extract_weapon_serials(item.result)):
+                    item_payload["weapon_serials"] = list(serials)
                 if query.include_analysis_metadata:
                     item_payload.update(
                         {
@@ -2220,6 +2243,53 @@ def build_agent_tools(
             return payload
 
         return {"results": [format_one(query) for query in bags]}
+
+    @function_tool(failure_error_function=recover_tool_argument_error)
+    async def get_weapon_theft_reports(
+        ctx: RunContextWrapper[ReviewRunContext],
+        serials: Annotated[list[str], Field(min_length=1, max_length=MAX_SERIALS_PER_CALL)],
+    ) -> dict[str, object]:
+        """Read theft history for one or multiple exact weapon serials, supplied as strings.
+
+        After get_evidence_bag returns weapon_serials, call this once with ALL distinct serials
+        from ALL returned bags. Reuse those serials exactly; never infer them from bag/sample IDs,
+        fingerprints, guesses or missing/illegible serials. Closed reports are historical only.
+        reported_stolen is informational and NEVER blocks approval or creates a required finding.
+        no_records means only that this guild has no theft report, not that the weapon is clean.
+        unavailable is a lookup failure, not proof of no theft. Use only the serial and evidence
+        bag number in the public review; do not reveal victim/registrar names, theft narratives,
+        internal record references or URLs. The backend sends internal alerts and adds the basic
+        informational note; do not duplicate them with messages, findings, role mentions or links.
+
+        Args:
+            serials: One or more serials as strings (also use a one-element list for one weapon).
+        """
+        context = ctx.context
+        context.weapon_theft_tool_calls += 1
+        if weapon_theft_lookup is None or context.weapon_theft_tool_calls > 5:
+            return {"results": [{"serial": serial, "status": "unavailable", "reports": []}
+                                for serial in serials], "advisory_only": True}
+        if context.access_level is AgentAccessLevel.REPORT_OWNER:
+            known = {serial for values in context.weapon_serials_by_bag.values() for serial in values}
+            for serial in serials:
+                try:
+                    if normalize_serial(serial) not in known:
+                        return {"error": "serial_not_verified_in_report", "advisory_only": True}
+                except ValueError:
+                    pass
+        await _set_activity(context, AgentActivity.RECORDS)
+        results = await lookup_weapon_thefts(context, weapon_theft_lookup, tuple(serials),
+                                            report_channel_ids=report_channel_ids)
+        # Owners get a metadata-only projection; internal identities and narratives stay private.
+        public_fields = {"reference", "status", "stolen_on", "evidence_count", "closed_at"}
+        return {
+            "results": [{"serial": result.serial, "status": result.status,
+                         "reports": [({key: value for key, value in report.items() if key in public_fields}
+                                      if context.access_level is AgentAccessLevel.REPORT_OWNER else report)
+                                     for report in result.reports]}
+                        for result in results],
+            "advisory_only": True, "affects_approval": False,
+        }
 
     common_tools = [
         get_report_guide,
@@ -2254,6 +2324,8 @@ def build_agent_tools(
             owner_record_tools.append(get_character_legal_facts)
         if evidence_bag_lookup is not None:
             owner_record_tools.append(get_evidence_bag)
+        if weapon_theft_lookup is not None:
+            owner_record_tools.append(get_weapon_theft_reports)
         return [*common_tools, *owner_record_tools, *report_tools]
     manual_tools = [
         list_manual_sections,
@@ -2301,6 +2373,8 @@ def build_agent_tools(
         live_record_tools.append(get_character_legal_facts)
     if evidence_bag_lookup is not None:
         live_record_tools.append(get_evidence_bag)
+    if weapon_theft_lookup is not None:
+        live_record_tools.append(get_weapon_theft_reports)
     full_tools[4:4] = live_record_tools
     return full_tools
 

@@ -1809,6 +1809,17 @@ stolen_weapon_reports = sa.Table(
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     sa.Column("publication_status", sa.String(20), nullable=False, server_default="pending"),
     sa.Column("message_id", sa.BigInteger),
+    sa.Column("status", sa.String(12), nullable=False, server_default="open"),
+    sa.Column("closed_by", sa.BigInteger),
+    sa.Column("closed_at", sa.DateTime(timezone=True)),
+    sa.Column("closure_reason", sa.String(500)),
+    sa.Column("closure_interaction_id", sa.BigInteger),
+    sa.UniqueConstraint("closure_interaction_id", name="uq_stolen_weapon_closure_interaction"),
+    sa.CheckConstraint("(status = 'open' AND closed_by IS NULL AND closed_at IS NULL "
+                       "AND closure_reason IS NULL AND closure_interaction_id IS NULL) OR "
+                       "(status = 'closed' AND closed_by IS NOT NULL AND closed_at IS NOT NULL "
+                       "AND closure_reason IS NOT NULL AND closure_interaction_id IS NOT NULL)",
+                       name="ck_stolen_weapon_closure"),
     sa.CheckConstraint("publication_status IN ('pending','publishing','published','failed')",
                        name="ck_stolen_weapon_publication_status"),
     sa.UniqueConstraint("guild_id", "destination_channel_id", "message_id", name="uq_stolen_weapon_message"),
@@ -1827,6 +1838,24 @@ stolen_weapon_assets = sa.Table(
     sa.Column("size_bytes", sa.BigInteger, nullable=False),
     sa.CheckConstraint("position BETWEEN 0 AND 4", name="ck_stolen_weapon_asset_position"),
     sa.CheckConstraint("size_bytes > 0", name="ck_stolen_weapon_asset_size"),
+)
+
+
+weapon_theft_alerts = sa.Table(
+    "weapon_theft_alerts", metadata,
+    sa.Column("report_id", sa.Uuid,
+              sa.ForeignKey("stolen_weapon_reports.id", ondelete="CASCADE"), primary_key=True),
+    sa.Column("review_root_message_id", sa.BigInteger, primary_key=True),
+    sa.Column("guild_id", sa.BigInteger,
+              sa.ForeignKey("discord_guilds.discord_id", ondelete="CASCADE"), nullable=False),
+    sa.Column("channel_id", sa.BigInteger, nullable=False),
+    sa.Column("message_id", sa.BigInteger),
+    sa.Column("evidence_ids", postgresql.ARRAY(sa.BigInteger), nullable=False),
+    sa.Column("status", sa.String(12), nullable=False, server_default="sending"),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint(
+        "status IN ('sending','sent','failed','unknown')", name="ck_weapon_theft_alert_status",
+    ),
 )
 
 

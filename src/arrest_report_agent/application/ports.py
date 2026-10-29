@@ -12,6 +12,7 @@ from arrest_report_agent.domain import (
     ConversationResponseRoute,
     ManualQuizDelivery,
     ManualQuizPublication,
+    ReviewCase,
     ReviewPublication,
 )
 
@@ -471,6 +472,21 @@ class EvidenceBagLookupResult:
 class EvidenceBagLookup(Protocol):
     async def get(self, evidence_id: int) -> EvidenceBagLookupResult:
         """Fetch one evidence bag while translating provider failures to safe states."""
+
+
+@dataclass(frozen=True)
+class WeaponTheftSerialResult:
+    serial: str
+    status: Literal["reported_stolen", "closed", "no_records", "invalid_serial", "unavailable"]
+    reports: tuple[dict[str, object], ...] = ()
+
+
+class WeaponTheftLookup(Protocol):
+    async def lookup(self, guild_id: int, serials: tuple[str, ...]) -> tuple[WeaponTheftSerialResult, ...]:
+        """Read the guild's theft history in one batch; never equate missing data to a clean weapon."""
+
+    async def notify(self, case: ReviewCase, serials_by_bag: dict[int, tuple[str, ...]]) -> None:
+        """Notify the internal channel for open matches, with persistent deduplication."""
 
 
 @dataclass(frozen=True)

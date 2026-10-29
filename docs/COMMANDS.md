@@ -138,7 +138,42 @@ PostgreSQL conserva claves estables del bucket, hashes, tipos, tamaños y orden 
 las referencias no dependen de enlaces temporales de Discord. Si falla la publicación después de
 guardar, el registro y las evidencias permanecen en BD/bucket. Una entrega incierta no se reintenta
 automáticamente para evitar mensajes duplicados. La consulta por serial ya existe a nivel de
-repositorio; su herramienta para el agente se incorporará por separado.
+repositorio y mediante la herramienta `get_weapon_theft_reports`.
+
+### `/cerrar-reporte-robo`
+
+Usa los mismos canales habilitados y roles operativos que `/registrar-robo-arma`. Abre un formulario
+con la referencia `ARM-…` del registro y un **Motivo del cierre** obligatorio de 5–500 caracteres.
+Abrir el formulario no cambia nada; al enviarlo se revalidan solicitante, servidor, canal, módulo
+y roles actuales. Cierra únicamente ese reporte, conservando archivos e historial, y actualiza
+la ficha original a **Reporte de robo cerrado**, con **Cerrado por**, **Fecha de cierre** y el motivo.
+Dos cierres concurrentes no sobrescriben la primera autorización. Repetir el comando sobre un
+registro cerrado permite reintentar la actualización del mensaje sin cambiar su auditoría.
+
+Si Discord falla después de guardar, el registro permanece cerrado y deja de generar alertas.
+No existe borrado automático, reapertura ni cierre por decisión del agente.
+
+### Seriales de armas en las revisiones
+
+Cuando `get_evidence_bag` devuelve un serial explícito dentro de un análisis de arma, el backend
+lo contrasta con la BD por servidor y el agente consulta `get_weapon_theft_reports` con todos los
+seriales distintos en una lista `serials` (uno a cincuenta por llamada). Ambas rutas comparten
+el resultado del mismo run; no repiten la consulta a BD cuando los datos ya están disponibles.
+El resultado distingue `reported_stolen`, `closed`, `no_records`, `invalid_serial` y `unavailable`.
+Los reportes cerrados se conservan en la respuesta como antecedentes históricos.
+
+En un hilo de revisión, un robo abierto genera una alerta con plantilla fija en
+`stolen_weapons.destination_channel_id`, con enlaces a la revisión y al registro del robo.
+Se registra una entrega por reporte de robo y raíz de revisión, incluso entre reintentos o reinicios.
+Una entrega incierta no se reenvía; un error definitivo admite reintento en otra consulta, sin un
+temporizador de reenvíos. `notifications_enabled` permite desactivar las alertas desde `/config`.
+Consultar seriales fuera de un reporte o sin una bolsa asociada no genera estas notificaciones.
+
+La revisión muestra por separado una nota básica con serial y bolsa, sin enlaces internos ni datos
+del denunciante. Es solo información: no modifica el veredicto, no se registra como deficiencia ni
+genera cargos. Un registro cerrado, sin coincidencias o una consulta fallida no bloquea la aprobación.
+El propietario del reporte recibe únicamente una proyección de metadatos del historial y puede
+consultar seriales verificados en las bolsas de su propio reporte.
 
 ### `/justificar-arresto registrar` y `/justificar-arresto quitar`
 

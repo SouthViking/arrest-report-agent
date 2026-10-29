@@ -251,6 +251,10 @@ class ReviewPublication(BaseModel):
     )
     findings: list[ReviewFinding] = Field(default_factory=list, max_length=12)
     charges: list[ChargeAssessment] = Field(default_factory=list, max_length=10)
+    informational_notes: list[str] = Field(
+        default_factory=list, max_length=50,
+        description="Backend-managed informational notices. Leave empty; these never affect the verdict.",
+    )
     manual_review_reason: str | None = Field(
         default=None,
         max_length=500,

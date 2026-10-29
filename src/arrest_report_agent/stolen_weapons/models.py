@@ -3,25 +3,23 @@
 from __future__ import annotations
 
 import re
-import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime
 from uuid import UUID
 
+from arrest_report_agent.domain.weapon_serials import normalize_serial
 from arrest_report_agent.infrastructure.assets import StoredAsset
+
+__all__ = [
+    "MAX_EVIDENCE_IMAGES",
+    "MAX_DESCRIPTION_LENGTH",
+    "TheftDetails",
+    "StolenWeaponReport",
+    "normalize_serial",
+]
 
 MAX_EVIDENCE_IMAGES = 5
 MAX_DESCRIPTION_LENGTH = 2000
-
-
-def normalize_serial(value: str) -> str:
-    """Keep significant separators and leading zeroes; normalize case and spacing."""
-    serial = " ".join(unicodedata.normalize("NFKC", value).split()).upper()
-    if not re.fullmatch(r"[A-Z0-9][A-Z0-9 ._/-]{0,99}", serial):
-        raise ValueError(
-            "El serial debe tener entre 1 y 100 caracteres: letras, números, espacios o . _ / -."
-        )
-    return serial
 
 
 def _name(value: str, label: str) -> str:
@@ -85,6 +83,11 @@ class StolenWeaponReport:
     publication_status: str
     message_id: int | None
     assets: tuple[StoredAsset, ...]
+    status: str = "open"
+    closed_by: int | None = None
+    closed_at: datetime | None = None
+    closure_reason: str | None = None
+    closure_interaction_id: int | None = None
 
     @property
     def reference(self) -> str:
