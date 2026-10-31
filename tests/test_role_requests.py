@@ -78,6 +78,7 @@ ANNOUNCEMENTS_CHANNEL_ID = 202
 BIG_BROTHER_CHANNEL_ID = 203
 INFORMATION_CHANNEL_ID = 204
 QUESTIONS_CHANNEL_ID = 205
+ANGEL_PINE_ROLE_ID = 1358795936033276029
 
 
 class FakePermissions:
@@ -637,7 +638,7 @@ def _ftt_entry_service(env) -> tuple[RoleRequestService, tuple[FakeRole, ...]]:
         FakeRole(711, name="Deputy Sheriff", position=3),
         FakeRole(712, name="Field Staff", position=4),
         FakeRole(714, name="CPD: GNT", position=6),
-        FakeRole(715, name="NPD: DLM", position=6),
+        FakeRole(ANGEL_PINE_ROLE_ID, name="NPD: AP", position=6),
     )
     for role in roles:
         role.guild = env.guild
@@ -664,9 +665,9 @@ def _ftt_entry_service(env) -> tuple[RoleRequestService, tuple[FakeRole, ...]]:
                 emoji="🏙️",
             ),
             RoleRequestStationOption(
-                key="dillimore",
-                label="Dillimore",
-                role_id=715,
+                key="angel_pine",
+                label="Angel Pine",
+                role_id=ANGEL_PINE_ROLE_ID,
                 emoji="🌲",
             ),
         ),
@@ -1484,8 +1485,15 @@ async def test_withdrawn_role_is_not_offered_or_added_and_existing_members_keep_
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("station_key", "station_label", "station_role_id"),
+    [("ganton", "Ganton", 714), ("angel_pine", "Angel Pine", ANGEL_PINE_ROLE_ID)],
+)
 async def test_ftt_entry_requests_only_station_and_applies_complete_package(
     role_request_env,
+    station_key,
+    station_label,
+    station_role_id,
 ) -> None:
     service, roles = _ftt_entry_service(role_request_env)
     role_request_env.requester.roles.append(roles[1])
@@ -1498,11 +1506,13 @@ async def test_ftt_entry_requests_only_station_and_applies_complete_package(
     assert modal.title == ROLE_REQUEST_MODAL_COPY.ftt_entry_title
     assert [option.value for option in modal.station_select.options] == [
         "ganton",
-        "dillimore",
+        "angel_pine",
     ]
-    station, additions = service.ftt_entry_changes(role_request_env.requester, "ganton")
-    assert station == "Ganton · <@&714>"
-    assert tuple(role.id for role in additions) == (710, 712, 714)
+    assert [option.label for option in modal.station_select.options] == ["Ganton", "Angel Pine"]
+    assert [str(option.emoji) for option in modal.station_select.options] == ["🏙️", "🌲"]
+    station, additions = service.ftt_entry_changes(role_request_env.requester, station_key)
+    assert station == f"{station_label} · <@&{station_role_id}>"
+    assert tuple(role.id for role in additions) == (710, 712, station_role_id)
 
     creation = _interaction(
         role_request_env,
@@ -1513,7 +1523,7 @@ async def test_ftt_entry_requests_only_station_and_applies_complete_package(
         creation,
         member=role_request_env.requester,
         channel=role_request_env.channel,
-        station_key="ganton",
+        station_key=station_key,
     )
 
     message = next(iter(role_request_env.channel.messages.values()))
@@ -1523,7 +1533,8 @@ async def test_ftt_entry_requests_only_station_and_applies_complete_package(
         allowed_channel_ids=frozenset({CHANNEL_ID}),
     )
     assert request.kind is RoleRequestKind.FTT_ENTRY
-    assert request.add_role_ids == (710, 712, 714)
+    assert request.add_role_ids == (710, 712, station_role_id)
+    assert not role_request_env.requester.edit_calls
     assert [child.custom_id for child in message.components[0].children] == [
         APPROVE_ALL_CUSTOM_ID,
         REJECT_CUSTOM_ID,
@@ -1532,7 +1543,7 @@ async def test_ftt_entry_requests_only_station_and_applies_complete_package(
     await service.approve_all(_interaction(role_request_env, message))
 
     final_ids = {role.id for role in role_request_env.requester.roles}
-    assert {710, 711, 712, 714} <= final_ids
+    assert {710, 711, 712, station_role_id} <= final_ids
     welcome_channel = role_request_env.guild.get_channel(WELCOME_CHANNEL_ID)
     assert welcome_channel is not None
     assert len(welcome_channel.send_calls) == 1
@@ -1556,6 +1567,37 @@ async def test_ftt_entry_requests_only_station_and_applies_complete_package(
 
 
 @pytest.mark.asyncio
+async def test_current_member_can_request_angel_pine_and_remove_ganton_after_approval(role_request_env):
+    env = role_request_env
+    service, roles = _ftt_entry_service(env)
+    env.requester.roles.extend((roles[2], roles[3]))  # Field Staff and current station Ganton.
+    original_ids = {role.id for role in env.requester.roles}
+    modal = CreateRoleRequestModal(service, member=env.requester, channel=env.channel)
+    add_options = {option.value: option.label for select in modal.add_selects for option in select.options}
+    assert add_options[str(ANGEL_PINE_ROLE_ID)] == "NPD: AP"
+    assert "1258630594741665893" not in add_options
+    _select_modal_values(modal.add_selects[0], [str(ANGEL_PINE_ROLE_ID)])
+    _select_modal_values(modal.remove_selects[0], ["714"])
+
+    await modal.callback(_interaction(env, SimpleNamespace(id=0), user=env.requester))
+
+    message = next(iter(env.channel.messages.values()))
+    request = decode_pending_message(
+        message, bot_user_id=BOT_ID, allowed_channel_ids=frozenset({CHANNEL_ID}),
+    )
+    assert request.add_role_ids == (ANGEL_PINE_ROLE_ID,)
+    assert request.remove_role_ids == (714,)
+    assert {role.id for role in env.requester.roles} == original_ids
+    assert not env.requester.edit_calls
+
+    await service.approve_all(_interaction(env, message))
+
+    # @everyone is implicit in Discord and is omitted from the member-edit payload.
+    expected_ids = (original_ids - {GUILD_ID, 714}) | {ANGEL_PINE_ROLE_ID}
+    assert {role.id for role in env.requester.roles} == expected_ids
+
+
+@pytest.mark.asyncio
 async def test_ftt_entry_cannot_be_partially_approved(role_request_env) -> None:
     service, _roles = _ftt_entry_service(role_request_env)
     creation = _interaction(
@@ -1567,7 +1609,7 @@ async def test_ftt_entry_cannot_be_partially_approved(role_request_env) -> None:
         creation,
         member=role_request_env.requester,
         channel=role_request_env.channel,
-        station_key="dillimore",
+        station_key="angel_pine",
     )
     message = next(iter(role_request_env.channel.messages.values()))
     interaction = _interaction(role_request_env, message)
@@ -2656,7 +2698,7 @@ async def test_entry_modal_callback_and_info_include_shifts(role_request_env):
     service, _ = _ftt_entry_service(env)
     _configure_shifts(env, service)
     modal = FttEntryRoleRequestModal(service, member=env.requester, channel=env.channel)
-    _select_modal_values(modal.station_select, ["dillimore"])
+    _select_modal_values(modal.station_select, ["angel_pine"])
     _select_modal_values(modal.shift_select, ["am"])
     await modal.callback(_interaction(env, SimpleNamespace(id=0), user=env.requester))
     message = next(iter(env.channel.messages.values()))

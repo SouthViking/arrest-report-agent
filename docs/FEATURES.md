@@ -401,7 +401,8 @@ Comandos disponibles:
   de hallazgos más frecuentes registradas por el agente. No procesa reportes históricos anteriores
   al despliegue de esta versión.
 - `/ts3`: permite al personal de `operational_staff_roles` publicar para todo el canal la dirección
-  `172.96.11.180:11189` del servidor TeamSpeak 3; los intentos no autorizados son efímeros.
+  `172.96.11.180:11189` del servidor TeamSpeak 3 y enlaces oficiales de descarga para Windows,
+  macOS y Linux identificados con emojis; los intentos no autorizados son efímeros.
 - `/manual`: permite al personal de `operational_staff_roles` publicar para todo el canal un acceso
   directo al manual oficial configurado para la facción.
 - `/pendientes`: consulta de supervisión para expedientes sin estado terminal o en revisión.

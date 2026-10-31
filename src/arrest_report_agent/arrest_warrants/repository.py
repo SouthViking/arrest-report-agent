@@ -33,7 +33,7 @@ class ArrestWarrantAlertRepository:
                 sa.text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
                 {"key": f"arrest-warrant:{guild_id}:{report_id}:{channel_id}"},
             )
-            delivered = set(
+            delivered: set[int] = set(
                 (
                     await connection.execute(
                         sa.select(table.c.warrant_id).where(

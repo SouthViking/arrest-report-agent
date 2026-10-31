@@ -98,6 +98,22 @@ LOGGER = logging.getLogger(__name__)
 
 DETERMINISTIC_REPLY_COOLDOWN_SECONDS = 30.0
 TEAMSPEAK_SERVER_ADDRESS = "172.96.11.180:11189"
+# Versioned official client links; update together when the downloads page changes.
+TEAMSPEAK_DOWNLOADS_URL = "https://www.teamspeak.com/en/downloads"
+TEAMSPEAK_CLIENT_DOWNLOADS = (
+    (
+        "🪟 Windows · 64 bits",
+        "https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-win64-3.6.2.exe",
+    ),
+    (
+        "🍎 macOS",
+        "https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-macosx-3.6.2.dmg",
+    ),
+    (
+        "🐧 Linux · 64 bits",
+        "https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run",
+    ),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,14 +283,23 @@ def build_teamspeak_embed(
     persona: BotPersona,
     address: str = TEAMSPEAK_SERVER_ADDRESS,
 ) -> discord.Embed:
-    """Build the public, persona-aware TeamSpeak connection notice."""
+    """Build the persona-aware connection notice with official client downloads."""
 
     copy = persona.messages.interface.commands
-    return discord.Embed(
+    embed = discord.Embed(
         title="🎙️ TeamSpeak 3",
         description=copy.teamspeak_message.format(address=address),
         color=discord.Color.blurple(),
     )
+    embed.add_field(
+        name="📥 Descargar TeamSpeak 3",
+        value=(
+            " · ".join(f"[{label}]({url})" for label, url in TEAMSPEAK_CLIENT_DOWNLOADS)
+            + f"\n\n[🌐 Otras opciones de descarga]({TEAMSPEAK_DOWNLOADS_URL})"
+        ),
+        inline=False,
+    )
+    return embed
 
 
 def build_manual_embed(

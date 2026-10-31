@@ -478,6 +478,36 @@ async def test_help_and_command_descriptions_use_selected_persona(settings, pers
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("persona_name", ["roy_velazco", "walter_vigil"])
+@pytest.mark.parametrize("address", ["172.96.11.180:11189", "voice.example.test:9987"])
+async def test_teamspeak_embed_includes_official_downloads_and_preserves_persona_and_address(
+    persona_name, address,
+) -> None:
+    selected_persona = (await PackagedPersonaProvider().load(persona_name)).profile
+
+    embed = build_teamspeak_embed(persona=selected_persona, address=address)
+
+    assert embed.description == selected_persona.messages.interface.commands.teamspeak_message.format(
+        address=address,
+    )
+    assert embed.color == discord.Color.blurple()
+    assert len(embed.fields) == 1
+    field = embed.fields[0]
+    assert field.name == "📥 Descargar TeamSpeak 3"
+    assert field.inline is False
+    assert field.value == (
+        "[🪟 Windows · 64 bits](https://files.teamspeak-services.com/releases/client/3.6.2/"
+        "TeamSpeak3-Client-win64-3.6.2.exe) · "
+        "[🍎 macOS](https://files.teamspeak-services.com/releases/client/3.6.2/"
+        "TeamSpeak3-Client-macosx-3.6.2.dmg) · "
+        "[🐧 Linux · 64 bits](https://files.teamspeak-services.com/releases/client/3.6.2/"
+        "TeamSpeak3-Client-linux_amd64-3.6.2.run)\n\n"
+        "[🌐 Otras opciones de descarga](https://www.teamspeak.com/en/downloads)"
+    )
+    assert len(field.value) <= 1024
+
+
+@pytest.mark.asyncio
 async def test_teamspeak_command_allows_operational_staff_and_uses_persona(
     settings,
     persona,
@@ -509,6 +539,9 @@ async def test_teamspeak_command_allows_operational_staff_and_uses_persona(
     assert embed.title == "🎙️ TeamSpeak 3"
     assert "172.96.11.180:11189" in (embed.description or "")
     assert embed.description == build_teamspeak_embed(persona=persona).description
+    assert embed.to_dict()["fields"] == build_teamspeak_embed(persona=persona).to_dict()["fields"]
+    assert responses[0]["allowed_mentions"].users is False
+    assert responses[0]["allowed_mentions"].roles is False
 
 
 @pytest.mark.asyncio

@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "version": "1.1.20",
-  "title": "Seguimiento de armas robadas",
-  "summary": "Consulta los reportes abiertos de robo de armas desde las bolsas de evidencia.",
+  "version": "1.1.21",
+  "title": "Angel Pine y descargas de TeamSpeak",
+  "summary": "Angel Pine ya está disponible en las solicitudes de roles y /ts3 incluye accesos directos para descargar el cliente.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -10,15 +10,15 @@
   "changes": [
     {
       "type": "added",
-      "text": "/ver-evidencia muestra los seriales con reportes de robo abiertos y enlaces a sus fichas. Conserva el contenido y la cadena de custodia y permite consultar sin generar alertas adicionales."
+      "text": "El ingreso FTT permite seleccionar 🌲 Angel Pine como estación de destino, manteniendo Ganton como alternativa."
     },
     {
       "type": "added",
-      "text": "El registro de robos de armas permite registrar y cerrar reportes con evidencias duraderas y auditoría del responsable. Las revisiones de arresto detectan coincidencias abiertas y avisan internamente sin bloquear la aprobación."
+      "text": "Los miembros actuales pueden solicitar el rol NPD: AP desde Cambiar roles. El cambio mantiene la aprobación del staff y no modifica los roles ya asignados."
     },
     {
-      "type": "added",
-      "text": "/info-robos-armas publica una guía desde cualquier canal o hilo del servidor, exclusivamente para operational staff, con los canales y pasos actuales para registrar y cerrar reportes."
+      "type": "improved",
+      "text": "/ts3 incluye enlaces oficiales de descarga para Windows, macOS y Linux, con emojis para identificar cada opción y un acceso a todas las descargas."
     }
   ],
   "acknowledgements": []
