@@ -700,6 +700,10 @@ Solo los miembros incluidos en `operational_staff_roles` pueden ejecutarlo. Publ
 visible para todo el canal con la dirección `172.96.11.180:11189` del servidor TeamSpeak 3. La dirección
 es determinista y el texto introductorio proviene de la persona activa. Los intentos no autorizados
 reciben una alerta efímera ajustada a esa personalidad.
+El mismo embed incluye enlaces directos oficiales al cliente TeamSpeak 3 para **🪟 Windows de
+64 bits**, **🍎 macOS** y **🐧 Linux de 64 bits**, junto con **🌐 Otras opciones de descarga** hacia
+la página oficial. Los enlaces están fijados a la versión 3.6.2 y deben actualizarse juntos cuando
+cambie la versión publicada; el comando no consulta la web ni ejecuta el agente para obtenerlos.
 
 ## `/manual`
 

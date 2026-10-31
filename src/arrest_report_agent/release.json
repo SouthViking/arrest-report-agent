@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
   "version": "1.1.21",
-  "title": "Angel Pine en las solicitudes de roles",
-  "summary": "Angel Pine ya está disponible para los nuevos ingresos FTT y los cambios de estación.",
+  "title": "Angel Pine y descargas de TeamSpeak",
+  "summary": "Angel Pine ya está disponible en las solicitudes de roles y /ts3 incluye accesos directos para descargar el cliente.",
   "repository_url": "https://github.com/SouthViking/arrest-report-agent",
   "changelog_targets": [
     1241206587079524442
@@ -15,6 +15,10 @@
     {
       "type": "added",
       "text": "Los miembros actuales pueden solicitar el rol NPD: AP desde Cambiar roles. El cambio mantiene la aprobación del staff y no modifica los roles ya asignados."
+    },
+    {
+      "type": "improved",
+      "text": "/ts3 incluye enlaces oficiales de descarga para Windows, macOS y Linux, con emojis para identificar cada opción y un acceso a todas las descargas."
     }
   ],
   "acknowledgements": []
