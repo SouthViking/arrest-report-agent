@@ -843,6 +843,10 @@ Si el módulo configura el ingreso FTT o un rol de retiro, el comando muestra pr
 para elegir el flujo. **Ingreso FTT** solicita únicamente la estación de destino y prepara el paquete
 de roles iniciales configurado, omitiendo los que el miembro ya posea. La solicitud queda identificada
 como ingreso en sus tarjetas pública y privada, y solo admite aprobación o rechazo completos.
+En LSSD se ofrecen **🏙️ Ganton** y **🌲 Angel Pine**. `NPD: AP` también está disponible en
+**Cambiar roles**, donde un miembro puede solicitar el alta y la baja de su estación anterior.
+Ambos flujos requieren aprobación; no se reasignan roles existentes automáticamente ni se reactiva
+Dillimore como opción.
 El rol CSD TTCF ya no forma parte del paquete de ingreso ni del catálogo manual de LSSD.
 La migración retira esa disponibilidad de la configuración publicada y los borradores, sin
 modificar los roles que ya poseen los miembros ni las solicitudes anteriores.

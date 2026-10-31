@@ -30,7 +30,7 @@ def test_withdraw_role_migration_changes_only_available_lssd_configuration(monke
         command.downgrade(alembic, "base")
         command.upgrade(alembic, "20261022_0093")
         cases, request = asyncio.run(_seed(database_url))
-        command.upgrade(alembic, "head")
+        command.upgrade(alembic, "20261025_0094")
         asyncio.run(_assert_configuration(database_url, cases, request))
         # A data correction must not silently make the withdrawn role available on downgrade.
         command.downgrade(alembic, "20261022_0093")

@@ -91,10 +91,10 @@ def test_shift_migration_scopes_config_and_preserves_existing_choices(monkeypatc
     try:
         command.upgrade(alembic, "20260930_0085")
         asyncio.run(inspect(seed=True))
-        command.upgrade(alembic, "head")
+        command.upgrade(alembic, "20260930_0086")
         asyncio.run(inspect(migrated=True))
         command.downgrade(alembic, "20260930_0085")
         # Rollback strips the new config key, preserving old request operations.
-        command.upgrade(alembic, "head")
+        command.upgrade(alembic, "20260930_0086")
     finally:
         command.downgrade(alembic, "base")
