@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from datetime import UTC
 from decimal import ROUND_HALF_UP, Decimal
@@ -32,10 +33,12 @@ class ContributionNormalizationWorker:
         exchange_rates: FrankfurterExchangeRateClient,
         *,
         poll_seconds: float = POLL_SECONDS,
+        is_enabled: Callable[[], Awaitable[bool]] | None = None,
     ) -> None:
         if poll_seconds <= 0:
             raise ValueError("poll_seconds must be positive")
         self.repository = repository
+        self._is_enabled = is_enabled
         self.exchange_rates = exchange_rates
         self.poll_seconds = poll_seconds
         self._wake = asyncio.Event()
@@ -68,6 +71,8 @@ class ContributionNormalizationWorker:
 
     async def process_once(self) -> None:
         async with self._processing:
+            if self._is_enabled is not None and not await self._is_enabled():
+                return
             for contribution in await self.repository.due_for_normalization():
                 await self._normalize(contribution)
 

@@ -202,7 +202,8 @@ def build_ci_failure_embed(
     if event.branch:
         branch = discord.utils.escape_markdown(event.branch)
         embed.add_field(name="Rama", value=f"`{branch}`", inline=True)
-    commit_url = f"{manifest.repository_url}/commit/{event.commit_hash}"
+    repository_url = f"https://github.com/{event.repository_full_name}"
+    commit_url = f"{repository_url}/commit/{event.commit_hash}"
     commit_label = event.commit_hash[:8]
     if event.commit_message:
         first_line = discord.utils.escape_markdown(event.commit_message.splitlines()[0][:100])
@@ -218,7 +219,7 @@ def build_ci_failure_embed(
         value=f"❌ Fallido · Intento {event.run_attempt}",
         inline=True,
     )
-    run_url = f"{manifest.repository_url}/actions/runs/{event.run_id}"
+    run_url = f"{repository_url}/actions/runs/{event.run_id}"
     embed.add_field(
         name="Ejecución",
         value=f"[Revisar en GitHub Actions]({run_url})",

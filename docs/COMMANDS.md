@@ -697,7 +697,7 @@ de `report_guide.json` cargadas por el runtime.
 ## `/ts3`
 
 Solo los miembros incluidos en `operational_staff_roles` pueden ejecutarlo. Publica un embed breve y
-visible para todo el canal con la dirección `172.96.11.180:11189` del servidor TeamSpeak 3. La dirección
+visible para todo el canal con la dirección configurada en `teamspeak.address`. La dirección
 es determinista y el texto introductorio proviene de la persona activa. Los intentos no autorizados
 reciben una alerta efímera ajustada a esa personalidad.
 El mismo embed incluye enlaces directos oficiales al cliente TeamSpeak 3 para **🪟 Windows de
@@ -730,7 +730,7 @@ Cada resultado muestra:
 - Categoría y tipo.
 - Condena, libertad condicional, multa y puntos cuando existen en el catálogo.
 - Descripción oficial disponible en el JSON local.
-- Enlace al PCU oficial.
+- Enlace al código penal configurado en `knowledge_links.penal_code_url`, si existe.
 
 La consulta devuelve como máximo 50 coincidencias y presenta cinco por página. Si hay más de una
 página aparecen los botones `Anterior` y `Siguiente`; ambos editan el mismo mensaje efímero.
@@ -752,7 +752,8 @@ Preguntas disponibles:
 - Corrección de contradicciones en la descripción física.
 - Validación de cargos contra los hechos y el catálogo.
 
-Cada respuesta indica la sección de la guía que la respalda y enlaza el manual oficial. Al modificar
+Cada respuesta indica la sección de la guía que la respalda y enlaza el manual si está configurado
+en `knowledge_links.procedures_manual_url`. Al modificar
 la guía debe revisarse también este listado para evitar que una respuesta quede desactualizada.
 
 ## `/pendientes`
@@ -959,3 +960,23 @@ categorías y la regla de uso responsable, sin exponer los comandos administrati
 recientes, cinco por página, con selector para abrir su contenido completo. `/estado-sugerencia`
 también está reservado a owners y permite cambiar mediante un modal entre `pending` y `archived`.
 Archivar libera un cupo del autor; cada alta y transición queda registrada en `suggestion_events`.
+
+
+## Aportes voluntarios y dedeo
+
+`/support` publica el enlace del módulo `support`; `/agradecimientos` muestra el historial de apoyos
+con un botón a esa misma URL. Al deshabilitar el módulo ambos responden con un aviso efímero,
+sin consultar el historial ni publicar enlaces. Ayuda y recursos también omiten sus notas de aportes.
+No se utiliza una cuenta personal de donaciones como alternativa implícita.
+
+`/dedear` requiere el módulo `dedeo` habilitado. `protected_user_ids` determina qué usuarios quedan
+fuera del sorteo y reflejan una selección explícita hacia el remitente. La lista vacía no protege a
+nadie. Esa protección no concede acceso a `/config`, aprobaciones ni otras funciones del bot.
+
+Los enlaces de `/guia`, `/faq` y `/cargos` se obtienen de `knowledge_links`. Deshabilitarlo u omitir
+una URL conserva las consultas locales, sin incluir ese enlace. Consulta los ejemplos de
+[Configuración](CONFIGURATION.md) para cambiar los módulos mediante borrador y publicación.
+
+El seed de preguntas del manual se ejecuta con un ID de servidor explícito, por ejemplo
+`psql --set=guild_id=222222222222222222 --file=scripts/seed_manual_quiz_questions.sql`.
+La conexión se prepara mediante las herramientas del proveedor; no incluyas su contraseña en el comando.

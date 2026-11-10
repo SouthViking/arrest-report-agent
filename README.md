@@ -47,6 +47,14 @@ La configuración tiene dos niveles:
 Los valores de importación inicial no sustituyen la configuración ya publicada. No repitas
 `db import-env --replace` como parte de una actualización normal.
 
+Los valores institucionales de importación están en un perfil JSON reemplazable mediante
+`BOOTSTRAP_PROFILE_PATH`. `/config` permite configurar o deshabilitar aportes, usuarios protegidos
+de `/dedear`, enlaces de conocimiento, TeamSpeak y destinos internos del changelog. La whitelist
+`CONFIG_OWNER_USER_IDS` define los usuarios administradores sin una cuenta de creador implícita.
+
+Autoría original: **SouthViking**. La cuenta que aloja el servicio y el repositorio operativo pueden
+cambiar conservando la atribución y el historial de contribuciones.
+
 ## Desarrollo y comprobaciones
 
 Instala las dependencias de desarrollo siguiendo [Instalación](docs/SETUP.md). Después:

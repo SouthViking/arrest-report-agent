@@ -1,24 +1,22 @@
 {
   "schema_version": 3,
-  "version": "1.1.21",
-  "title": "Angel Pine y descargas de TeamSpeak",
-  "summary": "Angel Pine ya está disponible en las solicitudes de roles y /ts3 incluye accesos directos para descargar el cliente.",
-  "repository_url": "https://github.com/SouthViking/arrest-report-agent",
-  "changelog_targets": [
-    1241206587079524442
-  ],
+  "version": "1.1.22",
+  "title": "Configuración portable y traspaso del bot",
+  "summary": "Las referencias de la instalación se pueden configurar y las integraciones opcionales se pueden deshabilitar.",
+  "repository_url": null,
+  "changelog_targets": "internal",
   "changes": [
     {
-      "type": "added",
-      "text": "El ingreso FTT permite seleccionar 🌲 Angel Pine como estación de destino, manteniendo Ganton como alternativa."
-    },
-    {
-      "type": "added",
-      "text": "Los miembros actuales pueden solicitar el rol NPD: AP desde Cambiar roles. El cambio mantiene la aprobación del staff y no modifica los roles ya asignados."
+      "type": "improved",
+      "text": "Aportes voluntarios, protección de /dedear, enlaces del manual y canales internos del changelog se configuran desde /config."
     },
     {
       "type": "improved",
-      "text": "/ts3 incluye enlaces oficiales de descarga para Windows, macOS y Linux, con emojis para identificar cada opción y un acceso a todas las descargas."
+      "text": "El repositorio de origen, los recursos de conocimiento y el banner admiten configuración por instalación, sin editar la lógica del bot."
+    },
+    {
+      "type": "improved",
+      "text": "Los valores iniciales de LSSD se conservan en un perfil declarativo. Se documenta la administración por whitelist y el traspaso a otro responsable."
     }
   ],
   "acknowledgements": []

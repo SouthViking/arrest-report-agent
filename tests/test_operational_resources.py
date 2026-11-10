@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import discord
 
 from arrest_report_agent.config import OperationalResourcesOptions
+from arrest_report_agent.config.instance import SupportOptions
 from arrest_report_agent.faction_status import FactionPresenceMember, FactionPresenceSnapshot
 from arrest_report_agent.infrastructure.sarp import SarpServerCacheInfo
 from arrest_report_agent.infrastructure.sarp.errors import SarpTransportError
@@ -14,7 +15,8 @@ from arrest_report_agent.operational_resources import (
     OperationalResourcesSnapshot,
     build_operational_resources_embed,
 )
-from arrest_report_agent.support import SUPPORT_URL
+
+SUPPORT_URL = "https://buymeacoffee.com/example-operator"
 
 
 def _options() -> OperationalResourcesOptions:
@@ -120,6 +122,7 @@ def test_resources_embed_is_nested_bounded_and_uses_dynamic_cache(persona) -> No
         organization_acronym="LSSD",
         ui=persona.messages.interface.operational_resources,
         thumbnail_url="https://cdn.discordapp.com/icons/1/icon.png",
+        support_options=SupportOptions(url=SUPPORT_URL),
     )
 
     assert embed.title == "📡 Recursos y estado operativo"
@@ -160,6 +163,7 @@ async def test_resources_command_rejects_member_without_operational_role(persona
             settings=SimpleNamespace(
                 operational_staff_role_ids=(200,),
                 operational_resources_options=_options(),
+                support_options=None,
             ),
             persona=SimpleNamespace(profile=persona),
         )
@@ -195,6 +199,7 @@ async def test_resources_command_publishes_for_operational_staff(persona) -> Non
             settings=SimpleNamespace(
                 operational_staff_role_ids=(200,),
                 operational_resources_options=_options(),
+                support_options=None,
                 teamspeak_address="172.96.11.180:11189",
             ),
             persona=SimpleNamespace(profile=persona),

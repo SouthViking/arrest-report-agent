@@ -21,11 +21,7 @@ from arrest_report_agent.config import (
     GuildFeatureSnapshot,
     PackagedPersonaProvider,
 )
-from arrest_report_agent.config.bootstrap_defaults import (
-    ftp_defaults,
-    pending_arrest_supervisor_alert_defaults,
-    role_request_review_defaults,
-)
+from arrest_report_agent.config.bootstrap_profile import GuildBootstrapProfile, load_bootstrap_profile
 from arrest_report_agent.infrastructure.postgres import (
     ConfigurationRepository,
     PostgresClient,
@@ -39,11 +35,6 @@ from arrest_report_agent.infrastructure.storage import (
 )
 
 BOOTSTRAP_MIGRATION_NAME = "bootstrap_env_v1"
-LSSD_GUILD_ID = 1234674521416663070
-LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS = (
-    1234678029662294047,
-    1234678238182244414,
-)
 
 
 class BootstrapError(RuntimeError):
@@ -270,17 +261,13 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
         thread_context_max_historical_files=settings.thread_context_max_historical_files,
         thread_auto_archive_minutes=settings.thread_auto_archive_minutes,  # type: ignore[arg-type]
     )
+    profiles = load_bootstrap_profile(settings.bootstrap_profile_path)
     placeholder_persona_revision = UUID(int=0)
     guilds: list[BootstrapGuild] = []
     for guild_id in guild_ids:
-        review_defaults = role_request_review_defaults(guild_id)
-        configured_ftp = ftp_defaults(guild_id)
-        supervisor_alert_defaults = pending_arrest_supervisor_alert_defaults(guild_id)
-        ftp_enabled = configured_ftp is not None and bool(supervisor_roles[guild_id])
-        reviewer_ids = (
-            review_defaults.reviewer_role_ids if review_defaults is not None else reviewer_roles[guild_id]
-        )
-        review_channel_ids = review_defaults.channel_ids if review_defaults is not None else ()
+        profile = profiles.guilds.get(guild_id, GuildBootstrapProfile())
+        reviewer_ids = reviewer_roles[guild_id]
+        review_channel_ids: tuple[int, ...] = ()
         policies = (
             policy(
                 AccessPolicyKey.REPORT_CHANNELS,
@@ -382,11 +369,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
             ),
             AccessPolicySnapshot(
                 key=AccessPolicyKey.FACTION_REPORT_ROLES,
-                subject_type="role",
-                mode=(
-                    AccessPolicyMode.RESTRICTED if guild_id == LSSD_GUILD_ID else AccessPolicyMode.DISABLED
-                ),
-                ids=(LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS if guild_id == LSSD_GUILD_ID else ()),
+                subject_type="role", mode=AccessPolicyMode.DISABLED,
             ),
             AccessPolicySnapshot(
                 key=AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS,
@@ -410,13 +393,7 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
             ),
             AccessPolicySnapshot(
                 key=AccessPolicyKey.STOLEN_VEHICLE_CHANNELS,
-                subject_type="channel",
-                mode=(
-                    AccessPolicyMode.RESTRICTED
-                    if guild_id == 1234674521416663070
-                    else AccessPolicyMode.DISABLED
-                ),
-                ids=((1539037905014759485,) if guild_id == 1234674521416663070 else ()),
+                subject_type="channel", mode=AccessPolicyMode.DISABLED,
             ),
             AccessPolicySnapshot(
                 key=AccessPolicyKey.LOGBOOK_CHANNELS,
@@ -424,356 +401,31 @@ async def plan_environment_import(settings: AppSettings) -> EnvironmentImportPla
                 mode=AccessPolicyMode.DISABLED,
             ),
         )
+        policy_map = {entry.key: entry for entry in policies}
+        policy_map.update({entry.key: entry for entry in profile.policy_snapshots()})
+        base_features = {
+            key: GuildFeatureSnapshot(key=key, enabled=False, schema_version=1, payload={})
+            for key in (
+                "role_requests", "teamspeak", "pagers", "deployment_notifications", "report_owner_access",
+                "service_calls", "review_failure_notifications", "stolen_vehicles", "faction_status", "fleet",
+                "ftp_status", "ftp_requests", "warrant_notifications", "faction_member_analysis",
+                "operational_resources", "forum_shortcuts", "arrest_report_lookup", "pending_arrest_reports",
+                "rumors", "radio_audit", "stolen_weapons", "blacklists", "support", "dedeo",
+                "knowledge_links", "release_routing",
+            )
+        }
+        base_features["role_requests"] = GuildFeatureSnapshot(
+            key="role_requests", enabled=bool(policy_map[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].ids),
+            schema_version=1, payload={},
+        )
+        for key, feature in profile.features.items():
+            base_features[key] = feature.snapshot(
+                key, has_supervisor_roles=bool(supervisor_roles[guild_id]),
+            )
         guilds.append(
             BootstrapGuild(
-                guild_id=guild_id,
-                name=visible_by_id[guild_id].name,
-                agent=agent,
-                policies=policies,
-                features=(
-                    GuildFeatureSnapshot(
-                        key="role_requests",
-                        enabled=bool(reviewer_ids),
-                        schema_version=1,
-                        payload={},
-                    ),
-                    GuildFeatureSnapshot(
-                        key="teamspeak",
-                        enabled=True,
-                        schema_version=1,
-                        payload={"address": "172.96.11.180:11189"},
-                    ),
-                    GuildFeatureSnapshot(
-                        key="pagers",
-                        enabled=False,
-                        schema_version=1,
-                        payload={
-                            "starting_number": 92 if guild_id == 1234674521416663070 else 1,
-                            **(
-                                {"forward_channel_id": 1234675609536430152}
-                                if guild_id == 1234674521416663070
-                                else {}
-                            ),
-                        },
-                    ),
-                    GuildFeatureSnapshot(
-                        key="deployment_notifications",
-                        enabled=False,
-                        schema_version=1,
-                        payload={},
-                    ),
-                    GuildFeatureSnapshot(
-                        key="report_owner_access",
-                        enabled=guild_id == LSSD_GUILD_ID,
-                        schema_version=1,
-                        payload=(
-                            {
-                                "max_rounds": 5,
-                                "quota_grant_role_ids": list(LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS),
-                                "quota_exhausted_notification_channel_id": 1261076248541532240,
-                            }
-                            if guild_id == LSSD_GUILD_ID
-                            else {}
-                        ),
-                    ),
-                    GuildFeatureSnapshot(
-                        key="service_calls",
-                        enabled=False,
-                        schema_version=1,
-                        payload={},
-                    ),
-                    GuildFeatureSnapshot(
-                        key="review_failure_notifications",
-                        enabled=guild_id == LSSD_GUILD_ID,
-                        schema_version=1,
-                        payload={
-                            "role_ids": list(LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS)
-                            if guild_id == LSSD_GUILD_ID else [],
-                            "user_ids": [],
-                        },
-                    ),
-                    GuildFeatureSnapshot(
-                        key="stolen_vehicles",
-                        enabled=(guild_id == 1234674521416663070 and bool(supervisor_roles[guild_id])),
-                        schema_version=1,
-                        payload={},
-                    ),
-                    GuildFeatureSnapshot(
-                        key="faction_status",
-                        enabled=False,
-                        schema_version=1,
-                        payload={},
-                    ),
-                    GuildFeatureSnapshot(
-                        key="fleet",
-                        enabled=(guild_id == LSSD_GUILD_ID and bool(supervisor_roles[guild_id])),
-                        schema_version=1,
-                        payload=(
-                            {"faction_id": 3, "cache_seconds": 120} if guild_id == LSSD_GUILD_ID else {}
-                        ),
-                    ),
-                    GuildFeatureSnapshot(
-                        key="ftp_status",
-                        enabled=ftp_enabled,
-                        schema_version=1,
-                        payload=(
-                            {
-                                "faction_id": configured_ftp.faction_id,
-                                "supervisory_role_ids": list(configured_ftp.supervisory_role_ids),
-                                "mfto_role_ids": list(configured_ftp.mfto_role_ids),
-                                "fto_role_ids": list(configured_ftp.fto_role_ids),
-                                "ftt_role_ids": list(configured_ftp.ftt_role_ids),
-                            }
-                            if ftp_enabled and configured_ftp is not None
-                            else {}
-                        ),
-                    ),
-                    GuildFeatureSnapshot(
-                        key="ftp_requests",
-                        enabled=ftp_enabled,
-                        schema_version=1,
-                        payload=(
-                            {
-                                "channel_id": configured_ftp.request_channel_id,
-                                "command_role_ids": list(configured_ftp.command_role_ids),
-                                "executive_role_ids": list(configured_ftp.executive_role_ids),
-                                "supervisor_extra_notification_role_ids": list(
-                                    configured_ftp.supervisor_extra_notification_role_ids
-                                ),
-                            }
-                            if ftp_enabled and configured_ftp is not None
-                            else {}
-                        ),
-                    ),
-                    GuildFeatureSnapshot(
-                        key="warrant_notifications",
-                        enabled=guild_id == 1234674521416663070,
-                        schema_version=1,
-                        payload=(
-                            {
-                                "channel_id": 1552367150591905793,
-                                "result_channel_id": 1537203701893169254,
-                                "command_role_ids": [1234678029662294047],
-                                "executive_role_ids": [1234678238182244414],
-                            }
-                            if guild_id == 1234674521416663070
-                            else {}
-                        ),
-                    ),
-                    GuildFeatureSnapshot(
-                        key="faction_member_analysis",
-                        enabled=(guild_id == 1234674521416663070 and bool(supervisor_roles[guild_id])),
-                        schema_version=1,
-                        payload=(
-                            {
-                                "faction_id": 3,
-                                "base_divisions": ["GNT", "DLM"],
-                                "inactivity_warning_days": 14,
-                                "inactivity_critical_days": 30,
-                                "inactivity_warning_percentage": 20,
-                                "inactivity_critical_percentage": 30,
-                            }
-                            if guild_id == 1234674521416663070 and bool(supervisor_roles[guild_id])
-                            else {}
-                        ),
-                    ),
-                    GuildFeatureSnapshot(
-                        key="operational_resources",
-                        enabled=(guild_id == 1234674521416663070 and bool(supervisor_roles[guild_id])),
-                        schema_version=1,
-                        payload=(
-                            {
-                                "faction_id": 3,
-                                "game_server_address": "play.sarp.es:7777",
-                                "pcu_url": "https://ucp.sarp.es/app/ucp/home",
-                                "forum_url": (
-                                    "https://forum.sarp.es/index.php?/forum/199-foro-los-"
-                                    "santos-county-sheriffs-department/"
-                                ),
-                                "manual_url": (
-                                    "https://docs.google.com/document/d/"
-                                    "1DrhSgzPbdLoe0ahFTVrNPb_zBPuhVeatxW5Hs8ECMHE/"
-                                    "edit?pli=1&tab=t.0#heading=h.thzh3oj2x0rk"
-                                ),
-                                "penal_code_url": "https://ucp.sarp.es/app/ucp/penalcode",
-                            }
-                            if guild_id == 1234674521416663070 and bool(supervisor_roles[guild_id])
-                            else {}
-                        ),
-                    ),
-                    GuildFeatureSnapshot(
-                        key="forum_shortcuts",
-                        enabled=guild_id == 1234674521416663070,
-                        schema_version=1,
-                        payload=(
-                            {
-                                "organization_name": ("Los Santos Sheriff's Department"),
-                                "description": (
-                                    "Consulta rápidamente nuestros espacios y procedimientos oficiales."
-                                ),
-                                "banner_url": "https://i.imgur.com/gBxZZIT.gif",
-                                "sections": [
-                                    {
-                                        "title": "🏛️ Foro institucional",
-                                        "links": [
-                                            {
-                                                "label": "Página principal",
-                                                "url": "https://sheriff.sarp.es/index.php",
-                                            }
-                                        ],
-                                    },
-                                    {
-                                        "title": "👥 Ingreso y desarrollo",
-                                        "links": [
-                                            {
-                                                "label": "Oportunidades de empleo",
-                                                "url": ("https://sheriff.sarp.es/viewforum.php?f=3"),
-                                            },
-                                            {
-                                                "label": "Transferencias laterales",
-                                                "url": ("https://sheriff.sarp.es/viewtopic.php?t=162"),
-                                            },
-                                            {
-                                                "label": "Reincorporaciones",
-                                                "url": ("https://sheriff.sarp.es/viewtopic.php?t=104"),
-                                            },
-                                            {
-                                                "label": "Field Training Program",
-                                                "url": ("https://sheriff.sarp.es/viewforum.php?f=10"),
-                                            },
-                                        ],
-                                    },
-                                    {
-                                        "title": "📋 Solicitudes y participación pública",
-                                        "links": [
-                                            {
-                                                "label": "Quejas y elogios públicos",
-                                                "url": ("https://sheriff.sarp.es/viewtopic.php?t=497"),
-                                            },
-                                            {
-                                                "label": "Licencias CCW y de caza",
-                                                "url": ("https://sheriff.sarp.es/viewforum.php?f=135"),
-                                            },
-                                        ],
-                                    },
-                                ],
-                            }
-                            if guild_id == 1234674521416663070
-                            else {}
-                        ),
-                    ),
-                    GuildFeatureSnapshot(
-                        key="arrest_report_lookup",
-                        enabled=guild_id == 1234674521416663070,
-                        schema_version=1,
-                        payload=(
-                            {
-                                "faction_id": 3,
-                                "warrant_alerts_enabled": True,
-                                "warrant_alert_channel_ids": list(supervisor_alert_defaults.channel_ids),
-                                "warrant_alert_role_id": supervisor_alert_defaults.role_id,
-                            }
-                            if supervisor_alert_defaults is not None else {}
-                        ),
-                    ),
-                    GuildFeatureSnapshot(
-                        key="pending_arrest_reports",
-                        enabled=guild_id == 1234674521416663070,
-                        schema_version=1,
-                        payload=(
-                            {
-                                "faction_id": 3,
-                                "max_range_days": 90,
-                                "max_records": 1000,
-                                "digest_interval_hours": 6,
-                                "digest_lookback_days": 7,
-                                "digest_targets": [
-                                    {"channel_id": 1537203701893169254, "mention_users": True}
-                                ],
-                                "supervisor_alerts_enabled": supervisor_alert_defaults is not None,
-                                "supervisor_alert_channel_ids": (
-                                    list(supervisor_alert_defaults.channel_ids)
-                                    if supervisor_alert_defaults is not None
-                                    else []
-                                ),
-                                "supervisor_alert_role_id": (
-                                    supervisor_alert_defaults.role_id
-                                    if supervisor_alert_defaults is not None
-                                    else None
-                                ),
-                            }
-                            if guild_id == 1234674521416663070
-                            else {}
-                        ),
-                    ),
-                    GuildFeatureSnapshot(
-                        key="arrest_statistics",
-                        enabled=guild_id == LSSD_GUILD_ID,
-                        schema_version=1,
-                        payload=(
-                            {
-                                "faction_id": 3,
-                                "max_range_days": 30,
-                                "max_reports": 200,
-                                "cache_ttl_seconds": 900,
-                                "detail_concurrency": 3,
-                                "max_top": 10,
-                            }
-                            if guild_id == LSSD_GUILD_ID
-                            else {}
-                        ),
-                    ),
-                    GuildFeatureSnapshot(
-                        key="logbook",
-                        enabled=False,
-                        schema_version=1,
-                        payload={},
-                    ),
-                    GuildFeatureSnapshot(
-                        key="stolen_weapons",
-                        enabled=guild_id == LSSD_GUILD_ID,
-                        schema_version=1,
-                        payload=(
-                            {"source_channel_ids": [1421923642983317545],
-                             "destination_channel_id": 1565184787591860345}
-                            if guild_id == LSSD_GUILD_ID else {}
-                        ),
-                    ),
-                    GuildFeatureSnapshot(
-                        key="blacklists",
-                        enabled=(guild_id == LSSD_GUILD_ID and bool(supervisor_roles[guild_id])),
-                        schema_version=1,
-                        payload=(
-                            {
-                                "manager_role_ids": list(LSSD_COMMAND_AND_EXECUTIVE_ROLE_IDS),
-                                "types": [
-                                    {
-                                        "key": "ccw",
-                                        "display_name": "CCW",
-                                        "reference_prefix": "CCW",
-                                        "channel_ids": [1530621801871441991],
-                                        "profile_kind": "character",
-                                        "max_profiles": 1,
-                                        "subject_label": "Personaje",
-                                        "enabled": True,
-                                    },
-                                    {
-                                        "key": "faction",
-                                        "display_name": "Facción",
-                                        "reference_prefix": "FAC",
-                                        "channel_ids": [1383926305136971906],
-                                        "profile_kind": "account",
-                                        "max_profiles": 5,
-                                        "subject_label": "Persona",
-                                        "enabled": True,
-                                    },
-                                ],
-                            }
-                            if guild_id == LSSD_GUILD_ID
-                            else {"types": [], "manager_role_ids": []}
-                        ),
-                    ),
-                ),
+                guild_id=guild_id, name=visible_by_id[guild_id].name, agent=agent,
+                policies=tuple(policy_map.values()), features=tuple(base_features.values()),
                 persona_revision_id=placeholder_persona_revision,
             )
         )

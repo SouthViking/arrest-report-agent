@@ -15,10 +15,10 @@ from discord.ext import commands
 
 from arrest_report_agent.config import BotPersona
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 
 LOGGER = logging.getLogger(__name__)
 DEDEO_COOLDOWN_SECONDS = 30
-DEDEO_CREATOR_USER_ID = 449044161954447360
 
 
 class MonotonicClock(Protocol):
@@ -205,7 +205,8 @@ WALTER_DEDEO_COPY = DedeoCopy(
 class DedeoCog(commands.Cog):
     """Select one locally cached human member visible in the current channel."""
 
-    def __init__(self, persona: BotPersona) -> None:
+    def __init__(self, persona: BotPersona, provider: DatabaseConfigProvider) -> None:
+        self.provider = provider
         self.persona = persona
         self.copy = _copy_for(persona.id)
         self.cooldown = DedeoCooldown()
@@ -237,6 +238,11 @@ class DedeoCog(commands.Cog):
             )
             return
 
+        bundle = await self.provider.cached(ctx.guild.id)
+        options = bundle.settings.dedeo_options
+        if options is None:
+            await ctx.respond("El dedeo no está habilitado en este servidor.", ephemeral=True)
+            return
         guild_id = ctx.guild.id
         channel_id = ctx.channel.id
         requester_id = ctx.author.id
@@ -258,6 +264,7 @@ class DedeoCog(commands.Cog):
                 candidates,
                 author=ctx.author,
                 requested_target=usuario,
+                protected_user_ids=frozenset(options.protected_user_ids),
             )
             if selection.creator_self_target:
                 await ctx.respond(
@@ -350,17 +357,18 @@ def select_dedeo_target(
     *,
     author: discord.Member,
     requested_target: discord.Member | None = None,
+    protected_user_ids: frozenset[int] = frozenset(),
 ) -> DedeoSelection:
     """Resolve explicit, reflected, or random selection without targeting the creator."""
 
     if requested_target is not None:
-        if requested_target.id == DEDEO_CREATOR_USER_ID:
-            if author.id == DEDEO_CREATOR_USER_ID:
+        if requested_target.id in protected_user_ids:
+            if author.id in protected_user_ids:
                 return DedeoSelection(target=None, creator_self_target=True)
             return DedeoSelection(target=author, creator_defense=True)
         return DedeoSelection(target=requested_target)
 
-    unprotected = tuple(member for member in candidates if member.id != DEDEO_CREATOR_USER_ID)
+    unprotected = tuple(member for member in candidates if member.id not in protected_user_ids)
     others = tuple(member for member in unprotected if member.id != author.id)
     selectable = others or unprotected
     target = secrets.choice(selectable) if selectable else None

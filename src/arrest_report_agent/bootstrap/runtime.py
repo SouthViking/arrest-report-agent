@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from functools import partial
+from pathlib import Path
 
 import discord
 from agents import set_default_openai_key
@@ -288,7 +289,7 @@ async def build_runtime(
 ) -> Runtime:
     if persona_provider is not None:
         raise ValueError("Runtime personas are authoritative in PostgreSQL")
-    release_manifest = ReleaseManifest.load_packaged()
+    release_manifest = ReleaseManifest.load_packaged(repository_url=settings.resolved_repository_url)
     postgres = build_postgres_client(settings)
     await postgres.open()
     local_catalog = ChargeCatalog.load_default()
@@ -317,8 +318,14 @@ async def build_runtime(
         charge_count=catalog_snapshot.catalog.charge_count,
         source_hash=catalog_snapshot.catalog.source_hash,
     )
-    guide = ReportGuide.load_default()
-    manual_catalog = ManualCatalog.load_default()
+    guide = (
+        ReportGuide.from_path(Path(settings.report_guide_path))
+        if settings.report_guide_path else ReportGuide.load_default()
+    )
+    manual_catalog = (
+        ManualCatalog.from_path(Path(settings.manual_catalog_path))
+        if settings.manual_catalog_path else ManualCatalog.load_default()
+    )
     radio_catalog = RadioCodeCatalog.load_default()
     model_catalog = ModelCatalog.load_default()
     object_storage = build_bucket_storage(settings)
@@ -373,7 +380,7 @@ async def build_runtime(
     profile_synchronizer = DiscordProfileSynchronizer(
         bot,
         persona,
-        global_banner_bytes=load_global_profile_banner(),
+        global_banner_bytes=load_global_profile_banner(settings.profile_banner_path),
     )
     report_review_repository = ReportReviewRepository(postgres)
     report_owner_run_repository = ReportOwnerRunRepository(postgres)
@@ -606,9 +613,9 @@ async def build_runtime(
     )
     bot.add_cog(ForumShortcutsCog(config_provider))
     bot.add_cog(ServiceCallStatisticsCog(bot, config_provider))
-    bot.add_cog(DedeoCog(persona.profile))
+    bot.add_cog(DedeoCog(persona.profile, config_provider))
     support_contribution_repository = SupportContributionRepository(postgres)
-    bot.add_cog(SupportCog(support_contribution_repository))
+    bot.add_cog(SupportCog(support_contribution_repository, config_provider))
     if sarp_client is not None:
         if evidence_bag_service is None:
             raise RuntimeError("Evidence-bag service was not initialized")
@@ -844,13 +851,23 @@ async def build_runtime(
             ci_notification_worker.wake,
             expected_repository=release_manifest.repository_full_name,
         )
-        if settings.github_webhook_enabled
+        if settings.github_webhook_enabled and release_manifest.repository_full_name is not None
         else None
     )
+    if settings.github_webhook_enabled and release_manifest.repository_full_name is None:
+        log_event(LOGGER, "warning", "github_webhook_disabled", reason="repository_url_not_configured")
+
+    async def contributions_enabled() -> bool:
+        for guild_id in await config_provider.guild_ids():
+            if (await config_provider.cached(guild_id)).settings.support_options is not None:
+                return True
+        return False
+
     contribution_normalization_worker = (
         ContributionNormalizationWorker(
             support_contribution_repository,
             FrankfurterExchangeRateClient(),
+            is_enabled=contributions_enabled,
         )
         if settings.buy_me_a_coffee_webhook_enabled
         else None
@@ -862,6 +879,7 @@ async def build_runtime(
             settings,
             support_contribution_repository,
             contribution_normalization_worker.wake,
+            is_enabled=contributions_enabled,
         )
         if contribution_normalization_worker is not None
         else None

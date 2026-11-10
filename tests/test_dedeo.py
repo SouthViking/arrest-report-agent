@@ -5,7 +5,6 @@ from types import SimpleNamespace
 import discord
 
 from arrest_report_agent.dedeo.discord import (
-    DEDEO_CREATOR_USER_ID,
     ROY_DEDEO_COPY,
     DedeoCog,
     DedeoCooldown,
@@ -13,6 +12,8 @@ from arrest_report_agent.dedeo.discord import (
     eligible_channel_members,
     select_dedeo_target,
 )
+
+DEDEO_CREATOR_USER_ID = 100
 
 
 class FakeClock:
@@ -117,7 +118,7 @@ def test_creator_is_excluded_from_random_selection(monkeypatch) -> None:
     creator = _member(DEDEO_CREATOR_USER_ID)
     monkeypatch.setattr("arrest_report_agent.dedeo.discord.secrets.choice", lambda values: values[0])
 
-    selection = select_dedeo_target((creator, author), author=author)
+    selection = select_dedeo_target((creator, author), author=author, protected_user_ids=frozenset({100}))
 
     assert selection.target is author
     assert selection.creator_defense is False
@@ -127,7 +128,9 @@ def test_explicit_creator_target_is_reflected_to_requester() -> None:
     author = _member(1)
     creator = _member(DEDEO_CREATOR_USER_ID)
 
-    selection = select_dedeo_target((), author=author, requested_target=creator)
+    selection = select_dedeo_target(
+        (), author=author, requested_target=creator, protected_user_ids=frozenset({100}),
+    )
 
     assert selection.target is author
     assert selection.creator_defense is True
@@ -137,7 +140,9 @@ def test_explicit_creator_target_is_reflected_to_requester() -> None:
 def test_creator_cannot_target_themselves() -> None:
     creator = _member(DEDEO_CREATOR_USER_ID)
 
-    selection = select_dedeo_target((), author=creator, requested_target=creator)
+    selection = select_dedeo_target(
+        (), author=creator, requested_target=creator, protected_user_ids=frozenset({100}),
+    )
 
     assert selection.target is None
     assert selection.creator_self_target is True

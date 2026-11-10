@@ -7,7 +7,7 @@ import sys
 
 import requests
 
-API_URL = "https://api.gta-rol.com/api/police/fines"
+DEFAULT_API_BASE_URL = "https://api.gta-rol.com/api"
 
 
 def main() -> int:
@@ -18,7 +18,7 @@ def main() -> int:
 
     try:
         response = requests.get(
-            API_URL,
+            os.getenv("SARP_API_BASE_URL", DEFAULT_API_BASE_URL).rstrip("/") + "/police/fines",
             params={"page": 1, "limit": 25, "is_paid": 0},
             headers={
                 "Authorization": f"Bearer {token}",

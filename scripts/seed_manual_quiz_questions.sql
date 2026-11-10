@@ -4,7 +4,7 @@
 --
 -- Uso:
 --   psql "$DATABASE_URL" \
---     --set=guild_id=1234674521416663070 \
+--     --set=guild_id=:'guild_id' \
 --     --file=scripts/seed_manual_quiz_questions.sql
 --
 -- El seed es idempotente por (guild_id, slug):

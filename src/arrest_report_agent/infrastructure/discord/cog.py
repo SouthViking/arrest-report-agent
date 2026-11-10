@@ -38,6 +38,7 @@ from arrest_report_agent.config import (
     GuildRuntimeSettings,
     PersonaAccessMessages,
 )
+from arrest_report_agent.config.instance import KnowledgeLinksOptions, SupportOptions
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.domain import AgentAccessLevel, ErrorKind, ReviewCase
 from arrest_report_agent.domain.errors import ContextUnavailableError, ReportOwnerSubmissionError
@@ -97,7 +98,6 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 DETERMINISTIC_REPLY_COOLDOWN_SECONDS = 30.0
-TEAMSPEAK_SERVER_ADDRESS = "172.96.11.180:11189"
 # Versioned official client links; update together when the downloads page changes.
 TEAMSPEAK_DOWNLOADS_URL = "https://www.teamspeak.com/en/downloads"
 TEAMSPEAK_CLIENT_DOWNLOADS = (
@@ -160,6 +160,7 @@ def build_help_embed(
     persona: BotPersona,
     avatar_url: str | None = None,
     extra_feature_guides: str | None = None,
+    support_options: SupportOptions | None = None,
 ) -> discord.Embed:
     """Render a compact directory for the feature-specific help commands."""
 
@@ -193,7 +194,7 @@ def build_help_embed(
     embed.set_footer(text=copy.footer.format(form_of_address=identity.default_form_of_address))
     if avatar_url:
         embed.set_thumbnail(url=avatar_url)
-    return append_support_note(embed)
+    return append_support_note(embed, support_options)
 
 
 def build_report_info_embed(
@@ -281,7 +282,7 @@ def build_report_info_embed(
 def build_teamspeak_embed(
     *,
     persona: BotPersona,
-    address: str = TEAMSPEAK_SERVER_ADDRESS,
+    address: str,
 ) -> discord.Embed:
     """Build the persona-aware connection notice with official client downloads."""
 
@@ -1677,6 +1678,7 @@ class ReviewCog(commands.Cog):
             persona=self.persona,
             avatar_url=str(bot_user.display_avatar.url) if bot_user else None,
             extra_feature_guides=("\n".join(extra_feature_lines) if extra_feature_lines else None),
+            support_options=getattr(self.settings, "support_options", None) if ctx.guild else None,
         )
         await ctx.respond(embed=embed, ephemeral=False)
 
@@ -1944,6 +1946,7 @@ class ReviewCog(commands.Cog):
             display_name=self.persona.identity.display_name,
             messages=self.persona.messages.access,
             ui=self.persona.messages.interface.knowledge,
+            links=getattr(self.settings, "knowledge_links_options", KnowledgeLinksOptions()),
         )
         await ctx.respond(
             embed=view.current_embed,
@@ -1996,13 +1999,12 @@ class ReviewCog(commands.Cog):
                 user_id=ctx.author.id,
             )
             return
+        address = getattr(self.settings, "teamspeak_address", "")
+        if not address:
+            await ctx.respond("TeamSpeak no está configurado en este servidor.", ephemeral=True)
+            return
         await ctx.respond(
-            embed=build_teamspeak_embed(
-                persona=self.persona,
-                address=self.settings.teamspeak_address
-                if isinstance(self.settings, GuildRuntimeSettings)
-                else TEAMSPEAK_SERVER_ADDRESS,
-            ),
+            embed=build_teamspeak_embed(persona=self.persona, address=address),
             ephemeral=False,
             allowed_mentions=discord.AllowedMentions.none(),
         )
@@ -2092,6 +2094,7 @@ class ReviewCog(commands.Cog):
                 access_messages=self.persona.messages.access,
                 failure_messages=self.persona.messages.failures,
                 ui=self.persona.messages.interface.knowledge,
+                links=getattr(self.settings, "knowledge_links_options", KnowledgeLinksOptions()),
                 navigation=self.persona.messages.interface.navigation,
             )
         )
@@ -2103,6 +2106,7 @@ class ReviewCog(commands.Cog):
             display_name=self.persona.identity.display_name,
             messages=self.persona.messages.access,
             ui=self.persona.messages.interface.knowledge,
+            links=getattr(self.settings, "knowledge_links_options", KnowledgeLinksOptions()),
         )
         await ctx.respond(
             embed=view.current_embed,

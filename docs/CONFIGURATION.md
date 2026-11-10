@@ -14,6 +14,11 @@ Para delegar, configura `config_admin_roles`, mostrado como **Administradores de
 Ese rol no sustituye al owner para acciones exclusivas, como cambiar el perfil global. Ser
 administrador del servidor de Discord no sustituye por sí solo estas listas.
 
+`CONFIG_OWNER_USER_IDS=111111111111111111,222222222222222222` concede acceso a ambos usuarios;
+no contiene ninguna cuenta de creador implícita. Para administrar exclusivamente mediante esa
+whitelist, deja `config_admin_roles` deshabilitada. Durante un traspaso añade primero al sucesor,
+reinicia y comprueba su acceso; después retira al administrador anterior y vuelve a desplegar.
+
 ## 2 Crear un borrador
 
 1. Ejecuta `/config` en el servidor que quieres administrar.
@@ -76,6 +81,33 @@ y `OPENAI_MODEL` solo se usa durante la importación. No la repitas para editar 
 Empieza con lo mínimo, configura sus dependencias y publica. Las opciones de módulos usan un número
 de esquema y JSON validados; consulta [Comandos](COMMANDS.md) para los campos completos.
 Los ejemplos siguientes usan IDs ficticios y `faction_id: 3` solo como ejemplo, no como valor universal.
+
+### Aportes voluntarios, dedeo y enlaces de conocimiento
+
+Estos módulos usan esquema `1`. Se editan en un borrador y requieren **Publicar**:
+
+| Clave | Opciones JSON de ejemplo | Comportamiento al deshabilitar |
+|---|---|---|
+| `support` | `{"url":"https://buymeacoffee.com/tu-usuario"}` | `/support` y `/agradecimientos` responden con un aviso privado; ayuda y recursos no añaden enlaces ni botones de aportes. Si no hay ningún servidor con este módulo activo, no se registran nuevos aportes ni se normalizan los pendientes. |
+| `dedeo` | `{"protected_user_ids":[111111111111111111]}` | `/dedear` queda inactivo. Una lista `[]` permite seleccionar a cualquier usuario elegible; no hay un creador protegido implícito ni acceso administrativo asociado. |
+| `knowledge_links` | `{"procedures_manual_url":"https://example.org/manual","penal_code_url":"https://example.org/codigo-penal"}` | Guía, FAQ y búsqueda de cargos mantienen el contenido local sin enlaces externos. Cada URL también admite `null` para omitirla. |
+| `teamspeak` | `{"address":"voice.example.org:9987"}` | `/ts3` informa que no está configurado; recursos no publica una dirección predeterminada de otra instalación. |
+| `release_routing` | `{"internal_channel_ids":[333333333333333333]}` | Los releases con audiencia `internal` no tienen destinos. No altera las alertas de incidentes. |
+
+Las URLs de aportes y conocimiento deben ser HTTPS y no contener usuario ni contraseña.
+`protected_user_ids` e `internal_channel_ids` aceptan como máximo 25 IDs positivos distintos.
+Los canales internos son una clasificación explícita del operador: siempre se intersectan con
+la política de canales de despliegues; esa lista no concede acceso a canales por sí sola.
+
+El módulo `support` no sustituye el secreto del webhook. Para recibir eventos de una cuenta propia
+configura también `BUY_ME_A_COFFEE_WEBHOOK_SECRET` en el proceso. Quitar ese secreto y redesplegar
+elimina el receptor HTTP; los enlaces visibles dependen del módulo, no de la existencia del secreto.
+Cambiar la URL no traslada dinero ni reinicia el historial de aportes. Los mensajes ya publicados
+conservan sus enlaces; decide por separado cómo tratar los registros históricos al cambiar de cuenta.
+
+Cambiar `knowledge_links` no sustituye el contenido del manual indexado: para cambiarlo usa
+`MANUAL_CATALOG_PATH` y conserva la procedencia correcta en ese catálogo. La identidad y voz de Roy
+o Walter se editan en **Personas**; el banner global se configura con `PROFILE_BANNER_PATH`.
 
 ### Bitácora
 

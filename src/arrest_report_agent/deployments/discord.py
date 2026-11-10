@@ -10,6 +10,7 @@ from contextlib import suppress
 import discord
 
 from arrest_report_agent.config import AccessPolicyKey, AccessPolicyMode, BotPersona
+from arrest_report_agent.config.instance import ReleaseRoutingOptions
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 from arrest_report_agent.release import (
@@ -138,10 +139,18 @@ class DeploymentNotificationWorker:
                 continue
             channel_ids = policy.ids
             if event.event_type is DeploymentEventType.DEPLOYED:
+                routing = bundle.snapshot.features.get("release_routing")
+                internal_channel_ids = (
+                    ReleaseRoutingOptions.model_validate(routing.payload).internal_channel_ids
+                    if routing is not None and routing.enabled else ()
+                )
                 channel_ids = tuple(
                     channel_id
                     for channel_id in channel_ids
-                    if self.manifest.targets_changelog_channel(channel_id)
+                    if self.manifest.targets_changelog_channel(
+                        channel_id,
+                        internal_channel_ids=internal_channel_ids,
+                    )
                 )
             for channel_id in channel_ids:
                 kind = (
@@ -333,7 +342,8 @@ def build_deployment_embed(
     if event.commit_hash:
         short_commit = event.commit_hash[:8]
         if (
-            (event.source or "").casefold() == "github"
+            manifest.repository_url is not None
+            and (event.source or "").casefold() == "github"
             and re.fullmatch(r"[0-9a-fA-F]{7,64}", event.commit_hash)
         ):
             commit_url = f"{manifest.repository_url}/commit/{event.commit_hash}"

@@ -13,6 +13,7 @@ from arrest_report_agent.config import (
     OperationalResourcesOptions,
     PersonaOperationalResourcesMessages,
 )
+from arrest_report_agent.config.instance import SupportOptions
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 from arrest_report_agent.support import append_support_note
@@ -80,6 +81,7 @@ class OperationalResourcesCog(commands.Cog):
                     organization_acronym=bundle.persona.profile.identity.organization_acronym,
                     ui=ui,
                     thumbnail_url=thumbnail_url,
+                    support_options=bundle.settings.support_options,
                 ),
                 ephemeral=False,
                 allowed_mentions=discord.AllowedMentions.none(),
@@ -123,6 +125,7 @@ def build_operational_resources_embed(
     organization_acronym: str,
     ui: PersonaOperationalResourcesMessages,
     thumbnail_url: str | None = None,
+    support_options: SupportOptions | None = None,
 ) -> discord.Embed:
     """Render one bounded panel without exposing internal identifiers."""
 
@@ -152,7 +155,7 @@ def build_operational_resources_embed(
         name="🎮 Conexiones",
         value=(
             f"└─ **Servidor:** `{_safe_address(options.game_server_address)}`\n"
-            f"└─ **TeamSpeak 3:** `{_safe_address(teamspeak_address)}`"
+            f"└─ **TeamSpeak 3:** `{_safe_address(teamspeak_address or "No configurado")}`"
         ),
         inline=False,
     )
@@ -184,7 +187,7 @@ def build_operational_resources_embed(
     )
     if thumbnail_url is not None:
         embed.set_thumbnail(url=thumbnail_url)
-    return append_support_note(embed)
+    return append_support_note(embed, support_options)
 
 
 def _format_bytes(size: int) -> str:

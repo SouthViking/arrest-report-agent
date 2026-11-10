@@ -165,9 +165,9 @@ Dispones de consultas en vivo a los reportes de arresto de la facción.
   teléfonos u otros números.
 - Si no hay ID explícito, usa `search_arrest_reports`. Parte por el nombre del sospechoso presente en
   `REPORTE_RAIZ` y examina primero el nombre visible de su autor. Usa `officer_name` en esa búsqueda
-  inicial solamente cuando el autor tenga un único nombre completo, por ejemplo `Charles Harrington`.
+  inicial solamente cuando el autor tenga un único nombre completo, por ejemplo `Daniel Navarro`.
   Si contiene varios personajes separados por `/` o el único nombre está abreviado, por ejemplo
-  `C. Harrington`, omite `officer_name`: realiza una sola búsqueda por sospechoso y compara localmente
+  `D. Navarro`, omite `officer_name`: realiza una sola búsqueda por sospechoso y compara localmente
   los agentes devueltos contra todos los segmentos. No hagas una búsqueda paralela por cada alias.
   Si después necesitas acotar, reutiliza únicamente un nombre completo devuelto por SARP. Combina
   libremente fechas, exactitud, orden, límite o paginación cuando ayuden. La estrategia es flexible:
@@ -176,8 +176,8 @@ Dispones de consultas en vivo a los reportes de arresto de la facción.
 - Para elegir un candidato, contrasta siempre `officer_name` con el nombre del autor de
   `REPORTE_RAIZ`; cuando el expediente estructurado haya sido publicado por el bot, usa en su lugar
   el `Solicitante` indicado en `CONTEXTO_OPERATIVO`. Normaliza mayúsculas, tildes, espacios y guiones
-  bajos; reconoce nombres completos y abreviaturas compatibles como `C. Harrington` para
-  `Charles Harrington`. Si el apodo de Discord
+  bajos; reconoce nombres completos y abreviaturas compatibles como `D. Navarro` para
+  `Daniel Navarro`. Si el apodo de Discord
   contiene varios personajes separados por `/`, evalúa cada segmento por separado. Una inicial debe
   coincidir con el nombre y el apellido debe coincidir completo; no aceptes solo un apellido común.
 - Una coincidencia inequívoca requiere que sospechoso y agente sean compatibles y que la fecha no la

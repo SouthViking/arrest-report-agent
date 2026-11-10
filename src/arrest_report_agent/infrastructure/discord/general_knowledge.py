@@ -16,16 +16,12 @@ from arrest_report_agent.config import (
     PersonaKnowledgeMessages,
     PersonaNavigationMessages,
 )
+from arrest_report_agent.config.instance import KnowledgeLinksOptions
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.knowledge import ChargeCatalog, ReportGuide
 
 LOGGER = logging.getLogger(__name__)
 
-PENAL_CODE_URL = "https://ucp.sarp.es/app/ucp/penalcode"
-PROCEDURES_MANUAL_URL = (
-    "https://docs.google.com/document/d/1DrhSgzPbdLoe0ahFTVrNPb_zBPuhVeatxW5Hs8ECMHE/"
-    "edit?pli=1&tab=t.0#heading=h.thzh3oj2x0rk"
-)
 KNOWLEDGE_VIEW_TIMEOUT_SECONDS = 180
 CHARGES_PER_PAGE = 5
 MAX_CHARGE_RESULTS = 50
@@ -230,7 +226,9 @@ class GuideNavigationView(RequesterBoundView):
         display_name: str,
         messages: PersonaAccessMessages,
         ui: PersonaKnowledgeMessages,
+        links: KnowledgeLinksOptions | None = None,
     ) -> None:
+        self.links = links or KnowledgeLinksOptions()
         super().__init__(requester_id, messages)
         self.guide = guide
         self.display_name = display_name
@@ -246,6 +244,7 @@ class GuideNavigationView(RequesterBoundView):
             section=self.section,
             display_name=self.display_name,
             ui=self.ui,
+            links=self.links,
         )
 
 
@@ -280,7 +279,9 @@ class FaqNavigationView(RequesterBoundView):
         display_name: str,
         messages: PersonaAccessMessages,
         ui: PersonaKnowledgeMessages,
+        links: KnowledgeLinksOptions | None = None,
     ) -> None:
+        self.links = links or KnowledgeLinksOptions()
         super().__init__(requester_id, messages)
         self.display_name = display_name
         self.ui = ui
@@ -289,7 +290,7 @@ class FaqNavigationView(RequesterBoundView):
 
     @property
     def current_embed(self) -> discord.Embed:
-        return build_faq_embed(self.entry, display_name=self.display_name, ui=self.ui)
+        return build_faq_embed(self.entry, display_name=self.display_name, ui=self.ui, links=self.links)
 
 
 class ChargeSearchModal(discord.ui.DesignerModal):
@@ -305,7 +306,9 @@ class ChargeSearchModal(discord.ui.DesignerModal):
         failure_messages: PersonaFailureMessages,
         ui: PersonaKnowledgeMessages,
         navigation: PersonaNavigationMessages,
+        links: KnowledgeLinksOptions | None = None,
     ) -> None:
+        self.links = links or KnowledgeLinksOptions()
         self.catalog = catalog
         self.requester_id = requester_id
         self.display_name = display_name
@@ -376,6 +379,7 @@ class ChargeSearchModal(discord.ui.DesignerModal):
                 messages=self.access_messages,
                 ui=self.ui,
                 navigation=self.navigation,
+                links=self.links,
             )
             await send_charge_search_result(interaction, view)
             log_event(
@@ -417,7 +421,9 @@ class ChargeSearchPaginationView(RequesterBoundView):
         messages: PersonaAccessMessages,
         ui: PersonaKnowledgeMessages,
         navigation: PersonaNavigationMessages,
+        links: KnowledgeLinksOptions | None = None,
     ) -> None:
+        self.links = links or KnowledgeLinksOptions()
         super().__init__(requester_id, messages)
         self.entries = entries
         self.query = query
@@ -441,6 +447,7 @@ class ChargeSearchPaginationView(RequesterBoundView):
             display_name=self.display_name,
             page=self.page,
             ui=self.ui,
+            links=self.links,
         )
 
     @discord.ui.button(label="Anterior", emoji="◀️", style=discord.ButtonStyle.secondary)
@@ -544,16 +551,17 @@ def build_guide_embed(
     section: str,
     display_name: str,
     ui: PersonaKnowledgeMessages,
+    links: KnowledgeLinksOptions | None = None,
 ) -> discord.Embed:
+    links = links or KnowledgeLinksOptions()
     payload = guide.get([section])
     sections = cast(dict[str, dict[str, object]], payload["sections"])
     content = sections.get(section, {})
     title = GUIDE_SECTION_TITLES.get(section, section.replace("_", " ").title())
     embed = discord.Embed(
         title=ui.guide_title.format(section=title),
-        description=ui.guide_description.format(
-            procedures_manual_url=PROCEDURES_MANUAL_URL,
-        ),
+        description=(ui.guide_description.format(procedures_manual_url=str(links.procedures_manual_url))
+                     if links.procedures_manual_url else "Guía local de redacción y revisión de reportes."),
         color=discord.Color.gold(),
     )
     for key, value in content.items():
@@ -571,7 +579,9 @@ def build_faq_embed(
     *,
     display_name: str,
     ui: PersonaKnowledgeMessages,
+    links: KnowledgeLinksOptions | None = None,
 ) -> discord.Embed:
+    links = links or KnowledgeLinksOptions()
     if entry is None:
         categories = tuple(dict.fromkeys(item.category for item in FAQ_ENTRIES))
         embed = discord.Embed(
@@ -590,10 +600,9 @@ def build_faq_embed(
     )
     embed.add_field(
         name=ui.faq_reference_title,
-        value=ui.faq_reference.format(
-            section=section_title,
-            procedures_manual_url=PROCEDURES_MANUAL_URL,
-        ),
+        value=(ui.faq_reference.format(section=section_title,
+                                      procedures_manual_url=str(links.procedures_manual_url))
+               if links.procedures_manual_url else section_title),
         inline=False,
     )
     embed.set_footer(text=ui.faq_footer.format(display_name=display_name))
@@ -607,17 +616,18 @@ def build_charge_search_embed(
     display_name: str,
     page: int = 0,
     ui: PersonaKnowledgeMessages,
+    links: KnowledgeLinksOptions | None = None,
 ) -> discord.Embed:
+    links = links or KnowledgeLinksOptions()
     page_count = max(1, ceil(len(entries) / CHARGES_PER_PAGE))
     safe_page = min(max(page, 0), page_count - 1)
     start = safe_page * CHARGES_PER_PAGE
     page_entries = entries[start : start + CHARGES_PER_PAGE]
     embed = discord.Embed(
         title=ui.charge_result_title,
-        description=ui.charge_result_description.format(
-            query=discord.utils.escape_markdown(query),
-            penal_code_url=PENAL_CODE_URL,
-        ),
+        description=(ui.charge_result_description.format(
+            query=discord.utils.escape_markdown(query), penal_code_url=str(links.penal_code_url),
+        ) if links.penal_code_url else f"**Búsqueda:** {discord.utils.escape_markdown(query)}"),
         color=discord.Color.gold(),
     )
     if not page_entries:

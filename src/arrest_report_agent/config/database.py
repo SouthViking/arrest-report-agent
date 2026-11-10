@@ -8,6 +8,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
+from .instance import (
+    DedeoOptions,
+    KnowledgeLinksOptions,
+    ReleaseRoutingOptions,
+    SupportOptions,
+    TeamSpeakOptions,
+)
 from .settings import AppSettings, SnowflakeAllowlist
 
 
@@ -653,6 +660,16 @@ class GuildConfigSnapshot(FrozenConfigModel):
                 "guild configuration is missing policies: "
                 + ", ".join(sorted(item.value for item in missing))
             )
+        for key, option_type in (
+            ("support", SupportOptions), ("dedeo", DedeoOptions),
+            ("knowledge_links", KnowledgeLinksOptions), ("teamspeak", TeamSpeakOptions),
+            ("release_routing", ReleaseRoutingOptions),
+        ):
+            portable = self.features.get(key)
+            if portable is not None and portable.enabled:
+                if portable.schema_version != 1:
+                    raise ValueError(f"{key} requires feature schema version 1")
+                option_type.model_validate(portable.payload)
         failure_notifications = self.features.get("review_failure_notifications")
         if failure_notifications is not None and failure_notifications.enabled:
             if failure_notifications.schema_version != 1:
@@ -1264,4 +1281,23 @@ class GuildRuntimeSettings:
     @property
     def teamspeak_address(self) -> str:
         feature = self.snapshot.features.get("teamspeak")
-        return str((feature.payload if feature else {}).get("address", "172.96.11.180:11189"))
+        if feature is None or not feature.enabled:
+            return ""
+        return TeamSpeakOptions.model_validate(feature.payload).address
+
+    @property
+    def support_options(self) -> SupportOptions | None:
+        feature = self.snapshot.features.get("support")
+        return SupportOptions.model_validate(feature.payload) if feature and feature.enabled else None
+
+    @property
+    def dedeo_options(self) -> DedeoOptions | None:
+        feature = self.snapshot.features.get("dedeo")
+        return DedeoOptions.model_validate(feature.payload) if feature and feature.enabled else None
+
+    @property
+    def knowledge_links_options(self) -> KnowledgeLinksOptions:
+        feature = self.snapshot.features.get("knowledge_links")
+        if feature is None or not feature.enabled:
+            return KnowledgeLinksOptions()
+        return KnowledgeLinksOptions.model_validate(feature.payload)
