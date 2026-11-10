@@ -4,6 +4,15 @@ Configura estos permisos durante [Instalación](SETUP.md) y vuelve a comprobarlo
 módulos desde [Configuración](CONFIGURATION.md). Las políticas del bot no sustituyen los permisos
 efectivos del miembro en Discord.
 
+## Acceso a `/config`
+
+`CONFIG_OWNER_USER_IDS` define la whitelist de usuarios, con IDs separados por comas. No existe
+una cuenta de creador con acceso implícito. La política `config_admin_roles` permite delegar
+acciones de configuración de la guild por rol; déjala deshabilitada si quieres acceso solo por
+whitelist. El permiso **Administrator** de Discord no concede acceso al panel por sí mismo.
+Cambiar la whitelist exige reiniciar o redesplegar el proceso; las políticas se publican desde
+el propio panel. Consulta [Configuración](CONFIGURATION.md) para el traspaso de acceso.
+
 ## Intents
 
 En Discord Developer Portal, habilita **Message Content Intent** y **Server Members Intent**. El bot
@@ -79,13 +88,9 @@ permiso amplio **Mention @everyone, @here, and All Roles**.
 
 ## Canales privados
 
-Los permisos deben ser efectivos en ambos canales y sus overrides:
-
-- `gnt-arrestos`: `1462992794569281617`
-- `dlm-arrestos`: `1462992859761217745`
-
+Los permisos deben ser efectivos en cada canal de `report_channels` y sus overrides.
 Un rol puede tener permisos globales y perder `Send Messages` por un override específico. Revisa
-los permisos efectivos del miembro del bot en ambos canales desde la configuración de Discord.
+los permisos efectivos del miembro del bot en los canales configurados desde Discord.
 
 El bot elimina únicamente sus propias reacciones de estado. La tool agéntica de reacción también
 queda limitada al mensaje raíz y al canal o hilo activo; nunca elimina reacciones humanas. Solo

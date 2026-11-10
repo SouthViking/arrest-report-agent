@@ -1,0 +1,39 @@
+{
+  "1234674521416663070": {
+    "features": {
+      "support": {
+        "enabled": true,
+        "schema_version": 1,
+        "payload": {
+          "url": "https://buymeacoffee.com/southviking"
+        }
+      },
+      "dedeo": {
+        "enabled": true,
+        "schema_version": 1,
+        "payload": {
+          "protected_user_ids": [
+            449044161954447360
+          ]
+        }
+      },
+      "knowledge_links": {
+        "enabled": true,
+        "schema_version": 1,
+        "payload": {
+          "procedures_manual_url": "https://docs.google.com/document/d/1DrhSgzPbdLoe0ahFTVrNPb_zBPuhVeatxW5Hs8ECMHE/edit?pli=1&tab=t.0#heading=h.thzh3oj2x0rk",
+          "penal_code_url": "https://ucp.sarp.es/app/ucp/penalcode"
+        }
+      },
+      "release_routing": {
+        "enabled": true,
+        "schema_version": 1,
+        "payload": {
+          "internal_channel_ids": [
+            1241206587079524442
+          ]
+        }
+      }
+    }
+  }
+}

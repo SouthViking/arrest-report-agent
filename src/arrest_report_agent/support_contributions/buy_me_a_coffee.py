@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -99,6 +99,8 @@ class BuyMeACoffeeWebhookReceiver:
         settings: AppSettings,
         repository: SupportContributionRepository,
         wake_normalizer: Callable[[], None] | None = None,
+        *,
+        is_enabled: Callable[[], Awaitable[bool]] | None = None,
     ) -> None:
         if not settings.buy_me_a_coffee_webhook_enabled:
             raise ValueError(
@@ -108,6 +110,7 @@ class BuyMeACoffeeWebhookReceiver:
         assert secret is not None
         self._secret = secret.get_secret_value().encode()
         self.repository = repository
+        self._is_enabled = is_enabled
         self._wake_normalizer = wake_normalizer
 
     async def receive(
@@ -117,6 +120,8 @@ class BuyMeACoffeeWebhookReceiver:
         signature: str,
     ) -> BuyMeACoffeeWebhookAcceptance:
         self._verify_signature(raw_body, signature)
+        if self._is_enabled is not None and not await self._is_enabled():
+            return BuyMeACoffeeWebhookAcceptance(status="ignored")
         try:
             envelope = _EventEnvelope.model_validate_json(raw_body)
         except ValidationError as error:

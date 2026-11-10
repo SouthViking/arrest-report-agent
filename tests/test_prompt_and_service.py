@@ -288,7 +288,7 @@ def test_arrest_lookup_instructions_are_conditional_and_owner_scoped(persona) ->
     assert "SARP es la fuente primaria para narrativa y cargos" in full
     assert "varios personajes separados por `/`" in full
     assert "solamente cuando el autor tenga un único nombre completo" in full
-    assert "`C. Harrington`, omite `officer_name`" in full
+    assert "`D. Navarro`, omite `officer_name`" in full
     assert "una sola búsqueda por sospechoso" in full
     assert "No hagas una búsqueda paralela por cada alias" in full
     assert "un nombre completo devuelto por SARP" in full

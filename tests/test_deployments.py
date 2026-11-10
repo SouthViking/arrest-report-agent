@@ -70,10 +70,11 @@ def test_release_manifest_is_packaged_and_matches_application_version() -> None:
     manifest = ReleaseManifest.load_packaged()
 
     assert manifest.version == __version__
-    assert manifest.repository_url == "https://github.com/SouthViking/arrest-report-agent"
-    assert manifest.changelog_targets == (1241206587079524442,)
-    assert manifest.targets_changelog_channel(1241206587079524442)
-    assert not manifest.targets_changelog_channel(1234675609536430152)
+    assert manifest.repository_url is None
+    assert manifest.changelog_targets == "internal"
+    assert manifest.targets_changelog_channel(101, internal_channel_ids=(101,))
+    assert not manifest.targets_changelog_channel(102, internal_channel_ids=(101,))
+    assert not manifest.targets_changelog_channel(101)
     assert manifest.changes
     assert manifest.acknowledgements == ()
 
@@ -114,7 +115,7 @@ def test_release_manifest_rejects_invalid_changelog_targets(targets: object) -> 
 
 
 def test_deployment_embeds_keep_operational_data_and_persona_framing(persona) -> None:
-    manifest = ReleaseManifest.load_packaged()
+    manifest = ReleaseManifest.load_packaged(repository_url="https://github.com/example/operator-bot")
     event = DeploymentEventRecord(
         id=UUID("00000000-0000-0000-0000-000000000001"),
         event_type=DeploymentEventType.DEPLOYED,
@@ -138,7 +139,7 @@ def test_deployment_embeds_keep_operational_data_and_persona_framing(persona) ->
     assert all(field.name != "Agradecimientos" for field in embed.fields)
     deployment_field = next(field for field in embed.fields if field.name == "Despliegue")
     assert (
-        "[abcdef12](https://github.com/SouthViking/arrest-report-agent/commit/"
+        "[abcdef12](https://github.com/example/operator-bot/commit/"
         "abcdef1234567890)" in deployment_field.value
     )
     assert embed.colour == discord.Color.green()
@@ -281,7 +282,7 @@ async def test_success_event_waits_for_the_matching_runtime_and_then_targets_cha
     policy = SimpleNamespace(mode=AccessPolicyMode.RESTRICTED, ids=(456, 789))
     bundle = SimpleNamespace(
         snapshot=SimpleNamespace(
-            features={"deployment_notifications": SimpleNamespace(enabled=True)},
+            features={"deployment_notifications": SimpleNamespace(enabled=True, payload={})},
             policies={AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: policy},
         )
     )
@@ -322,7 +323,16 @@ async def test_success_event_waits_for_the_matching_runtime_and_then_targets_cha
 
 
 @pytest.mark.asyncio
-async def test_success_changelog_targets_only_selected_configured_channels() -> None:
+@pytest.mark.parametrize(("audience", "routing_enabled", "internal_ids", "expected"), [
+    ([789, 999], None, (), [789]),
+    ("internal", True, (789, 999), [789]),
+    ("internal", True, (), []),
+    ("internal", False, (789,), []),
+    ("internal", None, (), []),
+])
+async def test_success_changelog_targets_only_selected_configured_channels(
+    audience, routing_enabled, internal_ids, expected,
+) -> None:
     event = DeploymentEventRecord(
         id=UUID("00000000-0000-0000-0000-000000000007"),
         event_type=DeploymentEventType.DEPLOYED,
@@ -341,16 +351,20 @@ async def test_success_changelog_targets_only_selected_configured_channels() -> 
     policy = SimpleNamespace(mode=AccessPolicyMode.RESTRICTED, ids=(456, 789))
     bundle = SimpleNamespace(
         snapshot=SimpleNamespace(
-            features={"deployment_notifications": SimpleNamespace(enabled=True)},
+            features={"deployment_notifications": SimpleNamespace(enabled=True, payload={})},
             policies={AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: policy},
         )
     )
+    if routing_enabled is not None:
+        bundle.snapshot.features["release_routing"] = SimpleNamespace(
+            enabled=routing_enabled, payload={"internal_channel_ids": internal_ids},
+        )
     provider = SimpleNamespace(
         guild_ids=lambda: _async_value((123,)),
         cached=lambda _guild_id: _async_value(bundle),
     )
     payload = ReleaseManifest.load_packaged().model_dump(mode="json")
-    payload["changelog_targets"] = [789, 999]
+    payload["changelog_targets"] = audience
     manifest = ReleaseManifest.model_validate(payload)
     worker = DeploymentNotificationWorker(
         SimpleNamespace(),  # type: ignore[arg-type]
@@ -362,7 +376,7 @@ async def test_success_changelog_targets_only_selected_configured_channels() -> 
 
     await worker._prepare_event(event)  # noqa: SLF001
 
-    assert [target.channel_id for target in repository.targets] == [789]
+    assert [target.channel_id for target in repository.targets] == expected
 
 
 @pytest.mark.asyncio
@@ -385,7 +399,7 @@ async def test_empty_changelog_targets_suppress_success_announcement() -> None:
     policy = SimpleNamespace(mode=AccessPolicyMode.RESTRICTED, ids=(456, 789))
     bundle = SimpleNamespace(
         snapshot=SimpleNamespace(
-            features={"deployment_notifications": SimpleNamespace(enabled=True)},
+            features={"deployment_notifications": SimpleNamespace(enabled=True, payload={})},
             policies={AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: policy},
         )
     )
@@ -431,7 +445,7 @@ async def test_failure_alerts_use_only_dedicated_incident_channels() -> None:
     incident_policy = SimpleNamespace(mode=AccessPolicyMode.RESTRICTED, ids=(789,))
     bundle = SimpleNamespace(
         snapshot=SimpleNamespace(
-            features={"deployment_notifications": SimpleNamespace(enabled=True)},
+            features={"deployment_notifications": SimpleNamespace(enabled=True, payload={})},
             policies={
                 AccessPolicyKey.DEPLOYMENT_NOTIFICATION_CHANNELS: release_policy,
                 AccessPolicyKey.DEPLOYMENT_INCIDENT_NOTIFICATION_CHANNELS: incident_policy,

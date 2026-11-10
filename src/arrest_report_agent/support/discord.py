@@ -8,14 +8,14 @@ import math
 import discord
 from discord.ext import commands
 
+from arrest_report_agent.config.instance import SupportOptions
 from arrest_report_agent.config.logging import exception_fields, log_event
+from arrest_report_agent.infrastructure.postgres import DatabaseConfigProvider
 from arrest_report_agent.support_contributions import (
     SupportContributionRepository,
     SupporterRanking,
 )
 
-SUPPORT_URL = "https://buymeacoffee.com/southviking"
-SUPPORT_INLINE_NOTE = f"💵 ¿Te sirve el bot? [Haz una donación]({SUPPORT_URL})"
 SUPPORTER_PAGE_SIZE = 10
 VIEW_TIMEOUT_SECONDS = 300.0
 MEDALS = ("🥇", "🥈", "🥉")
@@ -25,16 +25,33 @@ LOGGER = logging.getLogger(__name__)
 class SupportCog(commands.Cog):
     """Expose one public shortcut without posting automatic promotions."""
 
-    def __init__(self, repository: SupportContributionRepository) -> None:
+    def __init__(
+        self, repository: SupportContributionRepository, provider: DatabaseConfigProvider,
+    ) -> None:
         self.repository = repository
+        self.provider = provider
+
+    async def _options(self, ctx: discord.ApplicationContext) -> SupportOptions | None:
+        options = None
+        if ctx.guild is not None:
+            bundle = await self.provider.cached(ctx.guild.id)
+            options = bundle.settings.support_options
+        if options is None:
+            await ctx.respond(
+                "Los aportes voluntarios no están habilitados en este servidor.", ephemeral=True,
+            )
+        return options
 
     @discord.slash_command(
         name="support",
         description="Apoya voluntariamente el desarrollo y mantenimiento del bot",
     )
     async def support(self, ctx: discord.ApplicationContext) -> None:
+        options = await self._options(ctx)
+        if options is None:
+            return
         await ctx.respond(
-            embed=build_support_embed(),
+            embed=build_support_embed(str(options.url)),
             ephemeral=False,
             allowed_mentions=discord.AllowedMentions.none(),
         )
@@ -44,11 +61,15 @@ class SupportCog(commands.Cog):
         description="Muestra a quienes han apoyado voluntariamente el bot",
     )
     async def acknowledgements(self, ctx: discord.ApplicationContext) -> None:
+        options = await self._options(ctx)
+        if options is None:
+            return
         try:
             rankings = await self.repository.ranked_supporters()
             view = SupporterThanksView(
                 requester_id=ctx.author.id,
                 rankings=rankings,
+                support_url=str(options.url),
             )
             await ctx.respond(
                 embed=view.render(),
@@ -96,6 +117,7 @@ class SupporterThanksView(discord.ui.View):
         requester_id: int,
         rankings: tuple[SupporterRanking, ...],
         page_size: int = SUPPORTER_PAGE_SIZE,
+        support_url: str | None = None,
     ) -> None:
         if not 1 <= page_size <= 25:
             raise ValueError("Supporter page size must be between 1 and 25")
@@ -104,14 +126,13 @@ class SupporterThanksView(discord.ui.View):
         self.rankings = rankings
         self.page_size = page_size
         self.page = 0
-        self.add_item(
-            discord.ui.Button(
-                label="Cómprame un café",
-                emoji="💵",
-                style=discord.ButtonStyle.link,
-                url=SUPPORT_URL,
+        if support_url is not None:
+            self.add_item(
+                discord.ui.Button(
+                    label="Cómprame un café", emoji="💵",
+                    style=discord.ButtonStyle.link, url=support_url,
+                )
             )
-        )
         if self.page_count <= 1:
             self.remove_item(self.previous)
             self.remove_item(self.next)
@@ -168,7 +189,7 @@ class SupporterThanksView(discord.ui.View):
         self.next.disabled = self.page >= self.page_count - 1
 
 
-def build_support_embed() -> discord.Embed:
+def build_support_embed(support_url: str) -> discord.Embed:
     """Build a concise card that makes the voluntary nature explicit."""
 
     return discord.Embed(
@@ -176,7 +197,7 @@ def build_support_embed() -> discord.Embed:
         description=(
             "Si el bot te resulta útil y quieres apoyar voluntariamente su desarrollo y "
             "mantenimiento, puedes realizar una donación.\n\n"
-            f"[💵 Hacer una donación]({SUPPORT_URL})"
+            f"[💵 Hacer una donación]({support_url})"
         ),
         color=discord.Color.gold(),
     )
@@ -233,11 +254,17 @@ def _supporter_line(ranking: SupporterRanking, *, position: int) -> str:
     return f"{marker} {identity}"
 
 
-def append_support_note(embed: discord.Embed) -> discord.Embed:
+def append_support_note(
+    embed: discord.Embed, options: SupportOptions | None = None,
+) -> discord.Embed:
     """Append the compact link once to a suitable public informational embed."""
 
-    description = embed.description or ""
-    if SUPPORT_URL in description:
+    if options is None:
         return embed
-    embed.description = f"{description}\n\n{SUPPORT_INLINE_NOTE}".lstrip()
+    url = str(options.url)
+    description = embed.description or ""
+    if url in description:
+        return embed
+    note = f"💵 ¿Te sirve el bot? [Haz una donación]({url})"
+    embed.description = f"{description}\n\n{note}".lstrip()
     return embed

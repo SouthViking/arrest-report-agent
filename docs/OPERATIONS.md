@@ -74,7 +74,7 @@ Si sospechas una filtración, revoca la credencial comprometida de inmediato aun
 interrupción. Nunca sustituyas un token por otro pegándolo en un commit.
 
 En una rotación de webhook, actualiza tanto el receptor como el proveedor. El secreto Railway
-forma parte de la ruta: configura la nueva URL completa en el proveedor sin compartirla.
+se configura en el header `Authorization: Bearer <secreto>`; la ruta permanece `/webhooks/railway`.
 Cambiar `CONFIG_OWNER_USER_IDS` también exige reiniciar el proceso.
 
 ## Respaldar los datos
@@ -234,8 +234,10 @@ proveedor; no conceden acceso administrativo a Discord. Usa los mismos secretos 
 Cada versión se define una sola vez en `arrest_report_agent.__version__` y debe coincidir con el
 manifest estricto [`release.json`](../src/arrest_report_agent/release.json). El manifest contiene el
 título, resumen, hasta diez cambios tipados y `changelog_targets`; no contiene copy de una persona.
-`changelog_targets` acepta `"all"` para publicar en todos los canales configurados o una lista de
-IDs para publicar solo en esa intersección. Nunca permite enviar a un canal que no esté autorizado
+`changelog_targets` acepta `"internal"` para la lista `internal_channel_ids` del módulo
+`release_routing`, `"all"` para todos los canales configurados, o una lista de IDs para
+una selección puntual. Esta versión usa `"internal"`, sin fijar IDs de una instalación en el
+manifiesto. Nunca permite enviar a un canal que no esté autorizado
 por la política **Canales de despliegues** de su guild. Las alertas `failed`, `crashed` y
 `oom_killed` utilizan exclusivamente la política independiente **Canales de incidentes de
 despliegue** y nunca reutilizan destinos públicos del changelog.
@@ -320,6 +322,18 @@ backoff, sin retrasar la respuesta al webhook. Los importes en USD no realizan s
 También existe una capa explícita para vincular identidades estables del proveedor con usuarios de
 Discord; nunca se unen personas automáticamente por nombre.
 
+Para usar otra cuenta: deshabilita primero el webhook de la cuenta anterior. En la nueva cuenta,
+abre **Integrations → New webhook**, configura `/webhooks/support/buy-me-a-coffee` bajo el dominio
+del bot y suscribe `donation.created` y `donation.refunded`. Guarda su Signing Secret en
+`BUY_ME_A_COFFEE_WEBHOOK_SECRET` y redespliega. En `/config`, habilita `support` con la URL pública
+de esa cuenta. La URL y el secreto son independientes; el secreto solo autentica los eventos.
+No se entrega la cuenta personal del administrador anterior con el proyecto de hosting.
+
+Para no usar aportes: deshabilita `support` en todas las guilds, quita
+`BUY_ME_A_COFFEE_WEBHOOK_SECRET` y su alias `BMC_WEBHOOK_SECRET` si existe, y redespliega.
+Sin el módulo activo no se publican enlaces de aportes ni se procesan nuevos eventos firmados;
+sin secreto tampoco se registra el endpoint. El historial permanece en PostgreSQL.
+
 ## Transferir la administración
 
 Antes de retirar el acceso del administrador anterior:
@@ -340,3 +354,13 @@ Antes de retirar el acceso del administrador anterior:
 Para conservar el control de los mensajes históricos, mantén la misma aplicación de Discord al
 trasladar el hosting. Un bot nuevo no puede editar publicaciones creadas por la cuenta del anterior.
 No borres la BD ni el Bucket originales hasta completar el corte y cumplir la retención acordada.
+
+En la nueva cuenta de hosting, `REPOSITORY_URL` debe identificar la copia que realmente despliega,
+o resolverse desde `RAILWAY_GIT_REPO_OWNER` y `RAILWAY_GIT_REPO_NAME`. Actualiza también el webhook
+de GitHub; el receptor solo admite eventos del repositorio resuelto. La atribución al autor original
+puede conservarse en README e historial sin utilizar su repositorio como origen operativo.
+
+La migración `20261110_0100` conserva los valores anteriores de LSSD en `support`, `dedeo`,
+`knowledge_links` y la selección de canales internos, únicamente si no existían opciones explícitas.
+Respeta listas vacías, valores personalizados, otras guilds y revisiones archivadas. Su entrada
+congelada es independiente del perfil editable de nuevas instalaciones. No requiere reimportar la BD.

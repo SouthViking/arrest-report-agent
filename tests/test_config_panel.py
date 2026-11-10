@@ -242,6 +242,24 @@ async def test_owner_opens_an_ephemeral_configuration_panel(settings, persona) -
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(("whitelist", "user_id", "authorized"), [
+    ("42,43", 42, True), ("42,43", 43, True), ("42,43", 99, False),
+    ("43", 42, False), ("43", 43, True), ("", 449044161954447360, False),
+])
+async def test_config_access_uses_the_operator_whitelist_after_handoff(
+    settings, persona, whitelist, user_id, authorized,
+) -> None:
+    configured = settings.model_copy(update={"config_owner_user_ids_csv": whitelist})
+    provider = FakeProvider(persona, agent_config(settings))
+    cog = ConfigurationAdminCog(configured, FakeRepository(), provider)
+    ctx = FakeContext(user_id=user_id)
+    await ConfigurationAdminCog.config.callback(cog, ctx)
+    response = ctx.responses[0]
+    assert response["ephemeral"] is True
+    assert isinstance(response.get("view"), ConfigurationPanelView) is authorized
+
+
+@pytest.mark.asyncio
 async def test_draft_modal_revalidates_owner_and_uses_interaction_id(settings, persona) -> None:
     owner_settings = settings.model_copy(update={"config_owner_user_ids_csv": "42"})
     repository = FakeRepository()

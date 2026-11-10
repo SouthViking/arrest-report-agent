@@ -3,12 +3,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import discord
 
+from arrest_report_agent.config.instance import SupportOptions
 from arrest_report_agent.support import (
-    SUPPORT_INLINE_NOTE,
-    SUPPORT_URL,
     SupportCog,
     SupporterThanksView,
     append_support_note,
@@ -16,6 +16,16 @@ from arrest_report_agent.support import (
     build_support_embed,
 )
 from arrest_report_agent.support_contributions import SupporterRanking
+
+SUPPORT_URL = "https://buymeacoffee.com/example-operator"
+OPTIONS = SupportOptions(url=SUPPORT_URL)
+SUPPORT_INLINE_NOTE = f"💵 ¿Te sirve el bot? [Haz una donación]({SUPPORT_URL})"
+
+
+def provider(options=OPTIONS):
+    return SimpleNamespace(cached=AsyncMock(return_value=SimpleNamespace(
+        settings=SimpleNamespace(support_options=options),
+    )))
 
 
 def ranking(
@@ -51,7 +61,7 @@ def test_support_command_is_public_and_root_level() -> None:
 
 
 def test_support_embed_is_concise_linked_and_explicitly_voluntary() -> None:
-    embed = build_support_embed()
+    embed = build_support_embed(SUPPORT_URL)
 
     assert embed.title == "☕ Apoya el desarrollo"
     assert f"[💵 Hacer una donación]({SUPPORT_URL})" in embed.description
@@ -67,8 +77,8 @@ def test_support_embed_is_concise_linked_and_explicitly_voluntary() -> None:
 def test_support_note_is_compact_and_idempotent() -> None:
     embed = discord.Embed(description="Contenido principal")
 
-    assert append_support_note(embed) is embed
-    assert append_support_note(embed) is embed
+    assert append_support_note(embed, OPTIONS) is embed
+    assert append_support_note(embed, OPTIONS) is embed
     assert embed.description == f"Contenido principal\n\n{SUPPORT_INLINE_NOTE}"
     assert embed.description.count(SUPPORT_URL) == 1
 
@@ -79,9 +89,9 @@ async def test_support_command_replies_publicly_without_mentions() -> None:
     async def respond(**kwargs: object) -> None:
         responses.append(kwargs)
 
-    context = SimpleNamespace(respond=respond)
+    context = SimpleNamespace(respond=respond, guild=SimpleNamespace(id=1))
 
-    cog = SupportCog(FakeSupportContributionRepository(()))  # type: ignore[arg-type]
+    cog = SupportCog(FakeSupportContributionRepository(()), provider())  # type: ignore[arg-type]
     await SupportCog.support.callback(cog, context)  # type: ignore[arg-type]
 
     assert responses[0]["ephemeral"] is False
@@ -91,8 +101,8 @@ async def test_support_command_replies_publicly_without_mentions() -> None:
 
 def test_acknowledgements_embed_renders_medals_mentions_and_no_amounts() -> None:
     rankings = (
-        ranking("LoMalo", discord_user_id=1520832742047219915, total="19.57"),
-        ranking("ydSebas", discord_user_id=393217316722180106, total="2.941"),
+        ranking("Colaborador A", discord_user_id=100000000000000001, total="19.57"),
+        ranking("Colaborador B", discord_user_id=100000000000000002, total="2.941"),
         ranking("Sin Discord", discord_user_id=None, total="1.25"),
     )
 
@@ -101,7 +111,7 @@ def test_acknowledgements_embed_renders_medals_mentions_and_no_amounts() -> None
     assert embed.title == "💛 Agradecimientos"
     assert len(embed.fields) == 1
     assert embed.fields[0].name == "🏆 Principales colaboradores"
-    assert embed.fields[0].value == ("🥇 <@1520832742047219915>\n🥈 <@393217316722180106>\n🥉 Sin Discord")
+    assert embed.fields[0].value == ("🥇 <@100000000000000001>\n🥈 <@100000000000000002>\n🥉 Sin Discord")
     assert "19.57" not in embed.fields[0].value
     assert "2.941" not in embed.fields[0].value
 
@@ -111,7 +121,7 @@ async def test_acknowledgements_view_keeps_link_and_paginates_rankings() -> None
         ranking(f"Persona {index}", discord_user_id=None, total=str(20 - index)) for index in range(12)
     )
 
-    view = SupporterThanksView(requester_id=7, rankings=rankings, page_size=10)
+    view = SupporterThanksView(requester_id=7, rankings=rankings, page_size=10, support_url=SUPPORT_URL)
 
     assert view.page_count == 2
     assert any(isinstance(item, discord.ui.Button) and item.url == SUPPORT_URL for item in view.children)
@@ -128,9 +138,11 @@ async def test_acknowledgements_command_is_public_and_disables_mentions() -> Non
         responses.append(kwargs)
 
     author = SimpleNamespace(id=77)
-    context = SimpleNamespace(respond=respond, author=author, guild=None, channel=None)
-    repository = FakeSupportContributionRepository((ranking("LoMalo", discord_user_id=123, total="5"),))
-    cog = SupportCog(repository)  # type: ignore[arg-type]
+    context = SimpleNamespace(respond=respond, author=author, guild=SimpleNamespace(id=1), channel=None)
+    repository = FakeSupportContributionRepository((
+        ranking("Colaborador A", discord_user_id=123, total="5"),
+    ))
+    cog = SupportCog(repository, provider())  # type: ignore[arg-type]
 
     await SupportCog.acknowledgements.callback(cog, context)  # type: ignore[arg-type]
 

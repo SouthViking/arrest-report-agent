@@ -14,6 +14,7 @@ from arrest_report_agent.config import (
     PackagedPersonaProvider,
     SnowflakeAllowlist,
 )
+from arrest_report_agent.config.instance import SupportOptions
 from arrest_report_agent.domain import AgentAccessLevel, InteractionMode, ReviewCase
 from arrest_report_agent.infrastructure.discord.cog import (
     ReviewCog,
@@ -32,7 +33,8 @@ from arrest_report_agent.infrastructure.discord.supervision import (
     SupervisorRolePolicy,
 )
 from arrest_report_agent.infrastructure.discord.trigger import DiscordAccessPolicy
-from arrest_report_agent.support import SUPPORT_URL
+
+SUPPORT_URL = "https://buymeacoffee.com/example-operator"
 
 
 class FakeTypingContext:
@@ -263,6 +265,7 @@ def test_help_embed_is_a_compact_feature_directory(persona) -> None:
     embed = build_help_embed(
         persona=persona,
         avatar_url="https://cdn.discordapp.com/avatar.png",
+        support_options=SupportOptions(url=SUPPORT_URL),
     )
 
     assert embed.title == f"⭐ {persona.identity.display_name} · {persona.identity.role_title}"
@@ -527,7 +530,9 @@ async def test_teamspeak_command_allows_operational_staff_and_uses_persona(
     cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
     cog._default_runtime = replace(
         cog._default_runtime,
-        settings=SimpleNamespace(operational_staff_role_ids=(444,)),
+        settings=SimpleNamespace(
+            operational_staff_role_ids=(444,), teamspeak_address="voice.example.test:9987",
+        ),
     )
 
     await cog.teamspeak_server.callback(cog, ctx)
@@ -537,9 +542,10 @@ async def test_teamspeak_command_allows_operational_staff_and_uses_persona(
     embed = responses[0]["embed"]
     assert isinstance(embed, discord.Embed)
     assert embed.title == "🎙️ TeamSpeak 3"
-    assert "172.96.11.180:11189" in (embed.description or "")
-    assert embed.description == build_teamspeak_embed(persona=persona).description
-    assert embed.to_dict()["fields"] == build_teamspeak_embed(persona=persona).to_dict()["fields"]
+    assert "voice.example.test:9987" in (embed.description or "")
+    expected = build_teamspeak_embed(persona=persona, address="voice.example.test:9987")
+    assert embed.description == expected.description
+    assert embed.to_dict()["fields"] == expected.to_dict()["fields"]
     assert responses[0]["allowed_mentions"].users is False
     assert responses[0]["allowed_mentions"].roles is False
 
@@ -561,7 +567,9 @@ async def test_teamspeak_command_rejects_non_staff_ephemerally(settings, persona
     cog = ReviewCog(bot, settings, UnexpectedReviewService(), persona)  # type: ignore[arg-type]
     cog._default_runtime = replace(
         cog._default_runtime,
-        settings=SimpleNamespace(operational_staff_role_ids=(444,)),
+        settings=SimpleNamespace(
+            operational_staff_role_ids=(444,), teamspeak_address="voice.example.test:9987",
+        ),
     )
 
     await cog.teamspeak_server.callback(cog, ctx)

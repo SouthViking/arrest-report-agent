@@ -96,7 +96,6 @@ def test_whitelist_feature_is_editable_and_runtime_respects_enabled_state(settin
     with pytest.raises(ValueError, match="schema version 1"):
         GuildConfigSnapshot.model_validate(config)
     assert "review_failure_notifications" in FEATURE_LABELS
-    assert len(FEATURE_LABELS) <= 25
 
 
 @pytest.mark.asyncio

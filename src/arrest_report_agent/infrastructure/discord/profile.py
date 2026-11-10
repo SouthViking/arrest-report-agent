@@ -23,7 +23,7 @@ class DiscordProfileSynchronizer:
         bot: discord.Bot,
         persona: LoadedPersona,
         *,
-        global_banner_bytes: bytes,
+        global_banner_bytes: bytes | None,
     ) -> None:
         self.bot = bot
         self.persona = persona
@@ -98,7 +98,7 @@ class DiscordProfileSynchronizer:
         bot_user: discord.ClientUser,
         *,
         field: str,
-        value: str | bytes,
+        value: str | bytes | None,
     ) -> None:
         if field in self._synchronized_global_fields:
             return

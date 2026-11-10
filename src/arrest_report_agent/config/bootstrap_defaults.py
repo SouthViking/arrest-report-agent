@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
-from types import MappingProxyType
+
+from .bootstrap_profile import load_bootstrap_profile
+from .database import AccessPolicyKey
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,61 +39,39 @@ class PendingArrestSupervisorAlertDefaults:
     role_id: int
 
 
-_ROLE_REQUEST_REVIEW_DEFAULTS: Mapping[int, RoleRequestReviewDefaults] = MappingProxyType(
-    {
-        1234674521416663070: RoleRequestReviewDefaults(
-            channel_ids=(1261076248541532240,),
-            reviewer_role_ids=(
-                1234678029662294047,
-                1234678238182244414,
-            ),
-        ),
-    }
-)
-
-_FTP_DEFAULTS: Mapping[int, FtpDefaults] = MappingProxyType(
-    {
-        1234674521416663070: FtpDefaults(
-            faction_id=3,
-            supervisory_role_ids=(1234676131240869949,),
-            mfto_role_ids=(1234691474055233607,),
-            fto_role_ids=(1234675643959083021,),
-            ftt_role_ids=(1234675742013390849,),
-            request_channel_id=1551692208929906701,
-            command_role_ids=(1234678029662294047,),
-            executive_role_ids=(1234678238182244414,),
-            supervisor_extra_notification_role_ids=(1390426066455105598,),
-        ),
-    }
-)
-
-_PENDING_ARREST_SUPERVISOR_ALERT_DEFAULTS: Mapping[int, PendingArrestSupervisorAlertDefaults] = (
-    MappingProxyType(
-        {
-            1234674521416663070: PendingArrestSupervisorAlertDefaults(
-                channel_ids=(1234678185124298853,),
-                role_id=1234676131240869949,
-            ),
-        }
-    )
-)
-
-
 def role_request_review_defaults(guild_id: int) -> RoleRequestReviewDefaults | None:
-    """Return immutable initial defaults without affecting runtime database policies."""
-
-    return _ROLE_REQUEST_REVIEW_DEFAULTS.get(guild_id)
+    profile = load_bootstrap_profile().guilds.get(guild_id)
+    if profile is None:
+        return None
+    policies = {item.key: item for item in profile.policy_snapshots()}
+    return RoleRequestReviewDefaults(
+        channel_ids=policies[AccessPolicyKey.ROLE_REQUEST_REVIEW_CHANNELS].ids,
+        reviewer_role_ids=policies[AccessPolicyKey.ROLE_REQUEST_REVIEWER_ROLES].ids,
+    )
 
 
 def ftp_defaults(guild_id: int) -> FtpDefaults | None:
-    """Return immutable initial FTP defaults without affecting runtime snapshots."""
+    profile = load_bootstrap_profile().guilds.get(guild_id)
+    if profile is None:
+        return None
+    status = profile.features["ftp_status"].payload
+    requests = profile.features["ftp_requests"].payload
+    return FtpDefaults(
+        faction_id=status["faction_id"],
+        supervisory_role_ids=tuple(status["supervisory_role_ids"]),
+        mfto_role_ids=tuple(status["mfto_role_ids"]), fto_role_ids=tuple(status["fto_role_ids"]),
+        ftt_role_ids=tuple(status["ftt_role_ids"]), request_channel_id=requests["channel_id"],
+        command_role_ids=tuple(requests["command_role_ids"]),
+        executive_role_ids=tuple(requests["executive_role_ids"]),
+        supervisor_extra_notification_role_ids=tuple(requests["supervisor_extra_notification_role_ids"]),
+    )
 
-    return _FTP_DEFAULTS.get(guild_id)
 
-
-def pending_arrest_supervisor_alert_defaults(
-    guild_id: int,
-) -> PendingArrestSupervisorAlertDefaults | None:
-    """Return initial escalation defaults without overriding runtime configuration."""
-
-    return _PENDING_ARREST_SUPERVISOR_ALERT_DEFAULTS.get(guild_id)
+def pending_arrest_supervisor_alert_defaults(guild_id: int) -> PendingArrestSupervisorAlertDefaults | None:
+    profile = load_bootstrap_profile().guilds.get(guild_id)
+    if profile is None:
+        return None
+    alerts = profile.features["pending_arrest_reports"].payload
+    return PendingArrestSupervisorAlertDefaults(
+        channel_ids=tuple(alerts["supervisor_alert_channel_ids"]), role_id=alerts["supervisor_alert_role_id"],
+    )

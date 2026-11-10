@@ -106,6 +106,43 @@ class FakeContributionRepository:
 
 
 @pytest.mark.asyncio
+async def test_disabled_support_authenticates_without_storing_or_waking_processing() -> None:
+    from unittest.mock import AsyncMock, Mock
+
+    repository = FakeContributionRepository()
+    gate = AsyncMock(return_value=False)
+    wake = Mock()
+    receiver = BuyMeACoffeeWebhookReceiver(webhook_settings(), repository, wake, is_enabled=gate)
+    body = encode(donation_payload())
+    with pytest.raises(BuyMeACoffeeWebhookAuthenticationError):
+        await receiver.receive(body, signature="invalid")
+    gate.assert_not_awaited()
+    result = await receiver.receive(body, signature=signature(body))
+    assert result.status == "ignored"
+    assert repository.events == []
+    wake.assert_not_called()
+    gate.return_value = True
+    assert (await receiver.receive(body, signature=signature(body))).status == "accepted"
+    assert len(repository.events) == 1
+    wake.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_normalizer_pauses_without_accessing_history_when_support_is_disabled() -> None:
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    repository = SimpleNamespace(due_for_normalization=AsyncMock(return_value=()))
+    gate = AsyncMock(return_value=False)
+    worker = ContributionNormalizationWorker(repository, SimpleNamespace(), is_enabled=gate)
+    await worker.process_once()
+    repository.due_for_normalization.assert_not_awaited()
+    gate.return_value = True
+    await worker.process_once()
+    repository.due_for_normalization.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_buy_me_a_coffee_receiver_translates_signed_donation_without_private_fields() -> None:
     repository = FakeContributionRepository()
     receiver = BuyMeACoffeeWebhookReceiver(

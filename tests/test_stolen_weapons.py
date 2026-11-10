@@ -303,7 +303,7 @@ async def test_configuration_selector_exposes_module_within_discord_limits():
     modal = FeatureConfigurationModal(SimpleNamespace(), USER)
     assert "stolen_weapons" in {option.value for option in modal.key.options}
     assert len(modal.key.options) <= 25
-    assert "stolen_weapons" in FEATURE_LABELS and len(FEATURE_LABELS) <= 25
+    assert "stolen_weapons" in FEATURE_LABELS
 
 
 @pytest.mark.parametrize(

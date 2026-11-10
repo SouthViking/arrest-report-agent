@@ -1,0 +1,379 @@
+{
+  "schema_version": 1,
+  "guilds": {
+    "1234674521416663070": {
+      "policies": {
+        "role_request_review_channels": {
+          "subject_type": "channel",
+          "mode": "restricted",
+          "ids": [
+            1261076248541532240
+          ]
+        },
+        "role_request_reviewer_roles": {
+          "subject_type": "role",
+          "mode": "restricted",
+          "ids": [
+            1234678029662294047,
+            1234678238182244414
+          ]
+        },
+        "faction_report_roles": {
+          "subject_type": "role",
+          "mode": "restricted",
+          "ids": [
+            1234678029662294047,
+            1234678238182244414
+          ]
+        },
+        "stolen_vehicle_channels": {
+          "subject_type": "channel",
+          "mode": "restricted",
+          "ids": [
+            1539037905014759485
+          ]
+        }
+      },
+      "features": {
+        "role_requests": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {}
+        },
+        "teamspeak": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "address": "172.96.11.180:11189"
+          }
+        },
+        "pagers": {
+          "enabled": false,
+          "schema_version": 1,
+          "payload": {
+            "starting_number": 92,
+            "forward_channel_id": 1234675609536430152
+          }
+        },
+        "deployment_notifications": {
+          "enabled": false,
+          "schema_version": 1,
+          "payload": {}
+        },
+        "report_owner_access": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "max_rounds": 5,
+            "quota_grant_role_ids": [
+              1234678029662294047,
+              1234678238182244414
+            ],
+            "quota_exhausted_notification_channel_id": 1261076248541532240
+          }
+        },
+        "service_calls": {
+          "enabled": false,
+          "schema_version": 1,
+          "payload": {}
+        },
+        "review_failure_notifications": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "role_ids": [
+              1234678029662294047,
+              1234678238182244414
+            ],
+            "user_ids": []
+          }
+        },
+        "stolen_vehicles": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {},
+          "requires_supervisor_roles": true
+        },
+        "faction_status": {
+          "enabled": false,
+          "schema_version": 1,
+          "payload": {}
+        },
+        "fleet": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "faction_id": 3,
+            "cache_seconds": 120
+          },
+          "requires_supervisor_roles": true
+        },
+        "ftp_status": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "faction_id": 3,
+            "supervisory_role_ids": [
+              1234676131240869949
+            ],
+            "mfto_role_ids": [
+              1234691474055233607
+            ],
+            "fto_role_ids": [
+              1234675643959083021
+            ],
+            "ftt_role_ids": [
+              1234675742013390849
+            ]
+          },
+          "requires_supervisor_roles": true
+        },
+        "ftp_requests": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "channel_id": 1551692208929906701,
+            "command_role_ids": [
+              1234678029662294047
+            ],
+            "executive_role_ids": [
+              1234678238182244414
+            ],
+            "supervisor_extra_notification_role_ids": [
+              1390426066455105598
+            ]
+          },
+          "requires_supervisor_roles": true
+        },
+        "warrant_notifications": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "channel_id": 1552367150591905793,
+            "result_channel_id": 1537203701893169254,
+            "command_role_ids": [
+              1234678029662294047
+            ],
+            "executive_role_ids": [
+              1234678238182244414
+            ]
+          }
+        },
+        "faction_member_analysis": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "faction_id": 3,
+            "base_divisions": [
+              "GNT",
+              "DLM"
+            ],
+            "inactivity_warning_days": 14,
+            "inactivity_critical_days": 30,
+            "inactivity_warning_percentage": 20,
+            "inactivity_critical_percentage": 30
+          },
+          "requires_supervisor_roles": true
+        },
+        "operational_resources": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "faction_id": 3,
+            "game_server_address": "play.sarp.es:7777",
+            "pcu_url": "https://ucp.sarp.es/app/ucp/home",
+            "forum_url": "https://forum.sarp.es/index.php?/forum/199-foro-los-santos-county-sheriffs-department/",
+            "manual_url": "https://docs.google.com/document/d/1DrhSgzPbdLoe0ahFTVrNPb_zBPuhVeatxW5Hs8ECMHE/edit?pli=1&tab=t.0#heading=h.thzh3oj2x0rk",
+            "penal_code_url": "https://ucp.sarp.es/app/ucp/penalcode"
+          },
+          "requires_supervisor_roles": true
+        },
+        "forum_shortcuts": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "organization_name": "Los Santos Sheriff's Department",
+            "description": "Consulta rápidamente nuestros espacios y procedimientos oficiales.",
+            "banner_url": "https://i.imgur.com/gBxZZIT.gif",
+            "sections": [
+              {
+                "title": "🏛️ Foro institucional",
+                "links": [
+                  {
+                    "label": "Página principal",
+                    "url": "https://sheriff.sarp.es/index.php"
+                  }
+                ]
+              },
+              {
+                "title": "👥 Ingreso y desarrollo",
+                "links": [
+                  {
+                    "label": "Oportunidades de empleo",
+                    "url": "https://sheriff.sarp.es/viewforum.php?f=3"
+                  },
+                  {
+                    "label": "Transferencias laterales",
+                    "url": "https://sheriff.sarp.es/viewtopic.php?t=162"
+                  },
+                  {
+                    "label": "Reincorporaciones",
+                    "url": "https://sheriff.sarp.es/viewtopic.php?t=104"
+                  },
+                  {
+                    "label": "Field Training Program",
+                    "url": "https://sheriff.sarp.es/viewforum.php?f=10"
+                  }
+                ]
+              },
+              {
+                "title": "📋 Solicitudes y participación pública",
+                "links": [
+                  {
+                    "label": "Quejas y elogios públicos",
+                    "url": "https://sheriff.sarp.es/viewtopic.php?t=497"
+                  },
+                  {
+                    "label": "Licencias CCW y de caza",
+                    "url": "https://sheriff.sarp.es/viewforum.php?f=135"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "arrest_report_lookup": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "faction_id": 3,
+            "warrant_alerts_enabled": true,
+            "warrant_alert_channel_ids": [
+              1234678185124298853
+            ],
+            "warrant_alert_role_id": 1234676131240869949
+          }
+        },
+        "pending_arrest_reports": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "faction_id": 3,
+            "max_range_days": 90,
+            "max_records": 1000,
+            "digest_interval_hours": 6,
+            "digest_lookback_days": 7,
+            "digest_targets": [
+              {
+                "channel_id": 1537203701893169254,
+                "mention_users": true
+              }
+            ],
+            "supervisor_alerts_enabled": true,
+            "supervisor_alert_channel_ids": [
+              1234678185124298853
+            ],
+            "supervisor_alert_role_id": 1234676131240869949
+          }
+        },
+        "arrest_statistics": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "faction_id": 3,
+            "max_range_days": 30,
+            "max_reports": 200,
+            "cache_ttl_seconds": 900,
+            "detail_concurrency": 3,
+            "max_top": 10
+          }
+        },
+        "logbook": {
+          "enabled": false,
+          "schema_version": 1,
+          "payload": {}
+        },
+        "stolen_weapons": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "source_channel_ids": [
+              1421923642983317545
+            ],
+            "destination_channel_id": 1565184787591860345
+          }
+        },
+        "blacklists": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "manager_role_ids": [
+              1234678029662294047,
+              1234678238182244414
+            ],
+            "types": [
+              {
+                "key": "ccw",
+                "display_name": "CCW",
+                "reference_prefix": "CCW",
+                "channel_ids": [
+                  1530621801871441991
+                ],
+                "profile_kind": "character",
+                "max_profiles": 1,
+                "subject_label": "Personaje",
+                "enabled": true
+              },
+              {
+                "key": "faction",
+                "display_name": "Facción",
+                "reference_prefix": "FAC",
+                "channel_ids": [
+                  1383926305136971906
+                ],
+                "profile_kind": "account",
+                "max_profiles": 5,
+                "subject_label": "Persona",
+                "enabled": true
+              }
+            ]
+          },
+          "requires_supervisor_roles": true
+        },
+        "support": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "url": "https://buymeacoffee.com/southviking"
+          }
+        },
+        "dedeo": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "protected_user_ids": [
+              449044161954447360
+            ]
+          }
+        },
+        "knowledge_links": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "procedures_manual_url": "https://docs.google.com/document/d/1DrhSgzPbdLoe0ahFTVrNPb_zBPuhVeatxW5Hs8ECMHE/edit?pli=1&tab=t.0#heading=h.thzh3oj2x0rk",
+            "penal_code_url": "https://ucp.sarp.es/app/ucp/penalcode"
+          }
+        },
+        "release_routing": {
+          "enabled": true,
+          "schema_version": 1,
+          "payload": {
+            "internal_channel_ids": [
+              1241206587079524442
+            ]
+          }
+        }
+      }
+    }
+  }
+}

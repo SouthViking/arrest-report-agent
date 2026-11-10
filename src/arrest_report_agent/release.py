@@ -52,8 +52,8 @@ class ReleaseManifest(FrozenReleaseModel):
     )
     title: str = Field(min_length=1, max_length=100)
     summary: str = Field(min_length=1, max_length=500)
-    repository_url: str = Field(min_length=1, max_length=255)
-    changelog_targets: Literal["all"] | tuple[int, ...] = "all"
+    repository_url: str | None = Field(default=None, min_length=1, max_length=255)
+    changelog_targets: Literal["all", "internal"] | tuple[int, ...] = "all"
     changes: tuple[ReleaseChange, ...] = Field(min_length=1, max_length=10)
     acknowledgements: tuple[ReleaseAcknowledgement, ...] = Field(
         default=(),
@@ -65,11 +65,11 @@ class ReleaseManifest(FrozenReleaseModel):
     def validate_changelog_targets(
         cls,
         value: object,
-    ) -> Literal["all"] | tuple[int, ...]:
-        if value == "all":
-            return "all"
+    ) -> Literal["all", "internal"] | tuple[int, ...]:
+        if value in ("all", "internal"):
+            return "internal" if value == "internal" else "all"
         if not isinstance(value, (list, tuple)):
-            raise ValueError("changelog_targets must be 'all' or a list of channel IDs")
+            raise ValueError("changelog_targets must be 'all', 'internal' or a list of channel IDs")
         if any(isinstance(item, bool) or not isinstance(item, int) or item <= 0 for item in value):
             raise ValueError("changelog_targets must contain positive Discord channel IDs")
         targets = tuple(value)
@@ -89,7 +89,9 @@ class ReleaseManifest(FrozenReleaseModel):
 
     @field_validator("repository_url")
     @classmethod
-    def validate_repository_url(cls, value: str) -> str:
+    def validate_repository_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         if re.fullmatch(
             r"https://github\.com/[A-Za-z0-9.-]+/[A-Za-z0-9_.-]+",
             value,
@@ -107,18 +109,24 @@ class ReleaseManifest(FrozenReleaseModel):
             )
         return self
 
-    def targets_changelog_channel(self, channel_id: int) -> bool:
+    def targets_changelog_channel(
+        self, channel_id: int, *, internal_channel_ids: tuple[int, ...] = (),
+    ) -> bool:
+        if self.changelog_targets == "internal":
+            return channel_id in internal_channel_ids
         return self.changelog_targets == "all" or channel_id in self.changelog_targets
 
     @property
-    def repository_full_name(self) -> str:
-        return self.repository_url.removeprefix("https://github.com/")
+    def repository_full_name(self) -> str | None:
+        return self.repository_url.removeprefix("https://github.com/") if self.repository_url else None
 
     @classmethod
-    def load_packaged(cls) -> ReleaseManifest:
+    def load_packaged(cls, *, repository_url: str | None = None) -> ReleaseManifest:
         try:
             resource = files("arrest_report_agent").joinpath("release.json")
             payload = json.loads(resource.read_text(encoding="utf-8"))
+            if repository_url is not None:
+                payload["repository_url"] = repository_url
             return cls.model_validate(payload)
         except Exception as error:
             raise ReleaseManifestError("Unable to load the packaged release manifest") from error

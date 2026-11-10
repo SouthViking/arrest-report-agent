@@ -87,6 +87,15 @@ class AppSettings(BaseSettings):
     openai_api_key: SecretStr = Field(alias="OPENAI_API_KEY")
     database_url: SecretStr | None = Field(default=None, alias="DATABASE_URL")
     config_owner_user_ids_csv: str = Field(default="", alias="CONFIG_OWNER_USER_IDS")
+    bootstrap_profile_path: str | None = Field(default=None, alias="BOOTSTRAP_PROFILE_PATH")
+    manual_catalog_path: str | None = Field(default=None, alias="MANUAL_CATALOG_PATH")
+    report_guide_path: str | None = Field(default=None, alias="REPORT_GUIDE_PATH")
+    profile_banner_path: str = Field(
+        default="package:config/assets/default-profile-banner.png", alias="PROFILE_BANNER_PATH",
+    )
+    repository_url: str | None = Field(default=None, alias="REPOSITORY_URL")
+    railway_git_repo_owner: str | None = Field(default=None, alias="RAILWAY_GIT_REPO_OWNER")
+    railway_git_repo_name: str | None = Field(default=None, alias="RAILWAY_GIT_REPO_NAME")
     report_owner_quota_admin_user_ids_csv: str = Field(
         default="", alias="REPORT_OWNER_QUOTA_ADMIN_USER_IDS"
     )
@@ -325,6 +334,38 @@ class AppSettings(BaseSettings):
         if value is None:
             return None
         return SecretStr(value.get_secret_value().strip())
+
+    @field_validator(
+        "bootstrap_profile_path", "manual_catalog_path", "report_guide_path", "repository_url",
+        "railway_git_repo_owner", "railway_git_repo_name",
+    )
+    @classmethod
+    def normalize_optional_installation_value(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
+
+    @field_validator("repository_url")
+    @classmethod
+    def validate_repository_url(cls, value: str | None) -> str | None:
+        if value is not None and not re.fullmatch(
+            r"https://github\.com/[A-Za-z0-9.-]+/[A-Za-z0-9_.-]+", value,
+        ):
+            raise ValueError("REPOSITORY_URL must identify an HTTPS GitHub repository")
+        return value
+
+    @field_validator("railway_git_repo_owner", "railway_git_repo_name")
+    @classmethod
+    def validate_repository_part(cls, value: str | None) -> str | None:
+        if value is not None and (not re.fullmatch(r"[A-Za-z0-9_.-]+", value) or value in {".", ".."}):
+            raise ValueError("Invalid Railway GitHub repository metadata")
+        return value
+
+    @property
+    def resolved_repository_url(self) -> str | None:
+        if self.repository_url is not None:
+            return self.repository_url
+        if self.railway_git_repo_owner and self.railway_git_repo_name:
+            return f"https://github.com/{self.railway_git_repo_owner}/{self.railway_git_repo_name}"
+        return None
 
     @field_validator("buy_me_a_coffee_webhook_secret")
     @classmethod

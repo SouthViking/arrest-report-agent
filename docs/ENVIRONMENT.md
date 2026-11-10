@@ -36,6 +36,27 @@ No copies secretos en ejemplos ni commits. OpenAI recomienda cargarlos en el ser
 o un gestor de secretos, no exponerlos en código cliente: [Autenticación](https://developers.openai.com/api/reference/overview#authentication).
 El token de SARP y las claves S3 tampoco se almacenan como opciones de `/config`.
 
+## Referencias de la instalación
+
+| Variable | Predeterminado | Uso |
+|---|---|---|
+| `BOOTSTRAP_PROFILE_PATH` | Vacío: perfil incluido | Archivo JSON para `db import-env`; `none` importa sin valores institucionales. No reemplaza configuraciones ya publicadas. |
+| `REPOSITORY_URL` | Vacío | URL HTTPS del repositorio GitHub que opera esta instancia, sin query, fragmento ni credenciales. Tiene prioridad sobre la metadata de Railway. |
+| `RAILWAY_GIT_REPO_OWNER` | Inyectada por Railway | Propietario del repositorio de origen, utilizado junto con `RAILWAY_GIT_REPO_NAME` si no se define `REPOSITORY_URL`. No fijarlo al autor original. |
+| `RAILWAY_GIT_REPO_NAME` | Inyectada por Railway | Nombre del repositorio de origen; Railway proporciona estos datos en despliegues disparados desde GitHub. |
+| `PROFILE_BANNER_PATH` | `package:config/assets/default-profile-banner.png` | PNG local o recurso `package:...`, hasta 10 MiB. Vacío o `none` elimina el banner global al sincronizar el perfil. |
+| `MANUAL_CATALOG_PATH` | Vacío: catálogo incluido | JSON local con el esquema del manual indexado, su contenido y procedencia. No se descarga una URL al arrancar. |
+| `REPORT_GUIDE_PATH` | Vacío: guía incluida | JSON local con `version` y un objeto `sections` no vacío. |
+
+Los archivos personalizados deben estar disponibles dentro del contenedor: incluidos en su imagen
+o montados como archivos de configuración. Cambiar estas variables exige un despliegue.
+Si no se resuelve un repositorio, los avisos de despliegue muestran el commit sin enlace y el receptor
+de CI queda deshabilitado, registrando `github_webhook_disabled`; el bot puede seguir funcionando.
+
+El perfil incluido está en [bootstrap_profile.json](../src/arrest_report_agent/config/data/bootstrap_profile.json).
+Sus claves `guilds` identifican los servidores y contienen `policies` y `features`. Solo se utiliza
+durante la importación inicial. Para editar la instalación activa usa `/config`.
+
 ## Conexión a PostgreSQL
 
 | Variable | Predeterminado | Uso |

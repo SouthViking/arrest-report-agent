@@ -35,6 +35,13 @@ from arrest_report_agent.config import (
     WarrantNotificationOptions,
 )
 from arrest_report_agent.config.database import POLICY_SUBJECT_TYPES
+from arrest_report_agent.config.instance import (
+    DedeoOptions,
+    KnowledgeLinksOptions,
+    ReleaseRoutingOptions,
+    SupportOptions,
+    TeamSpeakOptions,
+)
 from arrest_report_agent.config.logging import exception_fields, log_event
 from arrest_report_agent.cost_monitoring import (
     CostMonitoringService,
@@ -74,7 +81,13 @@ POLICY_LABELS: dict[AccessPolicyKey, str] = {
     AccessPolicyKey.STOLEN_VEHICLE_CHANNELS: "Canales de vehículos robados",
     AccessPolicyKey.LOGBOOK_CHANNELS: "Canales de bitácora",
 }
+
+
 FEATURE_LABELS = {
+    "support": "Aportes voluntarios",
+    "dedeo": "Dedeo",
+    "knowledge_links": "Enlaces de conocimiento",
+    "release_routing": "Destinos internos del changelog",
     "role_requests": "Solicitudes de roles",
     "pagers": "Pagers",
     "teamspeak": "TeamSpeak",
@@ -961,6 +974,10 @@ class FeatureConfigurationModal(BaseConfigurationModal):
                 discord.SelectOption(label="Solicitudes de roles", value="role_requests"),
                 discord.SelectOption(label="Pagers", value="pagers"),
                 discord.SelectOption(label="TeamSpeak", value="teamspeak"),
+                discord.SelectOption(label="Aportes voluntarios", value="support"),
+                discord.SelectOption(label="Dedeo", value="dedeo"),
+                discord.SelectOption(label="Enlaces de conocimiento", value="knowledge_links"),
+                discord.SelectOption(label="Destinos internos del changelog", value="release_routing"),
                 discord.SelectOption(
                     label="Notificaciones de despliegue",
                     value="deployment_notifications",
@@ -1065,6 +1082,13 @@ class FeatureConfigurationModal(BaseConfigurationModal):
             payload = {**(current.payload if current is not None else {}), **payload}
             if key == "pagers" and "starting_number" not in payload:
                 payload["starting_number"] = 1
+            portable_options = {
+                "support": SupportOptions, "dedeo": DedeoOptions,
+                "knowledge_links": KnowledgeLinksOptions, "teamspeak": TeamSpeakOptions,
+                "release_routing": ReleaseRoutingOptions,
+            }
+            if key in portable_options and self.enabled.values[0] == "true":
+                portable_options[key].model_validate(payload)
             if key == "deployment_notifications" and payload:
                 raise ValueError("Este módulo no admite opciones JSON.")
             if key == "service_calls":

@@ -107,6 +107,16 @@ Los perfiles incluidos son Walter y Roy. El importador y algunas migraciones con
 iniciales específicos de LSSD; otra guild no hereda una configuración completa de esa facción.
 Revisa siempre el plan y los módulos antes de publicar o abrir el acceso a otros usuarios.
 
+Los valores iniciales institucionales se leen del perfil JSON indicado por `BOOTSTRAP_PROFILE_PATH`.
+Vacío utiliza el perfil incluido, acotado a sus IDs de guild; `none` selecciona una instalación
+sin valores institucionales. Puedes copiar el perfil y adaptar sus `policies` y `features` antes
+de `db import-env --dry-run`. Un perfil personalizado reemplaza al incluido, no se mezcla con él.
+En una instancia existente, cambia las opciones mediante `/config`; no reimportes para traspasarla.
+
+Define `REPOSITORY_URL` cuando el hosting no proporcione metadata GitHub. Para recursos propios
+puedes configurar `PROFILE_BANNER_PATH`, `MANUAL_CATALOG_PATH` y `REPORT_GUIDE_PATH`; los archivos
+deben existir en el proceso que los utiliza. Consulta [Variables de entorno](ENVIRONMENT.md).
+
 ## 5 Inicializar una base nueva
 
 Ejecuta cada comando por separado y continúa solo si termina correctamente. Los comandos `db`

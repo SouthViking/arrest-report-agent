@@ -30,7 +30,14 @@ class ReportGuide:
     @classmethod
     def load_default(cls) -> ReportGuide:
         resource = files("arrest_report_agent.knowledge").joinpath("data/report_guide.json")
-        payload = json.loads(Path(str(resource)).read_text(encoding="utf-8"))
+        return cls.from_path(Path(str(resource)))
+
+    @classmethod
+    def from_path(cls, path: Path) -> ReportGuide:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if (not isinstance(payload, dict) or not isinstance(payload.get("sections"), dict)
+                or not payload["sections"]):
+            raise ValueError("Report guide requires a non-empty sections object")
         return cls(payload)
 
     def get(self, sections: Sequence[str | ReportGuideSection] | None = None) -> dict[str, Any]:

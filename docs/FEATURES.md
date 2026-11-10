@@ -31,7 +31,7 @@ y [Operación](OPERATIONS.md). Ejecuta los comandos de consola desde la raíz de
 - Mantiene el indicador nativo de escritura mientras procesa una solicitud.
 - Muestra una presencia global por fase: guardia, conversación, consulta de manual, personal,
   registros, evidencias, revisión y preparación de respuesta. Las ejecuciones paralelas no se pisan.
-- Al iniciar, sincroniza por separado el nombre y avatar de la personalidad, el banner global LSSD
+- Al iniciar, sincroniza por separado el nombre y avatar de la personalidad, el banner global configurado
   y la biografía por servidor; una falla cosmética se registra, no bloquea los demás campos y no
   impide que el bot atienda.
 - Añade `⏳` desde un hook determinista cuando el preflight detecta una revisión con material; no
@@ -226,8 +226,9 @@ formal y neutral, sin trasladar insultos, bromas o modismos de la personalidad a
 Ambos registros incluyen pocos ejemplos tipados y acotados que se inyectan como referencias de voz,
 no como respuestas fijas.
 
-El banner no pertenece a una personalidad: todas comparten el asset global verde musgo
-`config/assets/lssd-profile-banner.png`.
+El banner no pertenece a una personalidad: todas comparten el PNG definido por
+`PROFILE_BANNER_PATH`. El valor inicial usa `config/assets/default-profile-banner.png`;
+una ruta vacía o `none` elimina el banner al sincronizar el perfil.
 
 `REVIEW_ESCALATION_ROLE_IDS` es una lista CSV opcional de roles que reciben una sola mención ante
 una revisión inconclusa. Solo se mencionan roles que todavía existan en la guild;
@@ -401,7 +402,7 @@ Comandos disponibles:
   de hallazgos más frecuentes registradas por el agente. No procesa reportes históricos anteriores
   al despliegue de esta versión.
 - `/ts3`: permite al personal de `operational_staff_roles` publicar para todo el canal la dirección
-  `172.96.11.180:11189` del servidor TeamSpeak 3 y enlaces oficiales de descarga para Windows,
+  configurada en `teamspeak.address` del servidor TeamSpeak 3 y enlaces oficiales de descarga para Windows,
   macOS y Linux identificados con emojis; los intentos no autorizados son efímeros.
 - `/manual`: permite al personal de `operational_staff_roles` publicar para todo el canal un acceso
   directo al manual oficial configurado para la facción.
@@ -773,3 +774,21 @@ Las conversaciones activas registran `conversation_started`, `conversation_messa
 cantidades y un `lease_id` correlacionable con los logs del runner. El detalle por mensaje encolado
 es `debug`; saturación o cierre con pendientes generan `warning`. Nunca se registra su texto.
 Consulta [Privacidad y errores](PRIVACY_AND_ERRORS.md).
+
+
+## Referencias portables de la instalación
+
+Las referencias institucionales de nuevas instalaciones se leen de un perfil JSON validado;
+`BOOTSTRAP_PROFILE_PATH` permite sustituirlo o seleccionar `none`. La instalación activa conserva
+su configuración en PostgreSQL y se edita desde `/config`, sin reimportar variables.
+
+Los módulos `support`, `dedeo`, `knowledge_links` y `release_routing` controlan respectivamente
+los aportes y sus enlaces, las excepciones del comando de broma, los enlaces externos de ayuda y
+los destinos internos del changelog. No hay una cuenta de creador implícita en las comprobaciones
+administrativas: `/config` utiliza la whitelist `CONFIG_OWNER_USER_IDS` y la política de roles delegados.
+
+El origen operativo se resuelve con `REPOSITORY_URL` o metadata GitHub de Railway; no se deriva de
+la autoría original. El banner, la guía y el manual indexado admiten archivos de configuración propios.
+Los perfiles de Roy y Walter y sus recursos siguen incluidos como datos editables de persona.
+Los valores de migraciones antiguas documentan instalaciones históricas y no son la fuente de
+configuración del runtime. Los ejemplos de nombres en el prompt son ilustrativos y no conceden permisos.
