@@ -110,6 +110,14 @@ Referencia: [pg_dump de PostgreSQL](https://www.postgresql.org/docs/16/app-pgdum
 
 ### Copia del Bucket
 
+Para mover archivos entre proyectos Railway con credenciales independientes, sigue la
+[guía de migración de Bucket](BUCKET_MIGRATION.md). Incluye una herramienta con vista previa,
+copia reanudable y verificación de SHA-256 y metadatos.
+
+Para una copia local permanente de los objetos y sus metadatos, usa el
+[descargador de respaldos](../scripts/README.md#descargar-un-respaldo-local). Su verificación local
+funciona sin acceso a Railway. Cada respaldo utiliza una carpeta nueva fuera del repositorio.
+
 Usa el mecanismo de respaldo del proveedor o una copia S3 que conserve rutas, bytes y metadata.
 Una copia a otro Bucket accesible por el mismo endpoint puede prepararse con AWS CLI v2:
 

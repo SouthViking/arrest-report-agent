@@ -12,6 +12,7 @@ adjuntos, OpenAI para las revisiones y la API SARP para las consultas habilitada
 | Saber qué variables configurar y de dónde salen | [Variables de entorno](docs/ENVIRONMENT.md) |
 | Darte acceso y configurar roles, canales y módulos | [Configuración inicial](docs/CONFIGURATION.md) |
 | Actualizar, respaldar, restaurar o transferir la administración | [Operación y traspaso](docs/OPERATIONS.md) |
+| Usar herramientas de migración, respaldo y diagnóstico | [Scripts de operación](scripts/README.md) |
 | Usar los comandos y conocer sus permisos | [Comandos de Discord](docs/COMMANDS.md) |
 | Entender el comportamiento y las integraciones | [Referencia funcional](docs/FEATURES.md) |
 
