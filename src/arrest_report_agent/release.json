@@ -1,22 +1,14 @@
 {
   "schema_version": 3,
-  "version": "1.1.22",
-  "title": "Configuración portable y traspaso del bot",
-  "summary": "Las referencias de la instalación se pueden configurar y las integraciones opcionales se pueden deshabilitar.",
+  "version": "1.1.23",
+  "title": "Aviso público de dedeo",
+  "summary": "El aviso de protección de /dedear ahora se muestra en el canal.",
   "repository_url": null,
   "changelog_targets": "internal",
   "changes": [
     {
-      "type": "improved",
-      "text": "Aportes voluntarios, protección de /dedear, enlaces del manual y canales internos del changelog se configuran desde /config."
-    },
-    {
-      "type": "improved",
-      "text": "El repositorio de origen, los recursos de conocimiento y el banner admiten configuración por instalación, sin editar la lógica del bot."
-    },
-    {
-      "type": "improved",
-      "text": "Los valores iniciales de LSSD se conservan en un perfil declarativo. Se documenta la administración por whitelist y el traspaso a otro responsable."
+      "type": "fixed",
+      "text": "Al intentar dedear a otro usuario protegido desde una cuenta también protegida, el aviso es visible para todos en el canal."
     }
   ],
   "acknowledgements": []
