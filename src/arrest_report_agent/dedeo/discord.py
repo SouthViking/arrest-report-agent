@@ -269,7 +269,7 @@ class DedeoCog(commands.Cog):
             if selection.creator_self_target:
                 await ctx.respond(
                     embed=_alert(self.copy.creator_self_target),
-                    ephemeral=True,
+                    ephemeral=False,
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
                 return
